@@ -35,10 +35,23 @@ stable, the contents are meant to churn.
 
 ## 1. The durable problem statement
 
-The north-star metric is **ETTR** (Effective Training Time Ratio): the fraction
-of wall-clock a large job spends making forward progress. Everything below is in
-service of driving ETTR toward 1.0 at ever-larger scale. Three facts make this
-hard and will not change with the next hardware generation:
+The governing objective is **goodput**, which factors into two coupled ratios:
+
+```
+goodput ~= MFU x ETTR
+```
+
+- **MFU** (Model FLOPs Utilization) -- useful math extracted per GPU-second
+  while healthy (the efficiency ceiling).
+- **ETTR** (Effective Training Time Ratio) -- fraction of wall-clock actually
+  spent making forward progress, given that failures are inevitable (the gap to
+  that ceiling).
+
+These are not separable: MegaScale's observability layer is also its
+fault-tolerance layer. Efficiency raises the ceiling; robustness closes the gap
+to it. The rest of this doc treats ETTR as the north-star, but every robustness
+mechanism is ultimately in service of goodput. Three facts make ETTR hard and
+will not change with the next hardware generation:
 
 - **Failure is the steady state, not the exception.** MTTF collapses with scale:
   47.7 days at 8 GPUs, 7.9 hours at 1,024, a projected 0.23 hours at 131,072
@@ -56,6 +69,79 @@ The corollary that the whole field now accepts: **minimize total unproductive
 time over the job lifecycle**, rather than maximize root-cause precision. Fast,
 coarse isolation plus cheap recovery beats slow, exact diagnosis (ByteRobust's
 97% ETTR was won this way).
+
+### 1.1 The four-pillar map
+
+The corpus decomposes cleanly into four pillars hung off the goodput equation.
+This is the organizing spine for everything below; the frontiers in section 3
+are the unsolved parts of these pillars.
+
+```
+                    goodput = MFU x ETTR
+                    /                    \
+        EFFICIENCY (MFU)            ROBUSTNESS (ETTR)
+        raise the ceiling          close the gap to it
+        /       |       \          /      |       |        \
+  Parallelism Kernels Network  Detect Diagnose Recover  Hardware
+  substrate   /overlap fabric  (fast) (attribute)(cheap) (lifecycle)
+```
+
+- **Efficiency (MFU).** Anchor: MegaScale (55.2% MFU on 12,288 GPUs / 175B,
+  1.34x over Megatron-LM) by co-optimizing model + framework + network + storage
+  at once. Substrate: Megatron-LM tensor parallelism, PTD-P 3D composition,
+  ZeRO sharding, GPipe/PipeDream 1F1B pipelining, FlashAttention, GShard/Switch
+  MoE. Scale lesson: prior problems reappear as O(n^2) blow-ups (NCCL init fixed
+  via Redis rendezvous dropping the global barrier; any centralized coordinator
+  becomes a bottleneck).
+- **Robustness (ETTR): Detect -> Diagnose -> Recover.** Detect in seconds
+  (Minder metric-similarity + LSTM-VAE; GREYHOUND BOCD change-point at >99%).
+  Diagnose by layer (py-spy CPU stacks -> NDTimeline framework semantics ->
+  ARGUS CUPTI kernels ~3,700x compressed -> EROICA on-demand (beta,mu,sigma)
+  patterns -> Mycroft CCL G/T/D -> Aegis CL/WR/WC). Recover cheapest-first
+  (ByteRobust eviction/reattempt/rollback 32.5% / 22.7% / 9.2%; hierarchical
+  GEMINI/CheckFreq/Check-N-Run checkpoints; Oobleck/Bamboo/Varuna/Unicron/ReCycle
+  elastic reconfiguration; ResiHP non-uniform reshaping; warm standby + in-place
+  update).
+- **Network fabric (spans both).** R2CCL CCL-level detection + hot repair
+  (bilateral ms awareness, three-point triangulation, live migration to backup
+  RDMA). Substrate: RoCEv2 + DCQCN + adaptive routing; Alibaba HPN and Meta's
+  RoCE fabric are the physical-layer resilience analogs.
+- **Hardware lifecycle (the transitive root).** Bad nodes recirculate into new
+  jobs. Lemon-node isolation cut 512+-GPU failures 14% -> 4% (Revisiting). H100
+  memory MTBE is 3.2x worse per-GPU than A100 with a fixed 512 remap-row budget
+  (A Story of Two GPUs); health scoring must normalize by GB-hours and track
+  remaining remap budget, not raw error counts.
+
+The unifying diagnostic principle across the robustness pillar: **3D-parallel
+homogeneity is the signal.** Compare the same function/kernel across ranks in the
+correct parallel group (attention across DP-equivalent ranks, expert compute
+within EP groups, reduce-scatter within DP groups); no global clock needed.
+
+### 1.2 Claims pending grounding
+
+The four-pillar map above was reconciled against the survey corpus. A few claims
+that circulate in summaries of this literature are **not yet grounded** in our
+extracted deep dive and are flagged here so they are not mistaken for verified:
+
+- **Intel "Fine-grained Automated Failure Management" (SC '25).** Its full text
+  is paywalled, so it is excluded from [`PAPER_DEEP_DIVE.md`](PAPER_DEEP_DIVE.md).
+  Specific figures attributed to it (e.g. a large MTTR reduction, per-component
+  strike policies over a centralized meta-database) are plausible and directionally
+  consistent with the field, but unverified here. Its DOI also needs confirming:
+  we resolved it via DBLP as `10.1145/3712285.3759883`; other summaries cite
+  `10.1145/3721146.3759883`. Do not cite a specific number until the paper is read.
+- **Minder fault-mix aggregation.** The rollup "hardware ~55.8% / software ~28% /
+  network ~6%" is the survey's own category sum. Our paper-extracted figures are
+  finer: ECC 25.7%, CUDA exec 15%, GPU exec 10%, PCIe downgrading 8.6%. Both can
+  be true (the 55.8% is a category total), but present the finer numbers as the
+  grounded ones.
+- **Uncited additions.** A "PTD-P ~52% MFU" baseline, TACCL/MSCCL collective
+  synthesis, and the older GPU-failure lineage (Di Martino Blue Waters, Gupta,
+  Oles) appear in summaries but are not in our reference closure. Fine to include
+  once each carries its own citation; until then they inherit no authority from
+  this corpus.
+
+---
 
 ## 2. What the field has already settled
 
