@@ -17,10 +17,15 @@ the training run reproducible and free of network dependencies.
 ```
 experiments/qwen3_fineweb_hsdp_tp/
   README.md              # this file
+  ARTICLE.md             # deep dive: config -> DeviceMesh -> DTensor -> collectives
   prefetch_fineweb.py    # ONE-TIME online prefetch -> local JSON
   run.sh                 # offline launch wrapper around ../../run_train.sh
-  .gitignore             # ignores data/ (generated artifact)
+  sweep.sh               # mesh-sweep + ablation harness -> results/*.log + summary.md
+  summarize_sweep.py     # parses sweep logs into results/summary.md
+  probe_parallelism.py   # read-only mesh / DTensor / _NormPartial introspection
+  .gitignore             # ignores data/ and results/ (generated artifacts)
   data/fineweb_test/data.json   # ~2000 lines {"text": ...} (generated)
+  results/                      # sweep/probe/loss_compare outputs (generated)
 ```
 
 ## How to run
@@ -89,3 +94,21 @@ pattern and `_process_c4_text` (FineWeb also has a `text` field).
 - A checkpoint written at step 10 (interval=10) under
   `outputs/checkpoint/step-10/` (DCP shards + `.metadata`).
 - No `Downloading` / hub-request lines during training (fully offline).
+
+## Deep dive
+
+[`ARTICLE.md`](ARTICLE.md) traces this run all the way down through the
+torchtitan and PyTorch internals -- how the four parallelism degrees become a
+`DeviceMesh`, how Qwen3's declarative sharding config maps to DTensor
+placements, how FSDP2 `fully_shard` implements HSDP, and how the loss all-reduce
+and the two-axis grad-norm reduction actually issue their collectives -- with a
+concrete `file:line` for every claim. Two companion tools regenerate the
+observations the article cites (outputs land in the gitignored `results/`):
+
+- `probe_parallelism.py`: read-only introspection of the live mesh, sampled
+  DTensor placements, and the `_NormPartial` grad-norm redistribution.
+- `sweep.sh`: runs eight 8-GPU mesh shapes + ablations (pure FSDP, HSDP,
+  HSDP+TP, TP-heavy, reshard/async-TP/sequence-parallel toggles) and writes a
+  `results/summary.md` comparison table.
+
+See the "Reproduce" section at the end of `ARTICLE.md` for the exact commands.

@@ -1,2 +1,4 @@
 # Generated prefetch artifact; regenerate with prefetch_fineweb.py
 data/
+# Sweep / probe / loss_compare outputs; regenerate with sweep.sh + probe_parallelism.py
+results/
