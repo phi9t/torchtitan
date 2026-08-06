@@ -62,6 +62,18 @@ def qwen3_debugmodel() -> Trainer.Config:
     )
 
 
+def qwen3_debugmodel_fineweb() -> Trainer.Config:
+    # Same debug model as qwen3_debugmodel() but reading from the locally
+    # prefetched FineWeb-edu subset (see experiments/qwen3_fineweb_hsdp_tp/).
+    # Parallelism is left at defaults so the launcher picks the mesh.
+    config = qwen3_debugmodel()
+    config.dataloader = HuggingFaceTextDataLoader.Config(dataset="fineweb_test")
+    # qwen3_debugmodel() leaves checkpointing disabled; enable it so the
+    # recorded experiment writes a checkpoint at the final step (interval=10).
+    config.checkpoint.enable = True
+    return config
+
+
 def qwen3_debugmodel_nvfp4() -> Trainer.Config:
     config = qwen3_debugmodel()
     config.parallelism.spmd_backend = "spmd_types"

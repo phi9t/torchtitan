@@ -46,6 +46,11 @@ DATASETS = {
         loader=lambda path: load_dataset(path, split="train"),
         sample_processor=_process_c4_text,
     ),
+    "fineweb_test": DatasetConfig(
+        path="experiments/qwen3_fineweb_hsdp_tp/data/fineweb_test",
+        loader=lambda path: load_dataset(path, split="train"),
+        sample_processor=_process_c4_text,
+    ),
     "c4_validation": DatasetConfig(
         path="allenai/c4",
         loader=partial(_load_c4_dataset, split="validation"),

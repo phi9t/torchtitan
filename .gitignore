@@ -43,6 +43,10 @@ Sessionx.vim
 # env files
 .env
 
+# local virtualenv and HF cache (created by env setup / experiment run.sh)
+.venv
+.hf_cache
+
 # Claude Code local configuration
 CLAUDE.local.md
 /test_*.py
