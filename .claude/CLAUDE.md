@@ -26,6 +26,13 @@ pre-commit run --all-files
 pytest tests/ -x
 ```
 
+## Teaching Artifacts
+
+When the user invokes `$teach` in this repo, keep lesson and reference outputs
+in Emacs Org mode (`lessons/*.org`, `reference/*.org`) instead of HTML. Prefer
+headings and bullets over Org tables because table rendering can be mangled in
+some clients.
+
 ### Run GPU integration tests (requires GPUs)
 Integration tests override default config for Llama 3 debug model.
 See tests/integration_tests/ for `OverrideDefinitions`.

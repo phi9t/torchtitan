@@ -1,0 +1,164 @@
+#+TITLE: Read TorchTitan RL as a Pipeline
+#+AUTHOR: TRAE CLI
+#+OPTIONS: toc:nil num:nil
+
+* Lesson 0001
+
+Your first useful mental model: =torchtitan.experiments.rl= is not "RL code"
+in the abstract. It is an async production-style pipeline that turns prompt
+groups into rollouts, rollouts into packed training samples, and optimizer
+steps into generator weight updates.
+
+* The Win
+
+After this lesson, you should be able to open a file in
+=torchtitan/experiments/rl= and say which stage of the pipeline it belongs to.
+
+* The System In One Breath
+
+The [[file:../torchtitan/experiments/rl/README.md][README]] says the experiment uses TorchTitan model definitions with vLLM for
+fast rollout generation, and calls out three defining features: a unified model
+definition, Monarch for distributed actor orchestration, and TorchStore for
+weight sync. In source terms, that means:
+
+- *TorchTitan*: owns the policy model definition and trainer-side optimization.
+- *vLLM*: owns fast generator-side sampling from that same model definition.
+- *Monarch*: owns separate process meshes for trainer and generator actors.
+- *TorchStore*: moves updated weights from trainer to generator.
+
+* The Pipeline
+
+The controller file gives the best map. Its opening docstring summarizes the
+runtime flow as:
+
+#+BEGIN_SRC text
+_data_input_loop -> _rollout_loop -> _batcher_loop -> training_batch_queue -> _trainer_loop
+           |               ^                    ^
+           v               |                    |
+           +-------RolloutGroupWorkBuffer-------+
+#+END_SRC
+
+1. *Data input* obtains one prompt sample from the configured task rollouter and
+   creates =RolloutGroupWork=.
+2. *Rollout workers* claim waiting work, call the rollouter, and produce a
+   =RolloutGroup=.
+3. *The work buffer* controls backpressure and off-policy age. Its active
+   capacity is =(target_offpolicy_steps + 1) * num_prompts_per_train_step=.
+4. *The batcher loop* converts finalized rollout groups into trainable samples,
+   accumulates enough prompt groups, then emits a =TrainingBatch=.
+5. *The trainer loop* consumes the batch, computes the RL loss, steps the
+   optimizer, syncs weights, and releases active rollout slots.
+
+* The Files Are Organized By Boundary
+
+The fastest way to navigate the directory is to ask which boundary you are
+crossing.
+
+** Launch Boundary
+
+=train.py= parses =Controller.Config=, partitions GPUs, spawns trainer and
+generator process meshes, then runs the controller.
+
+** Control Boundary
+
+=controller.py= owns async orchestration, routing, validation, metrics, work
+buffering, and weight sync coordination.
+
+** Actor Boundary
+
+=actors/trainer.py= and =actors/generator.py= are the remote endpoints doing
+optimization and sampling.
+
+** Task Boundary
+
+=examples/*= define datasets, envs, rubrics, rollouters, and config recipes for
+concrete tasks.
+
+** Data Boundary
+
+=types.py= and =rollout/types.py= define the values that move between stages.
+
+** Numerics Boundary
+
+=batch_invariance.py= contains batch-invariant conversions and patches for
+bitwise logprob parity experiments.
+
+* Why Prompt Groups Matter
+
+GRPO-style training samples several sibling completions for the same prompt,
+then compares them within the group. In the local type vocabulary, a
+=RolloutGroup= contains sibling =Rollout= objects, each rollout contains ordered
+=RolloutTurn= objects, and later code collapses those turns into
+=TrainingSample= objects with token IDs, loss masks, generator logprobs, and
+advantages.
+
+That is why =num_samples_per_prompt= and =num_prompts_per_train_step= are
+different knobs. One controls sibling samples inside a prompt group. The other
+controls how many prompt groups make one optimizer step.
+
+* The Concrete DAPO-Math Example
+
+[[file:../torchtitan/experiments/rl/examples/dapo_math/config_registry.py][DAPO-Math's config registry]] is a good realistic specimen. It builds a Qwen3-4B
+model spec, sets the HF checkpoint path, uses =DapoMathRollouter=, configures
+=DAPOLoss=, runs a TP=2 trainer, and uses multiple vLLM generator replicas.
+
+The same file also shows why reproducibility is a first-class concern. The
+batch-invariant reference config switches to flex attention, adds
+=BatchInvariantFlexConverter=, sets =target_offpolicy_steps = 0=, disables the
+FIFO window, matches trainer/generator tensor parallelism, and enables
+deterministic batch-invariant debug settings.
+
+#+BEGIN_QUOTE
+Key idea: generator/trainer logprob parity is hard because the generator
+computes logprobs during sampling under one batch composition, while the trainer
+recomputes policy logprobs later under a different packed training batch.
+Batch-invariant mode tries to remove that batch-composition dependency.
+#+END_QUOTE
+
+* Practice
+
+Answer from memory first. Then open the answer drawer.
+
+** 1. Which file should you read first to understand backpressure?
+
+- =actors/generator.py=
+- =controller.py=
+- =losses/dapo.py=
+
+:ANSWER:
+=controller.py=. Its opening docstring and async loop config describe the active
+rollout buffer, FIFO window, and which loop releases capacity.
+:END:
+
+** 2. What does one prompt group become before training?
+
+- A process mesh
+- A rollout group
+- A checkpoint shard
+
+:ANSWER:
+A rollout group. A prompt group produces sibling rollouts in a =RolloutGroup=,
+which can then become trainable samples.
+:END:
+
+** 3. Why does batch-invariant mode exist?
+
+- To reduce tokenizer latency
+- To replace reward functions
+- To stabilize logprob parity
+
+:ANSWER:
+To stabilize logprob parity. It removes batch-composition-dependent numerical
+differences between generator-side and trainer-side logprob computation.
+:END:
+
+* Next Reading
+
+Primary source for this lesson: [[file:../torchtitan/experiments/rl/controller.py][controller.py]], especially the opening async-loop
+diagram. Keep the [[file:../reference/rl-stack-map.org][RL stack map]] open while reading.
+
+Ask the agent follow-up questions about any stage that is unclear. Good next
+prompts:
+
+- "trace one DAPO-Math sample through the rollouter"
+- "explain weight sync and policy age in this stack"
