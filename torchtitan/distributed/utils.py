@@ -541,6 +541,13 @@ def set_pg_timeouts(
     logger.info(
         f"Synchronizing and adjusting timeout for all ProcessGroups to {timeout}"
     )
+    if not hasattr(torch.distributed, "set_timeout"):
+        logger.warning(
+            "torch.distributed.set_timeout is unavailable; keeping existing "
+            "ProcessGroup timeouts."
+        )
+        return
+
     # Ensure that all the ranks have reached the point of setting the new timeout-
     # otherwise, some ranks may issue collectives with the new/shorter timeout and
     # those may time out, before other ranks have finished with initialization done
