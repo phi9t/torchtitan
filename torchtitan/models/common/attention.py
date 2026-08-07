@@ -22,12 +22,7 @@ import torch.nn.functional as F
 from spmd_types.runtime import get_partition_spec
 from torch.distributed.tensor import DTensor, Replicate
 from torch.distributed.tensor.experimental import local_map
-from torch.nn.attention import (
-    activate_flash_attention_impl,
-    current_flash_attention_impl,
-    sdpa_kernel,
-    SDPBackend,
-)
+from torch.nn.attention import current_flash_attention_impl, sdpa_kernel, SDPBackend
 from torch.nn.attention.flex_attention import (
     _DEFAULT_SPARSE_BLOCK_SIZE,
     _mask_mod_signature,
@@ -102,14 +97,11 @@ class VarlenAttention(Module):
         super().__init__()
         self.window_size = config.window_size
 
-        from torchtitan.tools.utils import get_cuda_flash_attention_impl
+        from torchtitan.tools.utils import activate_cuda_flash_attention_impl
 
-        flash_attention_impl = get_cuda_flash_attention_impl()
-        if (
-            flash_attention_impl is not None
-            and current_flash_attention_impl() != flash_attention_impl
-        ):
-            activate_flash_attention_impl(flash_attention_impl)
+        flash_attention_impl = activate_cuda_flash_attention_impl()
+        if flash_attention_impl is not None:
+            assert current_flash_attention_impl() == flash_attention_impl
 
     def forward(
         self,

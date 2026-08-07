@@ -49,7 +49,7 @@ from torchtitan.protocols.sharding import resolve_placements, SpmdLayout
 from torchtitan.tools.logging import init_logger
 from torchtitan.tools.utils import has_cuda_capability
 from vllm import EngineArgs, LLMEngine, SamplingParams
-from vllm.config import AttentionConfig, CompilationConfig, ParallelConfig
+from vllm.config import AttentionConfig, CompilationConfig, KernelConfig, ParallelConfig
 from vllm.config.compilation import CompilationMode
 from vllm.outputs import RequestOutput
 from vllm.sampling_params import RequestOutputKind
@@ -267,6 +267,15 @@ class VLLMCudagraphConfig:
             mode=CompilationMode.NONE,
             cudagraph_capture_sizes=sizes,
         )
+
+
+@dataclass(kw_only=True, slots=True)
+class VLLMKernelConfig:
+    """vLLM kernel selection and warmup settings."""
+
+    enable_flashinfer_autotune: bool | None = None
+    enable_cutedsl_warmup: bool = True
+    enable_jit_warmup: bool = True
 
 
 @dataclass(kw_only=True, slots=True)
@@ -696,6 +705,9 @@ class VLLMGenerator(Actor, Configurable):
         cudagraph: VLLMCudagraphConfig = field(default_factory=VLLMCudagraphConfig)
         """CUDA graph capture settings for the vLLM engine."""
 
+        kernel: VLLMKernelConfig = field(default_factory=VLLMKernelConfig)
+        """Kernel selection and warmup settings for the vLLM engine."""
+
         checkpoint: CheckpointManager.Config = field(
             default_factory=CheckpointManager.Config
         )
@@ -850,6 +862,11 @@ class VLLMGenerator(Actor, Configurable):
                     if isinstance(inner_attn, FlexAttention.Config)
                     else AttentionBackendEnum.CUSTOM
                 ),
+            ),
+            kernel_config=KernelConfig(
+                enable_flashinfer_autotune=config.kernel.enable_flashinfer_autotune,
+                enable_cutedsl_warmup=config.kernel.enable_cutedsl_warmup,
+                enable_jit_warmup=config.kernel.enable_jit_warmup,
             ),
             # Enables RequestOutput.metrics, so generator metrics can be returned
             disable_log_stats=False,

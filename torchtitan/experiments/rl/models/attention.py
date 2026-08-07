@@ -10,16 +10,13 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from torch.nn.attention import (
-    activate_flash_attention_impl,
-    current_flash_attention_impl,
-)
+from torch.nn.attention import current_flash_attention_impl
 from torch.nn.attention.varlen import AuxRequest
 from torchtitan.distributed.utils import is_in_batch_invariant_mode
 from torchtitan.models.common.attention import AttentionMasksType
 from torchtitan.protocols.module import Module
 from torchtitan.tools.logging import warn_once
-from torchtitan.tools.utils import get_cuda_flash_attention_impl
+from torchtitan.tools.utils import activate_cuda_flash_attention_impl
 from vllm.compilation.breakable_cudagraph import eager_break_during_capture
 from vllm.model_executor.layers.attention import Attention
 from vllm.model_executor.layers.attention.attention import get_attention_context
@@ -89,12 +86,9 @@ class PyTorchVarlenAttentionImpl(FlashAttentionImpl):
 
         self.enable_gqa = self.num_heads > self.num_kv_heads
 
-        flash_attention_impl = get_cuda_flash_attention_impl()
+        flash_attention_impl = activate_cuda_flash_attention_impl()
         if flash_attention_impl is not None:
-            # activate_flash_attention_impl() will restore internal global state
-            # and re-run register function, so we want to only call it once.
-            if current_flash_attention_impl() != flash_attention_impl:
-                activate_flash_attention_impl(flash_attention_impl)
+            assert current_flash_attention_impl() == flash_attention_impl
         else:
             warn_once(
                 logger,
@@ -203,9 +197,13 @@ class PyTorchVarlenAttentionImpl(FlashAttentionImpl):
 
         assert self.alibi_slopes is None, "Alibi slopes not supported yet."
 
-        # FA3 can infer cu_seqlens_k from block_table + seqused_k.
+        fa_impl = current_flash_attention_impl()
+
+        # FA3/FA4 can infer cu_seqlens_k from block_table + seqused_k.
+        # Passing both cu_seqlens_k and block_table to FA4 is invalid because
+        # the FA4 paged-KV path expects page_table without explicit K offsets.
         # FA2 requires cu_seqlens_k to be explicitly set.
-        if current_flash_attention_impl() == "FA3":
+        if fa_impl in ("FA3", "FA4"):
             cu_seqlens_k = None
         else:
             num_seqs = seqused_k.shape[0]
@@ -221,7 +219,6 @@ class PyTorchVarlenAttentionImpl(FlashAttentionImpl):
         # upstream. current_flash_attention_impl() returns None when FA2
         # is the implicit default (SM < 9.0). For FA3, only force
         # num_splits=1 in batch-invariant mode (determinism).
-        fa_impl = current_flash_attention_impl()
         if fa_impl in (None, "FA2") or is_in_batch_invariant_mode():
             extra_kwargs["num_splits"] = 1
 
