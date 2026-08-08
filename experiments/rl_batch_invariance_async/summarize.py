@@ -231,7 +231,7 @@ def main() -> None:
     parser.add_argument(
         "--root",
         type=Path,
-        default=Path("outputs/rl_batch_invariance_async"),
+        default=Path("outputs/rl_batch_invariance_async_rootfs"),
         help="Directory containing one subdirectory per experiment arm.",
     )
     parser.add_argument(

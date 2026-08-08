@@ -24,11 +24,11 @@ The two experiment entrypoints live in the same example registry so they are
 discoverable through the normal RL launcher:
 
 ```bash
-python -m torchtitan.experiments.rl.train \
+.venv-rootfs/bin/python -m torchtitan.experiments.rl.train \
   --module dapo_math \
   --config rl_dapo_qwen3_4b_math_8k_reference_no_bi
 
-python -m torchtitan.experiments.rl.train \
+.venv-rootfs/bin/python -m torchtitan.experiments.rl.train \
   --module dapo_math \
   --config rl_dapo_qwen3_4b_math_8k_reference_bi
 ```
@@ -172,42 +172,62 @@ on-policy generation, the BI arm is a validity-first comparison. Treat any rewar
 or throughput delta as a measured local tradeoff, not as proof that the async
 TP=1 baseline topology would behave identically under a future GDN branch.
 
-## Run
+## Rootfs Run
 
-Install or verify the RL runtime dependencies, including the DAPO-Math verifier
-requirements and the Qwen3-4B-Base checkpoint:
+The reference workflow is rootfs-only. `run_reference.sh` re-enters
+`scripts/rootfs/enter_rootfs.sh` when `TORCHTITAN_IN_ROOTFS` is not `1`, creates
+or reuses `.venv-rootfs` inside the sandbox, and refuses to run if `python` is
+not `.venv-rootfs/bin/python`. Direct host-side `python` setup, preflight,
+training, summarization, or verification is not an accepted path for this
+experiment.
+
+Build or enter the rootfs with:
 
 ```bash
-python scripts/download_hf_assets.py \
+scripts/rootfs/enter_rootfs.sh
+```
+
+The runner creates the rootfs on first use if needed. It mounts this checkout at
+`/workspace/torchtitan`, binds local NVIDIA devices and driver libraries, sets
+`TORCHTITAN_IN_ROOTFS=1`, and shares the host network for dependency installs.
+
+Install or verify the RL runtime dependencies and checkpoint from inside the
+rootfs venv. The checkpoint command, when needed, is:
+
+```bash
+.venv-rootfs/bin/python scripts/download_hf_assets.py \
   --repo_id Qwen/Qwen3-4B-Base \
   --local_dir torchtitan/experiments/rl/example_checkpoint \
   --all
 ```
 
-Then run both arms:
+Then run both 150-step arms through the rootfs-gated runner:
 
 ```bash
+OUT_ROOT=outputs/rl_batch_invariance_async_rootfs \
 experiments/rl_batch_invariance_async/run_reference.sh
 ```
 
 Useful variants:
 
 ```bash
-# Install dependencies into the active env before running.
+# Install dependencies into .venv-rootfs before running.
 experiments/rl_batch_invariance_async/run_reference.sh --install-deps
 
 # Bounded two-step smoke/parity run. This skips validation, uses one prompt and
 # one sample, forces on-policy windowing, and caps generation length.
+OUT_ROOT=outputs/rl_batch_invariance_async_rootfs \
 experiments/rl_batch_invariance_async/run_reference.sh --skip-full
 
 # One arm only.
+OUT_ROOT=outputs/rl_batch_invariance_async_rootfs \
 experiments/rl_batch_invariance_async/run_reference.sh --only bi
 ```
 
 The script writes environment snapshots under
-`outputs/rl_batch_invariance_async/env/`, arm logs and TensorBoard events under
-`outputs/rl_batch_invariance_async/{no_bi,bi}/`, and summary files under this
-experiment folder.
+`outputs/rl_batch_invariance_async_rootfs/env/`, arm logs and TensorBoard events
+under `outputs/rl_batch_invariance_async_rootfs/{no_bi,bi}/`, and summary files
+under this experiment folder.
 
 The smoke defaults are intentionally not a reward or throughput benchmark. They
 exist to validate startup, weight sync, trainer stepping, and the first

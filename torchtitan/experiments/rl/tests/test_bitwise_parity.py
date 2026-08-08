@@ -243,9 +243,9 @@ def build_inference_engine(config: Controller.Config) -> LLMEngine:
         disable_log_stats=True,
     )
 
-    from torchtitan.tools.utils import has_cuda_capability
+    from torchtitan.tools.utils import get_cuda_flash_attention_impl
 
-    if not has_cuda_capability(9, 0) and not use_flex:
+    if not use_flex and get_cuda_flash_attention_impl() != "FA3":
         engine_kwargs["block_size"] = 256  # set blocksize to be 256 to align with FA2
 
     engine_kwargs["max_model_len"] = config.model_spec.model.max_seq_len
@@ -619,9 +619,9 @@ class BitwiseParityTestBase(unittest.TestCase):
         if hf_path:
             config.hf_assets_path = hf_path
 
-        from torchtitan.tools.utils import has_cuda_capability
+        from torchtitan.tools.utils import get_cuda_flash_attention_impl
 
-        if has_cuda_capability(9, 0):
+        if get_cuda_flash_attention_impl() == "FA3":
             from torch.nn.attention import (
                 activate_flash_attention_impl,
                 current_flash_attention_impl,

@@ -7,13 +7,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+if [[ "${TORCHTITAN_IN_ROOTFS:-}" != "1" ]]; then
+  exec "$ROOT/scripts/rootfs/enter_rootfs.sh" -- \
+    experiments/rl_batch_invariance_async/run_reference.sh "$@"
+fi
+
 INSTALL_DEPS=0
 SKIP_PREFLIGHT=0
 SKIP_FULL=0
 ONLY_ARM=""
 PREFLIGHT_STEPS="${PREFLIGHT_STEPS:-2}"
 FULL_STEPS="${FULL_STEPS:-150}"
-OUT_ROOT="${OUT_ROOT:-outputs/rl_batch_invariance_async}"
+OUT_ROOT="${OUT_ROOT:-outputs/rl_batch_invariance_async_rootfs}"
 PREFLIGHT_VALIDATION_SAMPLES="${PREFLIGHT_VALIDATION_SAMPLES:-0}"
 PREFLIGHT_NUM_PROMPTS="${PREFLIGHT_NUM_PROMPTS:-1}"
 PREFLIGHT_NUM_SAMPLES="${PREFLIGHT_NUM_SAMPLES:-1}"
@@ -118,10 +123,31 @@ if [[ -n "$ONLY_ARM" && "$ONLY_ARM" != "no_bi" && "$ONLY_ARM" != "bi" ]]; then
   exit 2
 fi
 
-if [[ -z "${VIRTUAL_ENV:-}" && -d "$ROOT/.venv" ]]; then
-  # shellcheck disable=SC1091
-  source "$ROOT/.venv/bin/activate"
+if ! command -v uv >/dev/null; then
+  echo "uv is required inside the TorchTitan rootfs" >&2
+  exit 1
 fi
+
+if [[ ! -x "$ROOT/.venv-rootfs/bin/python" ]]; then
+  uv venv --python 3.12 --system-site-packages "$ROOT/.venv-rootfs"
+fi
+
+# shellcheck disable=SC1091
+source "$ROOT/.venv-rootfs/bin/activate"
+PYTHON="$ROOT/.venv-rootfs/bin/python"
+if [[ "$(command -v python)" != "$PYTHON" ]]; then
+  echo "Refusing to run with unexpected python on PATH: $(command -v python)" >&2
+  exit 1
+fi
+PYTHON_EXECUTABLE="$("$PYTHON" -c 'import sys; print(sys.executable)')"
+PYTHON_PREFIX="$("$PYTHON" -c 'import sys; print(sys.prefix)')"
+case "$PYTHON_EXECUTABLE:$PYTHON_PREFIX" in
+  "$ROOT/.venv-rootfs/bin/python:$ROOT/.venv-rootfs") ;;
+  *)
+    echo "Refusing to run outside .venv-rootfs: executable=$PYTHON_EXECUTABLE prefix=$PYTHON_PREFIX" >&2
+    exit 1
+    ;;
+esac
 
 export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
 export CC="${CC:-/usr/bin/gcc}"
@@ -139,19 +165,23 @@ export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
 mkdir -p "$OUT_ROOT" "$HF_HOME" "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
 
 if [[ "$INSTALL_DEPS" -eq 1 ]]; then
-  python -m pip install -r requirements.txt -r requirements-dev.txt
-  python -m pip install -r torchtitan/experiments/rl/examples/dapo_math/requirements.txt
-  python -m pip install pygtrie portpicker
-  python -m pip install torchmonarch
-  python -m pip install --no-deps "git+https://github.com/meta-pytorch/torchstore.git@main"
-  python -m pip install "git+https://github.com/PrimeIntellect-ai/renderers.git@main"
-  python -m pip install --no-deps "git+https://github.com/thinking-machines-lab/batch_invariant_ops.git@main"
-  python -m pip install --no-deps \
+  "$PYTHON" -m pip install "setuptools<81.0.0,>=77.0.3"
+  "$PYTHON" -m pip install --pre \
+    "torch==2.14.0.dev20260805+cu130" \
+    --extra-index-url https://download.pytorch.org/whl/nightly/cu130
+  "$PYTHON" -m pip install -r requirements.txt -r requirements-dev.txt
+  "$PYTHON" -m pip install -r torchtitan/experiments/rl/examples/dapo_math/requirements.txt
+  "$PYTHON" -m pip install pygtrie portpicker
+  "$PYTHON" -m pip install torchmonarch
+  "$PYTHON" -m pip install --no-deps "git+https://github.com/meta-pytorch/torchstore.git@main"
+  "$PYTHON" -m pip install "git+https://github.com/PrimeIntellect-ai/renderers.git@main"
+  "$PYTHON" -m pip install --no-deps "git+https://github.com/thinking-machines-lab/batch_invariant_ops.git@main"
+  "$PYTHON" -m pip install --no-deps \
     "vllm==1.0.0.dev20260805+cu130" \
-    "torchcomms==0.3.0.dev20260607+cu130" \
+    "torchcomms==0.3.0.dev20260805+cu130" \
     --extra-index-url https://download.pytorch.org/whl/nightly/cu130 \
     --upgrade-strategy eager
-  python -m pip install \
+  "$PYTHON" -m pip install \
     anthropic apache-tvm-ffi==0.1.11 blake3 cachetools cbor2 compressed-tensors==0.17.0 \
     depyf==0.20.0 "fastapi[standard]<0.137.0,>=0.133.0" fastsafetensors \
     flashinfer-python==0.6.15.post1 humming-kernels==0.1.10 ijson "jsonschema>=4.23.0" \
@@ -167,10 +197,10 @@ if [[ "$INSTALL_DEPS" -eq 1 ]]; then
     lark==1.2.2 \
     --extra-index-url https://download.pytorch.org/whl/nightly/cu130 \
     --extra-index-url https://pypi.nvidia.com
-  python -m pip install "transformers>=5.5.3" --pre \
+  "$PYTHON" -m pip install "transformers>=5.5.3" --pre \
     --extra-index-url https://download.pytorch.org/whl/nightly/cu130
-  python -m pip install --no-deps torchvision==0.28.0
-  python -m pip install flash_attn_3 --extra-index-url=https://download.pytorch.org/whl/test/cu130
+  "$PYTHON" -m pip install --no-deps torchvision==0.28.0
+  "$PYTHON" -m pip install flash_attn_3 --extra-index-url=https://download.pytorch.org/whl/test/cu130
 fi
 
 snapshot_env() {
@@ -182,8 +212,13 @@ snapshot_env() {
     echo "git_status_short<<EOF"
     git status --short
     echo "EOF"
+    echo "TORCHTITAN_IN_ROOTFS=${TORCHTITAN_IN_ROOTFS:-}"
+    echo "VIRTUAL_ENV=${VIRTUAL_ENV:-}"
     echo "python=$(command -v python)"
-    python --version
+    "$PYTHON" --version
+    echo "python_executable=$PYTHON_EXECUTABLE"
+    echo "python_prefix=$PYTHON_PREFIX"
+    echo "uv=$(command -v uv)"
     echo "PYTHONPATH=$PYTHONPATH"
     echo "CC=$CC"
     echo "CXX=$CXX"
@@ -205,7 +240,7 @@ snapshot_env() {
     echo "FULL_STEPS=$FULL_STEPS"
   } | tee "$snapshot_dir/environment.txt"
   nvidia-smi | tee "$snapshot_dir/nvidia-smi.txt"
-  python - <<'PY' | tee "$snapshot_dir/python_packages.txt"
+  "$PYTHON" - <<'PY' | tee "$snapshot_dir/python_packages.txt"
 import importlib
 mods = [
     "torch",
@@ -250,7 +285,7 @@ verify_preconditions() {
     exit 1
   fi
 
-  python - <<'PY'
+  "$PYTHON" - <<'PY'
 import importlib
 from pathlib import Path
 import torch
@@ -261,6 +296,8 @@ required = [
     "torchstore",
     "torchcomms",
     "batch_invariant_ops",
+    "flash_attn_interface",
+    "flash_attn_3",
     "torchvision",
     "math_verify",
 ]
@@ -280,8 +317,21 @@ elif torch.cuda.device_count() < 8:
     missing.append(f"need 8 visible GPUs, saw {torch.cuda.device_count()}")
 if missing:
     raise SystemExit("Preconditions failed:\n" + "\n".join(missing))
+from torchtitan.tools.utils import activate_cuda_flash_attention_impl
+
+print(f"flash_attention_impl={activate_cuda_flash_attention_impl()}")
 print(f"torch={torch.__version__}")
 print(f"cuda_devices={torch.cuda.device_count()}")
+PY
+}
+
+choose_master_port() {
+  "$PYTHON" - <<'PY'
+import socket
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.bind(("127.0.0.1", 0))
+    print(sock.getsockname()[1])
 PY
 }
 
@@ -293,8 +343,13 @@ run_arm() {
   shift 4
   mkdir -p "$out_dir"
   local log_file="$out_dir/run_${steps}_steps.log"
+  local master_addr="127.0.0.1"
+  local master_port
+  master_port="$(choose_master_port)"
   echo "Running $arm ($config) for $steps steps -> $out_dir"
-  python -m torchtitan.experiments.rl.train \
+  echo "MASTER_ADDR=$master_addr MASTER_PORT=$master_port"
+  MASTER_ADDR="$master_addr" MASTER_PORT="$master_port" \
+    "$PYTHON" -m torchtitan.experiments.rl.train \
     --module dapo_math \
     --config "$config" \
     --dump-folder "$out_dir" \
@@ -330,4 +385,4 @@ for arm in "${arms[@]}"; do
   fi
 done
 
-python experiments/rl_batch_invariance_async/summarize.py --root "$OUT_ROOT"
+"$PYTHON" experiments/rl_batch_invariance_async/summarize.py --root "$OUT_ROOT"

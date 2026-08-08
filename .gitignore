@@ -45,7 +45,10 @@ Sessionx.vim
 
 # local virtualenv and HF cache (created by env setup / experiment run.sh)
 .venv
+.venv-rootfs
+.cache
 .hf_cache
+scripts/rootfs/rootfs
 
 # Claude Code local configuration
 CLAUDE.local.md

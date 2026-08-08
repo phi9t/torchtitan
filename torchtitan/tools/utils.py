@@ -34,62 +34,16 @@ def has_cuda_capability(major: int, minor: int) -> bool:
 
 def get_cuda_flash_attention_impl() -> str | None:
     """Return the FlashAttention implementation for the current CUDA architecture."""
-    # Blackwell (SM 10.0) and newer use FA4; Hopper (SM 9.0) uses FA3.
-    if has_cuda_capability(10, 0):
-        return "FA4"
-    if has_cuda_capability(9, 0):
+    # Hopper (SM 9.0) uses FA3. Blackwell currently falls back to PyTorch's
+    # default flash backend because the packaged FA3 kernels are SM90-only and
+    # the external FA4 package is not available in this environment.
+    if (
+        torch.cuda.is_available()
+        and torch.version.hip is None
+        and torch.cuda.get_device_capability()[0] == 9
+    ):
         return "FA3"
     return None
-
-
-def _patch_fa4_forward_return_compat() -> None:
-    """Patch PyTorch's FA4 wrapper for beta flash-attn return signatures."""
-    import torch.nn.attention._fa4 as fa4
-
-    if getattr(fa4._fa4_run_forward, "_torchtitan_fa4_return_compat", False):
-        return
-
-    def _fa4_run_forward_compat(
-        query: torch.Tensor,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        cu_seq_q: torch.Tensor | None,
-        cu_seq_k: torch.Tensor | None,
-        max_q: int | None,
-        max_k: int | None,
-        scale: float | None,
-        is_causal: bool,
-        window_size_left: int | None,
-        window_size_right: int | None,
-        seqused_k: torch.Tensor | None,
-        out: torch.Tensor | None = None,
-        block_table: torch.Tensor | None = None,
-        num_splits: int | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        if fa4._FA4_MODULE_PATH is None:
-            raise RuntimeError("FA4 not registered")
-        module = fa4._fa4_import_module(fa4._FA4_MODULE_PATH)
-        kwargs: dict[str, object] = {
-            "softmax_scale": scale,
-            "causal": is_causal,
-            "window_size_left": fa4._aten_to_fa4_window_size(window_size_left),
-            "window_size_right": fa4._aten_to_fa4_window_size(window_size_right),
-            "return_lse": True,
-            "cu_seqlens_q": cu_seq_q,
-            "cu_seqlens_k": cu_seq_k,
-            "max_seqlen_q": max_q,
-            "max_seqlen_k": max_k,
-            "seqused_k": seqused_k.contiguous() if seqused_k is not None else None,
-            "page_table": block_table,
-            "num_splits": num_splits or 1,
-            "out": out,
-        }
-        result = module._flash_attn_fwd(query, key, value, **kwargs)
-        out, lse = result[0], result[1]
-        return out, lse.contiguous()
-
-    _fa4_run_forward_compat._torchtitan_fa4_return_compat = True  # type: ignore[attr-defined]
-    fa4._fa4_run_forward = _fa4_run_forward_compat
 
 
 def activate_cuda_flash_attention_impl() -> str | None:
@@ -104,8 +58,6 @@ def activate_cuda_flash_attention_impl() -> str | None:
         return None
     if current_flash_attention_impl() != flash_attention_impl:
         activate_flash_attention_impl(flash_attention_impl)
-    if flash_attention_impl == "FA4":
-        _patch_fa4_forward_return_compat()
     return flash_attention_impl
 
 

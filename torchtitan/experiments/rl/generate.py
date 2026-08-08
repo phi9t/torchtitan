@@ -38,7 +38,7 @@ from torchtitan.experiments.rl.models.vllm_registry import (
     TORCHTITAN_CONFIG_FORMAT,
 )
 from torchtitan.models.common.attention import FlexAttention, VarlenAttention
-from torchtitan.tools.utils import has_cuda_capability
+from torchtitan.tools.utils import get_cuda_flash_attention_impl
 
 
 logger = init_logger(__name__)
@@ -161,7 +161,10 @@ def generate() -> None:
     engine_kwargs["max_num_seqs"] = max_num_seqs
     if gen_config.max_num_batched_tokens is not None:
         engine_kwargs["max_num_batched_tokens"] = gen_config.max_num_batched_tokens
-    if not has_cuda_capability(9, 0):
+    if (
+        not isinstance(inner_attn, FlexAttention.Config)
+        and get_cuda_flash_attention_impl() != "FA3"
+    ):
         engine_kwargs["block_size"] = 256
     vllm_compilation_config = gen_config.cudagraph.get_vllm_compilation_config(
         max_num_seqs=max_num_seqs,

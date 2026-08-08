@@ -47,7 +47,7 @@ from torchtitan.observability import structured_logger as sl
 from torchtitan.protocols.model_spec import ModelSpec
 from torchtitan.protocols.sharding import resolve_placements, SpmdLayout
 from torchtitan.tools.logging import init_logger
-from torchtitan.tools.utils import has_cuda_capability
+from torchtitan.tools.utils import get_cuda_flash_attention_impl
 from vllm import EngineArgs, LLMEngine, SamplingParams
 from vllm.config import AttentionConfig, CompilationConfig, KernelConfig, ParallelConfig
 from vllm.config.compilation import CompilationMode
@@ -878,8 +878,12 @@ class VLLMGenerator(Actor, Configurable):
         # Continuous batching requires FCFS scheduling: admission order must equal the
         # broadcast order on every rank
         engine_kwargs["scheduling_policy"] = "fcfs"
-        # FA2 requires block_size to be a multiple of 256
-        if not has_cuda_capability(9, 0):
+        # PyTorch's default flash backend requires paged KV block size to be a
+        # multiple of 256. FlexAttention and Hopper FA3 do not use that path.
+        if (
+            not isinstance(inner_attn, FlexAttention.Config)
+            and get_cuda_flash_attention_impl() != "FA3"
+        ):
             engine_kwargs["block_size"] = 256
         vllm_compilation_config = config.cudagraph.get_vllm_compilation_config(
             max_num_seqs=self._max_num_seqs,
