@@ -24,8 +24,13 @@ from torchtitan.experiments.countdown_search_distill.evaluate import (
     bootstrap_pass_at_k,
     compute_compression,
     evaluate_rollouts,
+    format_breakdown,
     pass_at_k,
     retained_search_lift,
+    strict_pass_at_k,
+)
+from torchtitan.experiments.countdown_search_distill.experiment_registry import (
+    build_countdown_report_input,
 )
 from torchtitan.experiments.countdown_search_distill.lora_export import (
     Qwen3LoRAExportConfig,
@@ -202,6 +207,33 @@ def test_evaluation_buckets_and_pass_at_k():
     assert pass_at_k(evaluations, [1, 2]) == {
         1: pytest.approx(1 / 3),
         2: pytest.approx(2 / 3),
+    }
+
+
+def test_strict_format_metrics_separate_trace_success_from_final_contract():
+    problem = CountdownProblem(numbers=(2, 3, 4), target=20)
+    strict_success = "2 + 3 = 5\n5 * 4 = 20\nFINAL: 20"
+    implicit_success = "2 + 3 = 5\n5 * 4 = 20"
+    failure_with_final = "2 + 3 = 6\nFINAL: 20"
+
+    evaluations = [
+        evaluate_rollouts(problem, [implicit_success, strict_success]),
+        evaluate_rollouts(problem, [failure_with_final, strict_success]),
+    ]
+
+    assert pass_at_k(evaluations, [1, 2]) == {
+        1: 0.5,
+        2: 1.0,
+    }
+    assert strict_pass_at_k(evaluations, [1, 2]) == {
+        1: 0.0,
+        2: 1.0,
+    }
+    assert format_breakdown(evaluations) == {
+        "success_with_strict_final": 2,
+        "success_missing_strict_final": 1,
+        "failure_with_strict_final": 1,
+        "failure_missing_strict_final": 0,
     }
 
 
@@ -901,6 +933,96 @@ def test_validate_splits_cli_fails_on_problem_key_overlap(tmp_path):
         "train",
         "dev",
     }
+
+
+def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
+    root = tmp_path / "countdown"
+    data = root / "data"
+    results = root / "results"
+    manifest = results / "manifests" / "run.jsonl"
+    data.mkdir(parents=True)
+    (results / "manifests").mkdir(parents=True)
+    split_registry = {
+        "selected": True,
+        "checks": {"no_problem_key_overlap": True},
+        "entries": [],
+        "overlaps": [],
+    }
+    (data / "split_registry.json").write_text(json.dumps(split_registry) + "\n")
+    (results / "runtime_preflight.json").write_text(
+        json.dumps({"selected": True}) + "\n"
+    )
+    stages = [
+        "preflight",
+        "calibration_sweep",
+        "calibration",
+        "collect",
+        "validate_splits",
+        "train_raw",
+        "train_clean",
+        "train_hindsight",
+        "train_curriculum",
+        "base_eval_dev",
+        "base_eval_iid_test",
+        "base_eval_ood_test",
+        "export_adapters",
+        "eval_adapters",
+    ]
+    manifest.write_text(
+        "".join(
+            json.dumps({"stage": stage, "return_code": 0, "run_id": "run"}) + "\n"
+            for stage in stages
+        )
+    )
+    summary = {
+        "num_problems": 1,
+        "pass_at_k": {"1": 1.0, "32": 1.0},
+        "strict_format_pass_at_k": {"1": 1.0, "32": 1.0},
+        "bucket_counts": {"easy": 1, "elicitable": 0, "unreached": 0},
+        "validity_breakdown": {"success": 32},
+        "format_breakdown": {"success_with_strict_final": 32},
+    }
+    for split in ("dev", "iid_test", "ood_test"):
+        summary_path = results / "eval" / split / "base" / "summary.json"
+        summary_path.parent.mkdir(parents=True)
+        summary_path.write_text(json.dumps(summary) + "\n")
+    adapter_root = results / "eval" / "adapters" / "full"
+    rows = []
+    for split in ("dev", "iid_test", "ood_test"):
+        for arm in ("raw", "clean", "hindsight", "curriculum"):
+            summary_path = adapter_root / split / arm / "summary.json"
+            summary_path.parent.mkdir(parents=True)
+            summary_path.write_text(json.dumps(summary) + "\n")
+            rows.append(
+                {
+                    "split": split,
+                    "arm": arm,
+                    "num_problems": 1,
+                    "pass_at_1": 1.0,
+                    "pass_at_32": 1.0,
+                    "bucket_counts": {"easy": 1},
+                    "summary": str(summary_path),
+                }
+            )
+            export_summary = results / "adapters" / "full" / arm / "export_summary.json"
+            export_summary.parent.mkdir(parents=True, exist_ok=True)
+            export_summary.write_text(json.dumps({"rank": 32}) + "\n")
+    (adapter_root / "adapter_matrix_full.json").write_text(
+        json.dumps({"selected": True, "rows": rows}) + "\n"
+    )
+
+    report_input = build_countdown_report_input(
+        experiment_root=root,
+        mode="full",
+        run_id="run",
+        manifest=manifest,
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["run_id"] == "run"
+    assert report_input["metrics"]["base"]["dev"]["pass_at_1"] == 1.0
+    assert report_input["artifacts"]["split_registry"]["sha256"] is not None
+    assert len(report_input["metrics"]["adapters"]) == 12
 
 
 def test_generate_pool_cli_excludes_existing_problem_keys(tmp_path):

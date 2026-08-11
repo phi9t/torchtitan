@@ -219,5 +219,23 @@ python -m torchtitan.experiments.countdown_search_distill.cli validate-eval-matr
 Each `run_full_pilot.sh` invocation writes a JSONL stage manifest under
 `experiments/countdown_search_distill/results/manifests/`. Override `RUN_ID` or
 `TORCHTITAN_COUNTDOWN_MANIFEST` to choose the manifest path. Each record includes
-the stage name, command argv, start time, end time, duration, and return code.
+the run ID, mode, rootfs state, stage name, command argv, start time, end time,
+duration, and return code. Stages that can reuse artifacts, such as adapter
+export and adapter evaluation, also record fresh/reused artifact status when
+run through the pilot.
+
+Reduced and full runs also write:
+
+```text
+experiments/countdown_search_distill/results/manifests/report_input_<run_id>.json
+```
+
+This structured report input collects the manifest, runtime preflight, split
+registry, base summaries, adapter matrix, compact metrics, and small artifact
+hashes. Use it as the source for future promotion gates and generated reports.
+
+Summary files report both arithmetic-trace pass@k and
+`strict_format_pass_at_k`. The strict-format metric requires a successful trace
+and an exact `FINAL: <target>` line, so output-contract regressions are visible
+separately from arithmetic success.
 

@@ -74,6 +74,15 @@ class ProblemEvaluation:
                 return index
         return None
 
+    def strict_solved_at(self) -> int | None:
+        for index, rollout in enumerate(self.rollouts, start=1):
+            if rollout.verification.success and has_strict_final_line(
+                rollout.text,
+                self.problem.target,
+            ):
+                return index
+        return None
+
     def bucket(self) -> str:
         solved_at = self.solved_at()
         if solved_at == 1:
@@ -143,6 +152,26 @@ def pass_at_k(evaluations: Sequence[ProblemEvaluation], ks: Sequence[int]) -> di
                 solved += 1
         results[k] = solved / len(evaluations)
     return results
+
+
+def strict_pass_at_k(
+    evaluations: Sequence[ProblemEvaluation], ks: Sequence[int]
+) -> dict[int, float]:
+    if not evaluations:
+        return {k: 0.0 for k in ks}
+    results: dict[int, float] = {}
+    for k in ks:
+        solved = 0
+        for evaluation in evaluations:
+            solved_at = evaluation.strict_solved_at()
+            if solved_at is not None and solved_at <= k:
+                solved += 1
+        results[k] = solved / len(evaluations)
+    return results
+
+
+def has_strict_final_line(text: str, target: int) -> bool:
+    return any(line.strip() == f"FINAL: {target}" for line in text.splitlines())
 
 
 def bucket_counts(evaluations: Sequence[ProblemEvaluation]) -> dict[str, int]:
@@ -239,6 +268,30 @@ def validity_breakdown(evaluations: Sequence[ProblemEvaluation]) -> dict[str, in
     return counts
 
 
+def format_breakdown(evaluations: Sequence[ProblemEvaluation]) -> dict[str, int]:
+    counts = {
+        "success_with_strict_final": 0,
+        "success_missing_strict_final": 0,
+        "failure_with_strict_final": 0,
+        "failure_missing_strict_final": 0,
+    }
+    for evaluation in evaluations:
+        for rollout in evaluation.rollouts:
+            has_strict_final = has_strict_final_line(
+                rollout.text,
+                evaluation.problem.target,
+            )
+            if rollout.verification.success and has_strict_final:
+                counts["success_with_strict_final"] += 1
+            elif rollout.verification.success:
+                counts["success_missing_strict_final"] += 1
+            elif has_strict_final:
+                counts["failure_with_strict_final"] += 1
+            else:
+                counts["failure_missing_strict_final"] += 1
+    return counts
+
+
 def length_stats(evaluations: Sequence[ProblemEvaluation]) -> dict[str, float]:
     lengths = [
         rollout.token_count or len(rollout.text.split())
@@ -320,15 +373,20 @@ def write_summary_json(
     ks: Sequence[int] = (1, 2, 4, 8, 16, 32),
 ) -> None:
     pass_curve = pass_at_k(evaluations, ks)
+    strict_pass_curve = strict_pass_at_k(evaluations, ks)
     summary = {
         "num_problems": len(evaluations),
         "pass_at_k": {str(k): value for k, value in pass_curve.items()},
+        "strict_format_pass_at_k": {
+            str(k): value for k, value in strict_pass_curve.items()
+        },
         "bucket_counts": bucket_counts(evaluations),
         "bucketed_pass_at_k": {
             bucket: {str(k): value for k, value in curve.items()}
             for bucket, curve in bucketed_pass_at_k(evaluations, ks).items()
         },
         "validity_breakdown": validity_breakdown(evaluations),
+        "format_breakdown": format_breakdown(evaluations),
         "length_stats": length_stats(evaluations),
         "solution_diversity": solution_diversity(evaluations),
         "bootstrap_pass_at_k": {

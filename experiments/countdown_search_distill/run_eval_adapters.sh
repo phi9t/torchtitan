@@ -14,6 +14,7 @@ ADAPTER_RESULT_ROOT="${ADAPTER_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results
 EVAL_RESULT_ROOT="${EVAL_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results/eval/adapters/${MODE}}"
 NUM_ROLLOUTS="${NUM_ROLLOUTS:-32}"
 FORCE="${FORCE:-0}"
+STAGE_EVENTS=()
 
 case "${MODE}" in
   reduced)
@@ -51,6 +52,7 @@ for split in "${SPLIT_LIST[@]}"; do
     summary="${EVAL_RESULT_ROOT}/${split}/${arm}/summary.json"
     if [[ "${FORCE}" != "1" && -f "${summary}" ]]; then
       echo "skip eval split=${split} arm=${arm}: ${summary} exists"
+      STAGE_EVENTS+=("${split}/${arm}:reused:${summary}")
       continue
     fi
     SPLIT="${split}" \
@@ -59,6 +61,7 @@ for split in "${SPLIT_LIST[@]}"; do
       LORA_NAME="${arm}" \
       RESULT_DIR="${EVAL_RESULT_ROOT}/${split}/${arm}" \
       "${SCRIPT_DIR}/run_eval.sh" "$@"
+    STAGE_EVENTS+=("${split}/${arm}:fresh:${summary}")
   done
 done
 
@@ -69,3 +72,21 @@ python -m torchtitan.experiments.countdown_search_distill.cli validate-eval-matr
   --arms "${ARMS[@]}" \
   --expected-problems "${EXPECTED_PROBLEMS[@]}" \
   --num-rollouts "${NUM_ROLLOUTS}"
+
+if [[ -n "${TORCHTITAN_COUNTDOWN_STAGE_STATUS:-}" ]]; then
+  STAGE_EVENTS_JSON="$(
+    printf '%s\n' "${STAGE_EVENTS[@]}" |
+      python -c 'import json, sys
+events = []
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        continue
+    name, status, path = line.split(":", 2)
+    split, arm = name.split("/", 1)
+    events.append({"split": split, "arm": arm, "status": status, "summary": path})
+print(json.dumps({"artifacts": events}, sort_keys=True))'
+  )"
+  mkdir -p "$(dirname -- "${TORCHTITAN_COUNTDOWN_STAGE_STATUS}")"
+  printf '%s\n' "${STAGE_EVENTS_JSON}" > "${TORCHTITAN_COUNTDOWN_STAGE_STATUS}"
+fi

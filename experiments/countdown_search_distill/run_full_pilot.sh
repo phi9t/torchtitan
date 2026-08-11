@@ -10,8 +10,13 @@ countdown_enter_rootfs_if_needed "run_full_pilot.sh" "$@"
 countdown_setup_env
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${MODE:-full}}"
+export RUN_ID
+export TORCHTITAN_COUNTDOWN_RUN_ID="${RUN_ID}"
 export TORCHTITAN_COUNTDOWN_MANIFEST="${TORCHTITAN_COUNTDOWN_MANIFEST:-${TORCHTITAN_COUNTDOWN_ROOT}/results/manifests/${RUN_ID}.jsonl}"
+export TORCHTITAN_COUNTDOWN_STAGE_STATUS_DIR="${TORCHTITAN_COUNTDOWN_ROOT}/results/manifests/${RUN_ID}.stage_status"
 : > "${TORCHTITAN_COUNTDOWN_MANIFEST}"
+rm -rf "${TORCHTITAN_COUNTDOWN_STAGE_STATUS_DIR}"
+mkdir -p "${TORCHTITAN_COUNTDOWN_STAGE_STATUS_DIR}"
 
 countdown_run_stage preflight "${SCRIPT_DIR}/run_preflight.sh"
 
@@ -60,4 +65,11 @@ done
 if [[ "${MODE:-full}" != "smoke" ]]; then
   countdown_run_stage export_adapters env MODE="${MODE:-full}" "${SCRIPT_DIR}/run_export_adapters.sh"
   countdown_run_stage eval_adapters env MODE="${MODE:-full}" "${SCRIPT_DIR}/run_eval_adapters.sh"
+  countdown_run_stage build_report_input \
+    python -m torchtitan.experiments.countdown_search_distill.cli build-report-input \
+      --experiment-root "${TORCHTITAN_COUNTDOWN_ROOT}" \
+      --mode "${MODE:-full}" \
+      --run-id "${RUN_ID}" \
+      --manifest "${TORCHTITAN_COUNTDOWN_MANIFEST}" \
+      --output "${TORCHTITAN_COUNTDOWN_ROOT}/results/manifests/report_input_${RUN_ID}.json"
 fi

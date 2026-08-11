@@ -40,6 +40,10 @@ from torchtitan.experiments.countdown_search_distill.evaluate import (
     write_summary_json,
     write_summary_md,
 )
+from torchtitan.experiments.countdown_search_distill.experiment_registry import (
+    build_countdown_report_input,
+    write_countdown_report_input,
+)
 from torchtitan.experiments.countdown_search_distill.lora_export import (
     Qwen3LoRAExportConfig,
     export_lora_adapter,
@@ -649,6 +653,21 @@ def validate_splits(args: argparse.Namespace) -> None:
         raise SystemExit(f"split validation failed: {len(validation.overlaps)} overlaps")
 
 
+def build_report_input(args: argparse.Namespace) -> None:
+    report_input = build_countdown_report_input(
+        experiment_root=args.experiment_root,
+        mode=args.mode,
+        run_id=args.run_id,
+        manifest=args.manifest,
+    )
+    write_countdown_report_input(report_input, args.output)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(f"report input validation failed: {', '.join(failed)}")
+
+
 def _num_solved_problems(evaluations: list[ProblemEvaluation]) -> int:
     return sum(1 for evaluation in evaluations if evaluation.solved_at() is not None)
 
@@ -999,6 +1018,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     split_registry_parser.add_argument("--output", type=Path, required=True)
     split_registry_parser.set_defaults(func=validate_splits)
+
+    report_input_parser = subparsers.add_parser("build-report-input")
+    report_input_parser.add_argument("--experiment-root", type=Path, required=True)
+    report_input_parser.add_argument("--mode", choices=["smoke", "reduced", "full"], required=True)
+    report_input_parser.add_argument("--run-id", required=True)
+    report_input_parser.add_argument("--manifest", type=Path, required=True)
+    report_input_parser.add_argument("--output", type=Path, required=True)
+    report_input_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    report_input_parser.set_defaults(func=build_report_input)
 
     return parser
 
