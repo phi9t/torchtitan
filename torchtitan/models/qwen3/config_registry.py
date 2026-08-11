@@ -30,6 +30,69 @@ from . import model_registry
 from .model import Qwen3Model
 
 
+def _countdown_sft_process_sample(sample):
+    return [
+        {"role": "user", "content": sample["question"]},
+        {"role": "assistant", "content": sample["answer"]},
+    ]
+
+
+def _qwen3_countdown_lora_sft(
+    *,
+    data_file: str,
+    dump_folder: str,
+    steps: int = 94,
+    model_flavor: str = "1.7B",
+    hf_assets_path: str = "./assets/hf/Qwen3-1.7B",
+    initial_load_in_hf: bool = True,
+) -> Trainer.Config:
+    from torchtitan.components.lora import LoRAConverter
+
+    model_spec = model_registry(
+        model_flavor,
+        attn_backend="varlen",
+        converters=[LoRAConverter.Config(rank=32, alpha=64.0)],
+    )
+    return Trainer.Config(
+        dump_folder=dump_folder,
+        loss=ChunkedLossWrapper.Config(
+            loss_fn=CrossEntropyLoss.Config(
+                global_vocab_size=decoder_vocab_size(model_spec),
+            ),
+        ),
+        hf_assets_path=hf_assets_path,
+        metrics=MetricsProcessor.Config(log_freq=1),
+        model_spec=model_spec,
+        optimizer=default_adamw(lr=1e-4),
+        lr_scheduler=LRSchedulersContainer.Config(
+            warmup_steps=max(1, steps // 20),
+            decay_ratio=0.9,
+            decay_type="cosine",
+            min_lr_factor=0.1,
+        ),
+        training=TrainingConfig(
+            global_batch_size=64,
+            local_batch_size=1,
+            seq_len=512,
+            steps=steps,
+            dtype="bfloat16",
+        ),
+        dataloader=ChatDataLoader.Config(
+            dataset_path="json",
+            load_dataset_kwargs={"data_files": data_file, "split": "train"},
+            sample_processor=_countdown_sft_process_sample,
+        ),
+        checkpoint=CheckpointManager.Config(
+            enable=True,
+            interval=max(1, steps // 3),
+            initial_load_in_hf=initial_load_in_hf,
+            last_save_model_only=False,
+            export_dtype="bfloat16",
+        ),
+        activation_checkpoint=SelectiveAC.Config(),
+    )
+
+
 def qwen3_debugmodel() -> Trainer.Config:
     model_spec = model_registry("debugmodel")
     return Trainer.Config(
@@ -241,6 +304,45 @@ def qwen3_1_7b() -> Trainer.Config:
             export_dtype="float16",
         ),
         activation_checkpoint=SelectiveAC.Config(),
+    )
+
+
+def qwen3_1_7b_countdown_lora_raw() -> Trainer.Config:
+    return _qwen3_countdown_lora_sft(
+        data_file="./experiments/countdown_search_distill/data/train/raw.jsonl",
+        dump_folder="./experiments/countdown_search_distill/results/train/raw",
+    )
+
+
+def qwen3_1_7b_countdown_lora_clean() -> Trainer.Config:
+    return _qwen3_countdown_lora_sft(
+        data_file="./experiments/countdown_search_distill/data/train/clean.jsonl",
+        dump_folder="./experiments/countdown_search_distill/results/train/clean",
+    )
+
+
+def qwen3_1_7b_countdown_lora_hindsight() -> Trainer.Config:
+    return _qwen3_countdown_lora_sft(
+        data_file="./experiments/countdown_search_distill/data/train/hindsight.jsonl",
+        dump_folder="./experiments/countdown_search_distill/results/train/hindsight",
+    )
+
+
+def qwen3_1_7b_countdown_lora_curriculum() -> Trainer.Config:
+    return _qwen3_countdown_lora_sft(
+        data_file="./experiments/countdown_search_distill/data/train/curriculum.jsonl",
+        dump_folder="./experiments/countdown_search_distill/results/train/curriculum",
+    )
+
+
+def qwen3_debugmodel_countdown_lora_smoke() -> Trainer.Config:
+    return _qwen3_countdown_lora_sft(
+        data_file="./experiments/countdown_search_distill/data/train/raw.jsonl",
+        dump_folder="./experiments/countdown_search_distill/results/train/debug_smoke",
+        steps=2,
+        model_flavor="debugmodel",
+        hf_assets_path="./tests/assets/tokenizer",
+        initial_load_in_hf=False,
     )
 
 

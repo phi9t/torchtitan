@@ -1,0 +1,50 @@
+{
+  "artifact_root": "experiments/<task>/results",
+  "evaluation_budget": {
+    "num_rollouts": 32,
+    "splits": [
+      "heldout_same_regime",
+      "ood_target_range"
+    ]
+  },
+  "evidence_contract": {
+    "require_failure_breakdown": true,
+    "require_overlap_validation": true,
+    "require_representative_examples": true,
+    "require_runtime_preflight": true,
+    "replication": {
+      "min_clean_split_draws": 2,
+      "min_training_seeds": 2
+    }
+  },
+  "harness_boundary": null,
+  "lane": "reasoning",
+  "model": {
+    "asset_path": "assets/hf/Qwen3-1.7B",
+    "name": "Qwen3-1.7B"
+  },
+  "scaffold": {
+    "budget": 32,
+    "type": "best_of_n"
+  },
+  "split_registry": "experiments/<task>/data/split_registry.json",
+  "success_thresholds": {
+    "min_abs_pass_at_1_lift": 0.05,
+    "max_abs_pass_at_32_drop": 0.02
+  },
+  "task": "<task-name>",
+  "training_arms": [
+    "raw",
+    "clean",
+    "formatting"
+  ],
+  "training_budget": {
+    "global_batch_size": 64,
+    "lora_alpha": 64,
+    "lora_rank": 32
+  },
+  "verifier": {
+    "kind": "exact",
+    "name": "<verifier-name>"
+  }
+}
