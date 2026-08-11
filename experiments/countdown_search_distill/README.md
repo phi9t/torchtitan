@@ -9,7 +9,7 @@ The v1 pipeline is deliberately simple:
 - generate exact-DP-solvable Countdown pools;
 - collect vLLM best-of-N rollouts from a frozen base model;
 - annotate every rollout with exact verifier metadata;
-- build four ChatDataLoader-compatible SFT arms;
+- build five ChatDataLoader-compatible SFT arms;
 - train Qwen3 LoRA adapters with TorchTitan configs;
 - evaluate pass@k, bucket metrics, validity, length, diversity, and bootstrap
   intervals.
@@ -105,6 +105,7 @@ The generated arms are:
 
 - `raw.jsonl`: shortest verified base-model success
 - `clean.jsonl`: deterministic cleaned rewrite of that success
+- `formatting.jsonl`: parsed operation trace plus exact `FINAL: <target>`
 - `hindsight.jsonl`: hint-conditioned question with verified answer
 - `curriculum.jsonl`: hint-present, hint-dropout, and hint-absent stages
 
@@ -162,6 +163,7 @@ Configs are in `torchtitan/models/qwen3/config_registry.py`:
 
 - `qwen3_1_7b_countdown_lora_raw`
 - `qwen3_1_7b_countdown_lora_clean`
+- `qwen3_1_7b_countdown_lora_formatting`
 - `qwen3_1_7b_countdown_lora_hindsight`
 - `qwen3_1_7b_countdown_lora_curriculum`
 - `qwen3_debugmodel_countdown_lora_smoke`
@@ -211,7 +213,7 @@ python -m torchtitan.experiments.countdown_search_distill.cli validate-eval-matr
   --eval-root experiments/countdown_search_distill/results/eval/adapters/full \
   --decision experiments/countdown_search_distill/results/eval/adapters/full/adapter_matrix_full.json \
   --splits dev iid_test ood_test \
-  --arms raw clean hindsight curriculum \
+  --arms raw clean formatting hindsight curriculum \
   --expected-problems dev=500 iid_test=1000 ood_test=500 \
   --num-rollouts 32
 ```

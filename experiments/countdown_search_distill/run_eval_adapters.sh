@@ -24,7 +24,7 @@ case "${MODE}" in
     DEFAULT_OOD_SIZE=200
     ;;
   full)
-    ARMS=(raw clean hindsight curriculum)
+    ARMS=(raw clean formatting hindsight curriculum)
     DEFAULT_DEV_SIZE=500
     DEFAULT_IID_SIZE=1000
     DEFAULT_OOD_SIZE=500

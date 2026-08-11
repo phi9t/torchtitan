@@ -123,7 +123,7 @@ def _arms_for_mode(mode: str) -> list[str]:
     if mode == "reduced":
         return ["raw", "hindsight", "curriculum"]
     if mode == "full":
-        return ["raw", "clean", "hindsight", "curriculum"]
+        return ["raw", "clean", "formatting", "hindsight", "curriculum"]
     if mode == "smoke":
         return ["debug_smoke"]
     raise ValueError(f"unknown Countdown mode: {mode}")
@@ -273,6 +273,7 @@ def _report_checks(
             "validate_splits",
             "train_raw",
             "train_clean",
+            "train_formatting",
             "train_hindsight",
             "train_curriculum",
             "base_eval_dev",

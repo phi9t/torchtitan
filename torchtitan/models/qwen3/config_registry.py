@@ -321,6 +321,13 @@ def qwen3_1_7b_countdown_lora_clean() -> Trainer.Config:
     )
 
 
+def qwen3_1_7b_countdown_lora_formatting() -> Trainer.Config:
+    return _qwen3_countdown_lora_sft(
+        data_file="./experiments/countdown_search_distill/data/train/formatting.jsonl",
+        dump_folder="./experiments/countdown_search_distill/results/train/formatting",
+    )
+
+
 def qwen3_1_7b_countdown_lora_hindsight() -> Trainer.Config:
     return _qwen3_countdown_lora_sft(
         data_file="./experiments/countdown_search_distill/data/train/hindsight.jsonl",

@@ -16,6 +16,7 @@ TRAIN_ARGS=()
 case "${ARM}" in
   raw) CONFIG="qwen3_1_7b_countdown_lora_raw" ;;
   clean) CONFIG="qwen3_1_7b_countdown_lora_clean" ;;
+  formatting) CONFIG="qwen3_1_7b_countdown_lora_formatting" ;;
   hindsight) CONFIG="qwen3_1_7b_countdown_lora_hindsight" ;;
   curriculum) CONFIG="qwen3_1_7b_countdown_lora_curriculum" ;;
   debug_smoke) CONFIG="qwen3_debugmodel_countdown_lora_smoke" ;;

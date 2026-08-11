@@ -55,6 +55,14 @@ def clean_teacher_rewrite(answer: str) -> str:
     return "\n".join(lines)
 
 
+def formatting_teacher_rewrite(evaluation: ProblemEvaluation, answer: str) -> str:
+    success = _shortest_success(evaluation)
+    if success is None:
+        return clean_teacher_rewrite(answer)
+    operation_lines = [operation.raw for operation in success.verification.operations]
+    return "\n".join([*operation_lines, f"FINAL: {evaluation.problem.target}"])
+
+
 def synthesize_hint(evaluation: ProblemEvaluation) -> str | None:
     success = _shortest_success(evaluation)
     if success is None:
@@ -74,7 +82,13 @@ def synthesize_hint(evaluation: ProblemEvaluation) -> str | None:
 def build_training_examples(
     evaluations: Sequence[ProblemEvaluation],
     *,
-    conditions: Iterable[str] = ("raw", "clean", "hindsight", "curriculum"),
+    conditions: Iterable[str] = (
+        "raw",
+        "clean",
+        "formatting",
+        "hindsight",
+        "curriculum",
+    ),
     matched_only: bool = False,
 ) -> dict[str, list[TrainingExample]]:
     selected_conditions = set(conditions)
@@ -108,6 +122,16 @@ def build_training_examples(
                     question=countdown_question(evaluation.problem),
                     answer=clean_teacher_rewrite(answer),
                     condition="clean",
+                    problem_id=evaluation.problem_id,
+                    source_rollout_ids=(source_id,),
+                )
+            )
+        if "formatting" in selected_conditions:
+            examples["formatting"].append(
+                TrainingExample(
+                    question=countdown_question(evaluation.problem),
+                    answer=formatting_teacher_rewrite(evaluation, answer),
+                    condition="formatting",
                     problem_id=evaluation.problem_id,
                     source_rollout_ids=(source_id,),
                 )

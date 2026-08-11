@@ -48,7 +48,7 @@ case "${MODE:-full}" in
       --train-evaluations "${TORCHTITAN_COUNTDOWN_ROOT}/data/train/evaluations.jsonl" \
       --dev-evaluations "${TORCHTITAN_COUNTDOWN_ROOT}/data/dev/evaluations.jsonl" \
       --decision "${TORCHTITAN_COUNTDOWN_ROOT}/data/full_preflight.json"
-    ARMS=(raw clean hindsight curriculum)
+    ARMS=(raw clean formatting hindsight curriculum)
     TRAIN_RESULT_ROOT="${TORCHTITAN_COUNTDOWN_ROOT}/results/train/full"
     ;;
   *) echo "unknown MODE=${MODE}" >&2; exit 2 ;;

@@ -941,7 +941,7 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_parser.add_argument(
         "--conditions",
         nargs="+",
-        default=["raw", "clean", "hindsight", "curriculum"],
+        default=["raw", "clean", "formatting", "hindsight", "curriculum"],
     )
     dataset_parser.add_argument(
         "--matched-only",

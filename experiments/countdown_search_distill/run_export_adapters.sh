@@ -19,7 +19,7 @@ STAGE_EVENTS=()
 
 case "${MODE}" in
   reduced) ARMS=(raw hindsight curriculum) ;;
-  full) ARMS=(raw clean hindsight curriculum) ;;
+  full) ARMS=(raw clean formatting hindsight curriculum) ;;
   *) echo "adapter export is only defined for MODE=reduced or MODE=full, got ${MODE}" >&2; exit 2 ;;
 esac
 

@@ -18,6 +18,7 @@ from torchtitan.experiments.countdown_search_distill.countdown import (
 )
 from torchtitan.experiments.countdown_search_distill.datasets import (
     build_training_examples,
+    formatting_teacher_rewrite,
 )
 from torchtitan.experiments.countdown_search_distill.evaluate import (
     bucket_counts,
@@ -418,7 +419,7 @@ def test_build_datasets_cli_writes_all_arms(tmp_path):
     finally:
         sys.argv = old_argv
 
-    for arm in ("raw", "clean", "hindsight", "curriculum"):
+    for arm in ("raw", "clean", "formatting", "hindsight", "curriculum"):
         assert (output_dir / f"{arm}.jsonl").exists()
 
 
@@ -463,6 +464,20 @@ def test_build_datasets_cli_can_fallback_to_canonical_raw(tmp_path):
     ]
     assert raw_rows[0]["source_rollout_ids"] == ["p0:canonical"]
     assert raw_rows[0]["answer"] == "2 + 3 = 5\n5 * 4 = 20\nFINAL: 20"
+
+
+def test_formatting_arm_normalizes_success_to_strict_final_line():
+    problem = CountdownProblem(numbers=(2, 3, 4), target=20)
+    success_without_final = "Let me solve it.\n2 + 3 = 5\n5 * 4 = 20\nFinal"
+    evaluation = evaluate_rollouts(problem, [success_without_final], problem_id="p0")
+
+    examples = build_training_examples([evaluation], conditions=["formatting"])
+
+    assert formatting_teacher_rewrite(evaluation, success_without_final) == (
+        "2 + 3 = 5\n5 * 4 = 20\nFINAL: 20"
+    )
+    assert examples["formatting"][0].answer == "2 + 3 = 5\n5 * 4 = 20\nFINAL: 20"
+    assert examples["formatting"][0].condition == "formatting"
 
 
 def test_preflight_reduced_cli_checks_calibration_and_coverage(tmp_path):
@@ -960,6 +975,7 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
         "validate_splits",
         "train_raw",
         "train_clean",
+        "train_formatting",
         "train_hindsight",
         "train_curriculum",
         "base_eval_dev",
@@ -989,7 +1005,7 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     adapter_root = results / "eval" / "adapters" / "full"
     rows = []
     for split in ("dev", "iid_test", "ood_test"):
-        for arm in ("raw", "clean", "hindsight", "curriculum"):
+        for arm in ("raw", "clean", "formatting", "hindsight", "curriculum"):
             summary_path = adapter_root / split / arm / "summary.json"
             summary_path.parent.mkdir(parents=True)
             summary_path.write_text(json.dumps(summary) + "\n")
@@ -1022,7 +1038,7 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     assert report_input["run"]["run_id"] == "run"
     assert report_input["metrics"]["base"]["dev"]["pass_at_1"] == 1.0
     assert report_input["artifacts"]["split_registry"]["sha256"] is not None
-    assert len(report_input["metrics"]["adapters"]) == 12
+    assert len(report_input["metrics"]["adapters"]) == 15
 
 
 def test_generate_pool_cli_excludes_existing_problem_keys(tmp_path):
@@ -1100,6 +1116,21 @@ def test_qwen3_countdown_smoke_config_uses_chat_lora():
     assert config.training.global_batch_size == 64
     assert not config.checkpoint.initial_load_in_hf
     assert config.model_spec is not None
+
+
+def test_qwen3_countdown_formatting_config_uses_formatting_dataset():
+    pytest.importorskip("spmd_types")
+
+    from torchtitan.models.qwen3.config_registry import (
+        qwen3_1_7b_countdown_lora_formatting,
+    )
+
+    config = qwen3_1_7b_countdown_lora_formatting()
+
+    assert config.dataloader.load_dataset_kwargs["data_files"].endswith(
+        "data/train/formatting.jsonl"
+    )
+    assert config.dump_folder.endswith("results/train/formatting")
 
 
 def test_qwen3_fused_qkv_lora_b_split_preserves_grouped_order():
