@@ -70,6 +70,13 @@ python -m torchtitan.experiments.scaffold_to_policy.cli validate-coding-style-sp
   --output "${DATA_ROOT}/split_registry.json"
 
 for split in dev ood_test; do
+  python -m torchtitan.experiments.scaffold_to_policy.cli preflight-coding-style-canonical \
+    --problems "${DATA_ROOT}/${split}.jsonl" \
+    --output "${RESULTS_ROOT}/eval/${split}_canonical_preflight.json" \
+    --timeout-seconds "${TIMEOUT_SECONDS}"
+done
+
+for split in dev ood_test; do
   python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-coding-style-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
@@ -91,6 +98,9 @@ python -m torchtitan.experiments.scaffold_to_policy.cli build-coding-style-repor
   --summary \
     "dev=${RESULTS_ROOT}/eval/dev_summary.json" \
     "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
+  --preflight \
+    "dev=${RESULTS_ROOT}/eval/dev_canonical_preflight.json" \
+    "ood_test=${RESULTS_ROOT}/eval/ood_test_canonical_preflight.json" \
   --scaffold-budget "${NUM_ROLLOUTS}" \
   --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
 

@@ -153,8 +153,8 @@ def verify_solution(
             error="timeout",
             extracted_code=extracted,
             returncode=None,
-            stdout=exc.stdout or "",
-            stderr=exc.stderr or "",
+            stdout=_subprocess_text(exc.stdout),
+            stderr=_subprocess_text(exc.stderr),
         )
     if completed.returncode == 0:
         return CodingStyleVerification(
@@ -176,13 +176,16 @@ def verify_solution(
 
 
 def extract_candidate_code(problem: CodingStyleProblem, text: str) -> str:
-    candidate = text.strip()
-    fences = FENCED_CODE_RE.findall(candidate)
+    candidate = text.rstrip()
+    fences = FENCED_CODE_RE.findall(candidate.strip())
     if fences:
         candidate = fences[-1].strip()
-    candidate = _strip_leading_chat_text(candidate)
+    if not candidate[:1].isspace():
+        candidate = _strip_leading_chat_text(candidate)
     if f"def {problem.entry_point}" in candidate:
         return _prompt_preamble(problem) + candidate
+    if candidate[:1].isspace():
+        return problem.prompt + candidate
     return problem.prompt + candidate.lstrip()
 
 
@@ -246,6 +249,58 @@ def summarize_evaluations(
         "pass_at_k": {str(k): value for k, value in pass_at_k(evaluations, ks).items()},
         "bucket_counts": buckets,
         "failure_breakdown": errors,
+    }
+
+
+def preflight_canonical_solutions(
+    problems: Sequence[CodingStyleProblem],
+    *,
+    timeout_seconds: float = 5.0,
+) -> dict[str, object]:
+    records = []
+    for problem in problems:
+        if problem.canonical_solution is None:
+            records.append(
+                {
+                    "problem_id": problem.problem_id,
+                    "has_canonical_solution": False,
+                    "success": False,
+                    "error": "missing canonical solution",
+                    "returncode": None,
+                    "stdout": "",
+                    "stderr": "",
+                }
+            )
+            continue
+        verification = verify_solution(
+            problem,
+            problem.canonical_solution,
+            timeout_seconds=timeout_seconds,
+        )
+        records.append(
+            {
+                "problem_id": problem.problem_id,
+                "has_canonical_solution": True,
+                "success": verification.success,
+                "error": verification.error,
+                "returncode": verification.returncode,
+                "stdout": verification.stdout,
+                "stderr": verification.stderr,
+            }
+        )
+    failure_breakdown: dict[str, int] = {}
+    for record in records:
+        key = str(record["error"] or "success")
+        failure_breakdown[key] = failure_breakdown.get(key, 0) + 1
+    num_passed = sum(1 for record in records if record["success"])
+    return {
+        "schema_version": 1,
+        "kind": "coding_style_canonical_preflight",
+        "num_problems": len(records),
+        "num_passed": num_passed,
+        "selected": len(records) == num_passed,
+        "failure_breakdown": failure_breakdown,
+        "records": records,
     }
 
 
@@ -418,9 +473,14 @@ def build_report_input(
     split_registry: Path,
     summary_paths: dict[str, Path],
     scaffold_budget: int,
+    preflight_paths: dict[str, Path] | None = None,
 ) -> dict[str, object]:
     summaries = {
         split: json.loads(path.read_text()) for split, path in summary_paths.items()
+    }
+    preflights = {
+        split: json.loads(path.read_text())
+        for split, path in (preflight_paths or {}).items()
     }
     registry = json.loads(split_registry.read_text())
     checks = {
@@ -430,6 +490,17 @@ def build_report_input(
             summaries[split]["num_problems"]
             == registry["splits"][split]["num_problems"]
             for split in summary_paths
+        ),
+        "preflights_present": all(
+            path.is_file() for path in (preflight_paths or {}).values()
+        ),
+        "preflight_split_counts_match": all(
+            preflights[split]["num_problems"]
+            == registry["splits"][split]["num_problems"]
+            for split in preflights
+        ),
+        "preflight_canonical_solutions_pass": all(
+            bool(preflight.get("selected", False)) for preflight in preflights.values()
         ),
     }
     return {
@@ -448,6 +519,9 @@ def build_report_input(
             "results_root": str(results_root),
             "split_registry": str(split_registry),
             "summaries": {split: str(path) for split, path in summary_paths.items()},
+            "preflights": {
+                split: str(path) for split, path in (preflight_paths or {}).items()
+            },
         },
         "verifier": {
             "kind": "executable",
@@ -465,6 +539,7 @@ def build_report_input(
             ],
         },
         "checks": checks,
+        "preflight": {"splits": preflights},
         "metrics": {"splits": summaries},
     }
 
@@ -572,6 +647,14 @@ def _classify_failure(stderr: str) -> str:
     if stderr.strip():
         return stderr.strip().splitlines()[-1][:160]
     return "nonzero exit"
+
+
+def _subprocess_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
 
 
 def _entry_point_from_asserts(test_list: Sequence[str]) -> str:

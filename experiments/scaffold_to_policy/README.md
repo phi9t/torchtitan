@@ -394,15 +394,25 @@ experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
 
 This imports `bigcode/bigcodebench-hard` split `v0.1.4`, wraps each released
 `unittest` suite into the shared executable `check(candidate)` verifier,
-evaluates Qwen3-1.7B with vLLM, and executes candidates in an isolated Python
-subprocess. The first attempted smoke exposed a missing rootfs `matplotlib`
-dependency on one OOD task; after installing `matplotlib` inside the bwrap
-rootfs, the repaired run used 2 dev and 2 OOD examples with 2 rollouts per
-problem. Both splits reached pass@1/pass@2 `0.000`, with all final failures
-classified as assertion failures from the benchmark tests. The report is:
+preflights the released canonical solutions under the same rootfs executable
+verifier, evaluates Qwen3-1.7B with vLLM, and executes candidates in an
+isolated Python subprocess. The canonical preflight is intentionally before
+vLLM generation, so missing rootfs packages or broken released tests are
+environment failures rather than model failures. The first attempted smoke
+exposed a missing rootfs `matplotlib` dependency on one OOD task; after
+installing `matplotlib` inside the bwrap rootfs, the repaired run used 2 dev
+and 2 OOD examples with 2 rollouts per problem. Both splits reached
+pass@1/pass@2 `0.000`, with all final failures classified as assertion
+failures from the benchmark tests. The report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T092000Z-arc-bigcodebench-hard-smokes.md
+```
+
+The current completion audit and blocker map is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md
 ```
 
 ## Agentic Benchmarks

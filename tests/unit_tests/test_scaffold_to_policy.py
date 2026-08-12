@@ -876,6 +876,84 @@ def test_coding_style_imports_bigcodebench_rows_as_unittest_checks():
     assert wrong.error == "assertion failure"
 
 
+def test_coding_style_preserves_indented_completion_bodies():
+    problem = coding_style.CodingStyleProblem(
+        problem_id="BigCodeBench/indented",
+        source="fixture",
+        prompt="def task_func():\n",
+        test=(
+            "def check(candidate):\n"
+            "    value = candidate()\n"
+            "    assert value().answer() == 3\n"
+        ),
+        entry_point="task_func",
+        canonical_solution=(
+            "    class Inner:\n"
+            "        def answer(self):\n"
+            "            return 3\n"
+            "    return Inner\n"
+        ),
+    )
+
+    verified = coding_style.verify_solution(problem, problem.canonical_solution or "")
+
+    assert verified.success
+    assert "    class Inner:" in verified.extracted_code
+
+
+def test_coding_style_timeout_verification_is_json_serializable():
+    problem = coding_style.CodingStyleProblem(
+        problem_id="timeout",
+        source="fixture",
+        prompt="def task_func():\n    ",
+        test="def check(candidate):\n    candidate()",
+        entry_point="task_func",
+    )
+
+    verified = coding_style.verify_solution(
+        problem,
+        "while True:\n        pass",
+        timeout_seconds=0.01,
+    )
+
+    assert not verified.success
+    assert verified.error == "timeout"
+    json.dumps(verified.to_json())
+
+
+def test_coding_style_preflights_canonical_solutions():
+    problems = [
+        coding_style.CodingStyleProblem(
+            problem_id="passes",
+            source="fixture",
+            prompt="def task_func(x):\n    ",
+            test="def check(candidate):\n    assert candidate(1) == 2",
+            entry_point="task_func",
+            canonical_solution="    return x + 1",
+        ),
+        coding_style.CodingStyleProblem(
+            problem_id="missing",
+            source="fixture",
+            prompt="def missing_func(x):\n    ",
+            test="def check(candidate):\n    assert candidate(1) == 2",
+            entry_point="missing_func",
+            canonical_solution=None,
+        ),
+    ]
+
+    preflight = coding_style.preflight_canonical_solutions(problems)
+
+    assert not preflight["selected"]
+    assert preflight["num_problems"] == 2
+    assert preflight["num_passed"] == 1
+    assert preflight["failure_breakdown"] == {
+        "success": 1,
+        "missing canonical solution": 1,
+    }
+    assert preflight["records"][0]["success"]
+    assert preflight["records"][1]["error"] == "missing canonical solution"
+
+
 def test_coding_style_report_input_validates_summary_counts(tmp_path):
     data_root = tmp_path / "data"
     results_root = tmp_path / "results"
@@ -922,6 +1000,54 @@ def test_coding_style_report_input_validates_summary_counts(tmp_path):
     assert report_input["run"]["task"] == "coding_style"
     assert report_input["run"]["lane"] == "coding"
     assert report_input["verifier"]["kind"] == "executable"
+
+
+def test_coding_style_report_input_accepts_canonical_preflight(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    problem = coding_style.CodingStyleProblem(
+        problem_id="HumanEval/fixture",
+        source="fixture",
+        prompt="def add_one(x):\n    ",
+        test="def check(candidate):\n    assert candidate(1) == 2",
+        entry_point="add_one",
+        canonical_solution="    return x + 1",
+    )
+    coding_style.write_jsonl(dev, [problem.to_json()])
+    split_registry = data_root / "split_registry.json"
+    coding_style.write_json(
+        split_registry,
+        coding_style.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    coding_style.write_json(
+        summary,
+        coding_style.summarize_evaluations(
+            [coding_style.evaluate_fixture_rollouts(problem, ["return x + 1"])]
+        ),
+    )
+    preflight = results_root / "dev_canonical_preflight.json"
+    coding_style.write_json(
+        preflight,
+        coding_style.preflight_canonical_solutions([problem]),
+    )
+
+    report_input = coding_style.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        scaffold_budget=1,
+        preflight_paths={"dev": preflight},
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["artifacts"]["preflights"] == {
+        "dev": str(preflight),
+    }
+    assert report_input["preflight"]["splits"]["dev"]["selected"]
 
 
 def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt():
@@ -1009,6 +1135,15 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "4",
         ]
     )
+    coding_preflight = parser.parse_args(
+        [
+            "preflight-coding-style-canonical",
+            "--problems",
+            "dev.jsonl",
+            "--output",
+            "preflight.json",
+        ]
+    )
     arc = parser.parse_args(
         [
             "import-arc-grid-split",
@@ -1054,6 +1189,7 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert mbpp.dataset == "google-research-datasets/mbpp"
     assert bigcodebench.dataset == "bigcode/bigcodebench-hard"
     assert bigcodebench.source_split == "v0.1.4"
+    assert coding_preflight.timeout_seconds == 5.0
     assert arc.source_split == "training"
     assert multiple.prompt_variant == "chat"
     assert multiple.num_rollouts == 4

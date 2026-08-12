@@ -577,6 +577,24 @@ def evaluate_coding_style_fixture(args: argparse.Namespace) -> None:
     )
 
 
+def preflight_coding_style_canonical(args: argparse.Namespace) -> None:
+    problems = coding_style.load_problems(args.problems)
+    preflight = coding_style.preflight_canonical_solutions(
+        problems,
+        timeout_seconds=args.timeout_seconds,
+    )
+    coding_style.write_json(args.output, preflight)
+    if args.require_selected and not preflight["selected"]:
+        failed = [
+            record["problem_id"]
+            for record in preflight["records"]
+            if not record["success"]
+        ]
+        raise SystemExit(
+            "coding-style canonical preflight failed: " + ", ".join(failed)
+        )
+
+
 def evaluate_multiple_choice_fixture(args: argparse.Namespace) -> None:
     problems = multiple_choice.load_problems(args.problems)
     fixture = _load_fixture(args.rollouts)
@@ -1050,6 +1068,9 @@ def build_math_style_report_input(args: argparse.Namespace) -> None:
 
 def build_coding_style_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
+    preflight_paths = None
+    if args.preflight:
+        preflight_paths = _parse_split_paths(args.preflight)
     report_input = coding_style.build_report_input(
         data_root=args.data_root,
         results_root=args.results_root,
@@ -1057,6 +1078,7 @@ def build_coding_style_report_input(args: argparse.Namespace) -> None:
         split_registry=args.split_registry,
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
+        preflight_paths=preflight_paths,
     )
     coding_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1733,6 +1755,19 @@ def build_parser() -> argparse.ArgumentParser:
     coding_eval_parser.add_argument("--timeout-seconds", type=float, default=5.0)
     coding_eval_parser.set_defaults(func=evaluate_coding_style_fixture)
 
+    coding_preflight_parser = subparsers.add_parser(
+        "preflight-coding-style-canonical"
+    )
+    coding_preflight_parser.add_argument("--problems", type=Path, required=True)
+    coding_preflight_parser.add_argument("--output", type=Path, required=True)
+    coding_preflight_parser.add_argument("--timeout-seconds", type=float, default=5.0)
+    coding_preflight_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    coding_preflight_parser.set_defaults(func=preflight_coding_style_canonical)
+
     multiple_choice_eval_parser = subparsers.add_parser(
         "evaluate-multiple-choice-fixture"
     )
@@ -2117,6 +2152,7 @@ def build_parser() -> argparse.ArgumentParser:
     coding_report_parser.add_argument("--run-id", required=True)
     coding_report_parser.add_argument("--split-registry", type=Path, required=True)
     coding_report_parser.add_argument("--summary", nargs="+", required=True)
+    coding_report_parser.add_argument("--preflight", nargs="*")
     coding_report_parser.add_argument("--output", type=Path, required=True)
     coding_report_parser.add_argument("--scaffold-budget", type=int, default=4)
     coding_report_parser.add_argument(

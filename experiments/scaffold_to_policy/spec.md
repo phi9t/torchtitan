@@ -523,3 +523,15 @@ reasoning benchmarks.
   pass@1/pass@2 0.000, and all final failures were benchmark-test assertion
   failures. This clears the BigCodeBench-Hard executable harness smoke and
   rootfs dependency repair, but remains too small for a public benchmark claim.
+- 2026-08-12: Added an explicit completion audit and the first unblocked
+  BigCodeBench-Hard hardening item. The audit report is
+  `experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md`
+  and marks the overall spec incomplete because GPQA auth, Terminal-Bench/Harbor
+  Docker or equivalent backend support, and full tau2 agent execution remain
+  blocked or incomplete. The new `preflight-coding-style-canonical` command
+  runs released canonical solutions through the same executable verifier before
+  vLLM generation, writes per-problem preflight artifacts, and lets coding
+  report inputs require those artifacts. `run_bigcodebench_hard_public_vllm_smoke.sh`
+  now performs that preflight for dev and OOD before spending GPU time, so
+  missing rootfs packages are surfaced as early infrastructure failures instead
+  of late scoring failures.
