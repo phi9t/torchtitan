@@ -281,6 +281,36 @@ def test_manifest_and_process_index_are_created(tmp_path, launcher_identity):
     ]
 
 
+@pytest.mark.parametrize("failed_query", ("rev-parse", "status"))
+def test_manifest_records_unknown_source_dirtiness_when_git_query_fails(
+    tmp_path, launcher_identity, monkeypatch, failed_query
+):
+    import torchtitan.observability.run_evidence as run_evidence
+
+    def git_query(command, **kwargs):
+        if failed_query in command:
+            raise OSError(f"git {failed_query} unavailable")
+        return SimpleNamespace(stdout="known-revision\n")
+
+    monkeypatch.setattr(run_evidence.subprocess, "run", git_query)
+
+    with build_evidence(tmp_path):
+        pass
+
+    manifest_path = (
+        tmp_path
+        / "run_evidence"
+        / launcher_identity.run_id
+        / launcher_identity.attempt_id
+        / "manifest.json"
+    )
+    serialized_manifest = manifest_path.read_text()
+    manifest = json.loads(serialized_manifest)
+
+    assert manifest["source"] == {"revision": "unknown", "dirty": None}
+    assert '"dirty":null' in serialized_manifest
+
+
 def test_process_index_collision_fails_before_training(tmp_path, launcher_identity):
     with build_evidence(tmp_path):
         pass

@@ -573,7 +573,7 @@ def _source_state() -> dict[str, Any]:
         )
         return {"revision": revision, "dirty": dirty}
     except (OSError, subprocess.CalledProcessError):
-        return {"revision": "unknown", "dirty": False}
+        return {"revision": "unknown", "dirty": None}
 
 
 def record_artifact(
