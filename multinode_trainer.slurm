@@ -57,8 +57,12 @@ export FI_EFA_SET_CUDA_SYNC_MEMOPS=0
 MODULE=${MODULE:-"llama3"}
 CONFIG=${CONFIG:-"llama3_debugmodel"}
 
+TORCHTITAN_RUN_ID=${TORCHTITAN_RUN_ID:-"$(python3 -c 'import uuid; print(uuid.uuid4())')"}
+TORCHTITAN_ATTEMPT_ID=${TORCHTITAN_ATTEMPT_ID:-"$(python3 -c 'import uuid; print(uuid.uuid4())')"}
+export TORCHTITAN_RUN_ID TORCHTITAN_ATTEMPT_ID
+
 dcgmi profile --pause
 # adjust sbatch --ntasks and sbatch --nodes above and --nnodes below
 # to your specific node count, and update target launch file.
-srun torchrun --nnodes 4 --nproc_per_node 8 --rdzv_id 101 --rdzv_backend c10d --rdzv_endpoint "$head_node_ip:29500" -m torchtitan.train --module ${MODULE} --config ${CONFIG} "$@"
+srun torchrun --nnodes 4 --nproc_per_node 8 --rdzv_id "${TORCHTITAN_RUN_ID}" --rdzv_backend c10d --rdzv_endpoint "$head_node_ip:29500" -m torchtitan.train --module ${MODULE} --config ${CONFIG} "$@"
 dcgmi profile --resume
