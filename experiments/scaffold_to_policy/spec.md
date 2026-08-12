@@ -824,3 +824,16 @@ reasoning benchmarks.
   GPU-memory selection preflight can still fail at vLLM KV-cache initialization;
   the runner now exits cleanly after writing both a stage-failure marker and a
   blocker report. This is blocker evidence only, not a model score.
+- 2026-08-12: Promoted ARC-AGI-2 prompt preflight failures to blocker report
+  inputs. The refreshed rootfs attempt
+  `20260812Tarc-prompt-blocker-stage-refresh` selected
+  `ARC-AGI-2/009d5c81/0`, whose chat prompt used 4473 tokens and 4729 total
+  tokens with a 256-token generation reserve, exceeding the 4096-token model
+  limit. The ARC runner now writes an `arc_prompt_preflight` blocker report
+  with a stage-failure marker instead of exiting with only the failed preflight.
+  The same blocker-first refresh showed BigCodeBench-Hard run
+  `20260812Tbigcode-hard-lane-stage-refresh` passing 1-problem dev and OOD
+  canonical preflights, passing GPU-memory selection at
+  `GPU_MEMORY_UTILIZATION=0.02`, then failing during vLLM KV-cache
+  initialization; the existing `vllm_runtime_failure` path wrote the coding
+  blocker report. Neither refresh is a model score.

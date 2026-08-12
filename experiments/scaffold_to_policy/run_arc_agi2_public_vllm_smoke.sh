@@ -71,13 +71,30 @@ scaffold_run_stage validate_splits python -m torchtitan.experiments.scaffold_to_
   --output "${DATA_ROOT}/split_registry.json"
 
 for split in dev ood_test; do
-  scaffold_run_stage "preflight_${split}_prompts" python -m torchtitan.experiments.scaffold_to_policy.cli preflight-arc-grid-prompts \
+  if ! scaffold_run_stage "preflight_${split}_prompts" python -m torchtitan.experiments.scaffold_to_policy.cli preflight-arc-grid-prompts \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
     --output "${RESULTS_ROOT}/eval/${split}_prompt_preflight.json" \
     --max-new-tokens "${MAX_NEW_TOKENS}" \
     --max-model-len "${MAX_MODEL_LEN}" \
-    --prompt-variant "${PROMPT_VARIANT}"
+    --prompt-variant "${PROMPT_VARIANT}"; then
+    FAILURE_MARKER="${RESULTS_ROOT}/eval/${split}_prompt_preflight_failure.json"
+    scaffold_write_stage_failure_marker "preflight_${split}_prompts" arc_prompt_preflight_failure "${FAILURE_MARKER}"
+    scaffold_run_stage write_prompt_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+      --results-root "${RESULTS_ROOT}" \
+      --run-id "${RUN_ID}" \
+      --task arc_grid \
+      --lane reasoning \
+      --blocker-type arc_prompt_preflight \
+      --artifact \
+        "prompt=${RESULTS_ROOT}/eval/${split}_prompt_preflight.json" \
+        "stage_failure=${FAILURE_MARKER}" \
+      --limitation "ARC-AGI-2 exact-grid run stopped before model execution because ${split} prompt preflight failed." \
+      --limitation "No benchmark task execution or model score was produced." \
+      --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    echo "wrote ARC-AGI-2 prompt blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    exit 0
+  fi
 done
 
 memory_preflight_args=()

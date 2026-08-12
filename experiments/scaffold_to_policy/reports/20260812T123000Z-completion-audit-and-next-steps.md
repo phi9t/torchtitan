@@ -171,6 +171,18 @@ reasoning/coding report inputs:
   vLLM KV-cache initialization with negative available KV cache memory; the
   runner exited cleanly after writing a stage-failure marker, JSONL command
   manifest, and blocker report. This is not a model score.
+- ARC prompt preflight failures are now promoted to `arc_prompt_preflight`
+  blocker report inputs. Refresh run
+  `20260812Tarc-prompt-blocker-stage-refresh` selected
+  `ARC-AGI-2/009d5c81/0`, whose chat prompt exceeded the 4096-token model limit
+  even with `MAX_NEW_TOKENS=256`; the runner wrote a blocker report and JSONL
+  trace instead of stopping at a raw preflight failure.
+- BigCodeBench-Hard refresh run
+  `20260812Tbigcode-hard-lane-stage-refresh` passed 1-problem dev and OOD
+  canonical preflights, passed GPU-memory selection at
+  `GPU_MEMORY_UTILIZATION=0.02`, then failed during vLLM KV-cache
+  initialization. The coding runner wrote a `vllm_runtime_failure` blocker
+  report; this is blocker evidence, not a model score.
 - Refreshed blocker evidence: GPQA auth blocker
   `20260812T114339Z-gpqa-auth-refresh`; AIME GPU blocker
   `20260812T114923Z-aime-gpu-blocker-report`, with 1.72 GiB free versus
