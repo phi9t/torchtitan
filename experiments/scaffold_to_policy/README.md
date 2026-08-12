@@ -416,6 +416,29 @@ RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_authorized \
 experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
 ```
 
+To verify either access path without launching vLLM generation, run the
+rootfs-managed GPQA access preflight:
+
+```bash
+experiments/scaffold_to_policy/run_gpqa_access_preflight.sh
+```
+
+For authorized offline rows:
+
+```bash
+OFFLINE=1 \
+DEV_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_authorized/raw/dev.jsonl \
+OOD_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_authorized/raw/ood.jsonl \
+DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_authorized_preflight \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_authorized_preflight \
+experiments/scaffold_to_policy/run_gpqa_access_preflight.sh
+```
+
+The preflight writes `gpqa_access_preflight_<run_id>.json` plus a command-stage
+manifest under `RESULTS_ROOT/manifests/`. It records whether dev and OOD rows
+were accessible, their row source, problem counts, raw-cache hashes when used,
+and the rootfs state.
+
 The offline-cache path was smoke-tested with synthetic GPQA-shaped rows in run
 `20260812T143600Z-gpqa-offline-cache-smoke`: rootfs imports used
 `--offline --raw-cache`, provenance recorded raw-cache hashes, split validation
@@ -432,9 +455,8 @@ experiments/scaffold_to_policy/setup_gpqa_access_wizard.sh
 
 The wizard stores a live Hugging Face token in ignored
 `.cache/huggingface/token` or records authorized raw-cache paths in `.env`,
-then verifies import through `run_gpqa_public_vllm_smoke.sh` with
-`GPU_MEMORY_UTILIZATION=999` so the check stops after import and split
-validation rather than launching vLLM.
+then verifies access through `run_gpqa_access_preflight.sh` without launching
+vLLM.
 
 Run the first ARC-AGI-2 no-tool smoke through the rootfs:
 

@@ -941,6 +941,85 @@ def test_import_gpqa_split_accepts_offline_raw_cache(tmp_path):
     assert provenance["offline"]
 
 
+def test_preflight_gpqa_access_accepts_offline_raw_caches(tmp_path):
+    parser = build_parser()
+    dev_cache = tmp_path / "raw" / "gpqa_dev.jsonl"
+    ood_cache = tmp_path / "raw" / "gpqa_ood.jsonl"
+    output = tmp_path / "preflight.json"
+    rows = [
+        {
+            "Question": "Which physical statement is correct?",
+            "Correct Answer": "A specialist fact.",
+            "Incorrect Answer 1": "Distractor one.",
+            "Incorrect Answer 2": "Distractor two.",
+            "Incorrect Answer 3": "Distractor three.",
+        }
+    ]
+    multiple_choice.write_jsonl(dev_cache, rows)
+    multiple_choice.write_jsonl(ood_cache, rows)
+
+    args = parser.parse_args(
+        [
+            "preflight-gpqa-access",
+            "--output",
+            str(output),
+            "--revision",
+            "main",
+            "--dev-limit",
+            "1",
+            "--ood-limit",
+            "1",
+            "--ood-offset",
+            "0",
+            "--dev-raw-cache",
+            str(dev_cache),
+            "--ood-raw-cache",
+            str(ood_cache),
+            "--offline",
+        ]
+    )
+    args.func(args)
+
+    preflight = json.loads(output.read_text())
+    assert preflight["selected"]
+    assert preflight["offline"]
+    assert [record["row_source"] for record in preflight["records"]] == [
+        "raw_cache",
+        "raw_cache",
+    ]
+    assert all(record["num_problems"] == 1 for record in preflight["records"])
+    assert preflight["records"][0]["raw_cache_artifact"]["sha256"]
+
+
+def test_preflight_gpqa_access_records_offline_missing_cache(tmp_path):
+    parser = build_parser()
+    output = tmp_path / "preflight.json"
+    args = parser.parse_args(
+        [
+            "preflight-gpqa-access",
+            "--output",
+            str(output),
+            "--revision",
+            "main",
+            "--dev-limit",
+            "1",
+            "--ood-limit",
+            "1",
+            "--offline",
+            "--no-require-selected",
+        ]
+    )
+    args.func(args)
+
+    preflight = json.loads(output.read_text())
+    assert not preflight["selected"]
+    assert {record["split"] for record in preflight["records"]} == {
+        "dev",
+        "ood_test",
+    }
+    assert all(record["error_type"] == "ValueError" for record in preflight["records"])
+
+
 def test_import_mmlu_pro_split_accepts_offline_raw_cache(tmp_path):
     parser = build_parser()
     raw_cache = tmp_path / "raw" / "mmlu_pro.jsonl"
@@ -1955,6 +2034,25 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "4",
         ]
     )
+    gpqa_preflight = parser.parse_args(
+        [
+            "preflight-gpqa-access",
+            "--output",
+            "gpqa_access.json",
+            "--revision",
+            "main",
+            "--dev-limit",
+            "1",
+            "--ood-limit",
+            "1",
+            "--dev-raw-cache",
+            "raw/dev.jsonl",
+            "--ood-raw-cache",
+            "raw/ood.jsonl",
+            "--offline",
+            "--no-require-selected",
+        ]
+    )
     mbpp = parser.parse_args(
         [
             "import-mbpp-split",
@@ -2102,6 +2200,10 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert aime.raw_cache == Path("raw/aime.jsonl")
     assert aime.offline
     assert gpqa.subset == "gpqa_diamond"
+    assert gpqa_preflight.dev_raw_cache == Path("raw/dev.jsonl")
+    assert gpqa_preflight.ood_raw_cache == Path("raw/ood.jsonl")
+    assert gpqa_preflight.offline
+    assert not gpqa_preflight.require_selected
     assert mbpp.dataset == "google-research-datasets/mbpp"
     assert bigcodebench.dataset == "bigcode/bigcodebench-hard"
     assert bigcodebench.source_split == "v0.1.4"

@@ -235,20 +235,20 @@ DATA_ROOT="experiments/scaffold_to_policy/data/gpqa_access_verify"
 RESULTS_ROOT="experiments/scaffold_to_policy/results/gpqa_access_verify"
 mkdir -p "$DATA_ROOT" "$RESULTS_ROOT"
 if [[ "$AUTH_MODE" == "token" ]]; then
-  say "Running live import verification through the bwrap rootfs."
+  say "Running live access verification through the bwrap rootfs."
   HF_HOME="$REPO_ROOT/.cache/huggingface" \
   RUN_ID="$RUN_ID" DATA_ROOT="$DATA_ROOT" RESULTS_ROOT="$RESULTS_ROOT" \
-  DEV_PROBLEMS=1 OOD_PROBLEMS=1 GPU_MEMORY_UTILIZATION=999 \
-  experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
+  DEV_PROBLEMS=1 OOD_PROBLEMS=1 \
+  experiments/scaffold_to_policy/run_gpqa_access_preflight.sh
 else
-  say "Running offline raw-cache verification through the bwrap rootfs."
+  say "Running offline raw-cache access verification through the bwrap rootfs."
   RUN_ID="$RUN_ID" DATA_ROOT="$DATA_ROOT" RESULTS_ROOT="$RESULTS_ROOT" \
   OFFLINE=1 DEV_RAW_CACHE="$DEV_CACHE" OOD_RAW_CACHE="$OOD_CACHE" \
-  DEV_PROBLEMS=1 OOD_PROBLEMS=1 DEV_OFFSET=0 OOD_OFFSET=0 GPU_MEMORY_UTILIZATION=999 \
-  experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
+  DEV_PROBLEMS=1 OOD_PROBLEMS=1 DEV_OFFSET=0 OOD_OFFSET=0 \
+  experiments/scaffold_to_policy/run_gpqa_access_preflight.sh
 fi
 say "Verification wrote artifacts under $RESULTS_ROOT."
-note "GPU_MEMORY_UTILIZATION=999 intentionally stops before vLLM generation after import and split validation."
+note "This preflight verifies GPQA access and row shape without launching vLLM generation."
 
 stage "Optional full GPQA run"
 say "Only continue if the import verification succeeded and a GPU window is available."

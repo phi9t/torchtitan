@@ -1023,3 +1023,13 @@ reasoning benchmarks.
   `experiments/scaffold_to_policy/reports/20260812T232000Z-hard-runtime-metadata-refresh.md`;
   the completion audit refresh remains blocked on GPQA access in
   `experiments/scaffold_to_policy/reports/20260812T211000Z-completion-audit-refresh.md`.
+- 2026-08-12: Added a rootfs-managed GPQA access preflight so the remaining
+  blocker can be checked without launching vLLM. The new
+  `preflight-gpqa-access` CLI and `run_gpqa_access_preflight.sh` entrypoint
+  validate either live Hugging Face access or authorized offline raw JSONL
+  caches for dev and OOD slices, then write a structured
+  `gpqa_access_preflight_<run_id>.json` artifact and command-stage manifest.
+  The setup wizard now uses this preflight instead of forcing an intentionally
+  impossible GPU-memory value to stop after imports. This does not change GPQA
+  benchmark semantics; it only makes the access gate explicit and cheap to
+  audit before running `run_gpqa_public_vllm_smoke.sh`.

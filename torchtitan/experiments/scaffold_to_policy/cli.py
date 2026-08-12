@@ -306,6 +306,142 @@ def import_gpqa_split(args: argparse.Namespace) -> None:
         )
 
 
+def preflight_gpqa_access(args: argparse.Namespace) -> None:
+    records = []
+    for split_name, limit, offset, raw_cache in [
+        ("dev", args.dev_limit, args.dev_offset, args.dev_raw_cache),
+        ("ood_test", args.ood_limit, args.ood_offset, args.ood_raw_cache),
+    ]:
+        records.append(
+            _preflight_gpqa_access_split(
+                split_name=split_name,
+                dataset=args.dataset,
+                subset=args.subset,
+                revision=args.revision,
+                source_split=args.source_split,
+                limit=limit,
+                offset=offset,
+                raw_cache=raw_cache,
+                offline=args.offline,
+            )
+        )
+    preflight = {
+        "schema_version": 1,
+        "kind": "gpqa_access_preflight",
+        "selected": all(record["selected"] for record in records),
+        "rootfs_active": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+        "dataset": args.dataset,
+        "subset": args.subset,
+        "revision": args.revision,
+        "source_split": args.source_split,
+        "offline": args.offline,
+        "records": records,
+    }
+    multiple_choice.write_json(args.output, preflight)
+    if args.require_selected and not preflight["selected"]:
+        reasons = [
+            f"{record['split']}: {record['reason']}"
+            for record in records
+            if not record["selected"]
+        ]
+        raise SystemExit("gpqa access preflight failed: " + "; ".join(reasons))
+
+
+def _preflight_gpqa_access_split(
+    *,
+    split_name: str,
+    dataset: str,
+    subset: str,
+    revision: str,
+    source_split: str,
+    limit: int,
+    offset: int,
+    raw_cache: Path | None,
+    offline: bool,
+) -> dict[str, object]:
+    record: dict[str, object] = {
+        "split": split_name,
+        "limit": limit,
+        "offset": offset,
+        "raw_cache": None if raw_cache is None else str(raw_cache),
+        "offline": offline,
+    }
+    try:
+        if offline:
+            if raw_cache is None:
+                raise ValueError("--offline requires a raw cache for each split")
+            rows = _read_jsonl_rows(raw_cache)
+            row_source = "raw_cache"
+        elif raw_cache is not None and raw_cache.is_file():
+            rows = _read_jsonl_rows(raw_cache)
+            row_source = "raw_cache"
+        else:
+            try:
+                from datasets import load_dataset
+            except ImportError as exc:
+                raise RuntimeError(
+                    "datasets is required for live GPQA access preflight. "
+                    "Run through the TorchTitan rootfs, or use --offline with "
+                    "authorized raw caches."
+                ) from exc
+            namespace = argparse.Namespace(
+                dataset=dataset,
+                subset=subset,
+                revision=revision,
+                source_split=source_split,
+            )
+            rows = _slice_rows(
+                _load_hf_dataset(namespace, load_dataset),
+                limit=limit,
+                offset=offset,
+            )
+            row_source = "huggingface"
+        selected_rows = rows[offset : offset + limit] if row_source == "raw_cache" else rows
+        source = multiple_choice._public_source(
+            dataset,
+            subset,
+            revision,
+            source_split,
+        )
+        problems = multiple_choice.import_gpqa_rows(
+            selected_rows,
+            source=source,
+            limit=None,
+            offset=0,
+        )
+        if len(problems) != limit:
+            raise ValueError(
+                f"expected {limit} GPQA rows after offset {offset}, got {len(problems)}"
+            )
+    except Exception as exc:
+        record.update(
+            {
+                "selected": False,
+                "reason": str(exc),
+                "error_type": type(exc).__name__,
+            }
+        )
+    else:
+        record.update(
+            {
+                "selected": True,
+                "reason": "access ok",
+                "row_source": row_source,
+                "num_rows": len(selected_rows),
+                "num_problems": len(problems),
+                "problem_id_hash": multiple_choice._hash_lines(
+                    [problem.problem_id for problem in problems]
+                ),
+            }
+        )
+        if raw_cache is not None and raw_cache.is_file():
+            record["raw_cache_artifact"] = report_artifacts.describe_artifact(
+                raw_cache,
+                run_id=source,
+            )
+    return record
+
+
 def import_mmlu_pro_split(args: argparse.Namespace) -> None:
     rows, row_source = _load_public_rows(args)
     source = multiple_choice._public_source(
@@ -2456,6 +2592,30 @@ def build_parser() -> argparse.ArgumentParser:
     gpqa_import_parser.add_argument("--offset", type=int, default=0)
     _add_public_import_cache_args(gpqa_import_parser)
     gpqa_import_parser.set_defaults(func=import_gpqa_split)
+
+    gpqa_access_parser = subparsers.add_parser("preflight-gpqa-access")
+    gpqa_access_parser.add_argument("--output", type=Path, required=True)
+    gpqa_access_parser.add_argument("--dataset", default="Idavidrein/gpqa")
+    gpqa_access_parser.add_argument("--subset", default="gpqa_diamond")
+    gpqa_access_parser.add_argument("--source-split", default="train")
+    gpqa_access_parser.add_argument("--revision", required=True)
+    gpqa_access_parser.add_argument("--dev-limit", type=int, required=True)
+    gpqa_access_parser.add_argument("--ood-limit", type=int, required=True)
+    gpqa_access_parser.add_argument("--dev-offset", type=int, default=0)
+    gpqa_access_parser.add_argument("--ood-offset", type=int, default=64)
+    gpqa_access_parser.add_argument("--dev-raw-cache", type=Path)
+    gpqa_access_parser.add_argument("--ood-raw-cache", type=Path)
+    gpqa_access_parser.add_argument(
+        "--offline",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    gpqa_access_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    gpqa_access_parser.set_defaults(func=preflight_gpqa_access)
 
     mmlu_pro_import_parser = subparsers.add_parser("import-mmlu-pro-split")
     mmlu_pro_import_parser.add_argument("--output", type=Path, required=True)

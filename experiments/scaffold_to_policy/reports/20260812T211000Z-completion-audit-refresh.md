@@ -37,7 +37,7 @@ The objective is complete only if all of the following are true:
 | Countdown champion, formatting arm, replication, and rank/size sweep | `spec.md` lists the Countdown reports: clean split final, formatting arm, base-elicitable examples, replication/rank-size sweep, and formatting replication | Covered for checkpoint |
 | Local exact-verifier reasoning before public benchmarks | Reports exist for arithmetic words, modular sequences, modular transfer, GSM-style local fixtures, and vLLM smokes under `experiments/scaffold_to_policy/reports/` | Covered |
 | Public no-tool reasoning expansion | GSM8K, MATH, AIME, ARC-AGI-2, MMLU-Pro reports exist; latest MMLU-Pro run `20260812T230000Z-mmlu-pro-16x16-runtime` preserved exact final-letter scoring and records runtime metadata | Covered as calibration, not leaderboard claims |
-| GPQA Diamond lane | Fresh rootfs run `20260812T223000Z-gpqa-runtime-metadata` failed at `datasets.exceptions.DatasetNotFoundError` for gated dataset `Idavidrein/gpqa`; report input records no task execution or score and includes runtime metadata | Blocked by missing HF auth or authorized raw cache |
+| GPQA Diamond lane | Fresh rootfs access preflight `20260812T234000Z-gpqa-access-preflight` failed both dev and OOD access checks with `DatasetNotFoundError` for gated dataset `Idavidrein/gpqa`; fresh rootfs run `20260812T223000Z-gpqa-runtime-metadata` also records no task execution or score and includes runtime metadata | Blocked by missing HF auth or authorized raw cache |
 | Public coding expansion | HumanEval, MBPP, LiveCodeBench, and BigCodeBench-Hard reports exist; latest BigCodeBench-Hard run `20260812T231500Z-bigcodebench-hard-8x8-runtime` passed canonical preflight, completed model evaluation, and records runtime metadata | Covered as executable/public-test smokes and hard negatives |
 | Terminal-Bench/Harbor harness smoke | `experiments/scaffold_to_policy/results/terminal_bench_harbor_qwen_headless_official_verifier/manifests/report_input_20260812Tqwen-headless-terminal-official-verifier.json` records installed preflight, rootfs selection, one completed official verifier trial, and unsuccessful task reward | Covered as model-policy execution plumbing, not solved task |
 | tau2-bench harness smoke | `experiments/scaffold_to_policy/results/tau2_qwen_model_policy/manifests/report_input_20260812Ttau2-qwen-model-policy.json` records installed preflight, rootfs selection, one completed upstream mock-domain simulation, and unsuccessful task reward | Covered as model-policy execution plumbing, not solved task |
@@ -71,6 +71,16 @@ DEV_PROBLEMS=1 OOD_PROBLEMS=1 GPU_MEMORY_UTILIZATION=0.05 \
 experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
 ```
 
+Latest access-only preflight command:
+
+```bash
+RUN_ID=20260812T234000Z-gpqa-access-preflight \
+DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_access_preflight_current \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_access_preflight_current \
+DEV_PROBLEMS=1 OOD_PROBLEMS=1 \
+experiments/scaffold_to_policy/run_gpqa_access_preflight.sh
+```
+
 Observed rootfs error:
 
 ```text
@@ -81,8 +91,31 @@ dataset on the Hub. You must be authenticated to access it.
 The runner exited cleanly after writing:
 
 ```text
+experiments/scaffold_to_policy/results/gpqa_access_preflight_current/manifests/gpqa_access_preflight_20260812T234000Z-gpqa-access-preflight.json
 experiments/scaffold_to_policy/results/gpqa_public_vllm_workstatus/manifests/report_input_20260812T212000Z-gpqa-auth-workstatus.json
 experiments/scaffold_to_policy/results/gpqa_public_vllm_runtime_metadata/manifests/report_input_20260812T223000Z-gpqa-runtime-metadata.json
+```
+
+The access preflight records:
+
+```json
+{
+  "kind": "gpqa_access_preflight",
+  "rootfs_active": true,
+  "selected": false,
+  "records": [
+    {
+      "split": "dev",
+      "selected": false,
+      "error_type": "DatasetNotFoundError"
+    },
+    {
+      "split": "ood_test",
+      "selected": false,
+      "error_type": "DatasetNotFoundError"
+    }
+  ]
+}
 ```
 
 The latest report input records:
