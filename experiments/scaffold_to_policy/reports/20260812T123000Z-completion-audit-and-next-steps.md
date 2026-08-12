@@ -117,6 +117,14 @@ BigCodeBench-Hard executable smoke:
   preflight, shared-engine dev/OOD vLLM evaluation, and report-input generation.
   Both one-problem splits scored pass@1 through pass@32 `0.000` with
   released-test assertion failures.
+- Follow-up 8x8 blocker refresh:
+  `20260812Tbigcode-hard-contract-chat-shared-engine-8x8-faker-lowmem` passed
+  canonical preflight 8/8 on both dev and offset-32 OOD after adding
+  `faker==37.5.3` to the rootfs dependency bootstrap. It still stopped before
+  model execution because vLLM GPU preflight saw only 6.92 GiB free versus
+  8.92 GiB required at `GPU_MEMORY_UTILIZATION=0.05`, while all eight B200s
+  were occupied by unrelated SGLang scheduler processes. The larger
+  `contract_chat` model result remains pending a free GPU.
 
 ## New Hardening Landed From This Audit
 
@@ -207,6 +215,9 @@ reasoning/coding report inputs:
   negative KV-cache availability failure after the first split had completed.
   The implementation is unit-tested, rootfs-tested, and verified through the
   updated shell runner in `20260812Tbigcode-hard-shared-engine-verified`.
+- The BigCodeBench-Hard rootfs dependency bootstrap now includes
+  `faker==37.5.3`; this closes the canonical preflight failures on
+  `BigCodeBench/287` and `BigCodeBench/313` for the offset-32 OOD slice.
 - Refreshed blocker evidence: GPQA auth blocker
   `20260812T114339Z-gpqa-auth-refresh`; AIME GPU blocker
   `20260812T114923Z-aime-gpu-blocker-report`, with 1.72 GiB free versus

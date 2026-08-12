@@ -470,11 +470,11 @@ experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
 ```
 
 The runner now installs the explicit packages exposed by canonical preflight
-for this slice (`flask`, `flask-login`, `flask-wtf`, `pycryptodome`, `rsa`,
-`seaborn`, and `wordcloud`) inside rootfs before preflight. The selected dev
-and OOD canonical solutions pass 8/8. Qwen3-1.7B reached pass@1/pass@4 `0.000`
-on both splits; all 64 sampled candidates failed released unit tests with
-assertion failures. The expanded report is:
+for these slices (`faker`, `flask`, `flask-login`, `flask-wtf`, `pycryptodome`,
+`rsa`, `seaborn`, and `wordcloud`) inside rootfs before preflight. The selected
+dev and OOD canonical solutions pass 8/8. Qwen3-1.7B reached pass@1/pass@4
+`0.000` on both splits; all 64 sampled candidates failed released unit tests
+with assertion failures. The expanded report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T173000Z-bigcodebench-hard-expanded-calibration.md

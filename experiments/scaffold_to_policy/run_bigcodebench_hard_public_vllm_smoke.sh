@@ -36,6 +36,7 @@ scaffold_setup_run_manifest
 
 if [[ "${INSTALL_BIGCODEBENCH_DEPS}" == "1" ]]; then
   scaffold_run_stage install_bigcodebench_deps python -m pip install --break-system-packages -q \
+    "faker==37.5.3" \
     "flask==3.1.3" \
     "flask-login==0.6.3" \
     "flask-wtf==1.3.0" \

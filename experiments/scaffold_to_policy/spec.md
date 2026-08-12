@@ -578,13 +578,13 @@ reasoning benchmarks.
   `bigcode/bigcodebench-hard` split `v0.1.4`, and the same no-tool vLLM coding
   prompt/verifier path. To make this slice reproducible from the rootfs
   entrypoint, `run_bigcodebench_hard_public_vllm_smoke.sh` now installs the
-  explicit packages exposed by canonical preflight: `flask`, `flask-login`,
-  `flask-wtf`, `pycryptodome`, `rsa`, `seaborn`, and `wordcloud`. Both final
-  selected splits passed canonical preflight 8/8. Qwen3-1.7B reached dev and
-  OOD pass@1/pass@4 0.000, with all 64 sampled candidates failing released unit
-  tests as assertion failures. Rejected OOD offset 64 remains documented as a
-  preflight-blocked slice because two released canonical solutions failed under
-  current rootfs library versions. The report is
+  explicit packages exposed by canonical preflight: `faker`, `flask`,
+  `flask-login`, `flask-wtf`, `pycryptodome`, `rsa`, `seaborn`, and
+  `wordcloud`. Both final selected splits passed canonical preflight 8/8.
+  Qwen3-1.7B reached dev and OOD pass@1/pass@4 0.000, with all 64 sampled
+  candidates failing released unit tests as assertion failures. Rejected OOD
+  offset 64 remains documented as a preflight-blocked slice because two released
+  canonical solutions failed under current rootfs library versions. The report is
   `experiments/scaffold_to_policy/reports/20260812T173000Z-bigcodebench-hard-expanded-calibration.md`.
 - 2026-08-12: Added the BigCodeBench-Hard `contract_chat` prompt condition and
   a GPU-memory preflight to the BigCodeBench runner. `contract_chat` keeps the
@@ -873,3 +873,14 @@ reasoning benchmarks.
   and OOD in one vLLM engine, report checks selected, and both one-problem
   splits scored pass@1 through pass@32 of 0.0 due to released-test assertion
   failures.
+- 2026-08-12: Revisited the larger BigCodeBench-Hard `contract_chat` 8 dev /
+  8 OOD slice with the shared-engine runner. Offset-32 OOD first exposed a
+  rootfs dependency gap: canonical solutions for `BigCodeBench/287` and
+  `BigCodeBench/313` required `faker`. Adding `faker==37.5.3` to the runner
+  dependency bootstrap made both dev and OOD canonical preflights pass 8/8.
+  Model execution is still blocked by shared-machine GPU state: at
+  `GPU_MEMORY_UTILIZATION=0.12`, vLLM reached initialization but reported
+  `Available KV cache memory: -84.97 GiB`; at `GPU_MEMORY_UTILIZATION=0.05`,
+  preflight saw only 6.92 GiB free versus 8.92 GiB required. Host `nvidia-smi`
+  showed all eight B200s occupied by unrelated SGLang scheduler processes. No
+  larger 8x8 `contract_chat` model score was produced.
