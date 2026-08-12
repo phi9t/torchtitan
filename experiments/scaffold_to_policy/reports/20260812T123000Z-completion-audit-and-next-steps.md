@@ -64,6 +64,10 @@ ARC-AGI-2 exact-grid smoke:
 - Status: completed smoke, not benchmark claim
 - Result: dev pass@1 `0.000`, dev pass@2 `0.500`; OOD pass@1/pass@2 `0.000`
 - Main failure: final-grid JSON format misses and wrong grids
+- Follow-up: the larger `chat` calibration reached dev pass@4 `0.125`; the
+  completed `strict_chat` calibration reached dev/OOD pass@1/pass@4 `0.000`.
+  `strict_chat` removed missing-final failures but mostly produced wrong grids,
+  so it is not a better ARC default.
 
 BigCodeBench-Hard executable smoke:
 

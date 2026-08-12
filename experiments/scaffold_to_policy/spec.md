@@ -586,3 +586,14 @@ reasoning benchmarks.
   recorded 6.50 GiB free versus 42.80 GiB required at
   `GPU_MEMORY_UTILIZATION=0.24`. The report is
   `experiments/scaffold_to_policy/reports/20260812T134500Z-arc-strict-chat-blocked.md`.
+- 2026-08-12: Re-ran the ARC-AGI-2 `strict_chat` condition after GPU memory
+  became available as run `20260812T150000Z-arc-agi2-strict-chat-calibration`.
+  The run completed through rootfs/vLLM and wrote report input under
+  `experiments/scaffold_to_policy/results/arc_agi2_public_vllm_calibration_strict_chat_rerun/`.
+  Prompt/context and GPU-memory preflights all passed. The strict prompt reached
+  dev/OOD pass@1/pass@4 0.000. It eliminated missing-final failures but
+  converted most failures into wrong-grid outputs and lost the one dev success
+  from the earlier `chat` calibration. This argues against replacing the ARC
+  prompt with `strict_chat`; a format-repair or two-stage final-emission
+  condition is the better next ARC branch. The report is
+  `experiments/scaffold_to_policy/reports/20260812T150000Z-arc-strict-chat-results.md`.

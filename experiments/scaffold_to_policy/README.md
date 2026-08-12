@@ -375,6 +375,16 @@ is:
 experiments/scaffold_to_policy/reports/20260812T134500Z-arc-strict-chat-blocked.md
 ```
 
+After GPUs became available, the same strict prompt condition completed as run
+`20260812T150000Z-arc-agi2-strict-chat-calibration`. It reached dev/OOD
+pass@1/pass@4 `0.000`. Missing-final failures dropped to zero, but the original
+`chat` prompt's one dev success disappeared and most failures became wrong-grid
+failures. The completed report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T150000Z-arc-strict-chat-results.md
+```
+
 ## Initial Coding Benchmarks
 
 The first coding lane uses `coding_style`, a repo-owned executable-test harness
