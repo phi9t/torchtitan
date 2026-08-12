@@ -21,11 +21,12 @@ TAU2_REVISION="${TAU2_REVISION:-668d3bcd135c02aa3438f987ef45735b7c163ee3}"
 TAU2_REPO_DIR="${TAU2_REPO_DIR:-${RESULTS_ROOT}/src/tau2-bench}"
 TAU2_SAVE_NAME="${TAU2_SAVE_NAME:-${RUN_ID}}"
 TAU2_TASK_ID="${TAU2_TASK_ID:-create_task_1}"
-TAU2_AGENT="${TAU2_AGENT:-llm_agent}"
+TAU2_REGISTER_TORCHTITAN_AGENT="${TAU2_REGISTER_TORCHTITAN_AGENT:-1}"
+TAU2_AGENT="${TAU2_AGENT:-torchtitan_mock_oracle_agent}"
 TAU2_AGENT_LLM="${TAU2_AGENT_LLM:-fake}"
-TAU2_USER="${TAU2_USER:-user_simulator}"
+TAU2_USER="${TAU2_USER:-torchtitan_static_user}"
 TAU2_USER_LLM="${TAU2_USER_LLM:-fake}"
-TAU2_MAX_STEPS="${TAU2_MAX_STEPS:-2}"
+TAU2_MAX_STEPS="${TAU2_MAX_STEPS:-4}"
 TAU2_MAX_ERRORS="${TAU2_MAX_ERRORS:-1}"
 TAU2_TIMEOUT="${TAU2_TIMEOUT:-20}"
 PROBE_TIMEOUT_SECONDS="${PROBE_TIMEOUT_SECONDS:-120}"
@@ -44,6 +45,23 @@ fi
 "${VENV_DIR}/bin/python" -m pip install -q \
   "git+https://github.com/sierra-research/tau2-bench.git@${TAU2_REVISION}"
 
+TAU2_WRAPPER="${RESULTS_ROOT}/tau2_registered_cli.py"
+cat > "${TAU2_WRAPPER}" <<'PY'
+import sys
+
+if __name__ == "__main__":
+    import torchtitan.experiments.scaffold_to_policy.tau2_probe_agent
+    from tau2.cli import main
+
+    sys.exit(main())
+PY
+
+if [[ "${TAU2_REGISTER_TORCHTITAN_AGENT}" == "1" ]]; then
+  TAU2_CLI_COMMAND=("${VENV_DIR}/bin/python" "${TAU2_WRAPPER}")
+else
+  TAU2_CLI_COMMAND=("${VENV_DIR}/bin/tau2")
+fi
+
 if [[ ! -d "${TAU2_REPO_DIR}/.git" ]]; then
   rm -rf "${TAU2_REPO_DIR}"
   git clone --filter=blob:none https://github.com/sierra-research/tau2-bench.git "${TAU2_REPO_DIR}"
@@ -52,7 +70,7 @@ git -C "${TAU2_REPO_DIR}" fetch --quiet origin "${TAU2_REVISION}"
 git -C "${TAU2_REPO_DIR}" checkout --quiet "${TAU2_REVISION}"
 
 export TAU2_DATA_DIR="${TAU2_REPO_DIR}/data"
-"${VENV_DIR}/bin/tau2" check-data
+"${TAU2_CLI_COMMAND[@]}" check-data
 
 TAU2_RESULTS_JSON="${TAU2_DATA_DIR}/simulations/${TAU2_SAVE_NAME}/results.json"
 rm -rf "${TAU2_DATA_DIR}/simulations/${TAU2_SAVE_NAME}"
@@ -64,7 +82,7 @@ rm -rf "${TAU2_DATA_DIR}/simulations/${TAU2_SAVE_NAME}"
   --results-json "${TAU2_RESULTS_JSON}" \
   --timeout-seconds "${PROBE_TIMEOUT_SECONDS}" \
   --output "${RESULTS_ROOT}/raw/tau2_execution_probe.json" \
-  "${VENV_DIR}/bin/tau2" run \
+  "${TAU2_CLI_COMMAND[@]}" run \
     --domain mock \
     --task-set-name mock \
     --task-ids "${TAU2_TASK_ID}" \

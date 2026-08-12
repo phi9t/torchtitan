@@ -686,3 +686,25 @@ reasoning benchmarks.
   `contract_chat` and GPQA runs remained blocked by shared-machine state:
   GPQA is gated without `HF_TOKEN`, and unrelated root-owned SGLang processes
   consumed nearly all eight B200s, in one case causing CUDA memory-query OOM.
+- 2026-08-12: Unblocked the tau2 upstream execution probe without adding a
+  provider dependency. The runner now invokes a small explicit Python wrapper
+  that imports `torchtitan.experiments.scaffold_to_policy.tau2_probe_agent`
+  before dispatching to `tau2.cli.main`, because this virtualenv layout did not
+  import `sitecustomize.py` at startup. The probe module registers a
+  non-solo deterministic mock-domain agent plus a static deterministic user,
+  then still runs Sierra tau2-bench's pinned `tau2 run` path and ingests
+  tau2's official `results.json`. Run
+  `20260812T105500Z-tau2-deterministic-execution-probe` completed one
+  `create_task_1` simulation with return code 0, `num_evaluated=1`,
+  `num_infra_errors=0`, and `task_execution_probes_succeeded=true`. This
+  clears tau2 task-execution plumbing only; it is a deterministic harness probe,
+  not a model capability score.
+- 2026-08-12: Rechecked harder reasoning/coding blockers after the tau2 fix.
+  GPQA Diamond still stops at import because `Idavidrein/gpqa` is gated and no
+  `HF_TOKEN` is available inside the rootfs; the runner wrote blocker manifest
+  `experiments/scaffold_to_policy/results/gpqa_public_vllm_auth_blocker/manifests/report_input_20260812T110000Z-gpqa-auth-blocker.json`.
+  The current vLLM GPU preflight also remains blocked: device 0 had 3.93 GiB
+  free versus 133.76 GiB required at `GPU_MEMORY_UTILIZATION=0.75`, and
+  host-side `nvidia-smi` showed all eight B200s occupied by SGLang scheduler
+  processes. No new BigCodeBench-Hard, ARC, AIME, or GPQA model score should be
+  inferred from this blocker refresh.

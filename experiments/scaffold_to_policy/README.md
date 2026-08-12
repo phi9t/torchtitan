@@ -622,10 +622,13 @@ This creates an isolated tau2 virtualenv, clones the pinned tau2-bench repo for
 its `data/` directory, verifies `tau2 check-data`, launches one bounded
 mock-domain task through upstream `tau2 run`, parses tau2's saved
 `results.json`, and ingests the execution artifact. It is not a successful tau2
-benchmark result unless `task_execution_probes_succeeded=true` in the report
-input. The first completed probe reached tau2's batch runner and results writer
-for `create_task_1`, but tau2 recorded one infrastructure error and zero
-evaluated tasks:
+model benchmark result unless `task_execution_probes_succeeded=true` in the
+report input, and even then the default deterministic probe is harness plumbing
+evidence rather than model capability evidence.
+
+The first completed probe reached tau2's batch runner and results writer for
+`create_task_1`, but tau2 recorded one infrastructure error and zero evaluated
+tasks:
 
 ```text
 DummyUser.__init__() got an unexpected keyword argument 'tools'
@@ -643,14 +646,28 @@ The report is:
 experiments/scaffold_to_policy/reports/20260812T132500Z-tau2-execution-probe.md
 ```
 
-The current runner default uses tau2's non-solo `llm_agent` plus
-`user_simulator` pairing because this matches tau2's constructor contract; it
-also exposes `TAU2_USER_LLM`. In a hermetic offline run with
-`TAU2_AGENT_LLM=fake` and `TAU2_USER_LLM=fake`, tau2 reaches the simulation
-loop but LiteLLM rejects `model=fake` as an unknown provider, so the probe
-still records one infra error and zero evaluated tasks. A successful nonfixture
-tau2 execution therefore needs either a real compatible provider endpoint
-inside the rootfs or a benchmark-preserving deterministic provider/agent path.
+The current runner default uses a benchmark-preserving deterministic probe path
+instead of a fake LiteLLM provider. It invokes a small Python wrapper that
+imports `torchtitan.experiments.scaffold_to_policy.tau2_probe_agent` before
+dispatching to tau2's own CLI, then runs upstream `tau2 run` and ingests tau2's
+official `results.json`. The registered probe agent is non-solo and is paired
+with `torchtitan_static_user`, avoiding the pinned revision's solo
+`DummyUser(tools=...)` constructor mismatch.
+
+The completed deterministic execution probe is:
+
+```text
+RUN_ID=20260812T105500Z-tau2-deterministic-execution-probe
+RESULTS_ROOT=experiments/scaffold_to_policy/results/tau2_deterministic_execution_probe
+```
+
+It recorded `returncode=0`, `num_simulations=1`, `num_evaluated=1`,
+`num_infra_errors=0`, and `task_execution_probes_succeeded=true`. This clears
+tau2 task-execution plumbing for the pinned mock-domain probe. It does not
+evaluate Qwen3, a TorchTitan adapter, or a learned scaffold policy. The next
+tau2 step is replacing the deterministic oracle behavior with a bounded model
+or policy agent while preserving tau2's released task state, runner, and
+evaluator semantics.
 
 Run the Terminal-Bench / Harbor oracle execution probe through the rootfs:
 

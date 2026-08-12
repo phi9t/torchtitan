@@ -22,9 +22,9 @@ Completed or materially advanced:
   ARC-AGI-2-style exact grids.
 - Public executable coding smokes exist for HumanEval, MBPP, and
   BigCodeBench-Hard.
-- External harness dry-run, package preflight, tau2 scorer-ingestion, and
-  tau2 upstream execution-probe blocker evidence, and Terminal-Bench/Harbor
-  Docker-boundary probes exist.
+- External harness dry-run, package preflight, tau2 scorer-ingestion, a
+  successful deterministic tau2 upstream execution probe, and
+  Terminal-Bench/Harbor Docker-boundary probes exist.
 
 Not complete:
 
@@ -32,9 +32,10 @@ Not complete:
 - Terminal-Bench/Harbor oracle execution now works through the bwrap rootfs
   with explicit host Docker passthrough and host-path repo binding, but it is
   still an oracle harness smoke rather than a model or agent score.
-- tau2-bench full agent execution is incomplete; package, loader, fixture
-  scorer ingestion, and upstream `tau2 run` launch have cleared, but current
-  offline execution probes still produce infra errors and zero evaluated tasks.
+- tau2-bench full model or learned-policy execution is incomplete; package,
+  loader, fixture scorer ingestion, and deterministic upstream `tau2 run`
+  execution have cleared, but the successful path is still an oracle-style
+  deterministic harness probe rather than a model capability result.
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
 - The registry/reporting surface still needs broader latest-row selection,
@@ -51,7 +52,7 @@ Not complete:
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
 | 21-22 local generated reasoning tasks | Complete for initial lane | `arithmetic_words`, `modular_sequences`, and modular transfer reports | Larger modular transfer replication is still needed before adapter-science claims. |
 | 23-25 public no-tool reasoning semantics | Mostly complete | GSM8K, MATH, AIME, ARC-AGI-2 scripts and reports | GPQA Diamond is blocked by auth; all public runs are too small for public benchmark claims. |
-| 26-29 external harness boundaries and labels | Partial | `external_harness` module, dry-run/preflight/tau2/Terminal-Bench reports, tau2 execution-probe ingestion | Full Terminal-Bench/Harbor and successful tau2 task evaluation remain incomplete. |
+| 26-29 external harness boundaries and labels | Partial | `external_harness` module, dry-run/preflight/tau2/Terminal-Bench reports, tau2 execution-probe ingestion | Terminal-Bench/Harbor oracle execution and tau2 deterministic execution are green; non-oracle model or policy execution remains incomplete. |
 | 30 generated artifact hygiene | Complete for checked tree | Generated results/data roots are ignored; current tracked edits are code/docs/tests only | Continue to avoid committing runtime results. |
 | 31-36 future-agent spec, gates, caveats, examples, exact verifiers, upstream metrics | Mostly complete | `spec.md`, README, reports with examples, exact verifiers, external harness notes | Need a shared registry abstraction for all scaffold lanes rather than per-lane report builders. |
 
@@ -130,17 +131,16 @@ post-generation scoring surprises.
      execution and verifier semantics.
 
 3. tau2-bench:
-   - Progress: the first upstream `tau2 run` execution probe exposed a solo
-     dummy-user constructor mismatch; the runner default now uses tau2's
-     constructor-compatible `llm_agent` plus `user_simulator` pair and exposes
-     `TAU2_USER_LLM`.
-   - Current blocker: in hermetic offline mode, LiteLLM rejects
-     `model=fake`, so tau2 records `BadRequestError`, one infra error, and zero
-     evaluated tasks.
-   - Required next step: add a real compatible provider endpoint inside rootfs
-     or a benchmark-preserving deterministic provider/agent execution path that
-     produces a non-fixture tau2 trajectory and scores it with tau2's official
-     evaluator.
+   - Progress: `20260812T105500Z-tau2-deterministic-execution-probe` registers
+     a non-solo deterministic tau2 agent and static user before calling
+     upstream `tau2.cli.main`; tau2 writes an official `results.json` with
+     `num_evaluated=1`, `num_infra_errors=0`, and scaffold report
+     `task_execution_probes_succeeded=true`.
+   - Current blocker: this is still deterministic oracle behavior for one mock
+     task, not Qwen3, an adapter, or a learned scaffold policy.
+   - Required next step: replace the oracle behavior with a bounded model or
+     policy agent while preserving tau2's released task state, runner, and
+     evaluator semantics.
 
 4. Registry/reporting:
    - Blocker: scaffold lanes still have per-task report builders rather than a
