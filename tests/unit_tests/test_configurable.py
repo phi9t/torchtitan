@@ -7,12 +7,16 @@
 import functools
 import hashlib
 import json
+import logging
 import re
 import subprocess
 import sys
 import textwrap
+import types
 import unittest
 from dataclasses import dataclass, field
+
+import torch
 
 from torchtitan.config.configurable import Configurable
 
@@ -233,6 +237,408 @@ class TestConfigurable(unittest.TestCase):
         self.assertEqual(offset_one["closure"], {"offset": 1})
         self.assertEqual(offset_two["closure"], {"offset": 2})
 
+    def test_to_dict_distinguishes_lists_and_tuples(self):
+        """JSON output preserves list-versus-tuple config semantics."""
+
+        class ValueComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                value: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        as_list = ValueComponent.Config(value=[1, 2]).to_dict()["value"]
+        as_tuple = ValueComponent.Config(value=(1, 2)).to_dict()["value"]
+
+        self.assertNotEqual(as_list, as_tuple)
+        self.assertEqual(as_list, [1, 2])
+        self.assertEqual(
+            as_tuple,
+            {"$torchtitan_type": "tuple", "items": [1, 2]},
+        )
+
+    def test_to_dict_preserves_internal_tags_from_nested_configs(self):
+        """Nested configs can return serializer tags without looking like user data."""
+
+        class Inner(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        class Outer(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                inner: Inner.Config
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def configured(value):
+            return value
+
+        snapshot = Outer.Config(inner=Inner.Config(fn=configured)).to_dict()
+
+        self.assertEqual(snapshot["inner"]["fn"]["$torchtitan_type"], "function")
+
+    def test_to_dict_rejects_reserved_representation_tag_in_user_dict(self):
+        """User data cannot imitate config serializer descriptors."""
+
+        class ValueComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                value: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        with self.assertRaisesRegex(TypeError, "reserved.*\\$torchtitan_type"):
+            ValueComponent.Config(
+                value={"$torchtitan_type": "empty_closure_cell"}
+            ).to_dict()
+
+    def test_to_dict_rejects_non_string_dictionary_keys(self):
+        """Dictionary keys cannot collapse during canonical JSON encoding."""
+
+        class ValueComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                value: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        for key in (1, ("tuple",)):
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(TypeError, "dictionary keys.*strings"):
+                    ValueComponent.Config(value={key: "value"}).to_dict()
+
+    def test_empty_closure_cell_cannot_collide_with_real_dictionary(self):
+        """The empty-cell marker cannot be represented as ordinary config data."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def make_empty_cell_function():
+            value = "initial"
+
+            def configured():
+                return value
+
+            del value
+            return configured
+
+        snapshot = CallableComponent.Config(fn=make_empty_cell_function()).to_dict()[
+            "fn"
+        ]
+
+        self.assertEqual(
+            snapshot["closure"]["value"],
+            {"$torchtitan_type": "empty_closure_cell"},
+        )
+        with self.assertRaisesRegex(TypeError, "reserved.*\\$torchtitan_type"):
+            sentinel_like = {"$torchtitan_type": "empty_closure_cell"}
+            CallableComponent.Config(fn=lambda value=sentinel_like: value).to_dict()
+
+    def test_to_dict_snapshots_direct_referenced_global_bindings(self):
+        """Same code/path changes when a directly loaded global is rebound."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def load_function(global_value):
+            namespace = {
+                "__name__": "config_global_fixture",
+                "configured_value": global_value,
+            }
+            exec(
+                compile(
+                    "def configured():\n    return configured_value\n",
+                    "/checkout/config.py",
+                    "exec",
+                ),
+                namespace,
+            )
+            return namespace["configured"]
+
+        first = CallableComponent.Config(fn=load_function(1)).to_dict()["fn"]
+        second = CallableComponent.Config(fn=load_function(2)).to_dict()["fn"]
+
+        self.assertEqual(first["path"], second["path"])
+        self.assertEqual(first["code_sha256"], second["code_sha256"])
+        self.assertEqual(first["globals"], {"configured_value": 1})
+        self.assertEqual(second["globals"], {"configured_value": 2})
+        self.assertNotEqual(first, second)
+
+    def test_to_dict_snapshots_referenced_module_and_callable_bindings(self):
+        """Loaded modules and callables contribute bounded semantic identity."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def load_function(module_value, callable_value):
+            namespace = {
+                "__name__": "config_global_fixture",
+                "configured_module": module_value,
+                "configured_callable": callable_value,
+            }
+            exec(
+                compile(
+                    "def configured(value):\n"
+                    "    configured_module\n"
+                    "    return configured_callable(value)\n",
+                    "/checkout/config.py",
+                    "exec",
+                ),
+                namespace,
+            )
+            return namespace["configured"]
+
+        first_module = types.ModuleType("first_module")
+        second_module = types.ModuleType("second_module")
+        first = CallableComponent.Config(fn=load_function(first_module, abs)).to_dict()[
+            "fn"
+        ]
+        rebound_module = CallableComponent.Config(
+            fn=load_function(second_module, abs)
+        ).to_dict()["fn"]
+        rebound_callable = CallableComponent.Config(
+            fn=load_function(first_module, round)
+        ).to_dict()["fn"]
+
+        self.assertEqual(
+            first["globals"]["configured_module"],
+            {"$torchtitan_type": "module", "name": "first_module"},
+        )
+        self.assertNotEqual(first, rebound_module)
+        self.assertNotEqual(first, rebound_callable)
+
+    def test_referenced_global_callable_snapshot_is_non_recursive(self):
+        """A direct callable binding does not recursively traverse its globals."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        inner_namespace = {
+            "__name__": "inner_config_global_fixture",
+            "nested_value": 1,
+        }
+        exec(
+            compile(
+                "def configured_inner(value=2):\n" "    return value + nested_value\n",
+                "/checkout/inner_config.py",
+                "exec",
+            ),
+            inner_namespace,
+        )
+        outer_namespace = {
+            "__name__": "outer_config_global_fixture",
+            "configured_callable": inner_namespace["configured_inner"],
+        }
+        exec(
+            compile(
+                "def configured_outer():\n" "    return configured_callable()\n",
+                "/checkout/outer_config.py",
+                "exec",
+            ),
+            outer_namespace,
+        )
+
+        snapshot = CallableComponent.Config(
+            fn=outer_namespace["configured_outer"]
+        ).to_dict()["fn"]
+        callable_binding = snapshot["globals"]["configured_callable"]
+
+        self.assertEqual(callable_binding["$torchtitan_type"], "function")
+        self.assertEqual(
+            callable_binding["defaults"],
+            {"$torchtitan_type": "tuple", "items": [2]},
+        )
+        self.assertNotIn("globals", callable_binding)
+
+    def test_global_load_uses_function_builtins_and_marks_missing_names(self):
+        """Global lookup snapshots the function's builtins before missing names."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def configured_len(_value):
+            return 7
+
+        namespace = {
+            "__name__": "config_builtins_fixture",
+            "__builtins__": {"len": configured_len},
+        }
+        exec(
+            compile(
+                "def configured(value):\n" "    return len(value) + missing_name\n",
+                "/checkout/config.py",
+                "exec",
+            ),
+            namespace,
+        )
+
+        snapshot = CallableComponent.Config(fn=namespace["configured"]).to_dict()["fn"]
+
+        self.assertEqual(
+            snapshot["globals"]["len"]["$torchtitan_type"],
+            "builtin_binding",
+        )
+        self.assertEqual(
+            snapshot["globals"]["len"]["value"]["$torchtitan_type"],
+            "function",
+        )
+        self.assertEqual(
+            snapshot["globals"]["missing_name"],
+            {"$torchtitan_type": "missing_global", "name": "missing_name"},
+        )
+
+    def test_to_dict_snapshots_torch_dtype_global_values(self):
+        """A directly loaded dtype map has stable, distinct dtype identities."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        namespace = {
+            "__name__": "config_dtype_fixture",
+            "dtype_map": {
+                "float16": torch.float16,
+                "float32": torch.float32,
+            },
+        }
+        exec(
+            compile(
+                "def configured():\n    return dtype_map\n",
+                "/checkout/config.py",
+                "exec",
+            ),
+            namespace,
+        )
+
+        snapshot = CallableComponent.Config(fn=namespace["configured"]).to_dict()["fn"]
+
+        self.assertEqual(
+            snapshot["globals"]["dtype_map"],
+            {
+                "float16": {
+                    "$torchtitan_type": "torch_dtype",
+                    "name": "torch.float16",
+                },
+                "float32": {
+                    "$torchtitan_type": "torch_dtype",
+                    "name": "torch.float32",
+                },
+            },
+        )
+
+    def test_to_dict_snapshots_referenced_logger_identity(self):
+        """A loaded logger uses name identity, excluding diagnostic runtime state."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def load_function(logger_value):
+            namespace = {
+                "__name__": "config_logger_fixture",
+                "logger": logger_value,
+            }
+            exec(
+                compile(
+                    "def configured():\n    return logger\n",
+                    "/checkout/config.py",
+                    "exec",
+                ),
+                namespace,
+            )
+            return namespace["configured"]
+
+        first_logger = logging.Logger("first", level=logging.DEBUG)
+        first_logger.addHandler(logging.NullHandler())
+        first = CallableComponent.Config(fn=load_function(first_logger)).to_dict()["fn"]
+        same_name = CallableComponent.Config(
+            fn=load_function(logging.Logger("first", level=logging.ERROR))
+        ).to_dict()["fn"]
+        second = CallableComponent.Config(
+            fn=load_function(logging.Logger("second"))
+        ).to_dict()["fn"]
+
+        self.assertEqual(
+            first["globals"]["logger"],
+            {"$torchtitan_type": "logger", "name": "first"},
+        )
+        self.assertEqual(first, same_name)
+        self.assertNotEqual(first, second)
+
+    def test_to_dict_handles_self_referenced_global_callable(self):
+        """A function referring to itself terminates with an explicit cycle marker."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        namespace = {"__name__": "config_global_fixture"}
+        exec(
+            compile(
+                "def configured(value):\n"
+                "    return value if value <= 0 else configured(value - 1)\n",
+                "/checkout/config.py",
+                "exec",
+            ),
+            namespace,
+        )
+
+        snapshot = CallableComponent.Config(fn=namespace["configured"]).to_dict()["fn"]
+
+        self.assertEqual(
+            snapshot["globals"]["configured"],
+            {
+                "$torchtitan_type": "callable_reference",
+                "path": "config_global_fixture.configured",
+            },
+        )
+
     def test_to_dict_distinguishes_function_code_with_the_same_qualified_name(self):
         """Same-qualified functions retain code differences in snapshots."""
 
@@ -318,7 +724,7 @@ class TestConfigurable(unittest.TestCase):
 
         self.assertEqual(
             snapshot,
-            {"__callable__": "type", "path": "builtins.str"},
+            {"$torchtitan_type": "type", "path": "builtins.str"},
         )
 
     def test_to_dict_rejects_instance_bound_methods(self):

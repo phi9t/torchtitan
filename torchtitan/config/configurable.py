@@ -5,10 +5,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import dataclasses
+import dis
 import functools
 import hashlib
 import json
 import logging
+import sys
 import types
 from collections.abc import Iterator
 from dataclasses import dataclass, fields, replace
@@ -17,6 +19,11 @@ from typing import ClassVar
 from torchtitan.observability import structured_logger as sl
 
 logger = logging.getLogger(__name__)
+_TYPE_TAG = "$torchtitan_type"
+
+
+class _TaggedDict(dict[str, object]):
+    """Marker for dictionaries created by this serializer."""
 
 
 def _qualified_name(value: object) -> str:
@@ -96,34 +103,122 @@ def _code_sha256(code: types.CodeType) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _callable_to_dict(value: object) -> dict[str, object]:
-    if isinstance(value, functools.partial):
-        return {
-            "__callable__": "partial",
-            "function": _callable_to_dict(value.func),
-            "args": _config_value_to_dict(value.args),
-            "keywords": _config_value_to_dict(value.keywords or {}),
+def _tag(kind: str, **payload: object) -> _TaggedDict:
+    return _TaggedDict({_TYPE_TAG: kind, **payload})
+
+
+def _global_load_names(value: types.FunctionType) -> list[str]:
+    return sorted(
+        {
+            instruction.argval
+            for instruction in dis.get_instructions(value)
+            if instruction.opname == "LOAD_GLOBAL"
+            and isinstance(instruction.argval, str)
         }
+    )
+
+
+def _global_binding_to_dict(
+    value: object, *, active_callables: frozenset[int]
+) -> object:
+    if isinstance(value, types.ModuleType):
+        return _tag("module", name=value.__name__)
+    return _config_value_to_dict(
+        value,
+        active_callables=active_callables,
+        include_callable_globals=False,
+    )
+
+
+def _function_globals_to_dict(
+    value: types.FunctionType, *, active_callables: frozenset[int]
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    builtins_namespace = value.__builtins__
+    for name in _global_load_names(value):
+        if name in value.__globals__:
+            binding = value.__globals__[name]
+            source = "global"
+        elif name in builtins_namespace:
+            binding = builtins_namespace[name]
+            source = "builtin"
+        else:
+            result[name] = _tag("missing_global", name=name)
+            continue
+        normalized = _global_binding_to_dict(binding, active_callables=active_callables)
+        if source == "builtin":
+            normalized = _tag("builtin_binding", value=normalized)
+        result[name] = normalized
+    return result
+
+
+def _callable_to_dict(
+    value: object,
+    *,
+    active_callables: frozenset[int] = frozenset(),
+    include_globals: bool = True,
+) -> dict[str, object]:
+    if id(value) in active_callables:
+        return _tag("callable_reference", path=_qualified_name(value))
+    nested_active = active_callables | {id(value)}
+    if isinstance(value, functools.partial):
+        return _tag(
+            "partial",
+            function=_callable_to_dict(
+                value.func,
+                active_callables=nested_active,
+                include_globals=include_globals,
+            ),
+            args=_config_value_to_dict(
+                value.args,
+                active_callables=nested_active,
+                include_callable_globals=include_globals,
+            ),
+            keywords=_config_value_to_dict(
+                value.keywords or {},
+                active_callables=nested_active,
+                include_callable_globals=include_globals,
+            ),
+        )
 
     if isinstance(value, types.FunctionType):
-        result: dict[str, object] = {
-            "__callable__": "function",
-            "path": _qualified_name(value),
-            "code_sha256": _code_sha256(value.__code__),
-        }
+        result = _tag(
+            "function",
+            path=_qualified_name(value),
+            code_sha256=_code_sha256(value.__code__),
+        )
         if value.__defaults__:
-            result["defaults"] = _config_value_to_dict(value.__defaults__)
+            result["defaults"] = _config_value_to_dict(
+                value.__defaults__,
+                active_callables=nested_active,
+                include_callable_globals=include_globals,
+            )
         if value.__kwdefaults__:
-            result["keyword_defaults"] = _config_value_to_dict(value.__kwdefaults__)
+            result["keyword_defaults"] = _config_value_to_dict(
+                value.__kwdefaults__,
+                active_callables=nested_active,
+                include_callable_globals=include_globals,
+            )
         if value.__closure__:
             closure: dict[str, object] = {}
             for name, cell in zip(value.__code__.co_freevars, value.__closure__):
                 try:
                     cell_value = cell.cell_contents
                 except ValueError:
-                    cell_value = {"__empty_cell__": True}
-                closure[name] = _config_value_to_dict(cell_value)
+                    closure[name] = _tag("empty_closure_cell")
+                    continue
+                closure[name] = _config_value_to_dict(
+                    cell_value,
+                    active_callables=nested_active,
+                    include_callable_globals=include_globals,
+                )
             result["closure"] = closure
+        if include_globals:
+            globals_snapshot = _function_globals_to_dict(
+                value, active_callables=nested_active
+            )
+            if globals_snapshot:
+                result["globals"] = globals_snapshot
         return result
 
     if isinstance(value, (types.BuiltinFunctionType, types.BuiltinMethodType)):
@@ -133,10 +228,7 @@ def _callable_to_dict(value: object) -> dict[str, object]:
                 "cannot serialize instance-bound builtin config value "
                 f"{_qualified_name(value)} without conflating receiver state"
             )
-        return {
-            "__callable__": "builtin",
-            "path": _qualified_name(value),
-        }
+        return _tag("builtin", path=_qualified_name(value))
 
     if isinstance(value, types.MethodType) and not isinstance(value.__self__, type):
         raise TypeError(
@@ -145,10 +237,7 @@ def _callable_to_dict(value: object) -> dict[str, object]:
         )
 
     if isinstance(value, type):
-        return {
-            "__callable__": "type",
-            "path": _qualified_name(value),
-        }
+        return _tag("type", path=_qualified_name(value))
 
     raise TypeError(
         "cannot serialize opaque callable config value of type "
@@ -157,22 +246,75 @@ def _callable_to_dict(value: object) -> dict[str, object]:
     )
 
 
-def _config_value_to_dict(value: object):
+def _config_value_to_dict(
+    value: object,
+    *,
+    active_callables: frozenset[int] = frozenset(),
+    include_callable_globals: bool = True,
+):
     if hasattr(value, "to_dict"):
-        return _config_value_to_dict(value.to_dict())
+        return _config_value_to_dict(
+            value.to_dict(),
+            active_callables=active_callables,
+            include_callable_globals=include_callable_globals,
+        )
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {
-            field.name: _config_value_to_dict(getattr(value, field.name))
+            field.name: _config_value_to_dict(
+                getattr(value, field.name),
+                active_callables=active_callables,
+                include_callable_globals=include_callable_globals,
+            )
             for field in fields(value)
         }
-    if isinstance(value, (list, tuple)):
-        return type(value)(_config_value_to_dict(item) for item in value)
+    if isinstance(value, list):
+        return [
+            _config_value_to_dict(
+                item,
+                active_callables=active_callables,
+                include_callable_globals=include_callable_globals,
+            )
+            for item in value
+        ]
+    if isinstance(value, tuple):
+        return _tag(
+            "tuple",
+            items=[
+                _config_value_to_dict(
+                    item,
+                    active_callables=active_callables,
+                    include_callable_globals=include_callable_globals,
+                )
+                for item in value
+            ],
+        )
     if isinstance(value, dict):
-        return {key: _config_value_to_dict(item) for key, item in value.items()}
+        if not all(isinstance(key, str) for key in value):
+            raise TypeError("config dictionary keys must all be strings")
+        if _TYPE_TAG in value and not isinstance(value, _TaggedDict):
+            raise TypeError(f"config dictionaries cannot use reserved key {_TYPE_TAG}")
+        normalized = {
+            key: _config_value_to_dict(
+                item,
+                active_callables=active_callables,
+                include_callable_globals=include_callable_globals,
+            )
+            for key, item in value.items()
+        }
+        return _TaggedDict(normalized) if isinstance(value, _TaggedDict) else normalized
+    torch_module = sys.modules.get("torch")
+    if torch_module is not None and type(value) is getattr(torch_module, "dtype", None):
+        return _tag("torch_dtype", name=str(value))
+    if isinstance(value, logging.Logger):
+        return _tag("logger", name=value.name)
     if isinstance(value, (str, int, float, bool, type(None))):
         return value
     if callable(value):
-        return _callable_to_dict(value)
+        return _callable_to_dict(
+            value,
+            active_callables=active_callables,
+            include_globals=include_callable_globals,
+        )
 
     raise TypeError(
         "cannot serialize config field value of unsupported type "
@@ -211,9 +353,17 @@ class Configurable:
         def to_dict(self) -> dict:
             """Serialize config to a deterministic, JSON-compatible plain dict.
 
-            Callable identities include their import path, partial arguments, and
-            closure values. Opaque callable instances have no general inspectable
-            state contract and are rejected instead of conflating their semantics.
+            Function identity includes location-independent code, defaults,
+            closure values, and direct ``LOAD_GLOBAL`` bindings. A directly
+            referenced callable includes its path, code, defaults, and closure
+            without recursively traversing its globals. Module bindings use the
+            module name; matching runtime and module versions are outside this
+            config contract. The snapshot cannot capture later arbitrary runtime
+            mutation. Referenced loggers use name identity only; dynamic levels,
+            handlers, and filters are diagnostic runtime state. Opaque callable
+            instances and unsupported values are rejected instead of conflating
+            semantics. Dictionary keys must be strings and cannot use the reserved
+            ``$torchtitan_type`` representation key.
             """
 
             return {
