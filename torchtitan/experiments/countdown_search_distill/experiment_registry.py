@@ -224,7 +224,10 @@ def _compact_adapter_rows(adapter_matrix: dict[str, Any] | None) -> list[dict[st
             "num_problems": row.get("num_problems"),
             "pass_at_1": row.get("pass_at_1"),
             "pass_at_32": row.get("pass_at_32"),
+            "strict_format_pass_at_1": row.get("strict_format_pass_at_1"),
+            "strict_format_pass_at_32": row.get("strict_format_pass_at_32"),
             "bucket_counts": row.get("bucket_counts", {}),
+            "format_breakdown": row.get("format_breakdown", {}),
             "summary": row.get("summary"),
         }
         for row in rows

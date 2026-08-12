@@ -14,6 +14,7 @@ ADAPTER_RESULT_ROOT="${ADAPTER_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results
 EVAL_RESULT_ROOT="${EVAL_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results/eval/adapters/${MODE}}"
 NUM_ROLLOUTS="${NUM_ROLLOUTS:-32}"
 FORCE="${FORCE:-0}"
+REQUESTED_ARMS="${ARMS:-}"
 STAGE_EVENTS=()
 
 case "${MODE}" in
@@ -31,6 +32,9 @@ case "${MODE}" in
     ;;
   *) echo "adapter eval is only defined for MODE=reduced or MODE=full, got ${MODE}" >&2; exit 2 ;;
 esac
+if [[ -n "${REQUESTED_ARMS}" ]]; then
+  read -r -a ARMS <<< "${REQUESTED_ARMS}"
+fi
 
 if [[ -n "${SPLITS:-}" ]]; then
   read -r -a SPLIT_LIST <<< "${SPLITS}"

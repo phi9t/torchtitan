@@ -760,8 +760,10 @@ def _validate_summary(
 
     summary = json.loads(summary_path.read_text())
     validity_breakdown = summary.get("validity_breakdown", {})
+    format_breakdown = summary.get("format_breakdown", {})
     bucket_counts = summary.get("bucket_counts", {})
     pass_at_k = summary.get("pass_at_k", {})
+    strict_pass_at_k = summary.get("strict_format_pass_at_k", {})
     total_rollouts = sum(int(count) for count in validity_breakdown.values())
     num_problems = int(summary.get("num_problems", -1))
     checks = {
@@ -778,7 +780,10 @@ def _validate_summary(
         "total_rollouts": total_rollouts,
         "pass_at_1": pass_at_k.get("1"),
         "pass_at_32": pass_at_k.get("32"),
+        "strict_format_pass_at_1": strict_pass_at_k.get("1"),
+        "strict_format_pass_at_32": strict_pass_at_k.get("32"),
         "bucket_counts": bucket_counts,
+        "format_breakdown": format_breakdown,
     }
     return row, checks
 

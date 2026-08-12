@@ -778,8 +778,15 @@ def test_validate_eval_matrix_cli_checks_split_sizes_and_rollouts(tmp_path):
                     "16": 0.5,
                     "32": 0.5,
                 },
+                "strict_format_pass_at_k": {"1": 0.25, "32": 0.25},
                 "bucket_counts": {"easy": 1, "elicitable": 1, "unreached": 0},
                 "validity_breakdown": {"success": 16, "missing_final": 48},
+                "format_breakdown": {
+                    "success_with_strict_final": 8,
+                    "success_missing_strict_final": 8,
+                    "failure_with_strict_final": 0,
+                    "failure_missing_strict_final": 48,
+                },
             }
         )
         + "\n"
@@ -814,6 +821,8 @@ def test_validate_eval_matrix_cli_checks_split_sizes_and_rollouts(tmp_path):
     assert decision["selected"]
     assert decision["checks"]["dev/raw"]["rollout_count"]
     assert decision["rows"][0]["pass_at_32"] == 0.5
+    assert decision["rows"][0]["strict_format_pass_at_32"] == 0.25
+    assert decision["rows"][0]["format_breakdown"]["success_with_strict_final"] == 8
 
 
 def test_validate_eval_matrix_cli_fails_bad_rollout_count(tmp_path):
@@ -1016,7 +1025,10 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
                     "num_problems": 1,
                     "pass_at_1": 1.0,
                     "pass_at_32": 1.0,
+                    "strict_format_pass_at_1": 1.0,
+                    "strict_format_pass_at_32": 1.0,
                     "bucket_counts": {"easy": 1},
+                    "format_breakdown": {"success_with_strict_final": 32},
                     "summary": str(summary_path),
                 }
             )
@@ -1037,6 +1049,9 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     assert all(report_input["checks"].values())
     assert report_input["run"]["run_id"] == "run"
     assert report_input["metrics"]["base"]["dev"]["pass_at_1"] == 1.0
+    assert (
+        report_input["metrics"]["adapters"][0]["strict_format_pass_at_1"] == 1.0
+    )
     assert report_input["artifacts"]["split_registry"]["sha256"] is not None
     assert len(report_input["metrics"]["adapters"]) == 15
 

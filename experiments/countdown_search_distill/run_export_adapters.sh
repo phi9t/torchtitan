@@ -15,6 +15,7 @@ TRAIN_RESULT_ROOT="${TRAIN_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results/tra
 ADAPTER_RESULT_ROOT="${ADAPTER_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results/adapters/${MODE}}"
 CHECKPOINT_STEP="${CHECKPOINT_STEP:-step-94}"
 FORCE="${FORCE:-0}"
+REQUESTED_ARMS="${ARMS:-}"
 STAGE_EVENTS=()
 
 case "${MODE}" in
@@ -22,6 +23,9 @@ case "${MODE}" in
   full) ARMS=(raw clean formatting hindsight curriculum) ;;
   *) echo "adapter export is only defined for MODE=reduced or MODE=full, got ${MODE}" >&2; exit 2 ;;
 esac
+if [[ -n "${REQUESTED_ARMS}" ]]; then
+  read -r -a ARMS <<< "${REQUESTED_ARMS}"
+fi
 
 for arm in "${ARMS[@]}"; do
   checkpoint="${TRAIN_RESULT_ROOT}/${arm}/checkpoint/${CHECKPOINT_STEP}"

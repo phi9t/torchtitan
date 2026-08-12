@@ -265,3 +265,10 @@ generation.
   `report_input_<run_id>.json` artifact. The new `build-report-input` CLI
   validates manifest stages, split registry selection, base summaries, adapter
   matrix selection, and artifact hashes.
+- 2026-08-12: Implemented and ran the full `formatting` arm. The arm trains on
+  parsed operation lines plus exact `FINAL: <target>` targets, exports through
+  the PEFT/vLLM adapter path, and has fresh dev/IID/OOD evaluations at 32
+  rollouts per problem. The full adapter matrix now has five arms and carries
+  strict-format metrics plus format breakdowns in machine-readable rows. The
+  continuation report input is
+  `experiments/countdown_search_distill/results/manifests/report_input_20260812T001300Z-full-formatting-continuation.json`.

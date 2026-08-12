@@ -1,5 +1,41 @@
 # Countdown Search-Distill Results
 
+## 2026-08-12 Formatting Arm Completion
+
+The full clean-split matrix now includes the `formatting` arm. Training,
+adapter export, dev/IID/OOD vLLM evaluation, summary refresh, matrix validation,
+and report-input generation all ran through the bwrap rootfs.
+
+Fresh artifacts:
+
+- `results/train/full/formatting/checkpoint/step-94/`
+- `results/adapters/full/formatting/`
+- `results/eval/adapters/full/{dev,iid_test,ood_test}/formatting/summary.json`
+- `results/eval/adapters/full/adapter_matrix_full.json`
+- `results/manifests/report_input_20260812T001300Z-full-formatting-continuation.json`
+- `reports/20260812T001300Z-formatting-arm-results-and-audit.md`
+
+The report input passes all registry checks: required manifest stages, selected
+split registry, no split overlap, base summaries present, and selected adapter
+matrix.
+
+| Split | Arm | pass@1 | pass@32 | strict pass@1 | strict pass@32 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| dev | base | 0.026 | 0.468 | 0.008 | 0.148 |
+| dev | clean | 0.180 | 0.904 | 0.080 | 0.758 |
+| dev | formatting | 0.374 | 0.900 | 0.370 | 0.900 |
+| iid_test | base | 0.033 | 0.509 | 0.008 | 0.167 |
+| iid_test | clean | 0.208 | 0.922 | 0.108 | 0.790 |
+| iid_test | formatting | 0.361 | 0.908 | 0.351 | 0.907 |
+| ood_test | base | 0.024 | 0.484 | 0.004 | 0.166 |
+| ood_test | clean | 0.180 | 0.890 | 0.076 | 0.658 |
+| ood_test | formatting | 0.294 | 0.902 | 0.276 | 0.900 |
+
+Decision: `formatting` is now the strongest performance arm and should be the
+champion for the next Countdown iteration. `clean` remains useful as the
+conciseness/style control because formatting often emits repeated answer text
+after a valid strict trace.
+
 ## 2026-08-11 Rootfs Smoke, Reduced Pilot, Clean-Split Full Eval
 
 All real Python setup, generation, training, evaluation, and summarization for
