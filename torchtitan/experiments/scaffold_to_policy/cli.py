@@ -697,6 +697,23 @@ def write_external_harness_smoke(args: argparse.Namespace) -> None:
     )
 
 
+def write_external_harness_preflight(args: argparse.Namespace) -> None:
+    if args.harness_family == "harbor_terminal":
+        pins = external_harness.default_harbor_terminal_pins()
+    elif args.harness_family == "tau2":
+        pins = external_harness.default_tau2_pins()
+    else:
+        raise ValueError(f"unknown harness family: {args.harness_family}")
+    external_harness.write_installed_preflight(
+        output=args.output,
+        run_id=args.run_id,
+        harness_family=args.harness_family,
+        pins=pins,
+        task_subset=args.task_subset,
+        cli_names=args.cli_name,
+    )
+
+
 def ingest_external_harness_smoke(args: argparse.Namespace) -> None:
     external_harness.ingest_harness_smoke(
         raw_result=args.raw_result,
@@ -1446,6 +1463,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     external_write_parser.set_defaults(func=write_external_harness_smoke)
+
+    external_preflight_parser = subparsers.add_parser(
+        "write-external-harness-preflight"
+    )
+    external_preflight_parser.add_argument(
+        "--harness-family",
+        choices=["harbor_terminal", "tau2"],
+        required=True,
+    )
+    external_preflight_parser.add_argument("--run-id", required=True)
+    external_preflight_parser.add_argument("--task-subset", required=True)
+    external_preflight_parser.add_argument("--output", type=Path, required=True)
+    external_preflight_parser.add_argument("--cli-name", action="append", default=[])
+    external_preflight_parser.set_defaults(func=write_external_harness_preflight)
 
     external_ingest_parser = subparsers.add_parser("ingest-external-harness-smoke")
     external_ingest_parser.add_argument("--raw-result", type=Path, required=True)

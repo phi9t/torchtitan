@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import importlib.util
 import json
 import os
@@ -24,16 +25,28 @@ class HarnessPin:
     repo: str
     revision: str
     package_module: str
+    package_name: str
+    package_version: str
     role: str
 
     def to_json(self) -> dict[str, object]:
+        installed = importlib.util.find_spec(self.package_module) is not None
+        installed_version = None
+        if installed:
+            try:
+                installed_version = importlib.metadata.version(self.package_name)
+            except importlib.metadata.PackageNotFoundError:
+                installed_version = None
         return {
             "name": self.name,
             "repo": self.repo,
             "revision": self.revision,
             "package_module": self.package_module,
+            "package_name": self.package_name,
+            "package_version": self.package_version,
             "role": self.role,
-            "installed": importlib.util.find_spec(self.package_module) is not None,
+            "installed": installed,
+            "installed_version": installed_version,
         }
 
 
@@ -44,6 +57,8 @@ def default_harbor_terminal_pins() -> list[HarnessPin]:
             repo="https://github.com/harbor-framework/harbor.git",
             revision="b7e2f71b4563618af3a42279740f5f412dcf7046",
             package_module="harbor",
+            package_name="harbor",
+            package_version="0.21.0",
             role="agent harness",
         ),
         HarnessPin(
@@ -51,6 +66,8 @@ def default_harbor_terminal_pins() -> list[HarnessPin]:
             repo="https://github.com/harbor-framework/terminal-bench-2-1.git",
             revision="7131e4375048a0e408a8fb404b5f499d726b695b",
             package_module="terminal_bench",
+            package_name="terminal-bench",
+            package_version="0.2.18",
             role="benchmark tasks and scoring",
         ),
     ]
@@ -63,6 +80,8 @@ def default_tau2_pins() -> list[HarnessPin]:
             repo="https://github.com/sierra-research/tau2-bench.git",
             revision="668d3bcd135c02aa3438f987ef45735b7c163ee3",
             package_module="tau2",
+            package_name="tau2",
+            package_version="2.3.3",
             role="benchmark tasks and scoring",
         )
     ]
@@ -101,6 +120,69 @@ def write_harness_smoke(
     return record
 
 
+def write_installed_preflight(
+    *,
+    output: Path,
+    run_id: str,
+    harness_family: str,
+    pins: Sequence[HarnessPin],
+    task_subset: str,
+    cli_names: Sequence[str],
+) -> dict[str, object]:
+    pin_rows = [pin.to_json() for pin in pins]
+    cli_rows = [_cli_probe(name) for name in cli_names]
+    all_imported = all(row["installed"] for row in pin_rows)
+    all_versions_match = all(
+        row["installed_version"] == row["package_version"] for row in pin_rows
+    )
+    record = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "harness_family": harness_family,
+        "mode": "installed_preflight",
+        "task_subset": task_subset,
+        "rootfs": {
+            "in_rootfs": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+            "python": sys.executable,
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        },
+        "tools": {
+            "git": _tool_version("git"),
+            "docker": _tool_version("docker"),
+            "bwrap": _tool_version("bwrap"),
+        },
+        "pins": pin_rows,
+        "cli": cli_rows,
+        "raw_result": {
+            "metric_name": "installed_preflight",
+            "score": 1.0 if all_imported and all_versions_match else 0.0,
+            "num_tasks": 0,
+            "score_source": "package import and version preflight",
+            "task_metadata": {
+                "task_subset": task_subset,
+                "pin_hash": _hash_lines([pin.revision for pin in pins]),
+            },
+            "trajectory": [
+                {
+                    "step": 0,
+                    "actor": "torchtitan",
+                    "event": "create_isolated_rootfs_virtualenv",
+                    "harness_family": harness_family,
+                },
+                {
+                    "step": 1,
+                    "actor": "external_harness",
+                    "event": "import_and_version_preflight",
+                    "task_subset": task_subset,
+                },
+            ],
+        },
+    }
+    write_json(output, record)
+    return record
+
+
 def ingest_harness_smoke(
     *,
     raw_result: Path,
@@ -113,6 +195,14 @@ def ingest_harness_smoke(
         "pins_present": bool(raw.get("pins")),
         "raw_result_present": bool(raw.get("raw_result")),
         "dry_run_labeled": raw.get("mode") == "dry_run",
+        "installed_preflight_labeled": raw.get("mode") == "installed_preflight",
+        "all_imports_available": all(
+            bool(pin.get("installed")) for pin in raw.get("pins", [])
+        ),
+        "all_versions_match": all(
+            pin.get("installed_version") == pin.get("package_version")
+            for pin in raw.get("pins", [])
+        ),
     }
     score = raw["raw_result"]["score"]
     ingested = {
@@ -136,13 +226,10 @@ def ingest_harness_smoke(
             "num_tasks": raw["raw_result"]["num_tasks"],
             "score_source": raw["raw_result"]["score_source"],
         },
+        "cli": raw.get("cli", []),
         "trajectory": raw["raw_result"]["trajectory"],
         "checks": checks,
-        "limitations": [
-            "dry-run artifact only",
-            "external harness packages were not executed",
-            "not a model capability or benchmark score",
-        ],
+        "limitations": _limitations_for_mode(raw.get("mode")),
     }
     write_json(output, ingested)
     return ingested
@@ -157,16 +244,41 @@ def build_report_input(
     ingested = {
         name: json.loads(path.read_text()) for name, path in ingested_paths.items()
     }
+    installed_preflight_values = [
+        value
+        for value in ingested.values()
+        if value["checks"]["installed_preflight_labeled"]
+    ]
     checks = {
         "ingested_present": all(path.is_file() for path in ingested_paths.values()),
         "all_rootfs_selected": all(
             value["checks"]["rootfs_selected"] for value in ingested.values()
         ),
-        "all_dry_run_labeled": all(
-            value["checks"]["dry_run_labeled"] for value in ingested.values()
+        "all_modes_labeled": all(
+            value["checks"]["dry_run_labeled"]
+            or value["checks"]["installed_preflight_labeled"]
+            for value in ingested.values()
         ),
-        "all_pins_present": all(value["checks"]["pins_present"] for value in ingested.values()),
+        "all_pins_present": all(
+            value["checks"]["pins_present"] for value in ingested.values()
+        ),
+        "installed_preflight_imports_available": all(
+            value["checks"]["all_imports_available"]
+            for value in installed_preflight_values
+        ),
+        "installed_preflight_versions_match": all(
+            value["checks"]["all_versions_match"] for value in installed_preflight_values
+        ),
     }
+    mode_counts: dict[str, int] = {}
+    for value in ingested.values():
+        mode = value["mode"]
+        mode_counts[mode] = mode_counts.get(mode, 0) + 1
+    scaffold_type = (
+        "installed_preflight"
+        if mode_counts.get("installed_preflight", 0) == len(ingested)
+        else "dry_run_ingestion"
+    )
     return {
         "schema_version": 1,
         "run": {
@@ -174,7 +286,7 @@ def build_report_input(
             "task": "external_harness_smoke",
             "lane": "agentic_harness",
             "scaffold": {
-                "type": "dry_run_ingestion",
+                "type": scaffold_type,
                 "budget": 0,
             },
         },
@@ -183,6 +295,7 @@ def build_report_input(
             "ingested": {name: str(path) for name, path in ingested_paths.items()},
         },
         "harnesses": ingested,
+        "mode_counts": mode_counts,
         "checks": checks,
         "limitations": [
             "compatibility and artifact-ingestion evidence only",
@@ -247,6 +360,45 @@ def _tool_version(name: str) -> str | None:
     if not first_line:
         return path
     return first_line[0]
+
+
+def _cli_probe(name: str) -> dict[str, object]:
+    path = shutil.which(name)
+    row: dict[str, object] = {"name": name, "path": path}
+    if path is None:
+        row["help_returncode"] = None
+        row["help_first_line"] = None
+        return row
+    try:
+        completed = subprocess.run(
+            [path, "--help"],
+            text=True,
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+    except Exception as exc:
+        row["help_returncode"] = None
+        row["help_first_line"] = str(exc)
+        return row
+    lines = (completed.stdout or completed.stderr).splitlines()
+    row["help_returncode"] = completed.returncode
+    row["help_first_line"] = lines[0] if lines else ""
+    return row
+
+
+def _limitations_for_mode(mode: object) -> list[str]:
+    if mode == "installed_preflight":
+        return [
+            "package import and version preflight only",
+            "external benchmark tasks were not executed",
+            "not a model capability or benchmark score",
+        ]
+    return [
+        "dry-run artifact only",
+        "external harness packages were not executed",
+        "not a model capability or benchmark score",
+    ]
 
 
 def _hash_lines(lines: Iterable[str]) -> str:

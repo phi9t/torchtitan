@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
+import importlib.metadata
 import json
 
 import pytest
@@ -740,6 +741,52 @@ def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monk
     assert report_input["harnesses"]["harbor_terminal"]["mode"] == "dry_run"
 
 
+def test_external_harness_installed_preflight_records_versions(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    raw = results_root / "raw" / "tau2_preflight.json"
+    ingested_path = results_root / "ingested" / "tau2_preflight.json"
+    report_path = results_root / "manifests" / "report_input.json"
+    pytest_version = importlib.metadata.version("pytest")
+
+    external_harness.write_installed_preflight(
+        output=raw,
+        run_id="fixture",
+        harness_family="tau2",
+        pins=[
+            external_harness.HarnessPin(
+                name="fixture-harness",
+                repo="https://example.com/fixture.git",
+                revision="fixture",
+                package_module="pytest",
+                package_name="pytest",
+                package_version=pytest_version,
+                role="unit-test fixture",
+            )
+        ],
+        task_subset="tau2-preflight",
+        cli_names=["tau2"],
+    )
+    ingested = external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id="fixture",
+        ingested_paths={"tau2": ingested_path},
+    )
+    external_harness.write_json(report_path, report_input)
+
+    assert ingested["mode"] == "installed_preflight"
+    assert ingested["checks"]["installed_preflight_labeled"]
+    assert ingested["metric"]["name"] == "installed_preflight"
+    assert "package import and version preflight only" in ingested["limitations"]
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["scaffold"]["type"] == "installed_preflight"
+
+
 def test_external_harness_parser_accepts_dry_run_commands():
     parser = build_parser()
 
@@ -773,6 +820,29 @@ def test_external_harness_parser_accepts_dry_run_commands():
     assert raw.harness_family == "tau2"
     assert raw.dry_run
     assert report.ingested == ["tau2=ingested.json"]
+
+
+def test_external_harness_parser_accepts_installed_preflight_command():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "write-external-harness-preflight",
+            "--harness-family",
+            "harbor_terminal",
+            "--run-id",
+            "fixture",
+            "--task-subset",
+            "terminal-bench-preflight",
+            "--cli-name",
+            "terminal-bench",
+            "--output",
+            "raw.json",
+        ]
+    )
+
+    assert args.harness_family == "harbor_terminal"
+    assert args.cli_name == ["terminal-bench"]
 
 
 def test_modular_sequences_generation_is_deterministic():
