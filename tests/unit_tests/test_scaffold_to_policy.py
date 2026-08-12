@@ -1566,6 +1566,81 @@ def test_tau2_execution_probe_summarizes_upstream_results(tmp_path, monkeypatch)
     assert not report_input["checks"]["task_execution_probes_succeeded"]
 
 
+def test_terminal_bench_execution_probe_rejects_harbor_runtime_error(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    run_id = "fixture-terminal"
+    harbor_result = results_root / "runs" / run_id / "result.json"
+    trial_result = (
+        results_root / "runs" / run_id / "headless-terminal__abc" / "result.json"
+    )
+    raw = results_root / "raw" / "terminal_probe.json"
+    ingested_path = results_root / "ingested" / "terminal_probe.json"
+    external_harness.write_json(
+        harbor_result,
+        {
+            "n_total_trials": 1,
+            "stats": {
+                "n_completed_trials": 1,
+                "n_errored_trials": 1,
+                "evals": {
+                    "oracle__adhoc": {
+                        "n_trials": 0,
+                        "n_errors": 1,
+                        "exception_stats": {
+                            "RuntimeError": ["headless-terminal__abc"],
+                        },
+                    },
+                },
+            },
+        },
+    )
+    external_harness.write_json(
+        trial_result,
+        {
+            "trial_name": "headless-terminal__abc",
+            "exception_info": {
+                "exception_type": "RuntimeError",
+                "exception_message": "missing verifier bind mount",
+            },
+        },
+    )
+
+    raw_record = external_harness.write_terminal_bench_execution_probe(
+        output=raw,
+        run_id=run_id,
+        task_id="headless-terminal",
+        command=["python", "-c", "print('harbor returned zero')"],
+        cwd=tmp_path,
+        timeout_seconds=5.0,
+        harbor_result_json=harbor_result,
+    )
+    ingested = external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id=run_id,
+        ingested_paths={"terminal": ingested_path},
+    )
+
+    metadata = raw_record["raw_result"]["task_metadata"]
+    assert raw_record["raw_result"]["score"] == 0.0
+    assert raw_record["raw_result"]["num_tasks"] == 0
+    assert metadata["returncode"] == 0
+    assert metadata["results_present"]
+    assert metadata["num_trials"] == 0
+    assert metadata["num_errors"] == 1
+    assert metadata["num_trial_exceptions"] == 1
+    assert metadata["trial_exceptions"][0]["exception_type"] == "RuntimeError"
+    assert ingested["checks"]["task_execution_probe_labeled"]
+    assert not report_input["checks"]["task_execution_probes_succeeded"]
+
+
 def test_external_harness_parser_accepts_dry_run_commands():
     parser = build_parser()
 
@@ -1668,6 +1743,8 @@ def test_external_harness_parser_accepts_terminal_bench_commands():
             "headless-terminal",
             "--cwd",
             ".",
+            "--harbor-result-json",
+            "result.json",
             "--output",
             "raw.json",
             "tb",
@@ -1677,6 +1754,7 @@ def test_external_harness_parser_accepts_terminal_bench_commands():
     )
 
     assert result.task_id == "headless-terminal"
+    assert probe.harbor_result_json == Path("result.json")
     assert probe.command == ["tb", "runs", "create"]
 
 

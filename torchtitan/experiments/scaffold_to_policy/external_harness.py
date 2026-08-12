@@ -418,6 +418,7 @@ def write_terminal_bench_execution_probe(
     command: Sequence[str],
     cwd: Path,
     timeout_seconds: float,
+    harbor_result_json: Path | None = None,
 ) -> dict[str, object]:
     try:
         completed = subprocess.run(
@@ -437,7 +438,15 @@ def write_terminal_bench_execution_probe(
         returncode = None
         stdout = exc.stdout or ""
         stderr = exc.stderr or ""
-    success = returncode == 0 and not timed_out
+    harbor_result = _summarize_harbor_terminal_result(harbor_result_json)
+    success = (
+        returncode == 0
+        and not timed_out
+        and bool(harbor_result["results_present"])
+        and int(harbor_result["num_trials"]) > 0
+        and int(harbor_result["num_errors"]) == 0
+        and int(harbor_result["num_trial_exceptions"]) == 0
+    )
     record = {
         "schema_version": 1,
         "run_id": run_id,
@@ -469,6 +478,7 @@ def write_terminal_bench_execution_probe(
                 "timed_out": timed_out,
                 "stdout_tail": stdout[-4000:],
                 "stderr_tail": stderr[-4000:],
+                **harbor_result,
             },
             "trajectory": [
                 {
@@ -835,6 +845,89 @@ def _summarize_tau2_results(results_json: Path) -> dict[str, object]:
         "termination_reasons": termination_reasons,
         "average_reward": sum(rewards) / len(rewards) if rewards else 0.0,
         "errors": errors[:5],
+    }
+
+
+def _summarize_harbor_terminal_result(
+    result_json: Path | None,
+) -> dict[str, object]:
+    if result_json is None:
+        return {
+            "harbor_result_json": None,
+            "results_present": False,
+            "num_total_trials": 0,
+            "num_completed_trials": 0,
+            "num_errored_trials": 0,
+            "num_trials": 0,
+            "num_errors": 0,
+            "num_trial_exceptions": 0,
+            "exception_stats": {},
+            "trial_exceptions": [],
+        }
+    if not result_json.is_file():
+        return {
+            "harbor_result_json": str(result_json),
+            "results_present": False,
+            "num_total_trials": 0,
+            "num_completed_trials": 0,
+            "num_errored_trials": 0,
+            "num_trials": 0,
+            "num_errors": 0,
+            "num_trial_exceptions": 0,
+            "exception_stats": {},
+            "trial_exceptions": [],
+        }
+
+    result = json.loads(result_json.read_text())
+    stats = result.get("stats") or {}
+    evals = stats.get("evals") or {}
+    eval_summaries = [
+        value for value in evals.values() if isinstance(value, dict)
+    ]
+    num_trials = sum(int(value.get("n_trials", 0) or 0) for value in eval_summaries)
+    num_errors = sum(int(value.get("n_errors", 0) or 0) for value in eval_summaries)
+    exception_stats: dict[str, list[str]] = {}
+    for value in eval_summaries:
+        for exception_type, trial_names in (value.get("exception_stats") or {}).items():
+            names = [str(name) for name in trial_names]
+            exception_stats.setdefault(str(exception_type), []).extend(names)
+
+    trial_exceptions: list[dict[str, object]] = []
+    for trial_result in sorted(result_json.parent.glob("*/result.json")):
+        try:
+            trial = json.loads(trial_result.read_text())
+        except json.JSONDecodeError:
+            trial_exceptions.append(
+                {
+                    "trial_result_json": str(trial_result),
+                    "exception_type": "JSONDecodeError",
+                    "exception_message": "could not parse trial result JSON",
+                }
+            )
+            continue
+        exception_info = trial.get("exception_info")
+        if exception_info is None:
+            continue
+        trial_exceptions.append(
+            {
+                "trial_name": trial.get("trial_name"),
+                "trial_result_json": str(trial_result),
+                "exception_type": exception_info.get("exception_type"),
+                "exception_message": exception_info.get("exception_message"),
+            }
+        )
+
+    return {
+        "harbor_result_json": str(result_json),
+        "results_present": True,
+        "num_total_trials": int(result.get("n_total_trials", 0) or 0),
+        "num_completed_trials": int(stats.get("n_completed_trials", 0) or 0),
+        "num_errored_trials": int(stats.get("n_errored_trials", 0) or 0),
+        "num_trials": num_trials,
+        "num_errors": num_errors,
+        "num_trial_exceptions": len(trial_exceptions),
+        "exception_stats": exception_stats,
+        "trial_exceptions": trial_exceptions[:5],
     }
 
 

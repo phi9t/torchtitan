@@ -106,11 +106,16 @@ post-generation scoring surprises.
      HF token and record the exact dataset revision and provenance.
 
 2. Terminal-Bench/Harbor:
-   - Blocker: `Docker is not installed or not on PATH` inside the bwrap rootfs.
-   - Required next step: add a hermetic Docker-compatible backend plan for
-     Harbor, or explicitly document an allowed rootfs bind to a host Docker
-     socket/CLI and rerun `harbor run --path <taskdir> ... --env docker
-     --agent oracle`.
+   - Progress: the bwrap rootfs now has an explicit opt-in host Docker and
+     Compose passthrough. Rootfs checks showed Docker client/server `26.1.4`
+     and Docker Compose `v2.27.1`.
+   - Current blocker: Harbor reaches Docker Compose container creation, but the
+     latest probe records one RuntimeError, zero evaluated trials, and a missing
+     verifier bind source path under the trial directory.
+   - Required next step: diagnose Harbor's verifier-mount lifecycle for the
+     pinned Terminal-Bench 2.1 `task.toml` corpus, then rerun
+     `harbor run --path <taskdir> ... --env docker --agent oracle` and require
+     Harbor `result.json` to show nonzero trials with zero errors.
 
 3. tau2-bench:
    - Blocker: the first upstream `tau2 run` execution probe recorded

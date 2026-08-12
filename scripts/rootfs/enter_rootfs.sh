@@ -17,6 +17,12 @@ Enter the TorchTitan bwrap rootfs with this checkout mounted read-write at
 Options:
   --rootfs DIR    Rootfs directory to enter (default: scripts/rootfs/rootfs).
   -h, --help      Show this help and exit.
+
+Environment:
+  TORCHTITAN_ROOTFS_BIND_DOCKER=1
+                  Bind the host Docker CLI and socket into the rootfs. This is
+                  intended only for external harness probes that explicitly
+                  require Docker, such as Harbor/Terminal-Bench.
 EOF
 }
 
@@ -89,6 +95,19 @@ if [[ -x /usr/bin/nvidia-smi ]]; then
 fi
 shopt -u nullglob
 
+if [[ "${TORCHTITAN_ROOTFS_BIND_DOCKER:-0}" == "1" ]]; then
+  [[ -x /usr/bin/docker ]] || die "TORCHTITAN_ROOTFS_BIND_DOCKER=1 but /usr/bin/docker is missing"
+  [[ -S /var/run/docker.sock ]] || die "TORCHTITAN_ROOTFS_BIND_DOCKER=1 but /var/run/docker.sock is missing"
+  bwrap_args+=(
+    --ro-bind /usr/bin/docker /usr/bin/docker
+    --dir /run
+    --bind /var/run/docker.sock /run/docker.sock
+  )
+  if [[ -d /usr/libexec/docker/cli-plugins ]]; then
+    bwrap_args+=(--ro-bind /usr/libexec/docker/cli-plugins /usr/libexec/docker/cli-plugins)
+  fi
+fi
+
 bwrap_args+=(
   --setenv PATH "/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin"
   --setenv CUDA_HOME /opt/cuda-synth
@@ -100,6 +119,9 @@ bwrap_args+=(
 
 if [[ "${CUDA_VISIBLE_DEVICES+set}" == set ]]; then
   bwrap_args+=(--setenv CUDA_VISIBLE_DEVICES "$CUDA_VISIBLE_DEVICES")
+fi
+if [[ "${TORCHTITAN_ROOTFS_BIND_DOCKER:-0}" == "1" ]]; then
+  bwrap_args+=(--setenv TORCHTITAN_ROOTFS_BIND_DOCKER 1)
 fi
 bwrap_args+=(--setenv NVIDIA_VISIBLE_DEVICES "${NVIDIA_VISIBLE_DEVICES:-all}")
 

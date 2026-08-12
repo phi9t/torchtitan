@@ -598,16 +598,29 @@ experiments/scaffold_to_policy/run_terminal_bench_oracle_probe.sh
 This creates an isolated Harbor/Terminal-Bench virtualenv, clones the pinned
 Terminal-Bench 2.1 task repo, ingests a Terminal-Bench result-model smoke, and
 attempts to run the `headless-terminal` task through Harbor's current CLI. The
-first corrected probe reached Harbor's environment boundary and failed with:
+entrypoint re-execs through the bwrap rootfs and opts into a narrow host Docker
+passthrough (`TORCHTITAN_ROOTFS_BIND_DOCKER=1`) for `/usr/bin/docker`,
+`/run/docker.sock`, and the Docker Compose CLI plugin directory. The fixed
+ingestion path parses Harbor's own `result.json` and trial `exception_info`
+instead of trusting the Harbor process return code.
+
+The latest corrected probe reached Docker Compose container creation but did
+not evaluate a Terminal-Bench trial. Harbor returned process code 0, while its
+result artifacts recorded `n_errors=1`, `n_trials=0`, and a `RuntimeError`:
 
 ```text
-Docker is not installed or not on PATH. Please install Docker and try again.
+Error response from daemon: invalid mount config for type "bind": bind source
+path does not exist:
+/workspace/torchtitan/experiments/scaffold_to_policy/results/terminal_bench_harbor_fixed_ingest/runs/20260812T160000Z-terminal-bench-harbor-fixed-ingest/headless-terminal__gfseUof/verifier
 ```
 
-It also established that the pinned Terminal-Bench 2.1 task repo uses Harbor's
-newer `task.toml` layout, while `terminal-bench==0.2.18` expects the older
-`task.yaml`/`docker-compose.yaml` layout. Use `harbor run`, not direct
-`tb runs create`, for this pinned task corpus. The report is:
+The report input now marks `task_execution_probes_succeeded=false` and
+`score=0.0` for this failed execution probe. This is blocker evidence for the
+Harbor/Docker mount setup, not a Terminal-Bench capability result. The pinned
+Terminal-Bench 2.1 task repo uses Harbor's newer `task.toml` layout, while
+`terminal-bench==0.2.18` expects the older `task.yaml`/`docker-compose.yaml`
+layout. Use `harbor run`, not direct `tb runs create`, for this pinned task
+corpus. The earlier report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T084500Z-terminal-bench-harbor-probe.md

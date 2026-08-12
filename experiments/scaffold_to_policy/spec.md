@@ -498,6 +498,22 @@ reasoning benchmarks.
   and result-ingestion gate, but full Terminal-Bench/Harbor execution remains
   blocked until Docker or an equivalent Harbor backend is available inside the
   hermetic rootfs.
+- 2026-08-12: Tightened the bwrap Docker path and Harbor result ingestion. The
+  rootfs now has an explicit opt-in Docker passthrough
+  (`TORCHTITAN_ROOTFS_BIND_DOCKER=1`) that exposes `/usr/bin/docker`,
+  `/run/docker.sock`, and the Docker Compose CLI plugin directory to the
+  bubblewrap rootfs. Inside rootfs, `docker version` reported client/server
+  `26.1.4` and `docker compose version` reported `v2.27.1`. The rerun
+  `20260812T160000Z-terminal-bench-harbor-fixed-ingest` reached Docker Compose
+  container creation, but Harbor recorded one runtime error, zero evaluated
+  trials, and a missing verifier bind source path under the trial directory.
+  `write_terminal_bench_execution_probe` now parses Harbor's job `result.json`
+  and trial `exception_info`, so a Harbor process return code of 0 is no longer
+  enough to mark the execution probe successful. The corrected report input has
+  `task_execution_probes_succeeded=false`, `score=0.0`, `num_trials=0`,
+  `num_errors=1`, and `num_trial_exceptions=1`. Full Terminal-Bench/Harbor
+  execution remains blocked on the Harbor verifier bind-mount setup, not on
+  Docker or Compose visibility inside rootfs.
 - 2026-08-12: Added and ran the ARC-AGI-2 exact-grid reasoning smoke. The new
   `arc_grid` module imports upstream ARC task JSON files, prompts with released
   train examples plus one test input, requires an exact `FINAL: <json-grid>`

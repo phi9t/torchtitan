@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 
 if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
-  exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_terminal_bench_oracle_probe.sh" "$@"
+  TORCHTITAN_ROOTFS_BIND_DOCKER=1 exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_terminal_bench_oracle_probe.sh" "$@"
 fi
 
 cd "${REPO_ROOT}"
@@ -60,6 +60,7 @@ git -C "${TERMINAL_BENCH_REPO_DIR}" checkout --quiet "${TERMINAL_BENCH_REVISION}
   --run-id "${RUN_ID}" \
   --task-id "${TASK_ID}" \
   --cwd "${REPO_ROOT}" \
+  --harbor-result-json "${RESULTS_ROOT}/runs/${RUN_ID}/result.json" \
   --timeout-seconds "${TIMEOUT_SECONDS}" \
   --output "${RESULTS_ROOT}/raw/terminal_bench_execution_probe.json" \
   "${VENV_DIR}/bin/harbor" run \
