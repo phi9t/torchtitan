@@ -5,7 +5,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import dataclasses
+import functools
+import hashlib
+import json
 import logging
+import types
 from collections.abc import Iterator
 from dataclasses import dataclass, fields, replace
 from typing import ClassVar
@@ -13,6 +17,167 @@ from typing import ClassVar
 from torchtitan.observability import structured_logger as sl
 
 logger = logging.getLogger(__name__)
+
+
+def _qualified_name(value: object) -> str:
+    module = getattr(value, "__module__", None)
+    qualname = getattr(value, "__qualname__", None)
+    if module is None or qualname is None:
+        value_type = type(value)
+        module = value_type.__module__
+        qualname = value_type.__qualname__
+    return f"{module}.{qualname}" if module else qualname
+
+
+def _code_constant_to_dict(value: object):
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float):
+        return {"type": "float", "value": value.hex()}
+    if isinstance(value, complex):
+        return {
+            "type": "complex",
+            "real": value.real.hex(),
+            "imag": value.imag.hex(),
+        }
+    if isinstance(value, bytes):
+        return {"type": "bytes", "value": value.hex()}
+    if isinstance(value, tuple):
+        return {
+            "type": "tuple",
+            "items": [_code_constant_to_dict(item) for item in value],
+        }
+    if isinstance(value, frozenset):
+        items = [_code_constant_to_dict(item) for item in value]
+        items.sort(
+            key=lambda item: json.dumps(
+                item, sort_keys=True, separators=(",", ":"), allow_nan=False
+            )
+        )
+        return {"type": "frozenset", "items": items}
+    if isinstance(value, types.CodeType):
+        return {"type": "code", "value": _code_to_dict(value)}
+    if value is Ellipsis:
+        return {"type": "ellipsis"}
+    raise TypeError(
+        "cannot fingerprint function code constant of type "
+        f"{_qualified_name(type(value))}"
+    )
+
+
+def _code_to_dict(code: types.CodeType) -> dict:
+    """Return code semantics without filenames, lines, or debug tables."""
+    return {
+        "argcount": code.co_argcount,
+        "posonlyargcount": code.co_posonlyargcount,
+        "kwonlyargcount": code.co_kwonlyargcount,
+        "nlocals": code.co_nlocals,
+        "stacksize": code.co_stacksize,
+        "flags": code.co_flags,
+        "bytecode": code.co_code.hex(),
+        "constants": [_code_constant_to_dict(item) for item in code.co_consts],
+        "names": list(code.co_names),
+        "varnames": list(code.co_varnames),
+        "freevars": list(code.co_freevars),
+        "cellvars": list(code.co_cellvars),
+        "name": code.co_name,
+        "qualname": getattr(code, "co_qualname", code.co_name),
+        "exceptiontable": getattr(code, "co_exceptiontable", b"").hex(),
+    }
+
+
+def _code_sha256(code: types.CodeType) -> str:
+    payload = json.dumps(
+        _code_to_dict(code),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _callable_to_dict(value: object) -> dict[str, object]:
+    if isinstance(value, functools.partial):
+        return {
+            "__callable__": "partial",
+            "function": _callable_to_dict(value.func),
+            "args": _config_value_to_dict(value.args),
+            "keywords": _config_value_to_dict(value.keywords or {}),
+        }
+
+    if isinstance(value, types.FunctionType):
+        result: dict[str, object] = {
+            "__callable__": "function",
+            "path": _qualified_name(value),
+            "code_sha256": _code_sha256(value.__code__),
+        }
+        if value.__defaults__:
+            result["defaults"] = _config_value_to_dict(value.__defaults__)
+        if value.__kwdefaults__:
+            result["keyword_defaults"] = _config_value_to_dict(value.__kwdefaults__)
+        if value.__closure__:
+            closure: dict[str, object] = {}
+            for name, cell in zip(value.__code__.co_freevars, value.__closure__):
+                try:
+                    cell_value = cell.cell_contents
+                except ValueError:
+                    cell_value = {"__empty_cell__": True}
+                closure[name] = _config_value_to_dict(cell_value)
+            result["closure"] = closure
+        return result
+
+    if isinstance(value, (types.BuiltinFunctionType, types.BuiltinMethodType)):
+        owner = getattr(value, "__self__", None)
+        if owner is not None and not isinstance(owner, types.ModuleType):
+            raise TypeError(
+                "cannot serialize instance-bound builtin config value "
+                f"{_qualified_name(value)} without conflating receiver state"
+            )
+        return {
+            "__callable__": "builtin",
+            "path": _qualified_name(value),
+        }
+
+    if isinstance(value, types.MethodType) and not isinstance(value.__self__, type):
+        raise TypeError(
+            "cannot serialize instance-bound method config value "
+            f"{_qualified_name(value)} without conflating receiver state"
+        )
+
+    if isinstance(value, type):
+        return {
+            "__callable__": "type",
+            "path": _qualified_name(value),
+        }
+
+    raise TypeError(
+        "cannot serialize opaque callable config value of type "
+        f"{_qualified_name(type(value))}; use a function, builtin, partial, "
+        "bound method, or type"
+    )
+
+
+def _config_value_to_dict(value: object):
+    if hasattr(value, "to_dict"):
+        return _config_value_to_dict(value.to_dict())
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: _config_value_to_dict(getattr(value, field.name))
+            for field in fields(value)
+        }
+    if isinstance(value, (list, tuple)):
+        return type(value)(_config_value_to_dict(item) for item in value)
+    if isinstance(value, dict):
+        return {key: _config_value_to_dict(item) for key, item in value.items()}
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return value
+    if callable(value):
+        return _callable_to_dict(value)
+
+    raise TypeError(
+        "cannot serialize config field value of unsupported type "
+        f"{_qualified_name(type(value))}"
+    )
 
 
 class Configurable:
@@ -44,30 +209,15 @@ class Configurable:
         _owner: ClassVar[type | None] = None
 
         def to_dict(self) -> dict:
-            """Serialize config to a plain dict (recursing into nested configs)."""
+            """Serialize config to a deterministic, JSON-compatible plain dict.
 
-            def _convert(val):
-                if hasattr(val, "to_dict"):
-                    return val.to_dict()
-                elif dataclasses.is_dataclass(val):
-                    return dataclasses.asdict(val)
-                elif isinstance(val, (list, tuple)):
-                    return type(val)(_convert(v) for v in val)
-                elif isinstance(val, dict):
-                    return {k: _convert(v) for k, v in val.items()}
-                elif isinstance(val, (str, int, float, bool, type(None))):
-                    return val
-                elif callable(val):
-                    return repr(val)
-                else:
-                    logger.warning(
-                        f"Config field value of type {type(val).__name__} "
-                        f"may not be JSON serializable"
-                    )
-                    return repr(val)
+            Callable identities include their import path, partial arguments, and
+            closure values. Opaque callable instances have no general inspectable
+            state contract and are rejected instead of conflating their semantics.
+            """
 
             return {
-                f.name: _convert(getattr(self, f.name))
+                f.name: _config_value_to_dict(getattr(self, f.name))
                 for f in fields(self)
                 if not f.name.startswith("_")
             }

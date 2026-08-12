@@ -4,6 +4,13 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import functools
+import hashlib
+import json
+import re
+import subprocess
+import sys
+import textwrap
 import unittest
 from dataclasses import dataclass, field
 
@@ -145,6 +152,226 @@ class TestConfigurable(unittest.TestCase):
         self.assertEqual(d2["x"], 42)
         self.assertEqual(d2["inner"]["a"], 1)
         self.assertEqual(d2["inner"]["b"], 2)
+
+    def test_to_dict_is_deterministic_across_fresh_config_processes(self):
+        """Equivalent registry configs produce the same address-free snapshot."""
+        script = textwrap.dedent(
+            """
+            import hashlib
+            import json
+
+            from torchtitan.config import ConfigManager
+
+            config = ConfigManager().parse_args(
+                ["--module", "llama3", "--config", "llama3_debugmodel"]
+            )
+            canonical = json.dumps(
+                config.to_dict(),
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            print(json.dumps({
+                "canonical": canonical,
+                "sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            }, sort_keys=True, separators=(",", ":")))
+            """
+        )
+
+        snapshots = [
+            subprocess.run(
+                [sys.executable, "-c", script],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            for _ in range(2)
+        ]
+        first = json.loads(snapshots[0])
+        second = json.loads(snapshots[1])
+
+        self.assertEqual(snapshots[0], snapshots[1])
+        self.assertEqual(first["canonical"], second["canonical"])
+        self.assertEqual(first["sha256"], second["sha256"])
+        self.assertEqual(
+            first["sha256"],
+            hashlib.sha256(first["canonical"].encode("utf-8")).hexdigest(),
+        )
+        self.assertIsNone(re.search(r"\bat 0x[0-9a-fA-F]+", first["canonical"]))
+
+    def test_to_dict_distinguishes_partial_arguments_and_closure_values(self):
+        """Callable snapshots retain values that change callable semantics."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def make_offset(offset):
+            def apply_offset(value):
+                return value + offset
+
+            return apply_offset
+
+        square = CallableComponent.Config(fn=functools.partial(pow, exp=2)).to_dict()[
+            "fn"
+        ]
+        cube = CallableComponent.Config(fn=functools.partial(pow, exp=3)).to_dict()[
+            "fn"
+        ]
+        offset_one = CallableComponent.Config(fn=make_offset(1)).to_dict()["fn"]
+        offset_two = CallableComponent.Config(fn=make_offset(2)).to_dict()["fn"]
+
+        self.assertNotEqual(square, cube)
+        self.assertEqual(square["keywords"], {"exp": 2})
+        self.assertEqual(cube["keywords"], {"exp": 3})
+        self.assertEqual(square["function"]["path"], "builtins.pow")
+        self.assertNotEqual(offset_one, offset_two)
+        self.assertEqual(offset_one["closure"], {"offset": 1})
+        self.assertEqual(offset_two["closure"], {"offset": 2})
+
+    def test_to_dict_distinguishes_function_code_with_the_same_qualified_name(self):
+        """Same-qualified functions retain code differences in snapshots."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        add_one = lambda value: value + 1
+        add_two = lambda value: value + 2
+
+        first = CallableComponent.Config(fn=add_one).to_dict()["fn"]
+        second = CallableComponent.Config(fn=add_two).to_dict()["fn"]
+
+        self.assertEqual(first["path"], second["path"])
+        self.assertNotEqual(first["code_sha256"], second["code_sha256"])
+
+    def test_to_dict_function_code_identity_ignores_source_location(self):
+        """Callable fingerprints do not depend on checkout path or line number."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        def load_function(filename, line_padding):
+            namespace = {"__name__": "config_callable_fixture"}
+            source = (
+                "\n" * line_padding + "def configured(value):\n    return value + 1\n"
+            )
+            exec(compile(source, filename, "exec"), namespace)
+            return namespace["configured"]
+
+        first = CallableComponent.Config(
+            fn=load_function("/checkout/one/config.py", 0)
+        ).to_dict()["fn"]
+        second = CallableComponent.Config(
+            fn=load_function("/different/checkout/config.py", 9)
+        ).to_dict()["fn"]
+
+        self.assertEqual(first["path"], second["path"])
+        self.assertEqual(first["code_sha256"], second["code_sha256"])
+
+    def test_to_dict_rejects_opaque_callable_objects(self):
+        """Opaque callable state cannot be silently conflated in snapshots."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        class StatefulCallable:
+            def __init__(self, offset):
+                self.offset = offset
+
+            def __call__(self, value):
+                return value + self.offset
+
+        with self.assertRaisesRegex(TypeError, "opaque callable.*StatefulCallable"):
+            CallableComponent.Config(fn=StatefulCallable(1)).to_dict()
+
+    def test_to_dict_serializes_callable_types_by_qualified_name(self):
+        """Callable classes have a stable identity without instance state."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        snapshot = CallableComponent.Config(fn=str).to_dict()["fn"]
+
+        self.assertEqual(
+            snapshot,
+            {"__callable__": "type", "path": "builtins.str"},
+        )
+
+    def test_to_dict_rejects_instance_bound_methods(self):
+        """Instance-bound methods cannot omit the state of their receiver."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        class StatefulCallable:
+            def __init__(self, offset):
+                self.offset = offset
+
+            def apply(self, value):
+                return value + self.offset
+
+        with self.assertRaisesRegex(TypeError, "instance-bound method"):
+            CallableComponent.Config(fn=StatefulCallable(1).apply).to_dict()
+
+    def test_to_dict_rejects_instance_bound_builtin_methods(self):
+        """Bound builtins cannot omit the state of their receiver."""
+
+        class CallableComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                fn: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        with self.assertRaisesRegex(TypeError, "instance-bound builtin"):
+            CallableComponent.Config(fn={"offset": 1}.get).to_dict()
+
+    def test_to_dict_rejects_unsupported_non_callable_values(self):
+        """Unsupported values cannot leak address-bearing repr strings."""
+
+        class UnsupportedValue:
+            pass
+
+        class ValueComponent(Configurable):
+            @dataclass(kw_only=True, slots=True)
+            class Config(Configurable.Config):
+                value: object
+
+            def __init__(self, config: Config):
+                self.config = config
+
+        with self.assertRaisesRegex(TypeError, "UnsupportedValue"):
+            ValueComponent.Config(value=UnsupportedValue()).to_dict()
 
     def test_traverse_recurse_descends_into_matching_configs(self):
         """traverse(..., recurse=True) descends after yielding matches."""

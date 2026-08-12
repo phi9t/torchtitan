@@ -8,7 +8,10 @@
 
 import hashlib
 import json
+import os
+import subprocess
 import sys
+import textwrap
 import threading
 from types import SimpleNamespace
 
@@ -343,6 +346,76 @@ def test_shared_manifest_allows_distinct_rank_indexes(
         "artifacts.trainer.core.global_rank_000000.jsonl",
         "artifacts.trainer.core.global_rank_000001.jsonl",
     ]
+
+
+def test_shared_manifest_accepts_configs_built_in_independent_rank_processes(
+    tmp_path,
+):
+    """Fresh rank processes agree on one semantically identical config manifest."""
+    script = textwrap.dedent(
+        """
+        import os
+
+        from torchtitan.config import ConfigManager
+        from torchtitan.observability.run_evidence import RunEvidence
+
+        config = ConfigManager().parse_args(
+            ["--module", "llama3", "--config", "llama3_debugmodel"]
+        )
+        with RunEvidence(
+            RunEvidence.Config(),
+            dump_folder=os.environ["EVIDENCE_TEST_DUMP_FOLDER"],
+            job_config=config.to_dict(),
+            role="trainer",
+            actor_id="core",
+        ):
+            pass
+        """
+    )
+    base_env = os.environ.copy()
+    base_env.update(
+        {
+            "WORLD_SIZE": "2",
+            "TORCHTITAN_RUN_ID": "independent-config-run",
+            "TORCHTITAN_ATTEMPT_ID": "independent-config-attempt",
+            "EVIDENCE_TEST_DUMP_FOLDER": str(tmp_path),
+        }
+    )
+
+    results = []
+    for rank in range(2):
+        rank_env = base_env | {"RANK": str(rank), "LOCAL_RANK": str(rank)}
+        results.append(
+            subprocess.run(
+                [sys.executable, "-c", script],
+                env=rank_env,
+                capture_output=True,
+                text=True,
+            )
+        )
+
+    assert [result.returncode for result in results] == [0, 0], [
+        result.stderr for result in results
+    ]
+    manifest_path = (
+        tmp_path
+        / "run_evidence"
+        / "independent-config-run"
+        / "independent-config-attempt"
+        / "manifest.json"
+    )
+    manifest_text = manifest_path.read_text()
+    manifest = json.loads(manifest_text)
+    canonical_config = json.dumps(
+        manifest["config"]["normalized"],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert (
+        manifest["config"]["sha256"]
+        == hashlib.sha256(canonical_config.encode("utf-8")).hexdigest()
+    )
+    assert " at 0x" not in manifest_text
 
 
 @pytest.mark.parametrize(
