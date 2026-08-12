@@ -616,6 +616,13 @@ def event_context() -> dict[str, Any]:
     return {} if evidence is None else evidence._event_context()
 
 
+def bind_distributed(parallel_dims: ParallelDims, device: torch.device) -> None:
+    """Attach distributed coordinates to the active process recorder, if any."""
+    evidence = _ACTIVE_EVIDENCE
+    if evidence is not None:
+        evidence.bind_distributed(parallel_dims, device)
+
+
 def bind_phase(phase: str) -> AbstractContextManager[None]:
     evidence = _ACTIVE_EVIDENCE
     return nullcontext() if evidence is None else evidence._bind_phase(phase)

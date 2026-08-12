@@ -28,51 +28,63 @@ def main() -> None:
     config_manager = ConfigManager()
     config = config_manager.parse_args()
 
-    # NOTE: internal meta tooling relies on source="training".
-    sl.init_structured_logger(
-        source="training",
-        # pyrefly: ignore [missing-attribute]
-        output_dir=config.dump_folder,
-        # pyrefly: ignore [missing-attribute]
-        enable=config.debug.enable_structured_logging,
-    )
-    sl.log_trace_instant("structured_logger_started")
+    with config.run_evidence.build(  # pyrefly: ignore [missing-attribute]
+        dump_folder=config.dump_folder,  # pyrefly: ignore [missing-attribute]
+        job_config=config.to_dict(),  # pyrefly: ignore [missing-attribute]
+        role="trainer",
+        actor_id="core",
+    ):
+        # NOTE: internal meta tooling relies on source="training".
+        sl.init_structured_logger(
+            source="training",
+            # pyrefly: ignore [missing-attribute]
+            output_dir=config.dump_folder,
+            # pyrefly: ignore [missing-attribute]
+            enable=config.debug.enable_structured_logging,
+        )
+        try:
+            sl.log_trace_instant("structured_logger_started")
+            trainer: Trainer | None = None
 
-    trainer: Trainer | None = None
+            try:
+                # TODO(local_tensor): Remove this special case once LocalTensor supports
+                # init_states() and foreach_allgather. In local tensor mode, skip
+                # training/checkpointing as the # model is not fully initialized
+                if (
+                    config.comm.mode == "local_tensor"
+                ):  # pyrefly: ignore [missing-attribute]
+                    logger.info(
+                        "Local tensor mode enabled - skipping training execution"
+                    )
+                    return
 
-    try:
-        # TODO(local_tensor): Remove this special case once LocalTensor supports
-        # init_states() and foreach_allgather. In local tensor mode, skip
-        # training/checkpointing as the # model is not fully initialized
-        if config.comm.mode == "local_tensor":  # pyrefly: ignore [missing-attribute]
-            logger.info("Local tensor mode enabled - skipping training execution")
-            return
+                trainer = config.build()  # pyrefly: ignore [missing-attribute]
 
-        trainer = config.build()  # pyrefly: ignore [missing-attribute]
-
-        if (
-            config.checkpoint.create_seed_checkpoint  # pyrefly: ignore[missing-attribute]
-        ):
-            assert (
-                int(os.environ["WORLD_SIZE"]) == 1
-            ), "Must create seed checkpoint using a single device, to disable sharding."
-            assert (
-                config.checkpoint.enable  # pyrefly: ignore [missing-attribute]
-            ), "Must enable checkpointing when creating a seed checkpoint."
-            trainer.checkpointer.save(curr_step=0, last_step=True)
-            logger.info("Created seed checkpoint")
-        else:
-            trainer.train()
-    except Exception:
-        if trainer:
-            trainer.close()
-        raise
-    else:
-        trainer.close()
-        if torch.distributed.is_initialized():
-            with sl.log_trace_span("torch_distributed_teardown"):
-                torch.distributed.destroy_process_group()
-        logger.info("Process group destroyed")
+                if (
+                    config.checkpoint.create_seed_checkpoint  # pyrefly: ignore[missing-attribute]
+                ):
+                    assert (
+                        int(os.environ["WORLD_SIZE"]) == 1
+                    ), "Must create seed checkpoint using a single device, to disable sharding."
+                    assert (
+                        config.checkpoint.enable  # pyrefly: ignore [missing-attribute]
+                    ), "Must enable checkpointing when creating a seed checkpoint."
+                    trainer.checkpointer.save(curr_step=0, last_step=True)
+                    logger.info("Created seed checkpoint")
+                else:
+                    trainer.train()
+            except Exception:
+                if trainer:
+                    trainer.close()
+                raise
+            else:
+                trainer.close()
+                if torch.distributed.is_initialized():
+                    with sl.log_trace_span("torch_distributed_teardown"):
+                        torch.distributed.destroy_process_group()
+                logger.info("Process group destroyed")
+        finally:
+            sl.close_structured_logger()
 
 
 if __name__ == "__main__":

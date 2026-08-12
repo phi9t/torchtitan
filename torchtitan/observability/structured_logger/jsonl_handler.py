@@ -22,6 +22,7 @@ import threading
 from timeit import default_timer as timer
 from typing import Any
 
+from torchtitan.observability.run_evidence import ArtifactState, record_artifact
 from torchtitan.observability.structured_logger.step_state import (
     get_relative_step,
     get_step,
@@ -137,6 +138,10 @@ class TraceJsonlFormatter(logging.Formatter):
         if record.stack_info:
             log_dict["stack_info"] = record.stack_info
 
+        evidence_context = getattr(record, str(ExtraFields.EVIDENCE_CONTEXT), {})
+        for key, value in evidence_context.items():
+            log_dict.setdefault(key, value)
+
         log_dict["seq_id"] = next(self._seq_counter)
 
         # Truncate long free-text messages. Event records
@@ -178,8 +183,28 @@ class TraceJsonlHandler(logging.FileHandler):
         filepath = os.path.join(output_dir, "structured_logs", filename)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         super().__init__(filename=filepath)
+        self._artifact_id = record_artifact(
+            producer="structured_logger",
+            kind="torchtitan.structured_events",
+            path=filepath,
+            state=ArtifactState.DECLARED,
+            metadata={"format": "jsonl", "source": source},
+        )
+        self._artifact_closed = False
         self.setFormatter(TraceJsonlFormatter(rank=rank, source=source))
         self.addFilter(TraceEventsOnlyFilter())
+
+    def close(self) -> None:
+        if self._artifact_id is not None and not self._artifact_closed:
+            record_artifact(
+                producer="structured_logger",
+                kind="torchtitan.structured_events",
+                path=self.baseFilename,
+                state=ArtifactState.COMPLETE,
+                artifact_id=self._artifact_id,
+            )
+            self._artifact_closed = True
+        super().close()
 
 
 def register_jsonl_handler(

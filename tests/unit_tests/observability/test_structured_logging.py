@@ -14,6 +14,8 @@ import time
 from unittest import mock
 
 import pytest
+import torch
+from torchtitan.observability.run_evidence import ArtifactState, RunEvidence
 from torchtitan.observability.structured_logger import step_state
 from torchtitan.observability.structured_logger.gantt_generator import (
     generate_gantt_trace,
@@ -34,6 +36,7 @@ from torchtitan.observability.structured_logger.step_state import (
 )
 from torchtitan.observability.structured_logger.structured_logging import (
     _structured_logger,
+    close_structured_logger,
     event_extra,
     ExtraFields,
     init_structured_logger,
@@ -78,9 +81,41 @@ def structured_logger_fixture():
     # for each test (otherwise the second call short-circuits as "already
     # initialized").
     sl_mod._is_initialized = False
+    sl_mod._disabled = False
     yield tl
+    close_structured_logger()
     tl.handlers, tl.level, tl.propagate = orig
     sl_mod._is_initialized = False
+    sl_mod._disabled = False
+
+
+@pytest.fixture
+def launcher_identity(monkeypatch):
+    identity = {"run_id": "research-run", "attempt_id": "launch-17"}
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setenv("TORCHTITAN_RUN_ID", identity["run_id"])
+    monkeypatch.setenv("TORCHTITAN_ATTEMPT_ID", identity["attempt_id"])
+    monkeypatch.delenv("TORCHELASTIC_RESTART_COUNT", raising=False)
+    return identity
+
+
+def build_evidence(tmp_path):
+    return RunEvidence(
+        RunEvidence.Config(),
+        dump_folder=str(tmp_path),
+        job_config={"training": {"steps": 3}},
+        role="trainer",
+        actor_id="core",
+    )
+
+
+def read_only_structured_row(tmp_path):
+    path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+    assert len(rows) == 1
+    return rows[0]
 
 
 # ---------------------------------------------------------------------------
@@ -984,6 +1019,119 @@ class TestLogTraceSpan:
             "inner_async_start",
             "inner_async_end",
             "outer_async_end",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Run evidence correlation and structured logger lifecycle
+# ---------------------------------------------------------------------------
+
+
+class TestRunEvidenceCorrelation:
+    def test_formatter_adds_run_evidence_without_changing_legacy_fields(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            log_trace_instant("training_start")
+            row = read_only_structured_row(tmp_path)
+            close_structured_logger()
+
+        assert row["source"] == "training"
+        assert row["global_rank"] == 0
+        assert row["run_id"] == launcher_identity["run_id"]
+        assert row["attempt_id"] == launcher_identity["attempt_id"]
+        assert row["event_seq"] == 0
+        assert row["evidence_schema_version"] == 1
+        assert row["role"] == "trainer"
+        assert row["actor_id"] == "core"
+        assert isinstance(row["wall_time_ns"], int)
+        assert isinstance(row["monotonic_ns"], int)
+
+    def test_span_binds_its_phase_and_restores_the_prior_context(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            with log_trace_span("step"):
+                log_trace_instant("inside_step")
+            log_trace_instant("after_step")
+            close_structured_logger()
+
+        path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+        rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+        assert [row.get("phase") for row in rows] == ["step", "step", "step", None]
+
+    def test_distributed_context_appears_only_after_binding(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        class AxisMesh:
+            def size(self):
+                return 4
+
+            def get_local_rank(self):
+                return 2
+
+        class ParallelDims:
+            dp_replicate = 1
+            dp_shard = 1
+            cp = 1
+            tp = 4
+            pp = 1
+            ep = 1
+            world_size = 4
+
+            def get_all_one_dimensional_meshes(self):
+                return {"tp": AxisMesh()}
+
+        with build_evidence(tmp_path) as evidence:
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            log_trace_instant("before_mesh")
+            evidence.bind_distributed(ParallelDims(), torch.device("cpu"))
+            log_trace_instant("after_mesh")
+            close_structured_logger()
+
+        path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+        rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+        assert "device_uuid" not in rows[0]
+        assert "mesh_axis_tp_rank" not in rows[0]
+        assert rows[1]["device_uuid"] is None
+        assert rows[1]["mesh_axis_tp_rank"] == 2
+        assert rows[1]["mesh_axis_tp_size"] == 4
+
+    def test_close_removes_handlers_and_allows_reinitialization(
+        self, tmp_path, structured_logger_fixture
+    ):
+        init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+        assert _structured_logger.handlers
+
+        close_structured_logger()
+        close_structured_logger()
+
+        assert _structured_logger.handlers == []
+        init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+        assert _structured_logger.handlers
+
+    def test_handler_artifact_reaches_complete_on_close(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            close_structured_logger()
+
+        index = next(
+            (
+                tmp_path
+                / "run_evidence"
+                / launcher_identity["run_id"]
+                / launcher_identity["attempt_id"]
+                / "indexes"
+            ).glob("artifacts.*.jsonl")
+        )
+        artifacts = [json.loads(line) for line in index.read_text().splitlines()]
+        assert [artifact["state"] for artifact in artifacts] == [
+            ArtifactState.DECLARED.value,
+            ArtifactState.COMPLETE.value,
         ]
 
 

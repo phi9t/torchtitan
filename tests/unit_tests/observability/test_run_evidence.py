@@ -18,6 +18,7 @@ import torch
 from torchtitan.observability.run_evidence import (
     ArtifactRelation,
     ArtifactState,
+    bind_distributed,
     bind_phase,
     event_context,
     EvidenceCollisionError,
@@ -674,6 +675,30 @@ def test_bind_distributed_records_public_axis_coordinates_and_unknown_cpu_uuid(
     assert context["device_uuid"] is None
     assert context["mesh_axis_tp_rank"] == 2
     assert context["mesh_axis_tp_size"] == 4
+
+
+def test_public_bind_distributed_is_a_noop_without_active_evidence():
+    bind_distributed(SimpleNamespace(), torch.device("cpu"))
+
+
+def test_public_bind_distributed_delegates_to_active_evidence(
+    tmp_path, launcher_identity
+):
+    class ParallelDims:
+        dp_replicate = 1
+        dp_shard = 1
+        cp = 1
+        tp = 1
+        pp = 1
+        ep = 1
+        world_size = 1
+
+    with build_evidence(tmp_path):
+        bind_distributed(ParallelDims(), torch.device("cpu"))
+        context = event_context()
+
+    assert context["device_type"] == "cpu"
+    assert context["world_size"] == 1
 
 
 def test_artifact_append_failure_is_fatal_without_an_active_exception(
