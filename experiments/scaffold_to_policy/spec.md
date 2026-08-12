@@ -3,8 +3,8 @@ title: Scaffold-To-Policy Experiment Registry And Reasoning Expansion
 labels:
   - ready-for-agent
 status: executed-checkpoint
-blocked_on:
-  - gpqa_huggingface_auth
+residual_caveats:
+  - gpqa_huggingface_auth_for_live_hf_loader_only
 ---
 
 # Scaffold-To-Policy Experiment Registry And Reasoning Expansion
@@ -1033,3 +1033,26 @@ reasoning benchmarks.
   impossible GPU-memory value to stop after imports. This does not change GPQA
   benchmark semantics; it only makes the access gate explicit and cheap to
   audit before running `run_gpqa_public_vllm_smoke.sh`.
+- 2026-08-12: Unblocked GPQA Diamond execution through the public OpenAI
+  simple-evals CSV while preserving the no-tool multiple-choice verifier. The
+  new `cache-gpqa-simple-evals-csv` CLI downloads
+  `https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv`
+  from inside the bwrap rootfs, writes a raw JSONL cache plus provenance, and
+  lets the existing GPQA runner consume that cache with `OFFLINE=1`. The cache
+  contains 198 rows and artifact hash
+  `312b80837f84194c3d18675a3f4cd3cabea6d767ef2d1cebacb62d8b0df49d7e`.
+  A prompt-builder bug for four-choice multiple-choice rows was fixed by using
+  the problem's actual answer-letter set instead of all ten possible letters.
+  The rootfs/vLLM smoke
+  `20260813T000500Z-gpqa-simple-evals-offline-smoke` completed 4 dev and
+  4 OOD problems with 4 rollouts each. The larger hard-reasoning calibration
+  `20260813T003000Z-gpqa-simple-evals-16x16-labeled` completed 16 dev and
+  16 OOD problems, offsets 0 and 64, 4 rollouts per problem, Qwen3-1.7B,
+  explicit source label `openai/simple-evals-gpqa:gpqa_diamond:main:gpqa_diamond`,
+  `GPU_MEMORY_UTILIZATION=0.05`, and runtime metadata under
+  `experiments/scaffold_to_policy/results/gpqa_simple_evals_16x16_labeled/`.
+  Metrics: dev pass@1 `0.4375`, pass@4/pass@32 `0.5625`, buckets easy 7,
+  elicitable 2, unreached 7; OOD pass@1 `0.3125`, pass@2 `0.375`,
+  pass@4/pass@32 `0.4375`, buckets easy 5, elicitable 2, unreached 9. This is
+  a small public-cache GPQA Diamond calibration, not an official leaderboard
+  score and not evidence that the gated Hugging Face loader path is accessible.

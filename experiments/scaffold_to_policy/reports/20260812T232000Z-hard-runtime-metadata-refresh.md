@@ -126,9 +126,15 @@ This remains a hard-negative coding result, not a leaderboard score.
 
 ## GPQA Status
 
-GPQA Diamond still did not execute benchmark tasks. The refreshed rootfs run
-attempted `Idavidrein/gpqa`, subset `gpqa_diamond`, and stopped at the
-benchmark-preserving access boundary:
+Update: this section is superseded for the public-cache GPQA path by
+`experiments/scaffold_to_policy/reports/20260813T003000Z-gpqa-simple-evals-hard-calibration.md`.
+The live Hugging Face loader path described below remains gated without
+credentials, but the OpenAI simple-evals GPQA Diamond CSV was later cached and
+run through the existing rootfs/vLLM GPQA runner.
+
+The refreshed rootfs run in this report attempted `Idavidrein/gpqa`, subset
+`gpqa_diamond`, and stopped at the benchmark-preserving Hugging Face access
+boundary:
 
 ```text
 datasets.exceptions.DatasetNotFoundError: Dataset 'Idavidrein/gpqa' is a gated
@@ -146,9 +152,10 @@ The blocker report records `benchmark_execution_completed=false`,
 
 ## Interpretation
 
-The current hard-lane artifacts now satisfy the runtime-metadata requirements
-for the executed public reasoning and coding slices. MMLU-Pro remains useful
-positive no-tool reasoning calibration. BigCodeBench-Hard remains a clean
-hard-negative no-tool coding calibration with canonical verifier preflight
-selected. GPQA remains externally blocked by missing authorized access, and
-must not be reported as executed benchmark performance.
+The current hard-lane artifacts in this report satisfy the runtime-metadata
+requirements for the executed public reasoning and coding slices. MMLU-Pro
+remains useful positive no-tool reasoning calibration. BigCodeBench-Hard remains
+a clean hard-negative no-tool coding calibration with canonical verifier
+preflight selected. For GPQA, use the later public simple-evals calibration
+report for executed benchmark-task evidence, and use this report only as the
+gated Hugging Face access diagnostic.

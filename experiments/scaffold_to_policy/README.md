@@ -398,14 +398,52 @@ Run the GPQA Diamond gate through the rootfs:
 experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
 ```
 
-GPQA Diamond is gated on Hugging Face. In an unauthenticated rootfs, this script
-writes a blocker report input instead of substituting a different dataset or
-claiming a score. With `HF_TOKEN` configured and access granted, the same
-entrypoint imports `Idavidrein/gpqa` `gpqa_diamond`, evaluates no-tool
-multiple-choice prompts, and verifies exact `FINAL: <A|B|C|D>` outputs.
+GPQA Diamond is gated on Hugging Face. In an unauthenticated rootfs, the live
+Hugging Face path writes a blocker report input instead of substituting a
+different dataset or claiming a score. With `HF_TOKEN` configured and access
+granted, the same entrypoint imports `Idavidrein/gpqa` `gpqa_diamond`, evaluates
+no-tool multiple-choice prompts, and verifies exact `FINAL: <A|B|C|D>` outputs.
 
-If live Hugging Face access is not available, provide authorized raw row caches
-through repo-visible paths and run the same entrypoint offline:
+The public OpenAI simple-evals release also exposes a GPQA Diamond CSV. Cache it
+through the rootfs before offline execution:
+
+```bash
+scripts/rootfs/enter_rootfs.sh -- python -m torchtitan.experiments.scaffold_to_policy.cli \
+  cache-gpqa-simple-evals-csv \
+  --output experiments/scaffold_to_policy/data/gpqa_simple_evals/raw/gpqa_diamond.jsonl \
+  --provenance experiments/scaffold_to_policy/data/gpqa_simple_evals/raw/gpqa_diamond.provenance.json
+```
+
+Then run a no-tool GPQA Diamond calibration from the cached rows:
+
+```bash
+RUN_ID=20260813T003000Z-gpqa-simple-evals-16x16-labeled \
+DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_simple_evals_16x16_labeled \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_simple_evals_16x16_labeled \
+DATASET=openai/simple-evals-gpqa \
+DATASET_SUBSET=gpqa_diamond \
+DATASET_REVISION=main \
+SOURCE_SPLIT=gpqa_diamond \
+OFFLINE=1 \
+DEV_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_simple_evals/raw/gpqa_diamond.jsonl \
+OOD_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_simple_evals/raw/gpqa_diamond.jsonl \
+DEV_PROBLEMS=16 OOD_PROBLEMS=16 DEV_OFFSET=0 OOD_OFFSET=64 \
+NUM_ROLLOUTS=4 MAX_NEW_TOKENS=512 GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
+```
+
+That run completed inside the bwrap rootfs using Qwen3-1.7B and wrote:
+
+```text
+experiments/scaffold_to_policy/results/gpqa_simple_evals_16x16_labeled/manifests/report_input_20260813T003000Z-gpqa-simple-evals-16x16-labeled.json
+```
+
+It is a small public-cache hard-reasoning calibration, not an official GPQA
+leaderboard score.
+
+If live Hugging Face access is not available and a different authorized GPQA row
+cache is required, provide raw row caches through repo-visible paths and run the
+same entrypoint offline:
 
 ```bash
 OFFLINE=1 \
@@ -443,8 +481,8 @@ The offline-cache path was smoke-tested with synthetic GPQA-shaped rows in run
 `20260812T143600Z-gpqa-offline-cache-smoke`: rootfs imports used
 `--offline --raw-cache`, provenance recorded raw-cache hashes, split validation
 passed, and the run stopped at an intentionally impossible GPU-memory preflight
-without launching vLLM. Authorized real GPQA rows are still required for a
-benchmark-preserving GPQA result.
+without launching vLLM. The public simple-evals cache path supersedes that
+synthetic smoke for benchmark-preserving GPQA Diamond plumbing.
 
 To walk through either access path interactively, use the rootfs-aware setup
 wizard:
@@ -708,10 +746,10 @@ experiments/scaffold_to_policy/reports/20260812T142500Z-final-completion-audit.m
 experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md
 ```
 
-The newer audits include the completed MMLU-Pro and LiveCodeBench lanes,
-metadata-backed MMLU-Pro and BigCodeBench-Hard refreshes, plus a fresh GPQA
-blocker refresh. They mark the checkpoint blocked on authenticated GPQA access
-or an authorized raw GPQA cache, not complete.
+The newer audits include the completed MMLU-Pro, LiveCodeBench, BigCodeBench-Hard,
+and public-cache GPQA Diamond lanes. They keep the live Hugging Face GPQA access
+blocker as a residual caveat, but the public simple-evals GPQA Diamond path has
+now executed through the bwrap rootfs.
 
 Exact-verifier scaffold report inputs share the common
 `report_artifacts.build_report_input` shell. `arithmetic_words`, `gsm_style`,

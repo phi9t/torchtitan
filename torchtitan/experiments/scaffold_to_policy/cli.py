@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import importlib.metadata
 import importlib.util
 import json
@@ -14,6 +15,7 @@ import platform
 from pathlib import Path
 import sys
 from typing import Callable
+from urllib.request import Request, urlopen
 
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     ArithmeticWordProblem,
@@ -67,9 +69,23 @@ def _load_public_rows(args: argparse.Namespace) -> tuple[list[dict[str, object]]
     if args.offline:
         if args.raw_cache is None:
             raise ValueError("--offline requires --raw-cache")
-        return _read_jsonl_rows(args.raw_cache), "raw_cache"
+        return (
+            _slice_rows(
+                _read_jsonl_rows(args.raw_cache),
+                limit=args.limit,
+                offset=args.offset,
+            ),
+            "raw_cache",
+        )
     if args.raw_cache is not None and args.raw_cache.is_file():
-        return _read_jsonl_rows(args.raw_cache), "raw_cache"
+        return (
+            _slice_rows(
+                _read_jsonl_rows(args.raw_cache),
+                limit=args.limit,
+                offset=args.offset,
+            ),
+            "raw_cache",
+        )
     try:
         from datasets import load_dataset
     except ImportError as exc:
@@ -396,7 +412,11 @@ def _preflight_gpqa_access_split(
                 offset=offset,
             )
             row_source = "huggingface"
-        selected_rows = rows[offset : offset + limit] if row_source == "raw_cache" else rows
+        selected_rows = (
+            _slice_rows(rows, limit=limit, offset=offset)
+            if row_source == "raw_cache"
+            else rows
+        )
         source = multiple_choice._public_source(
             dataset,
             subset,
@@ -440,6 +460,49 @@ def _preflight_gpqa_access_split(
                 run_id=source,
             )
     return record
+
+
+def cache_gpqa_simple_evals_csv(args: argparse.Namespace) -> None:
+    request = Request(args.url, headers={"User-Agent": "TorchTitan scaffold-to-policy"})
+    with urlopen(request, timeout=args.timeout_seconds) as response:
+        raw_bytes = response.read()
+        content_type = response.headers.get("content-type")
+    text = raw_bytes.decode("utf-8-sig")
+    rows = list(csv.DictReader(text.splitlines()))
+    required_fields = [
+        "Question",
+        "Correct Answer",
+        "Incorrect Answer 1",
+        "Incorrect Answer 2",
+        "Incorrect Answer 3",
+    ]
+    missing_fields = [
+        field for field in required_fields if not rows or field not in rows[0]
+    ]
+    if missing_fields:
+        raise ValueError(
+            "GPQA CSV is missing required fields: " + ", ".join(missing_fields)
+        )
+    normalized_rows = [
+        {field: row.get(field, "") for field in required_fields + ["Explanation"]}
+        for row in rows
+    ]
+    _write_jsonl_rows(args.output, normalized_rows)
+    provenance = {
+        "schema_version": 1,
+        "kind": "gpqa_simple_evals_csv_cache",
+        "url": args.url,
+        "output": str(args.output),
+        "content_type": content_type,
+        "num_rows": len(normalized_rows),
+        "required_fields": required_fields,
+        "source": args.source_label,
+        "artifact": report_artifacts.describe_artifact(
+            args.output,
+            run_id=args.source_label,
+        ),
+    }
+    multiple_choice.write_json(args.provenance, provenance)
 
 
 def import_mmlu_pro_split(args: argparse.Namespace) -> None:
@@ -2616,6 +2679,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     gpqa_access_parser.set_defaults(func=preflight_gpqa_access)
+
+    gpqa_cache_parser = subparsers.add_parser("cache-gpqa-simple-evals-csv")
+    gpqa_cache_parser.add_argument("--output", type=Path, required=True)
+    gpqa_cache_parser.add_argument("--provenance", type=Path, required=True)
+    gpqa_cache_parser.add_argument(
+        "--url",
+        default="https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv",
+    )
+    gpqa_cache_parser.add_argument(
+        "--source-label",
+        default="openai-simple-evals:gpqa_diamond",
+    )
+    gpqa_cache_parser.add_argument("--timeout-seconds", type=float, default=30.0)
+    gpqa_cache_parser.set_defaults(func=cache_gpqa_simple_evals_csv)
 
     mmlu_pro_import_parser = subparsers.add_parser("import-mmlu-pro-split")
     mmlu_pro_import_parser.add_argument("--output", type=Path, required=True)

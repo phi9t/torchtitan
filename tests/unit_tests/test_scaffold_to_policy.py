@@ -822,6 +822,23 @@ def test_multiple_choice_verifier_requires_final_letter():
     assert correct.success
 
 
+def test_multiple_choice_prompt_uses_problem_choice_count():
+    problem = multiple_choice.MultipleChoiceProblem(
+        problem_id="gpqa-fixture",
+        source="fixture",
+        question="Which option is correct?",
+        choices=("correct", "wrong b", "wrong c", "wrong d"),
+        answer="A",
+    )
+
+    prompt = multiple_choice.prompt_for_problem(problem)
+
+    assert "A. correct" in prompt
+    assert "D. wrong d" in prompt
+    assert "E." not in prompt
+    assert "FINAL: X, where X is one of A, B, C, D" in prompt
+
+
 def test_multiple_choice_verifier_supports_ten_choice_rows():
     problem = multiple_choice.MultipleChoiceProblem(
         problem_id="mc-10",
@@ -1018,6 +1035,53 @@ def test_preflight_gpqa_access_records_offline_missing_cache(tmp_path):
         "ood_test",
     }
     assert all(record["error_type"] == "ValueError" for record in preflight["records"])
+
+
+def test_cache_gpqa_simple_evals_csv_writes_raw_cache(tmp_path):
+    parser = build_parser()
+    csv_path = tmp_path / "gpqa_diamond.csv"
+    raw_cache = tmp_path / "raw" / "gpqa.jsonl"
+    provenance_path = tmp_path / "raw" / "gpqa_provenance.json"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "Question,Correct Answer,Incorrect Answer 1,Incorrect Answer 2,Incorrect Answer 3,Explanation",
+                "Which statement is correct?,A fact.,Wrong 1.,Wrong 2.,Wrong 3.,Because.",
+            ]
+        )
+        + "\n"
+    )
+
+    args = parser.parse_args(
+        [
+            "cache-gpqa-simple-evals-csv",
+            "--output",
+            str(raw_cache),
+            "--provenance",
+            str(provenance_path),
+            "--url",
+            csv_path.as_uri(),
+            "--source-label",
+            "fixture-gpqa",
+        ]
+    )
+    args.func(args)
+
+    rows = [json.loads(line) for line in raw_cache.read_text().splitlines()]
+    provenance = json.loads(provenance_path.read_text())
+    assert rows == [
+        {
+            "Question": "Which statement is correct?",
+            "Correct Answer": "A fact.",
+            "Incorrect Answer 1": "Wrong 1.",
+            "Incorrect Answer 2": "Wrong 2.",
+            "Incorrect Answer 3": "Wrong 3.",
+            "Explanation": "Because.",
+        }
+    ]
+    assert provenance["source"] == "fixture-gpqa"
+    assert provenance["num_rows"] == 1
+    assert provenance["artifact"]["sha256"]
 
 
 def test_import_mmlu_pro_split_accepts_offline_raw_cache(tmp_path):

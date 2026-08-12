@@ -109,7 +109,7 @@ class MultipleChoiceProblemEvaluation:
 def prompt_for_problem(problem: MultipleChoiceProblem) -> str:
     choice_lines = [
         f"{letter}. {choice}"
-        for letter, choice in zip(ANSWER_LETTERS, problem.choices, strict=True)
+        for letter, choice in zip(_letters_for(problem), problem.choices, strict=True)
     ]
     return "\n".join(
         [
