@@ -573,3 +573,16 @@ reasoning benchmarks.
   `DummyUser.__init__() got an unexpected keyword argument 'tools'`. This
   improves blocker evidence for the tau2 lane, but it is not a successful tau2
   benchmark result and does not clear the full agent-execution gate.
+- 2026-08-12: Added an ARC-AGI-2 `strict_chat` prompt condition and attempted
+  the same 8 dev / 8 OOD calibration slice as run
+  `20260812T134500Z-arc-agi2-strict-chat-calibration`. The prompt condition
+  keeps the same no-tool exact-grid verifier but asks for exactly one line,
+  `FINAL: <json-grid>`, with no reasoning, markdown, labels, or code fences.
+  Prompt/context preflight passed all selected problems at 8192 context, with
+  max total tokens 5260 for dev and 7516 for OOD. Generation did not run because
+  the visible GPU had insufficient free memory for vLLM. A new
+  `preflight-vllm-gpu-memory` command and ARC runner hook now write a JSON
+  blocker artifact before vLLM initialization; on the blocked host state it
+  recorded 6.50 GiB free versus 42.80 GiB required at
+  `GPU_MEMORY_UTILIZATION=0.24`. The report is
+  `experiments/scaffold_to_policy/reports/20260812T134500Z-arc-strict-chat-blocked.md`.

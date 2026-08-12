@@ -144,6 +144,36 @@ def prompt_for_problem(problem: ARCGridProblem) -> str:
     return "\n".join(lines)
 
 
+def strict_prompt_for_problem(problem: ARCGridProblem) -> str:
+    lines = [
+        "Solve this ARC grid transformation task.",
+        "Each grid is a JSON array of rows. Values are integers 0 through 9.",
+        "Infer the transformation from the examples.",
+        "Do not include analysis, markdown, labels, code fences, or extra lines.",
+        "Reply with exactly one line: FINAL: <json-grid>",
+        "",
+    ]
+    for index, example in enumerate(problem.train_examples, start=1):
+        lines.extend(
+            [
+                f"Example {index} input:",
+                _compact_grid_json(example.input_grid),
+                f"Example {index} output:",
+                _compact_grid_json(example.output_grid),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "Test input:",
+            _compact_grid_json(problem.test_input),
+            "",
+            "One-line final answer only.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def verify_answer(problem: ARCGridProblem, text: str) -> ARCGridVerification:
     final_value = _extract_final_value(text)
     if final_value is None:

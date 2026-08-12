@@ -667,6 +667,61 @@ def preflight_arc_grid_prompts(args: argparse.Namespace) -> None:
         raise SystemExit("arc-grid prompt preflight failed: " + ", ".join(failed))
 
 
+def preflight_vllm_gpu_memory(args: argparse.Namespace) -> None:
+    try:
+        import torch
+    except ImportError as exc:
+        raise RuntimeError(
+            "torch is required for preflight-vllm-gpu-memory. Run through "
+            "the TorchTitan rootfs."
+        ) from exc
+
+    if not torch.cuda.is_available():
+        preflight = {
+            "schema_version": 1,
+            "kind": "vllm_gpu_memory_preflight",
+            "selected": False,
+            "reason": "cuda unavailable",
+            "gpu_memory_utilization": args.gpu_memory_utilization,
+            "devices": [],
+        }
+    else:
+        device_index = args.device_index
+        free_bytes, total_bytes = torch.cuda.mem_get_info(device_index)
+        required_bytes = int(total_bytes * args.gpu_memory_utilization)
+        preflight = {
+            "schema_version": 1,
+            "kind": "vllm_gpu_memory_preflight",
+            "selected": free_bytes >= required_bytes,
+            "reason": "sufficient free memory"
+            if free_bytes >= required_bytes
+            else "insufficient free memory",
+            "gpu_memory_utilization": args.gpu_memory_utilization,
+            "devices": [
+                {
+                    "device_index": device_index,
+                    "name": torch.cuda.get_device_name(device_index),
+                    "free_bytes": free_bytes,
+                    "total_bytes": total_bytes,
+                    "required_bytes": required_bytes,
+                    "free_gib": free_bytes / (1024**3),
+                    "total_gib": total_bytes / (1024**3),
+                    "required_gib": required_bytes / (1024**3),
+                    "selected": free_bytes >= required_bytes,
+                }
+            ],
+        }
+    arc_grid.write_json(args.output, preflight)
+    if args.require_selected and not preflight["selected"]:
+        device = preflight["devices"][0] if preflight["devices"] else {}
+        raise SystemExit(
+            "vllm gpu memory preflight failed: "
+            f"{preflight['reason']}; "
+            f"free_gib={device.get('free_gib')}; "
+            f"required_gib={device.get('required_gib')}"
+        )
+
+
 def evaluate_arithmetic_vllm(args: argparse.Namespace) -> None:
     os.environ.setdefault(
         "VLLM_USE_FLASHINFER_SAMPLER",
@@ -1555,11 +1610,35 @@ def _build_arc_grid_vllm_prompts(
 ) -> list[str]:
     if args.prompt_variant == "plain":
         return [arc_grid.prompt_for_problem(problem) for problem in problems]
-    if args.prompt_variant != "chat":
+    if args.prompt_variant not in {"chat", "strict_chat"}:
         raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
+    if args.prompt_variant == "strict_chat":
+        system_prompt = (
+            "You solve ARC grid transformation tasks. Return only one line "
+            "matching FINAL: <json-grid>. Do not include reasoning, markdown, "
+            "labels, or code fences."
+        )
+        return [
+            tokenizer.apply_chat_template(
+                [
+                    {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": arc_grid.strict_prompt_for_problem(problem),
+                    },
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+            for problem in problems
+        ]
     return [
         tokenizer.apply_chat_template(
             [
@@ -1837,7 +1916,7 @@ def build_parser() -> argparse.ArgumentParser:
     arc_preflight_parser.add_argument("--max-new-tokens", type=int, default=768)
     arc_preflight_parser.add_argument(
         "--prompt-variant",
-        choices=["plain", "chat"],
+        choices=["plain", "chat", "strict_chat"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
     )
     arc_preflight_parser.add_argument(
@@ -1851,6 +1930,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     arc_preflight_parser.set_defaults(func=preflight_arc_grid_prompts)
+
+    vllm_memory_preflight_parser = subparsers.add_parser(
+        "preflight-vllm-gpu-memory"
+    )
+    vllm_memory_preflight_parser.add_argument("--output", type=Path, required=True)
+    vllm_memory_preflight_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=float(
+            os.environ.get("SCAFFOLD_TO_POLICY_VLLM_GPU_MEMORY_UTILIZATION", "0.9")
+        ),
+    )
+    vllm_memory_preflight_parser.add_argument("--device-index", type=int, default=0)
+    vllm_memory_preflight_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    vllm_memory_preflight_parser.set_defaults(func=preflight_vllm_gpu_memory)
 
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)
@@ -2090,7 +2188,7 @@ def build_parser() -> argparse.ArgumentParser:
     arc_vllm_parser.add_argument("--max-new-tokens", type=int, default=768)
     arc_vllm_parser.add_argument(
         "--prompt-variant",
-        choices=["plain", "chat"],
+        choices=["plain", "chat", "strict_chat"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
     )
     arc_vllm_parser.add_argument(

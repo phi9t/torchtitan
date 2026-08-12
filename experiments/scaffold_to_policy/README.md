@@ -349,6 +349,32 @@ report is:
 experiments/scaffold_to_policy/reports/20260812T131000Z-arc-agi2-calibration.md
 ```
 
+To test whether those failures are mostly final-grid formatting failures, run
+the strict prompt condition on the same slice:
+
+```bash
+RUN_ID=20260812T134500Z-arc-agi2-strict-chat-calibration \
+DATA_ROOT=experiments/scaffold_to_policy/data/arc_agi2_public_vllm_calibration_strict_chat \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/arc_agi2_public_vllm_calibration_strict_chat \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 NUM_ROLLOUTS=4 \
+GPU_MEMORY_UTILIZATION=0.24 \
+SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN=8192 \
+MAX_MODEL_LEN=8192 \
+PROMPT_VARIANT=strict_chat \
+experiments/scaffold_to_policy/run_arc_agi2_public_vllm_smoke.sh
+```
+
+The first attempt passed prompt/context preflight for all 8 dev and 8 OOD
+problems, but generation did not run because the visible GPU had insufficient
+free memory for vLLM. The ARC entrypoint now writes
+`eval/vllm_gpu_memory_preflight.json` before vLLM initialization, so this
+failure is caught as a cheap JSON preflight on future runs. The blocked report
+is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T134500Z-arc-strict-chat-blocked.md
+```
+
 ## Initial Coding Benchmarks
 
 The first coding lane uses `coding_style`, a repo-owned executable-test harness

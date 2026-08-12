@@ -86,6 +86,14 @@ for split in dev ood_test; do
     --prompt-variant "${PROMPT_VARIANT}"
 done
 
+memory_preflight_args=()
+if [[ -n "${GPU_MEMORY_UTILIZATION}" ]]; then
+  memory_preflight_args=(--gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}")
+fi
+python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
+  --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+  "${memory_preflight_args[@]}"
+
 for split in dev ood_test; do
   python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-arc-grid-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \

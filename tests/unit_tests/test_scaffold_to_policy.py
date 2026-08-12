@@ -667,6 +667,27 @@ def test_arc_grid_verifier_requires_exact_final_json_grid():
     assert correct.success
 
 
+def test_arc_grid_strict_prompt_requests_one_line_final_only():
+    problem = arc_grid.ARCGridProblem(
+        problem_id="ARC-AGI-2/fixture/0",
+        source="fixture",
+        train_examples=(
+            arc_grid.ARCExample(
+                input_grid=((1, 0), (0, 1)),
+                output_grid=((0, 1), (1, 0)),
+            ),
+        ),
+        test_input=((2, 0), (0, 2)),
+        test_output=((0, 2), (2, 0)),
+    )
+
+    prompt = arc_grid.strict_prompt_for_problem(problem)
+
+    assert "Reply with exactly one line: FINAL: <json-grid>" in prompt
+    assert "Do not include analysis" in prompt
+    assert "Return a short reasoning trace" not in prompt
+
+
 def test_arc_grid_imports_tasks_and_reports(tmp_path):
     task_dir = tmp_path / "arc" / "training"
     task_dir.mkdir(parents=True)
@@ -787,6 +808,25 @@ def test_arc_grid_prompt_preflight_and_report_input(tmp_path):
     assert all(report_input["checks"].values())
     assert report_input["preflight"]["splits"]["dev"]["selected"]
     assert report_input["preflight"]["splits"]["dev"]["max_total_tokens"] == 28
+
+
+def test_vllm_gpu_memory_preflight_parser_accepts_low_memory_config():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "preflight-vllm-gpu-memory",
+            "--output",
+            "memory.json",
+            "--gpu-memory-utilization",
+            "0.24",
+            "--device-index",
+            "0",
+        ]
+    )
+
+    assert args.gpu_memory_utilization == 0.24
+    assert args.device_index == 0
 
 
 def test_coding_style_verifier_runs_python_tests():
@@ -1222,6 +1262,8 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "./assets/hf/Qwen3-1.7B",
             "--output",
             "preflight.json",
+            "--prompt-variant",
+            "strict_chat",
         ]
     )
     multiple = parser.parse_args(
@@ -1274,6 +1316,7 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert coding_preflight.timeout_seconds == 5.0
     assert arc.source_split == "training"
     assert arc_preflight.max_model_len == 4096
+    assert arc_preflight.prompt_variant == "strict_chat"
     assert multiple.prompt_variant == "chat"
     assert multiple.num_rollouts == 4
     assert arc_eval.prompt_variant == "chat"
