@@ -42,12 +42,28 @@ Every serious run must record:
 
 The first reasoning lane should include:
 
+- `arithmetic_words`: a local synthetic exact-verifier task that generates
+  multi-step arithmetic word problems with strict `FINAL: <integer>` checking;
 - GSM8K or a small GSM-style subset with parsed final-answer verification;
 - a small MATH subset with task-appropriate answer normalization;
 - verifier-first synthetic reasoning tasks where exact verification is cheap.
 
 The first scaffold remains best-of-N sampling. Tool-assisted scaffolds are a
 second-tier variant and must be reported separately.
+
+Run the first local reasoning smoke through the bwrap rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_arithmetic_words_smoke.sh
+```
+
+The smoke writes generated train/dev/OOD problems, a split registry, fixture
+evaluations, summaries, and a report input under:
+
+```text
+experiments/scaffold_to_policy/data/arithmetic_words_smoke/
+experiments/scaffold_to_policy/results/arithmetic_words_smoke/
+```
 
 ## Agentic Benchmarks
 
