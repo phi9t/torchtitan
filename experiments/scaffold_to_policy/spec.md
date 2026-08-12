@@ -855,3 +855,16 @@ reasoning benchmarks.
   tokens, then reached model execution and stopped at the existing vLLM
   KV-cache initialization blocker. This is a prompt/context infrastructure
   improvement only; no ARC model score was produced.
+- 2026-08-12: Removed a BigCodeBench-Hard runner lifecycle hazard by adding
+  `evaluate-coding-style-vllm-splits` and switching the shell runner to evaluate
+  dev and OOD with one vLLM engine. Diagnostic run
+  `20260812Tbigcode-hard-isolated-gpu0` completed dev model evaluation, then
+  failed the immediate second vLLM initialization for OOD with negative
+  available KV-cache memory; the same OOD problem completed when launched as a
+  fresh rootfs process. Both completed one-problem split evaluations scored
+  pass@1 through pass@32 of 0.0 with released-test assertion failures, so these
+  are valid verifier failures rather than model successes. A full updated shell
+  rerun, `20260812Tbigcode-hard-shared-engine`, could not proceed to model
+  execution because unrelated SGLang scheduler processes occupied all eight
+  B200s and the vLLM GPU preflight found only 5.74 GiB free versus 8.92 GiB
+  required at `GPU_MEMORY_UTILIZATION=0.05`.

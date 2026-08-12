@@ -112,39 +112,43 @@ then
   exit 0
 fi
 
-for split in dev ood_test; do
-  if ! scaffold_run_stage "evaluate_${split}" python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-coding-style-vllm \
-    --problems "${DATA_ROOT}/${split}.jsonl" \
-    --model "${MODEL}" \
-    --output "${RESULTS_ROOT}/eval/${split}_evaluations.jsonl" \
-    --summary "${RESULTS_ROOT}/eval/${split}_summary.json" \
-    --num-rollouts "${NUM_ROLLOUTS}" \
-    --max-new-tokens "${MAX_NEW_TOKENS}" \
-    --prompt-variant "${PROMPT_VARIANT}" \
-    --temperature "${TEMPERATURE}" \
-    --top-p "${TOP_P}" \
-    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
-    --timeout-seconds "${TIMEOUT_SECONDS}"; then
-    FAILURE_MARKER="${RESULTS_ROOT}/eval/${split}_vllm_runtime_failure.json"
-    scaffold_write_stage_failure_marker "evaluate_${split}" vllm_runtime_failure "${FAILURE_MARKER}"
-    scaffold_run_stage write_runtime_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
-      --results-root "${RESULTS_ROOT}" \
-      --run-id "${RUN_ID}" \
-      --task coding_style \
-      --lane coding \
-      --blocker-type vllm_runtime_failure \
-      --artifact \
-        "dev_canonical=${RESULTS_ROOT}/eval/dev_canonical_preflight.json" \
-        "ood_test_canonical=${RESULTS_ROOT}/eval/ood_test_canonical_preflight.json" \
-        "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
-        "stage_failure=${FAILURE_MARKER}" \
-      --limitation "BigCodeBench-Hard coding run stopped during ${split} model execution because vLLM failed at runtime." \
-      --limitation "Canonical solution preflights may be present, but no complete model score was produced." \
-      --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
-    echo "wrote BigCodeBench-Hard runtime blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
-    exit 0
-  fi
-done
+if ! scaffold_run_stage evaluate_splits python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-coding-style-vllm-splits \
+  --problems \
+    "dev=${DATA_ROOT}/dev.jsonl" \
+    "ood_test=${DATA_ROOT}/ood_test.jsonl" \
+  --model "${MODEL}" \
+  --output \
+    "dev=${RESULTS_ROOT}/eval/dev_evaluations.jsonl" \
+    "ood_test=${RESULTS_ROOT}/eval/ood_test_evaluations.jsonl" \
+  --summary \
+    "dev=${RESULTS_ROOT}/eval/dev_summary.json" \
+    "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
+  --num-rollouts "${NUM_ROLLOUTS}" \
+  --max-new-tokens "${MAX_NEW_TOKENS}" \
+  --prompt-variant "${PROMPT_VARIANT}" \
+  --temperature "${TEMPERATURE}" \
+  --top-p "${TOP_P}" \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
+  --timeout-seconds "${TIMEOUT_SECONDS}"; then
+  FAILURE_MARKER="${RESULTS_ROOT}/eval/vllm_runtime_failure.json"
+  scaffold_write_stage_failure_marker evaluate_splits vllm_runtime_failure "${FAILURE_MARKER}"
+  scaffold_run_stage write_runtime_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+    --results-root "${RESULTS_ROOT}" \
+    --run-id "${RUN_ID}" \
+    --task coding_style \
+    --lane coding \
+    --blocker-type vllm_runtime_failure \
+    --artifact \
+      "dev_canonical=${RESULTS_ROOT}/eval/dev_canonical_preflight.json" \
+      "ood_test_canonical=${RESULTS_ROOT}/eval/ood_test_canonical_preflight.json" \
+      "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+      "stage_failure=${FAILURE_MARKER}" \
+    --limitation "BigCodeBench-Hard coding run stopped during model execution because vLLM failed at runtime." \
+    --limitation "Canonical solution preflights may be present, but no complete model score was produced." \
+    --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  echo "wrote BigCodeBench-Hard runtime blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  exit 0
+fi
 
 scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_to_policy.cli build-coding-style-report-input \
   --data-root "${DATA_ROOT}" \

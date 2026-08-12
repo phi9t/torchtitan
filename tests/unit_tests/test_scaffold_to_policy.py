@@ -1576,6 +1576,30 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
     assert contract.prompt_variant == "contract_chat"
     assert contract.gpu_memory_utilization == 0.4
 
+    split_eval = parser.parse_args(
+        [
+            "evaluate-coding-style-vllm-splits",
+            "--problems",
+            "dev=dev.jsonl",
+            "ood_test=ood_test.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "dev=dev_evaluations.jsonl",
+            "ood_test=ood_test_evaluations.jsonl",
+            "--summary",
+            "dev=dev_summary.json",
+            "ood_test=ood_test_summary.json",
+        ]
+    )
+
+    assert split_eval.prompt_variant == "chat"
+    assert split_eval.problems == ["dev=dev.jsonl", "ood_test=ood_test.jsonl"]
+    assert split_eval.output == [
+        "dev=dev_evaluations.jsonl",
+        "ood_test=ood_test_evaluations.jsonl",
+    ]
+
     math = parser.parse_args(
         [
             "evaluate-math-style-vllm",

@@ -1081,6 +1081,77 @@ def evaluate_coding_style_vllm(args: argparse.Namespace) -> None:
     )
 
 
+def evaluate_coding_style_vllm_splits(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-coding-style-vllm-splits. Run through "
+            "the TorchTitan rootfs or use evaluate-coding-style-fixture."
+        ) from exc
+
+    problem_paths = _parse_split_paths(args.problems)
+    output_paths = _parse_split_paths(args.output)
+    summary_paths = _parse_split_paths(args.summary)
+    if set(problem_paths) != set(output_paths) or set(problem_paths) != set(
+        summary_paths
+    ):
+        raise ValueError("--problems, --output, and --summary must name same splits")
+
+    problems_by_split = {
+        split: coding_style.load_problems(path)
+        for split, path in problem_paths.items()
+    }
+    all_prompts = []
+    prompt_index: list[tuple[str, coding_style.CodingStyleProblem]] = []
+    for split, problems in problems_by_split.items():
+        split_prompts = _build_coding_style_vllm_prompts(problems, args)
+        all_prompts.extend(split_prompts)
+        prompt_index.extend((split, problem) for problem in problems)
+
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(all_prompts, sampling_params)
+
+    evaluations_by_split = {split: [] for split in problem_paths}
+    for (split, problem), output in zip(prompt_index, outputs):
+        evaluations_by_split[split].append(
+            coding_style.evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+                timeout_seconds=args.timeout_seconds,
+            )
+        )
+
+    for split, evaluations in evaluations_by_split.items():
+        coding_style.write_jsonl(
+            output_paths[split],
+            [evaluation.to_json() for evaluation in evaluations],
+        )
+        coding_style.write_json(
+            summary_paths[split],
+            coding_style.summarize_evaluations(evaluations),
+        )
+
+
 def evaluate_multiple_choice_vllm(args: argparse.Namespace) -> None:
     os.environ.setdefault(
         "VLLM_USE_FLASHINFER_SAMPLER",
@@ -2355,6 +2426,51 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
     )
     coding_vllm_parser.set_defaults(func=evaluate_coding_style_vllm)
+
+    coding_vllm_splits_parser = subparsers.add_parser(
+        "evaluate-coding-style-vllm-splits"
+    )
+    coding_vllm_splits_parser.add_argument("--problems", nargs="+", required=True)
+    coding_vllm_splits_parser.add_argument("--model", required=True)
+    coding_vllm_splits_parser.add_argument("--output", nargs="+", required=True)
+    coding_vllm_splits_parser.add_argument("--summary", nargs="+", required=True)
+    coding_vllm_splits_parser.add_argument("--num-rollouts", type=int, default=4)
+    coding_vllm_splits_parser.add_argument("--temperature", type=float, default=0.2)
+    coding_vllm_splits_parser.add_argument("--top-p", type=float, default=0.95)
+    coding_vllm_splits_parser.add_argument("--max-new-tokens", type=int, default=512)
+    coding_vllm_splits_parser.add_argument("--timeout-seconds", type=float, default=5.0)
+    coding_vllm_splits_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat", "contract_chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    coding_vllm_splits_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "2048")),
+    )
+    coding_vllm_splits_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    coding_vllm_splits_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    coding_vllm_splits_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    coding_vllm_splits_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+    )
+    coding_vllm_splits_parser.set_defaults(func=evaluate_coding_style_vllm_splits)
 
     multiple_choice_vllm_parser = subparsers.add_parser("evaluate-multiple-choice-vllm")
     multiple_choice_vllm_parser.add_argument("--problems", type=Path, required=True)

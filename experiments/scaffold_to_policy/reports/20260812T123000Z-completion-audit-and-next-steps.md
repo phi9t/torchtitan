@@ -107,6 +107,17 @@ BigCodeBench-Hard executable smoke:
   vLLM GPU preflight found only 1.72 GiB free versus 3.57 GiB required at
   `GPU_MEMORY_UTILIZATION=0.02`. This is a coding-lane blocker report, not a
   model score.
+- Follow-up infra fix: `evaluate-coding-style-vllm-splits` now evaluates dev
+  and OOD in one vLLM engine, and the BigCodeBench-Hard shell runner uses that
+  path. Diagnostic run `20260812Tbigcode-hard-isolated-gpu0` showed why this is
+  needed: dev model evaluation completed, immediate OOD reinitialization failed
+  with negative available KV-cache memory, and the same OOD problem completed
+  when launched as a fresh rootfs process. Both completed one-problem split
+  evaluations scored pass@1 through pass@32 `0.000` with released-test
+  assertion failures. A full updated-shell rerun,
+  `20260812Tbigcode-hard-shared-engine`, is still pending a free GPU; its first
+  attempt stopped at vLLM GPU preflight because unrelated SGLang scheduler
+  processes occupied all eight B200s.
 
 ## New Hardening Landed From This Audit
 
@@ -192,6 +203,12 @@ reasoning/coding report inputs:
   `GPU_MEMORY_UTILIZATION=0.02`, then failed during vLLM KV-cache
   initialization. The coding runner wrote a `vllm_runtime_failure` blocker
   report; this is blocker evidence, not a model score.
+- BigCodeBench-Hard now has a shared-engine split evaluator for the shell
+  runner. It avoids the back-to-back vLLM teardown/reinit path that produced a
+  negative KV-cache availability failure after the first split had completed.
+  The implementation is unit-tested and rootfs-tested, but the updated shell
+  path still needs a clean GPU rerun because the current machine is occupied by
+  unrelated SGLang scheduler processes.
 - Refreshed blocker evidence: GPQA auth blocker
   `20260812T114339Z-gpqa-auth-refresh`; AIME GPU blocker
   `20260812T114923Z-aime-gpu-blocker-report`, with 1.72 GiB free versus
