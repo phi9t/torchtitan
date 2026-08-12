@@ -548,6 +548,25 @@ GPU-memory preflight failures. A blocker report sets scaffold budget `0`,
 records `benchmark_execution_completed=false`, hashes the blocker artifacts,
 and explicitly states that no model score was produced.
 
+Public dataset imports can be made offline-replayable by caching the exact raw
+rows selected for a split:
+
+```bash
+python -m torchtitan.experiments.scaffold_to_policy.cli import-aime-split \
+  --raw-cache experiments/scaffold_to_policy/data/aime_public_vllm_smoke/raw/dev.jsonl \
+  --offline \
+  --output experiments/scaffold_to_policy/data/aime_public_vllm_smoke/dev.jsonl \
+  --provenance experiments/scaffold_to_policy/data/aime_public_vllm_smoke/dev_provenance.json \
+  --revision main \
+  --limit 8
+```
+
+`--raw-cache` without `--offline` reuses an existing cache if present, or writes
+one after loading from Hugging Face. `--offline --raw-cache` requires the cache
+and never calls `datasets.load_dataset`. Provenance records `row_source`,
+`offline`, `raw_cache`, and a hash of the cache artifact. This is available for
+GSM8K, MATH, AIME, GPQA, HumanEval, MBPP, and BigCodeBench-Hard imports.
+
 To select the latest run-scoped report input without relying on a mutable
 `current` pointer, write a latest-report index from any manifests directory:
 

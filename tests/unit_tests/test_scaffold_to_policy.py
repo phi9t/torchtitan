@@ -699,6 +699,50 @@ def test_math_style_imports_aime_rows_with_integer_answers():
     assert math_style.verify_answer(problems[0], "work\nFINAL: 024").success
 
 
+def test_import_aime_split_accepts_offline_raw_cache(tmp_path):
+    parser = build_parser()
+    raw_cache = tmp_path / "raw" / "aime.jsonl"
+    output = tmp_path / "data" / "dev.jsonl"
+    provenance_path = tmp_path / "data" / "dev_provenance.json"
+    math_style.write_jsonl(
+        raw_cache,
+        [
+            {
+                "id": 1,
+                "problem": "Find 20 + 4.",
+                "solution": r"\boxed{024}",
+                "answer": "24",
+            }
+        ],
+    )
+
+    args = parser.parse_args(
+        [
+            "import-aime-split",
+            "--raw-cache",
+            str(raw_cache),
+            "--offline",
+            "--output",
+            str(output),
+            "--provenance",
+            str(provenance_path),
+            "--revision",
+            "main",
+            "--limit",
+            "1",
+        ]
+    )
+    args.func(args)
+
+    problems = math_style.load_problems(output)
+    provenance = json.loads(provenance_path.read_text())
+    assert problems[0].problem_id == "AIME/1"
+    assert provenance["row_source"] == "raw_cache"
+    assert provenance["offline"]
+    assert provenance["raw_cache"] == str(raw_cache)
+    assert provenance["raw_cache_artifact"]["sha256"]
+
+
 def test_multiple_choice_verifier_requires_final_letter():
     problem = multiple_choice.MultipleChoiceProblem(
         problem_id="gpqa-fixture",
@@ -772,6 +816,50 @@ def test_multiple_choice_imports_gpqa_rows_and_reports(tmp_path):
     assert json.loads(summary.read_text())["pass_at_k"] == {"1": 0.0, "2": 1.0}
     assert all(report_input["checks"].values())
     assert report_input["run"]["task"] == "multiple_choice"
+
+
+def test_import_gpqa_split_accepts_offline_raw_cache(tmp_path):
+    parser = build_parser()
+    raw_cache = tmp_path / "raw" / "gpqa.jsonl"
+    output = tmp_path / "data" / "dev.jsonl"
+    provenance_path = tmp_path / "data" / "dev_provenance.json"
+    multiple_choice.write_jsonl(
+        raw_cache,
+        [
+            {
+                "Question": "Which physical statement is correct?",
+                "Correct Answer": "A specialist fact.",
+                "Incorrect Answer 1": "Distractor one.",
+                "Incorrect Answer 2": "Distractor two.",
+                "Incorrect Answer 3": "Distractor three.",
+            }
+        ],
+    )
+
+    args = parser.parse_args(
+        [
+            "import-gpqa-split",
+            "--raw-cache",
+            str(raw_cache),
+            "--offline",
+            "--output",
+            str(output),
+            "--provenance",
+            str(provenance_path),
+            "--revision",
+            "main",
+            "--limit",
+            "1",
+        ]
+    )
+    args.func(args)
+
+    problems = multiple_choice.load_problems(output)
+    provenance = json.loads(provenance_path.read_text())
+    assert problems[0].answer == "A"
+    assert problems[0].choices[0] == "A specialist fact."
+    assert provenance["row_source"] == "raw_cache"
+    assert provenance["offline"]
 
 
 def test_arc_grid_verifier_requires_exact_final_json_grid():
@@ -1105,6 +1193,49 @@ def test_coding_style_imports_bigcodebench_rows_as_unittest_checks():
     assert correct.success
     assert not wrong.success
     assert wrong.error == "assertion failure"
+
+
+def test_import_bigcodebench_split_accepts_offline_raw_cache(tmp_path):
+    parser = build_parser()
+    raw_cache = tmp_path / "raw" / "bigcodebench.jsonl"
+    output = tmp_path / "data" / "dev.jsonl"
+    provenance_path = tmp_path / "data" / "dev_provenance.json"
+    coding_style.write_jsonl(
+        raw_cache,
+        [
+            {
+                "task_id": "BigCodeBench/fixture",
+                "code_prompt": "def add_one(x):\n    ",
+                "entry_point": "add_one",
+                "test": "def check(candidate):\n    assert candidate(1) == 2",
+                "canonical_solution": "return x + 1",
+            }
+        ],
+    )
+
+    args = parser.parse_args(
+        [
+            "import-bigcodebench-split",
+            "--raw-cache",
+            str(raw_cache),
+            "--offline",
+            "--output",
+            str(output),
+            "--provenance",
+            str(provenance_path),
+            "--revision",
+            "main",
+            "--limit",
+            "1",
+        ]
+    )
+    args.func(args)
+
+    problems = coding_style.load_problems(output)
+    provenance = json.loads(provenance_path.read_text())
+    assert problems[0].problem_id == "BigCodeBench/fixture"
+    assert provenance["row_source"] == "raw_cache"
+    assert provenance["offline"]
 
 
 def test_coding_style_preserves_indented_completion_bodies():
@@ -1462,6 +1593,9 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "main",
             "--limit",
             "4",
+            "--raw-cache",
+            "raw/aime.jsonl",
+            "--offline",
         ]
     )
     gpqa = parser.parse_args(
@@ -1594,6 +1728,8 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     )
 
     assert aime.dataset == "HuggingFaceH4/aime_2024"
+    assert aime.raw_cache == Path("raw/aime.jsonl")
+    assert aime.offline
     assert gpqa.subset == "gpqa_diamond"
     assert mbpp.dataset == "google-research-datasets/mbpp"
     assert bigcodebench.dataset == "bigcode/bigcodebench-hard"

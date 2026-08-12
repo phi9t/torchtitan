@@ -39,16 +39,16 @@ Not complete:
   agent has been run.
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
-- The registry/reporting surface still needs more offline dataset-loader
-  hardening. Shared report-input factoring, fresh/reused artifact surfacing,
-  latest-report indexing, external-harness artifact provenance, and hard-run
-  blocker report inputs now cover the main scaffold lanes.
+- The registry/reporting surface now has shared report-input factoring,
+  fresh/reused artifact surfacing, latest-report indexing, external-harness
+  artifact provenance, hard-run blocker report inputs, and offline raw-row cache
+  support for public imports.
 
 ## User Story Audit
 
 | Spec stories | Status | Evidence | Remaining gap |
 | --- | --- | --- | --- |
-| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details, blocker report inputs | Offline dataset-loader hardening remains separate from report-input provenance. |
+| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details, blocker report inputs, raw-cache import provenance | Stage-level command manifests remain thinner than the original ideal of start/end/return-code capture for every stage. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
@@ -56,7 +56,7 @@ Not complete:
 | 23-25 public no-tool reasoning semantics | Mostly complete | GSM8K, MATH, AIME, ARC-AGI-2 scripts and reports | GPQA Diamond is blocked by auth; all public runs are too small for public benchmark claims. |
 | 26-29 external harness boundaries and labels | Partial | `external_harness` module, dry-run/preflight/tau2/Terminal-Bench reports, tau2 execution-probe ingestion | Terminal-Bench/Harbor `nop` baseline and tau2 noop baseline execution are green; model or learned-policy execution remains incomplete. |
 | 30 generated artifact hygiene | Complete for checked tree | Generated results/data roots are ignored; current tracked edits are code/docs/tests only | Continue to avoid committing runtime results. |
-| 31-36 future-agent spec, gates, caveats, examples, exact verifiers, upstream metrics | Mostly complete | `spec.md`, README, reports with examples, exact verifiers, shared report builder, latest-report index, external harness provenance, blocker manifests | Offline dataset-loader hardening and real model/policy agent execution remain incomplete. |
+| 31-36 future-agent spec, gates, caveats, examples, exact verifiers, upstream metrics | Mostly complete | `spec.md`, README, reports with examples, exact verifiers, shared report builder, latest-report index, external harness provenance, blocker manifests, offline import caches | Real model/policy agent execution remains incomplete for Harbor and tau2; GPQA still needs gated dataset credentials or a previously authorized raw cache. |
 
 ## Harder Reasoning And Coding Status
 
@@ -164,6 +164,11 @@ reasoning/coding report inputs:
   3.57 GiB required at `GPU_MEMORY_UTILIZATION=0.02`; BigCodeBench-Hard GPU
   blocker `20260812T114938Z-bigcodebench-hard-gpu-blocker-report`, with both
   canonical preflights selected but no model execution.
+- Public import commands for GSM8K, MATH, AIME, GPQA, HumanEval, MBPP, and
+  BigCodeBench-Hard now accept `--raw-cache` and `--offline`. Provenance records
+  `row_source`, `offline`, `raw_cache`, and a raw-cache artifact hash. Rootfs
+  validation covered offline fixture imports for AIME, GPQA, and
+  BigCodeBench-Hard plus a CLI smoke for AIME raw-cache import.
 
 ## Blocker Backlog
 
@@ -213,8 +218,10 @@ reasoning/coding report inputs:
      harness report inputs now reuse the artifact provenance helpers while
      preserving harness-specific semantics. Hard-run blocker reports now cover
      vLLM GPU-memory preflight failures without producing score artifacts.
-   - Remaining gap: offline dataset-loader hardening and model/policy
-     execution blockers remain outside the report-input builder itself.
+     Public import commands now support offline raw-row caches with provenance.
+   - Remaining gap: model/policy execution blockers remain outside the
+     report-input builder itself, and full command-stage manifests are still
+     thinner than the original ideal.
    - Required next step: continue blocker-first execution for GPQA auth,
      volatile GPU-backed hard runs, and model/policy agents for Harbor and
      tau2.

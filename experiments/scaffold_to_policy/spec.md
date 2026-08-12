@@ -795,3 +795,15 @@ reasoning benchmarks.
   after both 1-problem canonical preflights passed but the same GPU-memory
   blocker prevented model execution. These are blocker artifacts only, not new
   model scores.
+- 2026-08-12: Hardened public dataset imports for offline replay. The
+  Hugging Face-backed import commands for GSM8K, MATH, AIME, GPQA, HumanEval,
+  MBPP, and BigCodeBench-Hard now accept `--raw-cache` and `--offline`.
+  Non-offline imports reuse an existing raw-row cache or write one after Hub
+  loading; offline imports require the cache and do not call
+  `datasets.load_dataset`. Provenance records `row_source`, `offline`,
+  `raw_cache`, and a hash of the raw cache artifact. Rootfs validation covered
+  fixture offline imports for AIME, GPQA, and BigCodeBench-Hard plus a CLI
+  smoke importing an AIME raw cache through the rootfs. This reduces the
+  remaining public-run dependency on live Hub access once a slice has been
+  materialized, while preserving each benchmark's task-specific importer and
+  exact verifier semantics.

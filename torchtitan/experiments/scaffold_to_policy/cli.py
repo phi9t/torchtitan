@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+from typing import Callable
 
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     ArithmeticWordProblem,
@@ -57,30 +58,113 @@ def prepare_gsm_style_split(args: argparse.Namespace) -> None:
     gsm_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
 
 
-def import_gsm8k_split(args: argparse.Namespace) -> None:
+def _load_public_rows(args: argparse.Namespace) -> tuple[list[dict[str, object]], str]:
+    if args.offline:
+        if args.raw_cache is None:
+            raise ValueError("--offline requires --raw-cache")
+        return _read_jsonl_rows(args.raw_cache), "raw_cache"
+    if args.raw_cache is not None and args.raw_cache.is_file():
+        return _read_jsonl_rows(args.raw_cache), "raw_cache"
     try:
         from datasets import load_dataset
     except ImportError as exc:
         raise RuntimeError(
-            "datasets is required for import-gsm8k-split. Run through the "
-            "TorchTitan rootfs."
+            f"datasets is required for {args.command}. Run through the "
+            "TorchTitan rootfs, or pass --offline --raw-cache with cached rows."
         ) from exc
+    dataset = _load_hf_dataset(args, load_dataset)
+    rows = _slice_rows(dataset, limit=args.limit, offset=args.offset)
+    if args.raw_cache is not None:
+        _write_jsonl_rows(args.raw_cache, rows)
+    return rows, "huggingface"
 
-    dataset = load_dataset(
+
+def _load_hf_dataset(
+    args: argparse.Namespace,
+    load_dataset: Callable[..., object],
+) -> object:
+    if getattr(args, "subset", None):
+        return load_dataset(
+            args.dataset,
+            args.subset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    return load_dataset(
         args.dataset,
-        args.subset,
         split=args.source_split,
         revision=args.revision,
     )
+
+
+def _slice_rows(
+    rows: object,
+    *,
+    limit: int,
+    offset: int,
+) -> list[dict[str, object]]:
+    selected = []
+    for row_index, row in enumerate(rows):
+        if row_index < offset:
+            continue
+        if len(selected) >= limit:
+            break
+        selected.append(dict(row))
+    return selected
+
+
+def _read_jsonl_rows(path: Path) -> list[dict[str, object]]:
+    rows = []
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid raw cache JSON at {path}:{line_number}") from exc
+        if not isinstance(row, dict):
+            raise ValueError(f"raw cache row at {path}:{line_number} is not an object")
+        rows.append(row)
+    return rows
+
+
+def _write_jsonl_rows(path: Path, rows: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w") as f:
+        for row in rows:
+            f.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def _augment_public_provenance(
+    provenance: dict[str, object],
+    *,
+    row_source: str,
+    raw_cache: Path | None,
+    offline: bool,
+) -> dict[str, object]:
+    provenance["row_source"] = row_source
+    provenance["offline"] = offline
+    if raw_cache is not None:
+        provenance["raw_cache"] = str(raw_cache)
+        if raw_cache.is_file():
+            provenance["raw_cache_artifact"] = report_artifacts.describe_artifact(
+                raw_cache,
+                run_id=str(provenance.get("source", "")),
+            )
+    return provenance
+
+
+def import_gsm8k_split(args: argparse.Namespace) -> None:
+    rows, row_source = _load_public_rows(args)
     source = (
         f"{args.dataset}:{args.subset}:{args.revision}:"
         f"{args.source_split}"
     )
     problems = gsm_style.import_public_rows(
-        dataset,
+        rows,
         source=source,
-        limit=args.limit,
-        offset=args.offset,
+        limit=None,
+        offset=0,
     )
     gsm_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
     if args.provenance is not None:
@@ -94,33 +178,28 @@ def import_gsm8k_split(args: argparse.Namespace) -> None:
             offset=args.offset,
             problems=problems,
         )
-        gsm_style.write_json(args.provenance, provenance)
+        gsm_style.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
 
 
 def import_math_split(args: argparse.Namespace) -> None:
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise RuntimeError(
-            "datasets is required for import-math-split. Run through the "
-            "TorchTitan rootfs."
-        ) from exc
-
-    dataset = load_dataset(
-        args.dataset,
-        args.subset,
-        split=args.source_split,
-        revision=args.revision,
-    )
+    rows, row_source = _load_public_rows(args)
     source = (
         f"{args.dataset}:{args.subset}:{args.revision}:"
         f"{args.source_split}"
     )
     problems = math_style.import_public_rows(
-        dataset,
+        rows,
         source=source,
-        limit=args.limit,
-        offset=args.offset,
+        limit=None,
+        offset=0,
     )
     math_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
     if args.provenance is not None:
@@ -134,31 +213,19 @@ def import_math_split(args: argparse.Namespace) -> None:
             offset=args.offset,
             problems=problems,
         )
-        math_style.write_json(args.provenance, provenance)
+        math_style.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
 
 
 def import_aime_split(args: argparse.Namespace) -> None:
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise RuntimeError(
-            "datasets is required for import-aime-split. Run through the "
-            "TorchTitan rootfs."
-        ) from exc
-
-    if args.subset:
-        dataset = load_dataset(
-            args.dataset,
-            args.subset,
-            split=args.source_split,
-            revision=args.revision,
-        )
-    else:
-        dataset = load_dataset(
-            args.dataset,
-            split=args.source_split,
-            revision=args.revision,
-        )
+    rows, row_source = _load_public_rows(args)
     source = math_style._public_source(
         args.dataset,
         args.subset or "default",
@@ -166,10 +233,10 @@ def import_aime_split(args: argparse.Namespace) -> None:
         args.source_split,
     )
     problems = math_style.import_aime_rows(
-        dataset,
+        rows,
         source=source,
-        limit=args.limit,
-        offset=args.offset,
+        limit=None,
+        offset=0,
     )
     math_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
     if args.provenance is not None:
@@ -183,31 +250,19 @@ def import_aime_split(args: argparse.Namespace) -> None:
             offset=args.offset,
             problems=problems,
         )
-        math_style.write_json(args.provenance, provenance)
+        math_style.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
 
 
 def import_gpqa_split(args: argparse.Namespace) -> None:
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise RuntimeError(
-            "datasets is required for import-gpqa-split. Run through the "
-            "TorchTitan rootfs."
-        ) from exc
-
-    if args.subset:
-        dataset = load_dataset(
-            args.dataset,
-            args.subset,
-            split=args.source_split,
-            revision=args.revision,
-        )
-    else:
-        dataset = load_dataset(
-            args.dataset,
-            split=args.source_split,
-            revision=args.revision,
-        )
+    rows, row_source = _load_public_rows(args)
     source = multiple_choice._public_source(
         args.dataset,
         args.subset,
@@ -215,10 +270,10 @@ def import_gpqa_split(args: argparse.Namespace) -> None:
         args.source_split,
     )
     problems = multiple_choice.import_gpqa_rows(
-        dataset,
+        rows,
         source=source,
-        limit=args.limit,
-        offset=args.offset,
+        limit=None,
+        offset=0,
     )
     multiple_choice.write_jsonl(
         args.output,
@@ -235,7 +290,15 @@ def import_gpqa_split(args: argparse.Namespace) -> None:
             offset=args.offset,
             problems=problems,
         )
-        multiple_choice.write_json(args.provenance, provenance)
+        multiple_choice.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
 
 
 def import_arc_grid_split(args: argparse.Namespace) -> None:
@@ -266,27 +329,7 @@ def import_arc_grid_split(args: argparse.Namespace) -> None:
 
 
 def import_humaneval_split(args: argparse.Namespace) -> None:
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise RuntimeError(
-            "datasets is required for import-humaneval-split. Run through the "
-            "TorchTitan rootfs."
-        ) from exc
-
-    if args.subset:
-        dataset = load_dataset(
-            args.dataset,
-            args.subset,
-            split=args.source_split,
-            revision=args.revision,
-        )
-    else:
-        dataset = load_dataset(
-            args.dataset,
-            split=args.source_split,
-            revision=args.revision,
-        )
+    rows, row_source = _load_public_rows(args)
     source = coding_style._public_source(
         args.dataset,
         args.subset,
@@ -294,10 +337,10 @@ def import_humaneval_split(args: argparse.Namespace) -> None:
         args.source_split,
     )
     problems = coding_style.import_public_rows(
-        dataset,
+        rows,
         source=source,
-        limit=args.limit,
-        offset=args.offset,
+        limit=None,
+        offset=0,
     )
     coding_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
     if args.provenance is not None:
@@ -311,31 +354,19 @@ def import_humaneval_split(args: argparse.Namespace) -> None:
             offset=args.offset,
             problems=problems,
         )
-        coding_style.write_json(args.provenance, provenance)
+        coding_style.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
 
 
 def import_mbpp_split(args: argparse.Namespace) -> None:
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise RuntimeError(
-            "datasets is required for import-mbpp-split. Run through the "
-            "TorchTitan rootfs."
-        ) from exc
-
-    if args.subset:
-        dataset = load_dataset(
-            args.dataset,
-            args.subset,
-            split=args.source_split,
-            revision=args.revision,
-        )
-    else:
-        dataset = load_dataset(
-            args.dataset,
-            split=args.source_split,
-            revision=args.revision,
-        )
+    rows, row_source = _load_public_rows(args)
     source = coding_style._public_source(
         args.dataset,
         args.subset,
@@ -343,10 +374,10 @@ def import_mbpp_split(args: argparse.Namespace) -> None:
         args.source_split,
     )
     problems = coding_style.import_mbpp_rows(
-        dataset,
+        rows,
         source=source,
-        limit=args.limit,
-        offset=args.offset,
+        limit=None,
+        offset=0,
     )
     coding_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
     if args.provenance is not None:
@@ -360,31 +391,19 @@ def import_mbpp_split(args: argparse.Namespace) -> None:
             offset=args.offset,
             problems=problems,
         )
-        coding_style.write_json(args.provenance, provenance)
+        coding_style.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
 
 
 def import_bigcodebench_split(args: argparse.Namespace) -> None:
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise RuntimeError(
-            "datasets is required for import-bigcodebench-split. Run through "
-            "the TorchTitan rootfs."
-        ) from exc
-
-    if args.subset:
-        dataset = load_dataset(
-            args.dataset,
-            args.subset,
-            split=args.source_split,
-            revision=args.revision,
-        )
-    else:
-        dataset = load_dataset(
-            args.dataset,
-            split=args.source_split,
-            revision=args.revision,
-        )
+    rows, row_source = _load_public_rows(args)
     source = coding_style._public_source(
         args.dataset,
         args.subset,
@@ -392,10 +411,10 @@ def import_bigcodebench_split(args: argparse.Namespace) -> None:
         args.source_split,
     )
     problems = coding_style.import_bigcodebench_rows(
-        dataset,
+        rows,
         source=source,
-        limit=args.limit,
-        offset=args.offset,
+        limit=None,
+        offset=0,
     )
     coding_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
     if args.provenance is not None:
@@ -409,7 +428,15 @@ def import_bigcodebench_split(args: argparse.Namespace) -> None:
             offset=args.offset,
             problems=problems,
         )
-        coding_style.write_json(args.provenance, provenance)
+        coding_style.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
 
 
 def validate_arithmetic_splits(args: argparse.Namespace) -> None:
@@ -1800,6 +1827,15 @@ def _parse_split_paths(values: list[str]) -> dict[str, Path]:
     return parsed
 
 
+def _add_public_import_cache_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--raw-cache", type=Path)
+    parser.add_argument(
+        "--offline",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Scaffold-to-policy task tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1834,6 +1870,7 @@ def build_parser() -> argparse.ArgumentParser:
     gsm8k_import_parser.add_argument("--revision", required=True)
     gsm8k_import_parser.add_argument("--limit", type=int, required=True)
     gsm8k_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(gsm8k_import_parser)
     gsm8k_import_parser.set_defaults(func=import_gsm8k_split)
 
     math_import_parser = subparsers.add_parser("import-math-split")
@@ -1845,6 +1882,7 @@ def build_parser() -> argparse.ArgumentParser:
     math_import_parser.add_argument("--revision", required=True)
     math_import_parser.add_argument("--limit", type=int, required=True)
     math_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(math_import_parser)
     math_import_parser.set_defaults(func=import_math_split)
 
     aime_import_parser = subparsers.add_parser("import-aime-split")
@@ -1856,6 +1894,7 @@ def build_parser() -> argparse.ArgumentParser:
     aime_import_parser.add_argument("--revision", required=True)
     aime_import_parser.add_argument("--limit", type=int, required=True)
     aime_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(aime_import_parser)
     aime_import_parser.set_defaults(func=import_aime_split)
 
     gpqa_import_parser = subparsers.add_parser("import-gpqa-split")
@@ -1867,6 +1906,7 @@ def build_parser() -> argparse.ArgumentParser:
     gpqa_import_parser.add_argument("--revision", required=True)
     gpqa_import_parser.add_argument("--limit", type=int, required=True)
     gpqa_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(gpqa_import_parser)
     gpqa_import_parser.set_defaults(func=import_gpqa_split)
 
     arc_import_parser = subparsers.add_parser("import-arc-grid-split")
@@ -1892,6 +1932,7 @@ def build_parser() -> argparse.ArgumentParser:
     humaneval_import_parser.add_argument("--revision", required=True)
     humaneval_import_parser.add_argument("--limit", type=int, required=True)
     humaneval_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(humaneval_import_parser)
     humaneval_import_parser.set_defaults(func=import_humaneval_split)
 
     mbpp_import_parser = subparsers.add_parser("import-mbpp-split")
@@ -1906,6 +1947,7 @@ def build_parser() -> argparse.ArgumentParser:
     mbpp_import_parser.add_argument("--revision", required=True)
     mbpp_import_parser.add_argument("--limit", type=int, required=True)
     mbpp_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(mbpp_import_parser)
     mbpp_import_parser.set_defaults(func=import_mbpp_split)
 
     bigcodebench_import_parser = subparsers.add_parser(
@@ -1922,6 +1964,7 @@ def build_parser() -> argparse.ArgumentParser:
     bigcodebench_import_parser.add_argument("--revision", required=True)
     bigcodebench_import_parser.add_argument("--limit", type=int, required=True)
     bigcodebench_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(bigcodebench_import_parser)
     bigcodebench_import_parser.set_defaults(func=import_bigcodebench_split)
 
     fixture_writer = subparsers.add_parser("write-arithmetic-fixture")
