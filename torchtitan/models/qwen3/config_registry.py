@@ -4,6 +4,8 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
+from pathlib import Path
 from typing import cast
 
 from torchtitan.components.checkpoint import CheckpointManager
@@ -42,6 +44,8 @@ def _qwen3_countdown_lora_sft(
     data_file: str,
     dump_folder: str,
     steps: int = 94,
+    lora_rank: int = 32,
+    lora_alpha: float = 64.0,
     model_flavor: str = "1.7B",
     hf_assets_path: str = "./assets/hf/Qwen3-1.7B",
     initial_load_in_hf: bool = True,
@@ -51,7 +55,7 @@ def _qwen3_countdown_lora_sft(
     model_spec = model_registry(
         model_flavor,
         attn_backend="varlen",
-        converters=[LoRAConverter.Config(rank=32, alpha=64.0)],
+        converters=[LoRAConverter.Config(rank=lora_rank, alpha=lora_alpha)],
     )
     return Trainer.Config(
         dump_folder=dump_folder,
@@ -90,6 +94,43 @@ def _qwen3_countdown_lora_sft(
             export_dtype="bfloat16",
         ),
         activation_checkpoint=SelectiveAC.Config(),
+    )
+
+
+def _countdown_data_file(arm: str) -> str:
+    data_root = Path(
+        os.environ.get(
+            "TORCHTITAN_COUNTDOWN_DATA_ROOT",
+            "./experiments/countdown_search_distill/data",
+        )
+    )
+    return str(data_root / "train" / f"{arm}.jsonl")
+
+
+def _countdown_dump_folder(arm: str) -> str:
+    results_root = Path(
+        os.environ.get(
+            "TORCHTITAN_COUNTDOWN_RESULTS_ROOT",
+            "./experiments/countdown_search_distill/results",
+        )
+    )
+    return str(results_root / "train" / arm)
+
+
+def _countdown_lora_rank() -> int:
+    return int(os.environ.get("TORCHTITAN_COUNTDOWN_LORA_RANK", "32"))
+
+
+def _countdown_lora_alpha() -> float:
+    return float(os.environ.get("TORCHTITAN_COUNTDOWN_LORA_ALPHA", "64.0"))
+
+
+def _qwen3_countdown_lora_arm(arm: str) -> Trainer.Config:
+    return _qwen3_countdown_lora_sft(
+        data_file=_countdown_data_file(arm),
+        dump_folder=_countdown_dump_folder(arm),
+        lora_rank=_countdown_lora_rank(),
+        lora_alpha=_countdown_lora_alpha(),
     )
 
 
@@ -308,44 +349,31 @@ def qwen3_1_7b() -> Trainer.Config:
 
 
 def qwen3_1_7b_countdown_lora_raw() -> Trainer.Config:
-    return _qwen3_countdown_lora_sft(
-        data_file="./experiments/countdown_search_distill/data/train/raw.jsonl",
-        dump_folder="./experiments/countdown_search_distill/results/train/raw",
-    )
+    return _qwen3_countdown_lora_arm("raw")
 
 
 def qwen3_1_7b_countdown_lora_clean() -> Trainer.Config:
-    return _qwen3_countdown_lora_sft(
-        data_file="./experiments/countdown_search_distill/data/train/clean.jsonl",
-        dump_folder="./experiments/countdown_search_distill/results/train/clean",
-    )
+    return _qwen3_countdown_lora_arm("clean")
 
 
 def qwen3_1_7b_countdown_lora_formatting() -> Trainer.Config:
-    return _qwen3_countdown_lora_sft(
-        data_file="./experiments/countdown_search_distill/data/train/formatting.jsonl",
-        dump_folder="./experiments/countdown_search_distill/results/train/formatting",
-    )
+    return _qwen3_countdown_lora_arm("formatting")
 
 
 def qwen3_1_7b_countdown_lora_hindsight() -> Trainer.Config:
-    return _qwen3_countdown_lora_sft(
-        data_file="./experiments/countdown_search_distill/data/train/hindsight.jsonl",
-        dump_folder="./experiments/countdown_search_distill/results/train/hindsight",
-    )
+    return _qwen3_countdown_lora_arm("hindsight")
 
 
 def qwen3_1_7b_countdown_lora_curriculum() -> Trainer.Config:
-    return _qwen3_countdown_lora_sft(
-        data_file="./experiments/countdown_search_distill/data/train/curriculum.jsonl",
-        dump_folder="./experiments/countdown_search_distill/results/train/curriculum",
-    )
+    return _qwen3_countdown_lora_arm("curriculum")
 
 
 def qwen3_debugmodel_countdown_lora_smoke() -> Trainer.Config:
     return _qwen3_countdown_lora_sft(
-        data_file="./experiments/countdown_search_distill/data/train/raw.jsonl",
-        dump_folder="./experiments/countdown_search_distill/results/train/debug_smoke",
+        data_file=_countdown_data_file("raw"),
+        dump_folder=_countdown_dump_folder("debug_smoke"),
+        lora_rank=_countdown_lora_rank(),
+        lora_alpha=_countdown_lora_alpha(),
         steps=2,
         model_flavor="debugmodel",
         hf_assets_path="./tests/assets/tokenizer",

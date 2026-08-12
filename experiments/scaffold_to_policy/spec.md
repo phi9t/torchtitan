@@ -277,3 +277,11 @@ generation.
   examples for wins, regressions, unchanged failures, and format failures. This
   closes the first reporting gap needed before replication/sweep and reasoning
   transfer work.
+- 2026-08-12: Added isolated Countdown replication/sweep infrastructure.
+  Countdown runners now support explicit data/results roots, qwen3 Countdown
+  LoRA configs read those roots plus the requested LoRA rank, and
+  `run_replication_sweep.sh` creates rootfs-managed second-draw or champion-arm
+  sweep runs under `experiments/countdown_search_distill/sweeps/replication/`.
+  This implements the entrypoint needed to run the required second seed or
+  split draw and training-size/LoRA-rank sweeps without overwriting completed
+  pilot artifacts.

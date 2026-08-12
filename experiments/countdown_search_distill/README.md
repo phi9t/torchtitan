@@ -250,3 +250,41 @@ When evaluation JSONL files are present, `build-report-input` also adds an
   unchanged failures, and format failures, with compact problem metadata and
   bounded rollout excerpts.
 
+## Replication And Sweep Runs
+
+Use `run_replication_sweep.sh` for second-draw or champion-arm sweep runs. It
+always re-enters the bwrap rootfs and writes isolated artifacts under:
+
+```text
+experiments/countdown_search_distill/sweeps/replication/<label>/
+```
+
+The default run is a second full-mode `clean` arm draw with seed 43, train size
+2000, and LoRA rank 32:
+
+```bash
+experiments/countdown_search_distill/run_replication_sweep.sh
+```
+
+The script accepts whitespace-separated sweep axes:
+
+```bash
+SEEDS="43 44" \
+TRAIN_SIZES="1000 2000" \
+LORA_RANKS="16 32" \
+ARMS=clean \
+NGPU=8 \
+experiments/countdown_search_distill/run_replication_sweep.sh
+```
+
+Each point sets `TORCHTITAN_COUNTDOWN_DATA_ROOT` and
+`TORCHTITAN_COUNTDOWN_RESULTS_ROOT` before calling `run_full_pilot.sh`, so it
+does not overwrite the canonical pilot data or results. The qwen3 Countdown
+training configs read those roots and `TORCHTITAN_COUNTDOWN_LORA_RANK` for the
+LoRA rank. Export uses the same rank before vLLM adapter evaluation.
+
+`run_full_pilot.sh` also accepts `ARMS=<list>` for scoped reruns. Report inputs
+record the scoped data/results roots and validate only the requested training
+arms while still requiring calibration, split validation, base evaluations,
+adapter export, and adapter evaluation.
+

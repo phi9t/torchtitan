@@ -11,9 +11,11 @@ countdown_setup_env
 
 MODE="${MODE:-full}"
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
-TRAIN_RESULT_ROOT="${TRAIN_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results/train/${MODE}}"
-ADAPTER_RESULT_ROOT="${ADAPTER_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results/adapters/${MODE}}"
+TRAIN_RESULT_ROOT="${TRAIN_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}/train/${MODE}}"
+ADAPTER_RESULT_ROOT="${ADAPTER_RESULT_ROOT:-${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}/adapters/${MODE}}"
 CHECKPOINT_STEP="${CHECKPOINT_STEP:-step-94}"
+LORA_RANK="${LORA_RANK:-${TORCHTITAN_COUNTDOWN_LORA_RANK:-32}}"
+LORA_ALPHA="${LORA_ALPHA:-${TORCHTITAN_COUNTDOWN_LORA_ALPHA:-64}}"
 FORCE="${FORCE:-0}"
 REQUESTED_ARMS="${ARMS:-}"
 STAGE_EVENTS=()
@@ -40,6 +42,8 @@ for arm in "${ARMS[@]}"; do
     --checkpoint "${checkpoint}" \
     --output "${output}" \
     --base-model-name-or-path "${MODEL}" \
+    --rank "${LORA_RANK}" \
+    --alpha "${LORA_ALPHA}" \
     "$@"
   STAGE_EVENTS+=("${arm}:fresh:${summary}")
 done

@@ -10,7 +10,7 @@ countdown_enter_rootfs_if_needed "run_calibration_sweep.sh" "$@"
 countdown_setup_env
 
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
-SWEEP_ROOT="${TORCHTITAN_COUNTDOWN_ROOT}/data/calibration_sweep"
+SWEEP_ROOT="${TORCHTITAN_COUNTDOWN_DATA_ROOT}/calibration_sweep"
 mkdir -p "${SWEEP_ROOT}"
 
 case "${MODE:-full}" in
@@ -116,7 +116,7 @@ else
 fi
 python -m torchtitan.experiments.countdown_search_distill.cli select-sweep \
   --candidates "${CANDIDATES_JSONL}" \
-  --output "${TORCHTITAN_COUNTDOWN_ROOT}/data/calibration_regime.json" \
+  --output "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/calibration_regime.json" \
   --decision "${SWEEP_ROOT}/decision.json" \
   --pass1-min "${PASS1_MIN:-0.0}" \
   --pass1-max "${PASS1_MAX:-0.20}" \

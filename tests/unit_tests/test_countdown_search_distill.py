@@ -1188,6 +1188,99 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     assert len(report_input["metrics"]["adapters"]) == 15
 
 
+def test_countdown_report_input_supports_scoped_roots_and_arms(tmp_path):
+    root = tmp_path / "countdown"
+    data = root / "sweeps" / "replication" / "seed43" / "data"
+    results = root / "sweeps" / "replication" / "seed43" / "results"
+    manifest = results / "manifests" / "run.jsonl"
+    data.mkdir(parents=True)
+    (results / "manifests").mkdir(parents=True)
+    (data / "split_registry.json").write_text(
+        json.dumps(
+            {
+                "selected": True,
+                "checks": {"no_problem_key_overlap": True},
+                "entries": [],
+                "overlaps": [],
+            }
+        )
+        + "\n"
+    )
+    stages = [
+        "preflight",
+        "calibration_sweep",
+        "calibration",
+        "collect",
+        "validate_splits",
+        "train_clean",
+        "base_eval_dev",
+        "base_eval_iid_test",
+        "base_eval_ood_test",
+        "export_adapters",
+        "eval_adapters",
+    ]
+    manifest.write_text(
+        "".join(
+            json.dumps({"stage": stage, "return_code": 0, "run_id": "run"}) + "\n"
+            for stage in stages
+        )
+    )
+    summary = {
+        "num_problems": 1,
+        "pass_at_k": {"1": 0.0, "32": 1.0},
+        "strict_format_pass_at_k": {"1": 0.0, "32": 1.0},
+        "bucket_counts": {"easy": 0, "elicitable": 1, "unreached": 0},
+        "format_breakdown": {"success_with_strict_final": 1},
+    }
+    for split in ("dev", "iid_test", "ood_test"):
+        base_summary = results / "eval" / split / "base" / "summary.json"
+        base_summary.parent.mkdir(parents=True)
+        base_summary.write_text(json.dumps(summary) + "\n")
+        clean_summary = results / "eval" / "adapters" / "full" / split / "clean" / "summary.json"
+        clean_summary.parent.mkdir(parents=True)
+        clean_summary.write_text(json.dumps(summary) + "\n")
+    matrix = results / "eval" / "adapters" / "full" / "adapter_matrix_full.json"
+    matrix.write_text(
+        json.dumps(
+            {
+                "selected": True,
+                "rows": [
+                    {
+                        "split": split,
+                        "arm": "clean",
+                        "num_problems": 1,
+                        "pass_at_1": 0.0,
+                        "pass_at_32": 1.0,
+                        "strict_format_pass_at_1": 0.0,
+                        "strict_format_pass_at_32": 1.0,
+                    }
+                    for split in ("dev", "iid_test", "ood_test")
+                ],
+            }
+        )
+        + "\n"
+    )
+
+    report_input = build_countdown_report_input(
+        experiment_root=root,
+        mode="full",
+        run_id="run",
+        manifest=manifest,
+        arms=["clean"],
+        data_root=data,
+        results_root=results,
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["data_root"] == str(data)
+    assert report_input["run"]["results_root"] == str(results)
+    assert set(report_input["artifacts"]["adapter_summaries"]) == {
+        "dev/clean",
+        "iid_test/clean",
+        "ood_test/clean",
+    }
+
+
 def test_generate_pool_cli_excludes_existing_problem_keys(tmp_path):
     from torchtitan.experiments.countdown_search_distill.cli import main
 

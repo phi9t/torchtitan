@@ -33,7 +33,7 @@ case "${MODE}" in
   *) echo "unknown MODE=${MODE}" >&2; exit 2 ;;
 esac
 
-REGIME_PATH="${REGIME_PATH:-${TORCHTITAN_COUNTDOWN_ROOT}/data/calibration_regime.json}"
+REGIME_PATH="${REGIME_PATH:-${TORCHTITAN_COUNTDOWN_DATA_ROOT}/calibration_regime.json}"
 if [[ "${MODE}" != "smoke" ]]; then
   if [[ ! -f "${REGIME_PATH}" ]]; then
     echo "missing selected calibration regime: ${REGIME_PATH}" >&2
@@ -75,7 +75,7 @@ generate_and_eval() {
   local target_max="$4"
   shift 4
   local exclude_paths=("$@")
-  local out="${TORCHTITAN_COUNTDOWN_ROOT}/data/${split}"
+  local out="${TORCHTITAN_COUNTDOWN_DATA_ROOT}/${split}"
   mkdir -p "${out}"
   GENERATE_ARGS=(
     --output "${out}/problems.jsonl"
@@ -112,18 +112,18 @@ generate_and_eval() {
 
 generate_and_eval train "${TRAIN_SIZE}" "${TARGET_MIN}" "${TARGET_MAX}"
 generate_and_eval dev "${DEV_SIZE}" "${TARGET_MIN}" "${TARGET_MAX}" \
-  "${TORCHTITAN_COUNTDOWN_ROOT}/data/train/problems.jsonl"
+  "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/train/problems.jsonl"
 generate_and_eval iid_test "${IID_SIZE}" "${TARGET_MIN}" "${TARGET_MAX}" \
-  "${TORCHTITAN_COUNTDOWN_ROOT}/data/train/problems.jsonl" \
-  "${TORCHTITAN_COUNTDOWN_ROOT}/data/dev/problems.jsonl"
+  "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/train/problems.jsonl" \
+  "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/dev/problems.jsonl"
 generate_and_eval ood_test "${OOD_SIZE}" "${OOD_TARGET_MIN}" "${OOD_TARGET_MAX}" \
-  "${TORCHTITAN_COUNTDOWN_ROOT}/data/train/problems.jsonl" \
-  "${TORCHTITAN_COUNTDOWN_ROOT}/data/dev/problems.jsonl" \
-  "${TORCHTITAN_COUNTDOWN_ROOT}/data/iid_test/problems.jsonl"
+  "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/train/problems.jsonl" \
+  "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/dev/problems.jsonl" \
+  "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/iid_test/problems.jsonl"
 
 DATASET_ARGS=(
-  --evaluations "${TORCHTITAN_COUNTDOWN_ROOT}/data/train/evaluations.jsonl"
-  --output-dir "${TORCHTITAN_COUNTDOWN_ROOT}/data/train"
+  --evaluations "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/train/evaluations.jsonl"
+  --output-dir "${TORCHTITAN_COUNTDOWN_DATA_ROOT}/train"
   --matched-only
 )
 if [[ "${MODE}" == "smoke" ]]; then

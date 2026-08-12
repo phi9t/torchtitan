@@ -9,13 +9,13 @@ source "${SCRIPT_DIR}/run_common.sh"
 countdown_enter_rootfs_if_needed "run_validate_splits.sh" "$@"
 countdown_setup_env
 
-SPLIT_REGISTRY="${SPLIT_REGISTRY:-${TORCHTITAN_COUNTDOWN_ROOT}/data/split_registry.json}"
+SPLIT_REGISTRY="${SPLIT_REGISTRY:-${TORCHTITAN_COUNTDOWN_DATA_ROOT}/split_registry.json}"
 
 python -m torchtitan.experiments.countdown_search_distill.cli validate-splits \
   --split \
-    "train=${TORCHTITAN_COUNTDOWN_ROOT}/data/train/problems.jsonl" \
-    "dev=${TORCHTITAN_COUNTDOWN_ROOT}/data/dev/problems.jsonl" \
-    "iid_test=${TORCHTITAN_COUNTDOWN_ROOT}/data/iid_test/problems.jsonl" \
-    "ood_test=${TORCHTITAN_COUNTDOWN_ROOT}/data/ood_test/problems.jsonl" \
+    "train=${TORCHTITAN_COUNTDOWN_DATA_ROOT}/train/problems.jsonl" \
+    "dev=${TORCHTITAN_COUNTDOWN_DATA_ROOT}/dev/problems.jsonl" \
+    "iid_test=${TORCHTITAN_COUNTDOWN_DATA_ROOT}/iid_test/problems.jsonl" \
+    "ood_test=${TORCHTITAN_COUNTDOWN_DATA_ROOT}/ood_test/problems.jsonl" \
   --output "${SPLIT_REGISTRY}" \
   "$@"

@@ -16,10 +16,10 @@ case "${MODE:-full}" in
   *) echo "unknown MODE=${MODE}" >&2; exit 2 ;;
 esac
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
-OUT="${TORCHTITAN_COUNTDOWN_ROOT}/data/calibration"
+OUT="${TORCHTITAN_COUNTDOWN_DATA_ROOT}/calibration"
 mkdir -p "${OUT}"
 
-REGIME_PATH="${REGIME_PATH:-${TORCHTITAN_COUNTDOWN_ROOT}/data/calibration_regime.json}"
+REGIME_PATH="${REGIME_PATH:-${TORCHTITAN_COUNTDOWN_DATA_ROOT}/calibration_regime.json}"
 if [[ "${MODE:-full}" != "smoke" && -f "${REGIME_PATH}" ]]; then
   read -r NUM_NUMBERS TARGET_MIN TARGET_MAX MIN_SOLUTION_DEPTH REQUIRE_ALL_NUMBERS PROMPT_VARIANT < <(
     REGIME_PATH="${REGIME_PATH}" python - <<'PY'

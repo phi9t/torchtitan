@@ -659,6 +659,9 @@ def build_report_input(args: argparse.Namespace) -> None:
         mode=args.mode,
         run_id=args.run_id,
         manifest=args.manifest,
+        arms=args.arms,
+        data_root=args.data_root,
+        results_root=args.results_root,
     )
     write_countdown_report_input(report_input, args.output)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1029,6 +1032,9 @@ def build_parser() -> argparse.ArgumentParser:
     report_input_parser.add_argument("--mode", choices=["smoke", "reduced", "full"], required=True)
     report_input_parser.add_argument("--run-id", required=True)
     report_input_parser.add_argument("--manifest", type=Path, required=True)
+    report_input_parser.add_argument("--arms", nargs="+")
+    report_input_parser.add_argument("--data-root", type=Path)
+    report_input_parser.add_argument("--results-root", type=Path)
     report_input_parser.add_argument("--output", type=Path, required=True)
     report_input_parser.add_argument(
         "--require-selected",

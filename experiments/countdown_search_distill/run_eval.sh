@@ -11,15 +11,15 @@ countdown_setup_env
 
 SPLIT="${SPLIT:-iid_test}"
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
-DATA_DIR="${TORCHTITAN_COUNTDOWN_ROOT}/data/${SPLIT}"
+DATA_DIR="${TORCHTITAN_COUNTDOWN_DATA_ROOT}/${SPLIT}"
 if [[ -n "${LORA_ADAPTER:-}" ]]; then
-  RESULT_DIR="${RESULT_DIR:-${TORCHTITAN_COUNTDOWN_ROOT}/results/eval/${SPLIT}/${LORA_NAME:-countdown_adapter}}"
+  RESULT_DIR="${RESULT_DIR:-${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}/eval/${SPLIT}/${LORA_NAME:-countdown_adapter}}"
 else
-  RESULT_DIR="${RESULT_DIR:-${TORCHTITAN_COUNTDOWN_ROOT}/results/eval/${SPLIT}/base}"
+  RESULT_DIR="${RESULT_DIR:-${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}/eval/${SPLIT}/base}"
 fi
 mkdir -p "${RESULT_DIR}"
 
-REGIME_PATH="${REGIME_PATH:-${TORCHTITAN_COUNTDOWN_ROOT}/data/calibration_regime.json}"
+REGIME_PATH="${REGIME_PATH:-${TORCHTITAN_COUNTDOWN_DATA_ROOT}/calibration_regime.json}"
 if [[ -f "${REGIME_PATH}" ]]; then
   PROMPT_VARIANT="$(
     REGIME_PATH="${REGIME_PATH}" python - <<'PY'

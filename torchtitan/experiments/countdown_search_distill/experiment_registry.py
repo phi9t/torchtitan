@@ -24,14 +24,17 @@ def build_countdown_report_input(
     mode: str,
     run_id: str,
     manifest: Path,
+    arms: list[str] | None = None,
+    data_root: Path | None = None,
+    results_root: Path | None = None,
     max_hash_bytes: int = DEFAULT_HASH_LIMIT_BYTES,
 ) -> dict[str, Any]:
     """Build a compact, auditable input object for reports and promotion gates."""
 
     splits = ["dev", "iid_test", "ood_test"]
-    arms = _arms_for_mode(mode)
-    data_root = experiment_root / "data"
-    results_root = experiment_root / "results"
+    arms = arms or _arms_for_mode(mode)
+    data_root = data_root or experiment_root / "data"
+    results_root = results_root or experiment_root / "results"
     adapter_eval_root = results_root / "eval" / "adapters" / mode
 
     base_summaries = {
@@ -52,6 +55,8 @@ def build_countdown_report_input(
             "run_id": run_id,
             "mode": mode,
             "experiment_root": str(experiment_root),
+            "data_root": str(data_root),
+            "results_root": str(results_root),
             "manifest": str(manifest),
             "rootfs_active": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
         },
@@ -114,6 +119,7 @@ def build_countdown_report_input(
             adapter_matrix=adapter_matrix,
             split_registry=_read_json_if_exists(data_root / "split_registry.json"),
             manifest_stages=_read_manifest(manifest),
+            arms=arms,
         ),
     }
 
@@ -548,9 +554,20 @@ def _report_checks(
     adapter_matrix: dict[str, Any] | None,
     split_registry: dict[str, Any] | None,
     manifest_stages: list[dict[str, Any]],
+    arms: list[str],
 ) -> dict[str, bool]:
-    required_stages = {
-        "smoke": {
+    common_stages = {
+        "preflight",
+        "calibration_sweep",
+        "calibration",
+        "collect",
+        "validate_splits",
+        "base_eval_dev",
+        "base_eval_iid_test",
+        "base_eval_ood_test",
+    }
+    if mode == "smoke":
+        required_stages = {
             "preflight",
             "calibration",
             "collect",
@@ -558,40 +575,15 @@ def _report_checks(
             "base_eval_dev",
             "base_eval_iid_test",
             "base_eval_ood_test",
-        },
-        "reduced": {
-            "preflight",
-            "calibration_sweep",
-            "calibration",
-            "collect",
-            "validate_splits",
-            "train_raw",
-            "train_hindsight",
-            "train_curriculum",
-            "base_eval_dev",
-            "base_eval_iid_test",
-            "base_eval_ood_test",
-            "export_adapters",
-            "eval_adapters",
-        },
-        "full": {
-            "preflight",
-            "calibration_sweep",
-            "calibration",
-            "collect",
-            "validate_splits",
-            "train_raw",
-            "train_clean",
-            "train_formatting",
-            "train_hindsight",
-            "train_curriculum",
-            "base_eval_dev",
-            "base_eval_iid_test",
-            "base_eval_ood_test",
-            "export_adapters",
-            "eval_adapters",
-        },
-    }[mode]
+        }
+    elif mode in {"reduced", "full"}:
+        required_stages = (
+            common_stages
+            | {f"train_{arm}" for arm in arms}
+            | {"export_adapters", "eval_adapters"}
+        )
+    else:
+        raise ValueError(f"unknown Countdown mode: {mode}")
     successful_stages = {
         str(row.get("stage"))
         for row in manifest_stages
