@@ -15,6 +15,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     write_jsonl,
 )
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
+from torchtitan.experiments.scaffold_to_policy import modular_sequences
 
 
 def test_arithmetic_words_generation_is_deterministic():
@@ -143,3 +144,152 @@ def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():
     assert args.prompt_variant == "chat"
     assert args.num_rollouts == 32
     assert args.max_model_len == 2048
+
+
+def test_modular_sequences_generation_is_deterministic():
+    first = modular_sequences.generate_split(seed=500, num_problems=4)
+    second = modular_sequences.generate_split(seed=500, num_problems=4)
+
+    assert [problem.to_json() for problem in first] == [
+        problem.to_json() for problem in second
+    ]
+    assert len({problem.problem_id for problem in first}) == 4
+
+
+def test_modular_sequences_verifier_requires_exact_final_value():
+    problem = modular_sequences.generate_split(seed=501, num_problems=1)[0]
+
+    missing = modular_sequences.verify_answer(problem, str(problem.answer))
+    wrong = modular_sequences.verify_answer(problem, f"FINAL: {problem.answer + 1}")
+    correct = modular_sequences.verify_answer(
+        problem,
+        f"work\nFINAL: {problem.answer}",
+    )
+
+    assert not missing.success
+    assert missing.error == "missing FINAL line"
+    assert not wrong.success
+    assert wrong.strict_final
+    assert correct.success
+    assert correct.strict_final
+
+
+def test_modular_sequences_summary_reports_pass_curves():
+    problem = modular_sequences.generate_split(seed=502, num_problems=1)[0]
+    evaluation = modular_sequences.evaluate_fixture_rollouts(
+        problem,
+        [
+            "no final",
+            f"FINAL: {problem.answer + 1}",
+            f"FINAL: {problem.answer}",
+        ],
+    )
+
+    summary = modular_sequences.summarize_evaluations([evaluation], ks=(1, 2, 3))
+
+    assert summary["pass_at_k"] == {"1": 0.0, "2": 0.0, "3": 1.0}
+    assert summary["strict_format_pass_at_k"] == {"1": 0.0, "2": 0.0, "3": 1.0}
+    assert summary["bucket_counts"] == {"easy": 0, "elicitable": 1, "unreached": 0}
+    assert summary["failure_breakdown"]["missing FINAL line"] == 1
+    assert summary["failure_breakdown"]["success"] == 1
+
+
+def test_modular_sequences_split_registry_rejects_overlap(tmp_path):
+    problems = modular_sequences.generate_split(seed=503, num_problems=2)
+    train = tmp_path / "train.jsonl"
+    dev = tmp_path / "dev.jsonl"
+    modular_sequences.write_jsonl(train, [problem.to_json() for problem in problems])
+    modular_sequences.write_jsonl(dev, [problems[0].to_json()])
+
+    registry = modular_sequences.build_split_registry({"train": train, "dev": dev})
+
+    assert not registry["selected"]
+    assert registry["overlaps"] == [
+        {
+            "problem_id": problems[0].problem_id,
+            "first_split": "train",
+            "second_split": "dev",
+        }
+    ]
+
+
+def test_modular_sequences_report_input_validates_summary_counts(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    problems = modular_sequences.generate_split(seed=504, num_problems=2)
+    modular_sequences.write_jsonl(dev, [problem.to_json() for problem in problems])
+    split_registry = data_root / "split_registry.json"
+    modular_sequences.write_json(
+        split_registry,
+        modular_sequences.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    modular_sequences.write_json(
+        summary,
+        modular_sequences.summarize_evaluations(
+            [
+                modular_sequences.evaluate_fixture_rollouts(
+                    problem,
+                    [f"FINAL: {problem.answer}"],
+                )
+                for problem in problems
+            ]
+        ),
+    )
+
+    report_input = modular_sequences.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["task"] == "modular_sequences"
+    assert report_input["verifier"]["kind"] == "exact"
+
+
+def test_modular_sequences_vllm_parser_defaults_to_chat_prompt():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "evaluate-modular-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+
+    assert args.prompt_variant == "chat"
+    assert args.num_rollouts == 32
+    assert args.max_new_tokens == 384
+
+
+def test_modular_sequences_vllm_parser_accepts_concise_chat_prompt():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "evaluate-modular-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+            "--prompt-variant",
+            "concise_chat",
+        ]
+    )
+
+    assert args.prompt_variant == "concise_chat"

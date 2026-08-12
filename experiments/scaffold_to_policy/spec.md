@@ -259,10 +259,10 @@ The most important immediate caveats to preserve are:
 - Terminal-Bench/Harbor and tau2-bench should enter as harness smokes before
   scientific adapter evaluations.
 
-Suggested first ticket after this checkpoint: move the local `arithmetic_words`
-exact-verifier task from fixture smoke to real rootfs-managed scaffold
-collection and evaluation, then add one more local symbolic or constraint task
-before public reasoning benchmarks.
+Suggested first ticket after this checkpoint: run and calibrate the new
+`modular_sequences` exact-verifier task, then promote the first nontrivial
+local reasoning task to a small scaffold-to-policy transfer run before public
+reasoning benchmarks.
 
 ## Implementation Progress
 
@@ -325,3 +325,15 @@ before public reasoning benchmarks.
   easy: dev and OOD both reached 1.000 pass@1 and strict pass@1 over four
   problems. This is infrastructure evidence only; the next reasoning step is
   calibrated harder local reasoning generation.
+- 2026-08-12: Added `modular_sequences` as the second local exact-verifier
+  reasoning task. It generates modular recurrence problems, verifies a strict
+  `FINAL: <integer>` answer against deterministic recurrence execution, reports
+  pass@k plus easy/elicitable/unreached buckets, and has rootfs-managed fixture
+  and vLLM smoke entrypoints.
+- 2026-08-12: Calibrated `modular_sequences` with Qwen3-1.7B/vLLM inside the
+  bwrap rootfs. The useful band is 3-5 recurrence steps and modulus 37-257 with
+  8 rollouts and 512 generated tokens: dev pass@1 0.250, pass@8 0.625, buckets
+  easy 2, elicitable 3, unreached 3; OOD pass@1 0.500, pass@8 0.625, buckets
+  easy 4, elicitable 1, unreached 3. Harder settings were mostly unreached, so
+  the next step is a small scaffold-to-policy transfer run using this calibrated
+  band before public reasoning benchmarks.

@@ -13,6 +13,7 @@ data
 experiments/countdown_search_distill/data_rescored/
 experiments/countdown_search_distill/results/
 experiments/countdown_search_distill/sweeps/
+experiments/scaffold_to_policy/data/
 experiments/scaffold_to_policy/results/
 out
 wandb

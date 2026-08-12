@@ -44,6 +44,8 @@ The first reasoning lane should include:
 
 - `arithmetic_words`: a local synthetic exact-verifier task that generates
   multi-step arithmetic word problems with strict `FINAL: <integer>` checking;
+- `modular_sequences`: a local synthetic exact-verifier task that generates
+  modular recurrence problems with strict `FINAL: <integer>` checking;
 - GSM8K or a small GSM-style subset with parsed final-answer verification;
 - a small MATH subset with task-appropriate answer normalization;
 - verifier-first synthetic reasoning tasks where exact verification is cheap.
@@ -84,6 +86,50 @@ The first completed smoke is summarized in:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T055500Z-arithmetic-words-vllm-smoke.md
+```
+
+Run the second local reasoning smoke through the bwrap rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_modular_sequences_smoke.sh
+```
+
+Run the real-model modular recurrence smoke through the same rootfs boundary:
+
+```bash
+experiments/scaffold_to_policy/run_modular_sequences_vllm_smoke.sh
+```
+
+The vLLM smoke writes artifacts under:
+
+```text
+experiments/scaffold_to_policy/data/modular_sequences_vllm_smoke/
+experiments/scaffold_to_policy/results/modular_sequences_vllm_smoke/
+```
+
+The first useful modular calibration used smaller recurrences:
+
+```bash
+RUN_ID=20260812T064500Z-modular-sequences-small-calibration \
+DATA_ROOT=experiments/scaffold_to_policy/data/modular_sequences_small_calibration \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/modular_sequences_small_calibration \
+NUM_ROLLOUTS=8 \
+MAX_NEW_TOKENS=512 \
+MIN_STEPS=3 \
+MAX_STEPS=5 \
+MIN_MODULUS=37 \
+MAX_MODULUS=257 \
+PROMPT_VARIANT=chat \
+experiments/scaffold_to_policy/run_modular_sequences_vllm_smoke.sh
+```
+
+It produced nontrivial dev and OOD buckets with Qwen3-1.7B: dev pass@1
+`0.250`, pass@8 `0.625`, buckets easy 2, elicitable 3, unreached 3; OOD
+pass@1 `0.500`, pass@8 `0.625`, buckets easy 4, elicitable 1, unreached 3.
+The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T064500Z-modular-sequences-calibration.md
 ```
 
 ## Agentic Benchmarks
