@@ -25,7 +25,7 @@ below confirms this with current artifacts.
 | Countdown champion, formatting arm, replication, rank/size sweep, and reports | Countdown reports under `experiments/countdown_search_distill/reports/`; clean and formatting replications are recorded in `spec.md` | Covered for checkpoint |
 | Local exact-verifier reasoning before public benchmarks | Arithmetic words, modular sequences, and modular transfer reports under `experiments/scaffold_to_policy/reports/` | Covered |
 | Public no-tool reasoning expansion | GSM8K, MATH algebra, AIME, ARC-AGI-2, and MMLU-Pro reports; exact or benchmark-specific verifiers preserved | Covered as small calibration runs, not leaderboard claims |
-| GPQA Diamond gate | Fresh rootfs run `20260812T142500Z-gpqa-auth-final-audit` wrote `experiments/scaffold_to_policy/results/gpqa_public_vllm_final_audit/manifests/report_input_20260812T142500Z-gpqa-auth-final-audit.json` with `gpqa_import_available=false` | Blocked by gated dataset auth |
+| GPQA Diamond gate | Fresh rootfs run `20260812T143000Z-gpqa-auth-stage-manifest` wrote `experiments/scaffold_to_policy/results/gpqa_public_vllm_stage_manifest/manifests/report_input_20260812T143000Z-gpqa-auth-stage-manifest.json` with `benchmark_execution_completed=false` | Blocked by gated dataset auth |
 | Public coding expansion | HumanEval, MBPP, BigCodeBench-Hard, and LiveCodeBench public-test reports | Covered as executable/public-test smokes and hard negatives |
 | BigCodeBench-Hard harder contract-chat condition | `20260812Tbigcode-hard-contract-chat-8x8-timeout30-rerun` report input has passing canonical preflights, dev/OOD summaries, and pass@k 0.0 on both splits | Covered as hard-negative model result |
 | Terminal-Bench/Harbor harness smoke | Oracle, nop, scripted, and Qwen model-agent reports exist; Qwen official verifier run completed one trial with reward 0.0 | Covered as harness/model-policy execution, not solved task |
@@ -38,9 +38,9 @@ below confirms this with current artifacts.
 Command:
 
 ```bash
-RUN_ID=20260812T142500Z-gpqa-auth-final-audit \
-DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_public_vllm_final_audit \
-RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_public_vllm_final_audit \
+RUN_ID=20260812T143000Z-gpqa-auth-stage-manifest \
+DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_public_vllm_stage_manifest \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_public_vllm_stage_manifest \
 DEV_PROBLEMS=1 OOD_PROBLEMS=1 GPU_MEMORY_UTILIZATION=0.05 \
 experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
 ```
@@ -55,7 +55,7 @@ dataset on the Hub. You must be authenticated to access it.
 The runner exited cleanly after writing:
 
 ```text
-experiments/scaffold_to_policy/results/gpqa_public_vllm_final_audit/manifests/report_input_20260812T142500Z-gpqa-auth-final-audit.json
+experiments/scaffold_to_policy/results/gpqa_public_vllm_stage_manifest/manifests/report_input_20260812T143000Z-gpqa-auth-stage-manifest.json
 ```
 
 The report input records:
@@ -63,7 +63,9 @@ The report input records:
 ```json
 {
   "checks": {
-    "gpqa_import_available": false
+    "artifact_provenance_labeled": true,
+    "benchmark_execution_completed": false,
+    "blocker_artifacts_present": true
   },
   "run": {
     "lane": "reasoning",
@@ -74,6 +76,12 @@ The report input records:
     "task": "multiple_choice"
   }
 }
+```
+
+It also records a rootfs-active command-stage manifest at:
+
+```text
+experiments/scaffold_to_policy/results/gpqa_public_vllm_stage_manifest/manifests/20260812T143000Z-gpqa-auth-stage-manifest.jsonl
 ```
 
 No GPQA task execution or model score was produced.
@@ -87,7 +95,7 @@ No GPQA task execution or model score was produced.
 | GSM8K / MATH / AIME | Rootfs no-tool vLLM reports | Public reasoning smokes/calibrations completed |
 | ARC-AGI-2 | Chat, strict-chat, packed-chat reports | Context and final-format blockers characterized; exact-grid solve not achieved |
 | MMLU-Pro | `20260812Tmmlu-pro-8x8-rollouts4-promptfix` | Ten-choice multiple-choice lane works; small calibration only |
-| GPQA Diamond | `20260812T142500Z-gpqa-auth-final-audit` blocker | Not runnable without HF auth or authorized raw cache |
+| GPQA Diamond | `20260812T143000Z-gpqa-auth-stage-manifest` blocker | Not runnable without HF auth or authorized raw cache |
 | HumanEval / MBPP | Executable-code smoke reports | Coding harness path validated on small slices |
 | BigCodeBench-Hard | `20260812Tbigcode-hard-contract-chat-8x8-timeout30-rerun` | Hard-negative 8x8 coding result with released tests |
 | LiveCodeBench | `20260812Tlivecodebench-public-vllm-smoke` | Public-test-only contest-code smoke, not official score |

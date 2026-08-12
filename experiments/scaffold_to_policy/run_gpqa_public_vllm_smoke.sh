@@ -5,17 +5,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/run_common.sh"
 
-if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
-  exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh" "$@"
-fi
-
-cd "${REPO_ROOT}"
-export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
-export HF_HOME="${REPO_ROOT}/.cache/huggingface"
-export HF_HUB_CACHE="${HF_HOME}/hub"
-export VLLM_USE_FLASHINFER_SAMPLER="${SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER:-0}"
+scaffold_enter_rootfs_if_needed "run_gpqa_public_vllm_smoke.sh" "$@"
+scaffold_setup_env
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-gpqa-public-vllm-smoke}"
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
@@ -37,8 +30,9 @@ TOP_P="${TOP_P:-0.95}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
+scaffold_setup_run_manifest
 
-if ! python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
+if ! scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
   --dataset "${DATASET}" \
   --subset "${DATASET_SUBSET}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -47,36 +41,23 @@ if ! python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
   --offset "${DEV_OFFSET}" \
   --output "${DATA_ROOT}/dev.jsonl" \
   --provenance "${DATA_ROOT}/dev_provenance.json"; then
-  cat > "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json" <<JSON
-{
-  "schema_version": 1,
-  "run": {
-    "run_id": "${RUN_ID}",
-    "task": "multiple_choice",
-    "lane": "reasoning",
-    "scaffold": {
-      "type": "gpqa_import_blocker",
-      "budget": 0
-    }
-  },
-  "checks": {
-    "gpqa_import_available": false
-  },
-  "limitations": [
-    "GPQA Diamond import failed, commonly because the dataset is gated and HF_TOKEN is not configured inside the rootfs",
-    "No benchmark task execution or model score was produced"
-  ],
-  "artifacts": {
-    "data_root": "${DATA_ROOT}",
-    "results_root": "${RESULTS_ROOT}"
-  }
-}
-JSON
+  FAILURE_MARKER="${RESULTS_ROOT}/eval/gpqa_import_failure.json"
+  scaffold_write_stage_failure_marker import_dev gpqa_import_blocker "${FAILURE_MARKER}"
+  scaffold_run_stage write_import_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+    --results-root "${RESULTS_ROOT}" \
+    --run-id "${RUN_ID}" \
+    --task multiple_choice \
+    --lane reasoning \
+    --blocker-type gpqa_import_blocker \
+    --artifact "import_failure=${FAILURE_MARKER}" \
+    --limitation "GPQA Diamond import failed, commonly because the dataset is gated and HF_TOKEN is not configured inside the rootfs." \
+    --limitation "No benchmark task execution or model score was produced." \
+    --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
   echo "wrote GPQA blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
   exit 0
 fi
 
-python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
+scaffold_run_stage import_ood_test python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
   --dataset "${DATASET}" \
   --subset "${DATASET_SUBSET}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -86,18 +67,40 @@ python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
   --output "${DATA_ROOT}/ood_test.jsonl" \
   --provenance "${DATA_ROOT}/ood_test_provenance.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli validate-multiple-choice-splits \
+scaffold_run_stage validate_splits python -m torchtitan.experiments.scaffold_to_policy.cli validate-multiple-choice-splits \
   --split \
     "dev=${DATA_ROOT}/dev.jsonl" \
     "ood_test=${DATA_ROOT}/ood_test.jsonl" \
   --output "${DATA_ROOT}/split_registry.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
+scaffold_run_stage preflight_gpu_memory python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
   --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
-  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
+  --no-require-selected
+if ! scaffold_run_stage require_gpu_memory_selected python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
+import json
+import sys
+
+payload = json.loads(open(sys.argv[1]).read())
+raise SystemExit(0 if payload.get("selected") else 1)
+PY
+then
+  scaffold_run_stage write_gpu_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+    --results-root "${RESULTS_ROOT}" \
+    --run-id "${RUN_ID}" \
+    --task multiple_choice \
+    --lane reasoning \
+    --blocker-type vllm_gpu_memory_preflight \
+    --artifact "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+    --limitation "GPQA Diamond run stopped before model execution because vLLM GPU memory preflight failed." \
+    --limitation "No benchmark task execution or model score was produced." \
+    --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  echo "wrote GPQA GPU blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  exit 0
+fi
 
 for split in dev ood_test; do
-  python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-multiple-choice-vllm \
+  if ! scaffold_run_stage "evaluate_${split}" python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-multiple-choice-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
     --output "${RESULTS_ROOT}/eval/${split}_evaluations.jsonl" \
@@ -107,10 +110,27 @@ for split in dev ood_test; do
     --prompt-variant "${PROMPT_VARIANT}" \
     --temperature "${TEMPERATURE}" \
     --top-p "${TOP_P}" \
-    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
+    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"; then
+    FAILURE_MARKER="${RESULTS_ROOT}/eval/${split}_vllm_runtime_failure.json"
+    scaffold_write_stage_failure_marker "evaluate_${split}" vllm_runtime_failure "${FAILURE_MARKER}"
+    scaffold_run_stage write_runtime_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+      --results-root "${RESULTS_ROOT}" \
+      --run-id "${RUN_ID}" \
+      --task multiple_choice \
+      --lane reasoning \
+      --blocker-type vllm_runtime_failure \
+      --artifact \
+        "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+        "stage_failure=${FAILURE_MARKER}" \
+      --limitation "GPQA Diamond run stopped during ${split} model execution because vLLM failed at runtime." \
+      --limitation "No complete benchmark task execution or model score was produced." \
+      --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    echo "wrote GPQA runtime blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    exit 0
+  fi
 done
 
-python -m torchtitan.experiments.scaffold_to_policy.cli build-multiple-choice-report-input \
+scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_to_policy.cli build-multiple-choice-report-input \
   --data-root "${DATA_ROOT}" \
   --results-root "${RESULTS_ROOT}" \
   --run-id "${RUN_ID}" \

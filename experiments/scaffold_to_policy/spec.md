@@ -993,12 +993,15 @@ reasoning benchmarks.
 - 2026-08-12: Ran the final prompt-to-artifact completion audit for this
   checkpoint. The audit maps each explicit spec requirement to concrete
   reports, manifests, or blocker artifacts and confirms that the remaining
-  unexecuted public reasoning lane is GPQA Diamond. A fresh rootfs run
-  `20260812T142500Z-gpqa-auth-final-audit` attempted
+  unexecuted public reasoning lane is GPQA Diamond. The GPQA runner now uses
+  the shared `run_common.sh` rootfs setup, command-stage manifest, stage-failure
+  marker, and `write-blocker-report-input` path. A fresh rootfs run
+  `20260812T143000Z-gpqa-auth-stage-manifest` attempted
   `run_gpqa_public_vllm_smoke.sh` with a one-problem slice and stopped at the
   Hugging Face import gate because `Idavidrein/gpqa` is gated and no `HF_TOKEN`
   is configured inside the bwrap rootfs. The runner wrote blocker report input
-  `experiments/scaffold_to_policy/results/gpqa_public_vllm_final_audit/manifests/report_input_20260812T142500Z-gpqa-auth-final-audit.json`.
-  The objective is therefore blocked on authenticated GPQA access or an
-  authorized raw cache, not complete. The audit report is
+  `experiments/scaffold_to_policy/results/gpqa_public_vllm_stage_manifest/manifests/report_input_20260812T143000Z-gpqa-auth-stage-manifest.json`
+  plus a rootfs-active stage manifest. The objective is therefore blocked on
+  authenticated GPQA access or an authorized raw cache, not complete. The audit
+  report is
   `experiments/scaffold_to_policy/reports/20260812T142500Z-final-completion-audit.md`.
