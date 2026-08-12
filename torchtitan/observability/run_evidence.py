@@ -127,12 +127,12 @@ class RunEvidence(Configurable):
 
     def __exit__(self, exc_type, exc_value, traceback) -> bool:
         global _ACTIVE_EVIDENCE
-        outcome_error: EvidenceWriteError | None = None
+        outcome_error: RunEvidenceError | None = None
         try:
             if self.config.enable and self._entered_monotonic_ns is not None:
                 try:
                     self._write_outcome(exc_type, exc_value)
-                except EvidenceWriteError as error:
+                except RunEvidenceError as error:
                     if exc_type is None:
                         outcome_error = error
                     else:
@@ -179,6 +179,14 @@ class RunEvidence(Configurable):
         self._distributed_context["device_type"] = device.type
         if device.index is not None:
             self._distributed_context["device_index"] = device.index
+        self._distributed_context["device_uuid"] = _device_uuid(device)
+        get_axis_meshes = getattr(parallel_dims, "get_all_one_dimensional_meshes", None)
+        if get_axis_meshes is not None:
+            for axis, mesh in get_axis_meshes().items():
+                self._distributed_context[
+                    f"mesh_axis_{axis}_rank"
+                ] = mesh.get_local_rank()
+                self._distributed_context[f"mesh_axis_{axis}_size"] = mesh.size()
 
     def _validate_config(self) -> None:
         folder = self.config.folder
@@ -193,6 +201,9 @@ class RunEvidence(Configurable):
             )
         if _URI_RE.match(self.dump_folder):
             raise ValueError("RunEvidence.dump_folder must be a local filesystem path")
+        for name, value in (("role", self.role), ("actor_id", self.actor_id)):
+            if not isinstance(value, str) or not _IDENTIFIER_RE.fullmatch(value):
+                raise ValueError(f"{name} must be a safe identifier")
 
     def _resolve_identity(self) -> tuple[str, str]:
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -345,45 +356,46 @@ class RunEvidence(Configurable):
         if artifact_id is not None and artifact_id != expected_id:
             raise EvidenceContractError("artifact_id does not match artifact identity")
         artifact_id = expected_id
-        previous_state = self._artifacts.get(artifact_id)
-        if previous_state is not None and state not in _TRANSITIONS.get(
-            previous_state, set()
-        ):
-            raise EvidenceContractError(
-                f"invalid artifact transition: {previous_state.value} -> {state.value}"
-            )
-        if (
-            state is ArtifactState.COMPLETE
-            and local_path is not None
-            and not local_path.exists()
-        ):
-            raise EvidenceContractError(
-                f"completed local artifact does not exist: {local_path}"
-            )
-        row = {
-            "schema_version": 1,
-            "record_type": "artifact",
-            "artifact_id": artifact_id,
-            "producer": producer,
-            "kind": kind,
-            "relation": relation.value,
-            "state": state.value,
-            "path": normalized_path,
-            "path_type": path_type,
-            "wall_time_ns": time.time_ns(),
-            "monotonic_ns": time.monotonic_ns(),
-            "artifact_seq": self._artifact_seq,
-            "run_id": self.run_id,
-            "attempt_id": self.attempt_id,
-            **self._process_context,
-            "metadata": normalized_metadata,
-        }
-        if step is not None:
-            row["step"] = step
-        phase = self._phase()
-        if phase is not None:
-            row["phase"] = phase
         with self._lock:
+            previous_state = self._artifacts.get(artifact_id)
+            if previous_state is not None and state not in _TRANSITIONS.get(
+                previous_state, set()
+            ):
+                raise EvidenceContractError(
+                    f"invalid artifact transition: {previous_state.value} -> {state.value}"
+                )
+            if (
+                state is ArtifactState.COMPLETE
+                and local_path is not None
+                and not local_path.exists()
+            ):
+                raise EvidenceContractError(
+                    f"completed local artifact does not exist: {local_path}"
+                )
+            row = {
+                "schema_version": 1,
+                "evidence_schema_version": 1,
+                "record_type": "artifact",
+                "artifact_id": artifact_id,
+                "producer": producer,
+                "kind": kind,
+                "relation": relation.value,
+                "state": state.value,
+                "path": normalized_path,
+                "path_type": path_type,
+                "wall_time_ns": time.time_ns(),
+                "monotonic_ns": time.monotonic_ns(),
+                "artifact_seq": self._artifact_seq,
+                "run_id": self.run_id,
+                "attempt_id": self.attempt_id,
+                **self._process_context,
+                "metadata": normalized_metadata,
+            }
+            if step is not None:
+                row["step"] = step
+            phase = self._phase()
+            if phase is not None:
+                row["phase"] = phase
             self._append_row(row)
             self._artifacts[artifact_id] = state
             self._artifact_seq += 1
@@ -454,9 +466,12 @@ class RunEvidence(Configurable):
             event_seq = self._event_seq
             self._event_seq += 1
         context = {
+            "evidence_schema_version": 1,
             "run_id": self.run_id,
             "attempt_id": self.attempt_id,
             "event_seq": event_seq,
+            "wall_time_ns": time.time_ns(),
+            "monotonic_ns": time.monotonic_ns(),
             **self._process_context,
             **self._distributed_context,
         }
@@ -490,6 +505,7 @@ class RunEvidence(Configurable):
             outcome = "failed"
         record: dict[str, Any] = {
             "schema_version": 1,
+            "evidence_schema_version": 1,
             "record_type": "process_outcome",
             "outcome": outcome,
             "elapsed_monotonic_ns": time.monotonic_ns() - self._entered_monotonic_ns,
@@ -512,7 +528,12 @@ class RunEvidence(Configurable):
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as handle:
                     handle.write(_canonical_json(record) + "\n")
-                os.replace(temporary_path, outcome_path)
+                try:
+                    os.link(temporary_path, outcome_path)
+                except FileExistsError as error:
+                    raise EvidenceCollisionError(
+                        f"run evidence outcome already exists: {self._process_id}"
+                    ) from error
             finally:
                 temporary_path.unlink(missing_ok=True)
         except OSError as error:
@@ -523,6 +544,15 @@ class RunEvidence(Configurable):
 
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _device_uuid(device: torch.device) -> str | None:
+    if device.type != "cuda":
+        return None
+    try:
+        return getattr(torch.cuda.get_device_properties(device), "uuid", None)
+    except (AssertionError, RuntimeError):
+        return None
 
 
 def _source_state() -> dict[str, Any]:
