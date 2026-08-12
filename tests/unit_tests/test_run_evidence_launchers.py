@@ -20,6 +20,7 @@ RUN_TRAIN = REPO_ROOT / "run_train.sh"
 MULTINODE_TRAINER = REPO_ROOT / "multinode_trainer.slurm"
 GENERATED_RUN_ID = "11111111-1111-4111-8111-111111111111"
 GENERATED_ATTEMPT_ID = "22222222-2222-4222-8222-222222222222"
+UUID_GENERATION_CODE = "import uuid; print(uuid.uuid4())"
 
 
 def _write_executable(path: Path, contents: str) -> None:
@@ -43,6 +44,7 @@ def launcher_stubs(tmp_path: Path) -> tuple[Path, Path, Path]:
         set -eu
 
         if [ "${{1:-}}" = "-c" ]; then
+            printf '%s\\0' "$@" >> "${{STUB_CAPTURE_DIR:?}}/python-generation-argv"
             counter_file="${{STUB_STATE_DIR:?}}/python3-generation-count"
             count=0
             if [ -f "$counter_file" ]; then
@@ -50,6 +52,10 @@ def launcher_stubs(tmp_path: Path) -> tuple[Path, Path, Path]:
             fi
             count=$((count + 1))
             printf '%s\n' "$count" > "$counter_file"
+            case "${{STUB_PYTHON_GENERATION_MODE:-success}}" in
+                fail) exit 93 ;;
+                empty) exit 0 ;;
+            esac
             case "$count" in
                 1) printf '%s\n' "{GENERATED_RUN_ID}" ;;
                 2) printf '%s\n' "{GENERATED_ATTEMPT_ID}" ;;
@@ -144,6 +150,7 @@ def _launcher_env(
         "TORCHELASTIC_RESTART_COUNT",
         "TORCHTITAN_ATTEMPT_ID",
         "TORCHTITAN_RUN_ID",
+        "STUB_PYTHON_GENERATION_MODE",
     ):
         env.pop(name, None)
     env.update(
@@ -158,12 +165,14 @@ def _launcher_env(
     return env
 
 
-def _run_launcher(path: Path, env: dict[str, str], *args: str) -> None:
-    subprocess.run(
+def _run_launcher(
+    path: Path, env: dict[str, str], *args: str, check: bool = True
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         ["/usr/bin/bash", str(path), *args],
         cwd=REPO_ROOT,
         env=env,
-        check=True,
+        check=check,
         capture_output=True,
         text=True,
     )
@@ -178,6 +187,11 @@ def _nul_record(path: Path) -> list[str]:
 def _generation_count(state_dir: Path) -> int:
     count_file = state_dir / "python3-generation-count"
     return int(count_file.read_text()) if count_file.exists() else 0
+
+
+def _generation_argv(capture_dir: Path) -> list[str]:
+    path = capture_dir / "python-generation-argv"
+    return _nul_record(path) if path.exists() else []
 
 
 def _local_torchrun_argv(ngpu: int, run_id: str) -> list[str]:
@@ -224,6 +238,12 @@ def test_local_launcher_shares_generated_identity_with_each_gpu_topology(
     assert uuid.UUID(GENERATED_ATTEMPT_ID).version == 4
     assert GENERATED_RUN_ID != GENERATED_ATTEMPT_ID
     assert _generation_count(state_dir) == 2
+    assert _generation_argv(capture_dir) == [
+        "-c",
+        UUID_GENERATION_CODE,
+        "-c",
+        UUID_GENERATION_CODE,
+    ]
 
 
 @pytest.mark.parametrize(
@@ -278,6 +298,14 @@ def test_local_launcher_preserves_overrides_and_generates_only_missing_ids(
         expected_attempt_id,
     ]
     assert _generation_count(state_dir) == expected_generation_count
+    assert (
+        _generation_argv(capture_dir)
+        == [
+            "-c",
+            UUID_GENERATION_CODE,
+        ]
+        * expected_generation_count
+    )
 
 
 @pytest.mark.parametrize("comm_mode", ("fake_backend", "local_tensor"))
@@ -310,6 +338,68 @@ def test_direct_communication_modes_receive_identity_without_torchrun(
     ]
     assert not (capture_dir / "torchrun-argv").exists()
     assert _generation_count(state_dir) == 2
+    assert _generation_argv(capture_dir) == [
+        "-c",
+        UUID_GENERATION_CODE,
+        "-c",
+        UUID_GENERATION_CODE,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("missing_name", "preset_identity"),
+    (
+        ("TORCHTITAN_RUN_ID", {"TORCHTITAN_ATTEMPT_ID": "platform-attempt"}),
+        ("TORCHTITAN_ATTEMPT_ID", {"TORCHTITAN_RUN_ID": "platform-run"}),
+    ),
+)
+@pytest.mark.parametrize("generation_mode", ("fail", "empty"))
+def test_multinode_launcher_aborts_before_workers_for_invalid_generated_identity(
+    launcher_stubs: tuple[Path, Path, Path],
+    missing_name: str,
+    preset_identity: dict[str, str],
+    generation_mode: str,
+) -> None:
+    _, capture_dir, state_dir = launcher_stubs
+    env = _launcher_env(
+        launcher_stubs,
+        STUB_PYTHON_GENERATION_MODE=generation_mode,
+        **preset_identity,
+    )
+
+    result = _run_launcher(MULTINODE_TRAINER, env, check=False)
+
+    assert result.returncode != 0
+    assert missing_name in result.stderr
+    assert not (capture_dir / "srun-argv").exists()
+    assert not (capture_dir / "torchrun-argv").exists()
+    assert _generation_count(state_dir) == 1
+    assert _generation_argv(capture_dir) == ["-c", UUID_GENERATION_CODE]
+
+
+def test_multinode_launcher_preserves_both_ids_without_python_generation(
+    launcher_stubs: tuple[Path, Path, Path],
+) -> None:
+    _, capture_dir, state_dir = launcher_stubs
+    env = _launcher_env(
+        launcher_stubs,
+        STUB_PYTHON_GENERATION_MODE="fail",
+        TORCHTITAN_ATTEMPT_ID="platform-attempt",
+        TORCHTITAN_RUN_ID="platform-run",
+    )
+
+    _run_launcher(MULTINODE_TRAINER, env)
+
+    assert _nul_record(capture_dir / "srun-env") == [
+        "platform-run",
+        "platform-attempt",
+    ]
+    assert _nul_record(capture_dir / "torchrun-env") == [
+        "platform-run",
+        "platform-attempt",
+    ]
+    assert _generation_count(state_dir) == 0
+    assert _generation_argv(capture_dir) == []
 
 
 def test_multinode_launcher_propagates_identity_topology_and_rendezvous(
@@ -355,6 +445,12 @@ def test_multinode_launcher_propagates_identity_topology_and_rendezvous(
         "--resume",
     ]
     assert _generation_count(state_dir) == 2
+    assert _generation_argv(capture_dir) == [
+        "-c",
+        UUID_GENERATION_CODE,
+        "-c",
+        UUID_GENERATION_CODE,
+    ]
 
 
 def test_elastic_restart_does_not_modify_preserved_attempt_base(
