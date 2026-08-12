@@ -925,3 +925,18 @@ reasoning benchmarks.
   wrapper/boundary failures: missing vLLM in the Harbor venv, FlashInfer CUDA
   compile mismatch before forcing Triton attention, stdout JSON parsing
   collision with vLLM logs, and multiline quoting during container write.
+- 2026-08-12: Added and ran the tau2 Qwen3/vLLM model-policy probe. The
+  registered `torchtitan_qwen_agent` is a half-duplex tau2 agent that keeps the
+  pinned upstream `tau2 run` path but generates its next action by spawning
+  rootfs `/usr/bin/python` with local Qwen3-1.7B, vLLM, Triton attention, and
+  `VLLM_USE_FLASHINFER_SAMPLER=0`. Run
+  `20260812Ttau2-qwen-model-policy` completed one upstream mock-domain
+  `create_task_1` simulation with return code 0, `num_evaluated=1`, and
+  `num_infra_errors=0`. Qwen emitted the correct `create_task` tool call for
+  `user_1` and `Important Meeting`, and tau2 executed the tool, but the bounded
+  run terminated at `max_steps` before the agent sent the required
+  confirmation. The official reward therefore stayed 0.0 and
+  `task_execution_probes_succeeded=false`. This clears tau2 model-policy
+  execution plumbing under the bwrap rootfs, but it is a hard-negative task
+  result rather than a successful tau2 benchmark score. The report is
+  `experiments/scaffold_to_policy/reports/20260812Ttau2-qwen-model-policy.md`.

@@ -786,6 +786,34 @@ The report is:
 experiments/scaffold_to_policy/reports/20260812T113000Z-tau2-noop-baseline.md
 ```
 
+Run the tau2 Qwen model-policy probe by selecting the registered Qwen agent:
+
+```bash
+RUN_ID=20260812Ttau2-qwen-model-policy \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/tau2_qwen_model_policy \
+TAU2_AGENT=torchtitan_qwen_agent \
+TAU2_AGENT_LLM=fake \
+TAU2_USER=torchtitan_static_user \
+TAU2_USER_LLM=fake \
+TAU2_MAX_STEPS=3 \
+PROBE_TIMEOUT_SECONDS=300 \
+SCAFFOLD_TO_POLICY_TAU2_GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_tau2_execution_probe.sh
+```
+
+The completed run used the pinned upstream tau2 runner and Qwen3-1.7B/vLLM
+inside the bwrap rootfs. It recorded `returncode=0`, `num_evaluated=1`,
+`num_infra_errors=0`, and `average_reward=0.0`. The model emitted the correct
+`create_task` tool call for `user_1` and `Important Meeting`, and tau2 executed
+that tool. The simulation still terminated by `max_steps` before the agent sent
+the required confirmation, so `task_execution_probes_succeeded=false`. This is
+valid model-policy execution plumbing and a hard-negative task result, not a
+successful tau2 benchmark score. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812Ttau2-qwen-model-policy.md
+```
+
 Run the Terminal-Bench / Harbor oracle execution probe through the rootfs:
 
 ```bash
