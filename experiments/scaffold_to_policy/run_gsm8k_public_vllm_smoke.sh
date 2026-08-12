@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 
 if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
-  exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_gsm_style_vllm_smoke.sh" "$@"
+  exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_gsm8k_public_vllm_smoke.sh" "$@"
 fi
 
 cd "${REPO_ROOT}"
@@ -17,34 +17,48 @@ export HF_HOME="${REPO_ROOT}/.cache/huggingface"
 export HF_HUB_CACHE="${HF_HOME}/hub"
 export VLLM_USE_FLASHINFER_SAMPLER="${SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER:-0}"
 
-RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-gsm-style-vllm-smoke}"
+RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-gsm8k-public-vllm-smoke}"
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
-DATA_ROOT="${DATA_ROOT:-experiments/scaffold_to_policy/data/gsm_style_vllm_smoke}"
-RESULTS_ROOT="${RESULTS_ROOT:-experiments/scaffold_to_policy/results/gsm_style_vllm_smoke}"
-FIXTURE_ROOT="${FIXTURE_ROOT:-experiments/scaffold_to_policy/fixtures}"
+DATASET="${DATASET:-openai/gsm8k}"
+DATASET_SUBSET="${DATASET_SUBSET:-main}"
+DATASET_REVISION="${DATASET_REVISION:-740312add88f781978c0658806c59bc2815b9866}"
+SOURCE_SPLIT="${SOURCE_SPLIT:-test}"
+DATA_ROOT="${DATA_ROOT:-experiments/scaffold_to_policy/data/gsm8k_public_vllm_smoke}"
+RESULTS_ROOT="${RESULTS_ROOT:-experiments/scaffold_to_policy/results/gsm8k_public_vllm_smoke}"
+DEV_PROBLEMS="${DEV_PROBLEMS:-8}"
+OOD_PROBLEMS="${OOD_PROBLEMS:-8}"
+DEV_OFFSET="${DEV_OFFSET:-0}"
+OOD_OFFSET="${OOD_OFFSET:-256}"
 NUM_ROLLOUTS="${NUM_ROLLOUTS:-4}"
-MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-256}"
+MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-384}"
 PROMPT_VARIANT="${PROMPT_VARIANT:-chat}"
 TEMPERATURE="${TEMPERATURE:-0.8}"
 TOP_P="${TOP_P:-0.95}"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli prepare-gsm-style-split \
-  --input "${FIXTURE_ROOT}/gsm_style_train.jsonl" \
-  --output "${DATA_ROOT}/train.jsonl"
+python -m torchtitan.experiments.scaffold_to_policy.cli import-gsm8k-split \
+  --dataset "${DATASET}" \
+  --subset "${DATASET_SUBSET}" \
+  --source-split "${SOURCE_SPLIT}" \
+  --revision "${DATASET_REVISION}" \
+  --limit "${DEV_PROBLEMS}" \
+  --offset "${DEV_OFFSET}" \
+  --output "${DATA_ROOT}/dev.jsonl" \
+  --provenance "${DATA_ROOT}/dev_provenance.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli prepare-gsm-style-split \
-  --input "${FIXTURE_ROOT}/gsm_style_dev.jsonl" \
-  --output "${DATA_ROOT}/dev.jsonl"
-
-python -m torchtitan.experiments.scaffold_to_policy.cli prepare-gsm-style-split \
-  --input "${FIXTURE_ROOT}/gsm_style_ood_test.jsonl" \
-  --output "${DATA_ROOT}/ood_test.jsonl"
+python -m torchtitan.experiments.scaffold_to_policy.cli import-gsm8k-split \
+  --dataset "${DATASET}" \
+  --subset "${DATASET_SUBSET}" \
+  --source-split "${SOURCE_SPLIT}" \
+  --revision "${DATASET_REVISION}" \
+  --limit "${OOD_PROBLEMS}" \
+  --offset "${OOD_OFFSET}" \
+  --output "${DATA_ROOT}/ood_test.jsonl" \
+  --provenance "${DATA_ROOT}/ood_test_provenance.json"
 
 python -m torchtitan.experiments.scaffold_to_policy.cli validate-gsm-style-splits \
   --split \
-    "train=${DATA_ROOT}/train.jsonl" \
     "dev=${DATA_ROOT}/dev.jsonl" \
     "ood_test=${DATA_ROOT}/ood_test.jsonl" \
   --output "${DATA_ROOT}/split_registry.json"

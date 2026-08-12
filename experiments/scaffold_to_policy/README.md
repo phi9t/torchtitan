@@ -238,6 +238,30 @@ report is:
 experiments/scaffold_to_policy/reports/20260812T080500Z-gsm-style-vllm-smoke.md
 ```
 
+Run the first pinned public GSM8K no-tool smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_gsm8k_public_vllm_smoke.sh
+```
+
+This imports small dev/OOD slices from `openai/gsm8k` at dataset revision
+`740312add88f781978c0658806c59bc2815b9866`, evaluates Qwen3-1.7B with vLLM
+without tools, and verifies outputs with the same exact GSM-style normalizer.
+The generated public-slice artifacts live under:
+
+```text
+experiments/scaffold_to_policy/data/gsm8k_public_vllm_smoke/
+experiments/scaffold_to_policy/results/gsm8k_public_vllm_smoke/
+```
+
+The first completed public smoke used 8 dev and 8 OOD examples from the GSM8K
+test split, 4 rollouts per problem, and reached dev pass@1 `0.625`, dev
+pass@4 `0.750`, OOD pass@1 `0.625`, and OOD pass@4 `0.750`. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T083000Z-gsm8k-public-vllm-smoke.md
+```
+
 ## Agentic Benchmarks
 
 tau2-bench and Terminal-Bench/Harbor are in scope, but they enter after the

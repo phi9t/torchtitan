@@ -61,6 +61,7 @@ python -m torchtitan.experiments.scaffold_to_policy.cli build-gsm-style-report-i
   --summary \
     "dev=${RESULTS_ROOT}/eval/dev_summary.json" \
     "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
+  --scaffold-budget 4 \
   --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
 
 echo "wrote ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"

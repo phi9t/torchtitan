@@ -223,11 +223,50 @@ def test_gsm_style_report_input_validates_summary_counts(tmp_path):
         run_id="fixture",
         split_registry=split_registry,
         summary_paths={"dev": summary},
+        scaffold_budget=1,
     )
 
     assert all(report_input["checks"].values())
     assert report_input["run"]["task"] == "gsm_style"
+    assert report_input["run"]["scaffold"]["budget"] == 1
     assert report_input["verifier"]["kind"] == "exact"
+
+
+def test_gsm_style_import_public_rows_records_revision_source(tmp_path):
+    rows = [
+        {
+            "question": "Mia has 3 bags with 4 shells each. How many shells?",
+            "answer": "Mia has 3 * 4 = 12 shells.\n#### 12",
+        },
+        {
+            "question": "A rope is 3 meters split in half. How long is each piece?",
+            "answer": "Each piece is 3 / 2 = 1.5 meters.\n#### 1.5",
+        },
+    ]
+
+    problems = gsm_style.import_public_rows(
+        rows,
+        source="openai/gsm8k:main:abc123:test",
+        limit=1,
+        offset=1,
+    )
+    provenance = gsm_style.build_public_provenance(
+        dataset="openai/gsm8k",
+        subset="main",
+        revision="abc123",
+        source_split="test",
+        output=tmp_path / "dev.jsonl",
+        limit=1,
+        offset=1,
+        problems=problems,
+    )
+
+    assert len(problems) == 1
+    assert problems[0].answer == "1.5"
+    assert problems[0].normalized_answer == "3/2"
+    assert problems[0].source == "openai/gsm8k:main:abc123:test"
+    assert provenance["revision"] == "abc123"
+    assert provenance["num_problems"] == 1
 
 
 def test_gsm_style_parser_has_fixture_commands():
@@ -258,6 +297,33 @@ def test_gsm_style_parser_has_fixture_commands():
 
     assert str(prepare.input) == "raw.jsonl"
     assert str(evaluate.summary) == "summary.json"
+
+
+def test_gsm8k_import_parser_requires_pinned_revision():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "import-gsm8k-split",
+            "--output",
+            "dev.jsonl",
+            "--provenance",
+            "dev_provenance.json",
+            "--revision",
+            "abc123",
+            "--limit",
+            "8",
+            "--offset",
+            "4",
+        ]
+    )
+
+    assert args.dataset == "openai/gsm8k"
+    assert args.subset == "main"
+    assert args.source_split == "test"
+    assert args.revision == "abc123"
+    assert args.limit == 8
+    assert args.offset == 4
 
 
 def test_gsm_style_vllm_parser_defaults_to_chat_prompt():

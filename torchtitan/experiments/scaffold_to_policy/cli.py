@@ -51,6 +51,46 @@ def prepare_gsm_style_split(args: argparse.Namespace) -> None:
     gsm_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
 
 
+def import_gsm8k_split(args: argparse.Namespace) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "datasets is required for import-gsm8k-split. Run through the "
+            "TorchTitan rootfs."
+        ) from exc
+
+    dataset = load_dataset(
+        args.dataset,
+        args.subset,
+        split=args.source_split,
+        revision=args.revision,
+    )
+    source = (
+        f"{args.dataset}:{args.subset}:{args.revision}:"
+        f"{args.source_split}"
+    )
+    problems = gsm_style.import_public_rows(
+        dataset,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    gsm_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    if args.provenance is not None:
+        provenance = gsm_style.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        gsm_style.write_json(args.provenance, provenance)
+
+
 def validate_arithmetic_splits(args: argparse.Namespace) -> None:
     split_paths = _parse_split_paths(args.split)
     registry = build_split_registry(split_paths)
@@ -342,6 +382,7 @@ def build_gsm_style_report_input(args: argparse.Namespace) -> None:
         run_id=args.run_id,
         split_registry=args.split_registry,
         summary_paths=summary_paths,
+        scaffold_budget=args.scaffold_budget,
     )
     gsm_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -584,6 +625,17 @@ def build_parser() -> argparse.ArgumentParser:
     gsm_prepare_parser.add_argument("--output", type=Path, required=True)
     gsm_prepare_parser.set_defaults(func=prepare_gsm_style_split)
 
+    gsm8k_import_parser = subparsers.add_parser("import-gsm8k-split")
+    gsm8k_import_parser.add_argument("--output", type=Path, required=True)
+    gsm8k_import_parser.add_argument("--provenance", type=Path)
+    gsm8k_import_parser.add_argument("--dataset", default="openai/gsm8k")
+    gsm8k_import_parser.add_argument("--subset", default="main")
+    gsm8k_import_parser.add_argument("--source-split", default="test")
+    gsm8k_import_parser.add_argument("--revision", required=True)
+    gsm8k_import_parser.add_argument("--limit", type=int, required=True)
+    gsm8k_import_parser.add_argument("--offset", type=int, default=0)
+    gsm8k_import_parser.set_defaults(func=import_gsm8k_split)
+
     fixture_writer = subparsers.add_parser("write-arithmetic-fixture")
     fixture_writer.add_argument("--problems", type=Path, required=True)
     fixture_writer.add_argument("--output", type=Path, required=True)
@@ -789,6 +841,7 @@ def build_parser() -> argparse.ArgumentParser:
     gsm_report_parser.add_argument("--split-registry", type=Path, required=True)
     gsm_report_parser.add_argument("--summary", nargs="+", required=True)
     gsm_report_parser.add_argument("--output", type=Path, required=True)
+    gsm_report_parser.add_argument("--scaffold-budget", type=int, default=32)
     gsm_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,

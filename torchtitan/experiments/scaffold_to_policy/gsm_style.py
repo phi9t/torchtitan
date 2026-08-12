@@ -277,6 +277,64 @@ def build_split_registry(split_paths: dict[str, Path]) -> dict[str, object]:
     }
 
 
+def import_public_rows(
+    rows: Iterable[dict[str, object]],
+    *,
+    source: str,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[GSMStyleProblem]:
+    problems = []
+    for row_index, row in enumerate(rows):
+        if row_index < offset:
+            continue
+        if limit is not None and len(problems) >= limit:
+            break
+        question = str(row["question"])
+        rationale = str(row["answer"])
+        answer = _extract_public_answer(rationale)
+        normalized_answer = normalize_answer(answer)
+        if normalized_answer is None:
+            raise ValueError(f"could not normalize public answer {answer!r}")
+        problems.append(
+            GSMStyleProblem(
+                problem_id=_problem_id(source, question, answer),
+                source=source,
+                question=question,
+                answer=answer,
+                normalized_answer=normalized_answer,
+                rationale=rationale,
+            )
+        )
+    return problems
+
+
+def build_public_provenance(
+    *,
+    dataset: str,
+    subset: str,
+    revision: str,
+    source_split: str,
+    output: Path,
+    limit: int,
+    offset: int,
+    problems: Sequence[GSMStyleProblem],
+) -> dict[str, object]:
+    problem_ids = [problem.problem_id for problem in problems]
+    return {
+        "dataset": dataset,
+        "subset": subset,
+        "revision": revision,
+        "source_split": source_split,
+        "output": str(output),
+        "limit": limit,
+        "offset": offset,
+        "num_problems": len(problems),
+        "problem_id_hash": _hash_lines(problem_ids),
+        "source": _public_source(dataset, subset, revision, source_split),
+    }
+
+
 def build_report_input(
     *,
     data_root: Path,
@@ -284,6 +342,7 @@ def build_report_input(
     run_id: str,
     split_registry: Path,
     summary_paths: dict[str, Path],
+    scaffold_budget: int,
 ) -> dict[str, object]:
     summaries = {
         split: json.loads(path.read_text()) for split, path in summary_paths.items()
@@ -304,7 +363,10 @@ def build_report_input(
             "run_id": run_id,
             "task": "gsm_style",
             "lane": "reasoning",
-            "scaffold": {"type": "fixture_or_no_tool_sampling", "budget": 32},
+            "scaffold": {
+                "type": "fixture_or_no_tool_sampling",
+                "budget": scaffold_budget,
+            },
         },
         "artifacts": {
             "data_root": str(data_root),
@@ -381,6 +443,22 @@ def _extract_final_value(text: str) -> str | None:
             if match is not None:
                 return match.group(1).strip()
     return None
+
+
+def _extract_public_answer(rationale: str) -> str:
+    marker = "####"
+    if marker not in rationale:
+        raise ValueError("public answer is missing GSM8K #### marker")
+    return rationale.rsplit(marker, maxsplit=1)[1].strip()
+
+
+def _public_source(
+    dataset: str,
+    subset: str,
+    revision: str,
+    source_split: str,
+) -> str:
+    return f"{dataset}:{subset}:{revision}:{source_split}"
 
 
 def _problem_id(source: str, question: str, answer: str) -> str:

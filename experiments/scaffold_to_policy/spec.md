@@ -387,3 +387,14 @@ reasoning benchmarks.
   plumbing gate only. It is not a public benchmark result because it uses
   checked-in local fixtures rather than a pinned public GSM8K/GSM-style dataset
   revision.
+- 2026-08-12: Added and ran the first pinned public GSM8K no-tool smoke. The
+  new `import-gsm8k-split` command imports `openai/gsm8k` rows at explicit
+  dataset revision `740312add88f781978c0658806c59bc2815b9866`, converts the
+  GSM8K `####` answer into the shared `gsm_style` problem format, records
+  per-split provenance, validates split overlap, evaluates Qwen3-1.7B with
+  vLLM inside the bwrap rootfs, and writes a report input with the actual
+  scaffold budget. The completed smoke used 8 dev and 8 OOD examples from the
+  GSM8K test split, 4 rollouts per problem, and reached dev pass@1 0.625,
+  dev pass@4 0.750, OOD pass@1 0.625, and OOD pass@4 0.750. This clears the
+  first public reasoning plumbing and calibration gate, but it remains too
+  small for a public benchmark claim or adapter-training conclusion.
