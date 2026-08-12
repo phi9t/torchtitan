@@ -31,7 +31,7 @@ read -r -a LORA_RANK_LIST <<< "${LORA_RANKS}"
 SWEEP_ROOT="${TORCHTITAN_COUNTDOWN_ROOT}/sweeps/replication"
 mkdir -p "${SWEEP_ROOT}"
 SUMMARY="${SWEEP_ROOT}/replication_sweep_${MODE}.jsonl"
-: > "${SUMMARY}"
+touch "${SUMMARY}"
 
 for seed in "${SEED_LIST[@]}"; do
   for train_size in "${TRAIN_SIZE_LIST[@]}"; do
