@@ -863,8 +863,13 @@ reasoning benchmarks.
   available KV-cache memory; the same OOD problem completed when launched as a
   fresh rootfs process. Both completed one-problem split evaluations scored
   pass@1 through pass@32 of 0.0 with released-test assertion failures, so these
-  are valid verifier failures rather than model successes. A full updated shell
-  rerun, `20260812Tbigcode-hard-shared-engine`, could not proceed to model
-  execution because unrelated SGLang scheduler processes occupied all eight
-  B200s and the vLLM GPU preflight found only 5.74 GiB free versus 8.92 GiB
-  required at `GPU_MEMORY_UTILIZATION=0.05`.
+  are valid verifier failures rather than model successes. The first full
+  updated shell rerun, `20260812Tbigcode-hard-shared-engine`, could not proceed
+  to model execution because unrelated SGLang scheduler processes occupied all
+  eight B200s and the vLLM GPU preflight found only 5.74 GiB free versus
+  8.92 GiB required at `GPU_MEMORY_UTILIZATION=0.05`. After the GPU cleared,
+  `20260812Tbigcode-hard-shared-engine-verified` completed the updated shell
+  path end to end: canonical preflights passed, `evaluate_splits` processed dev
+  and OOD in one vLLM engine, report checks selected, and both one-problem
+  splits scored pass@1 through pass@32 of 0.0 due to released-test assertion
+  failures.

@@ -4,6 +4,7 @@ Run IDs:
 
 - `20260812Tbigcode-hard-isolated-gpu0`
 - `20260812Tbigcode-hard-shared-engine`
+- `20260812Tbigcode-hard-shared-engine-verified`
 
 This is a coding-lane infrastructure report, not a BigCodeBench-Hard capability
 claim.
@@ -76,17 +77,57 @@ labels. The released tests failed with five type errors.
 
 Both examples are valid verifier failures, not harness errors.
 
-## Current Blocker
+## Verified Shared-Engine Run
 
-The updated shared-engine runner was executed as
-`20260812Tbigcode-hard-shared-engine`, but before model execution the GPU
-preflight found only `5.74 GiB` free on visible GPU 0 versus `8.92 GiB`
-required at `GPU_MEMORY_UTILIZATION=0.05`.
+After GPU 0 became free, the updated shared-engine runner completed as
+`20260812Tbigcode-hard-shared-engine-verified`:
+
+- `DEV_PROBLEMS=1`, `OOD_PROBLEMS=1`, `NUM_ROLLOUTS=1`
+- `MAX_NEW_TOKENS=256`
+- `GPU_MEMORY_UTILIZATION=0.05`
+- `CUDA_VISIBLE_DEVICES=0`
+- `INSTALL_BIGCODEBENCH_DEPS=0`
+
+The run wrote:
+
+- stage manifest:
+  `experiments/scaffold_to_policy/results/bigcode_hard_shared_engine_verified/manifests/20260812Tbigcode-hard-shared-engine-verified.jsonl`
+- report input:
+  `experiments/scaffold_to_policy/results/bigcode_hard_shared_engine_verified/manifests/report_input_20260812Tbigcode-hard-shared-engine-verified.json`
+
+The report checks selected:
+
+```text
+split_registry_selected=true
+summaries_present=true
+summary_split_counts_match=true
+preflights_present=true
+preflight_split_counts_match=true
+preflight_canonical_solutions_pass=true
+artifact_provenance_labeled=true
+```
+
+Both split summaries were benchmark-clean but unsolved:
+
+| Split | Problems | Rollouts | pass@1 | pass@32 | Failure |
+| --- | ---: | ---: | ---: | ---: | --- |
+| dev | 1 | 1 | 0.0 | 0.0 | assertion failure |
+| ood_test | 1 | 1 | 0.0 | 0.0 | assertion failure |
+
+The stage manifest confirms that one `evaluate_splits` stage invoked
+`evaluate-coding-style-vllm-splits`, rendered two prompts in one vLLM engine,
+and returned code 0.
+
+## Superseded Blocker Attempt
+
+Before the verified rerun, `20260812Tbigcode-hard-shared-engine` stopped before
+model execution because the GPU preflight found only `5.74 GiB` free on visible
+GPU 0 versus `8.92 GiB` required at `GPU_MEMORY_UTILIZATION=0.05`.
 
 Host `nvidia-smi` then showed all eight B200s occupied by unrelated
 `sglang::scheduler` processes. The updated runner therefore still needs a clean
 GPU rerun before the code change can be counted as end-to-end BigCodeBench-Hard
-shell-run validation.
+shell-run validation. The later verified run above cleared this blocker.
 
 ## Interpretation
 
@@ -98,6 +139,6 @@ runner while preserving benchmark semantics:
 - model candidates are still checked by released tests;
 - no LLM judge or alternate scoring path is introduced.
 
-Next step: rerun `20260812Tbigcode-hard-shared-engine` or a fresh equivalent
-when one B200 is free, then use its report input as the coding-lane hard-smoke
-artifact.
+Next step: use the verified shared-engine runner for the larger preflight-clean
+BigCodeBench-Hard slice, then investigate prompting or repair rather than vLLM
+runner lifecycle.
