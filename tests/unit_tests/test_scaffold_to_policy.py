@@ -911,6 +911,29 @@ def test_arc_grid_strict_prompt_requests_one_line_final_only():
     assert "Return a short reasoning trace" not in prompt
 
 
+def test_arc_grid_compact_prompt_preserves_examples_and_final_contract():
+    problem = arc_grid.ARCGridProblem(
+        problem_id="ARC-AGI-2/fixture/0",
+        source="fixture",
+        train_examples=(
+            arc_grid.ARCExample(
+                input_grid=((1, 0), (0, 1)),
+                output_grid=((0, 1), (1, 0)),
+            ),
+        ),
+        test_input=((2, 0), (0, 2)),
+        test_output=((0, 2), (2, 0)),
+    )
+
+    compact = arc_grid.compact_prompt_for_problem(problem)
+    full = arc_grid.prompt_for_problem(problem)
+
+    assert compact.startswith("ARC. Infer output. End FINAL:<json-grid>.")
+    assert "E1 I=[[1,0],[0,1]] O=[[0,1],[1,0]]" in compact
+    assert "T=[[2,0],[0,2]]" in compact
+    assert len(compact) < len(full)
+
+
 def test_arc_grid_imports_tasks_and_reports(tmp_path):
     task_dir = tmp_path / "arc" / "training"
     task_dir.mkdir(parents=True)
@@ -1663,7 +1686,7 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "--output",
             "preflight.json",
             "--prompt-variant",
-            "strict_chat",
+            "compact_chat",
         ]
     )
     multiple = parser.parse_args(
@@ -1737,7 +1760,7 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert coding_preflight.timeout_seconds == 5.0
     assert arc.source_split == "training"
     assert arc_preflight.max_model_len == 4096
-    assert arc_preflight.prompt_variant == "strict_chat"
+    assert arc_preflight.prompt_variant == "compact_chat"
     assert multiple.prompt_variant == "chat"
     assert multiple.num_rollouts == 4
     assert arc_eval.prompt_variant == "chat"

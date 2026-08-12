@@ -176,6 +176,17 @@ def strict_prompt_for_problem(problem: ARCGridProblem) -> str:
     return "\n".join(lines)
 
 
+def compact_prompt_for_problem(problem: ARCGridProblem) -> str:
+    lines = ["ARC. Infer output. End FINAL:<json-grid>."]
+    for index, example in enumerate(problem.train_examples, start=1):
+        lines.append(
+            f"E{index} I={_compact_grid_json(example.input_grid)} "
+            f"O={_compact_grid_json(example.output_grid)}"
+        )
+    lines.append(f"T={_compact_grid_json(problem.test_input)}")
+    return "\n".join(lines)
+
+
 def verify_answer(problem: ARCGridProblem, text: str) -> ARCGridVerification:
     final_value = _extract_final_value(text)
     if final_value is None:
