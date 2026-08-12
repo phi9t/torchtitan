@@ -248,6 +248,54 @@ def evaluate_modular_vllm(args: argparse.Namespace) -> None:
     )
 
 
+def evaluate_gsm_style_vllm(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-gsm-style-vllm. Run through the "
+            "TorchTitan rootfs or use evaluate-gsm-style-fixture."
+        ) from exc
+
+    problems = gsm_style.load_problems(args.problems)
+    prompts = _build_gsm_style_vllm_prompts(problems, args)
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(prompts, sampling_params)
+    evaluations = []
+    for problem, output in zip(problems, outputs):
+        evaluations.append(
+            gsm_style.evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+            )
+        )
+    gsm_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    gsm_style.write_json(
+        args.summary,
+        gsm_style.summarize_evaluations(evaluations),
+    )
+
+
 def build_arithmetic_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
     report_input = build_report_input(
@@ -445,6 +493,37 @@ def _build_modular_vllm_prompts(
     ]
 
 
+def _build_gsm_style_vllm_prompts(
+    problems: list[gsm_style.GSMStyleProblem],
+    args: argparse.Namespace,
+) -> list[str]:
+    if args.prompt_variant == "plain":
+        return [gsm_style.prompt_for_problem(problem) for problem in problems]
+    if args.prompt_variant != "chat":
+        raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return [
+        tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You solve grade-school math problems. Return a short "
+                        "calculation trace and end with FINAL: <answer>."
+                    ),
+                },
+                {"role": "user", "content": gsm_style.prompt_for_problem(problem)},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        for problem in problems
+    ]
+
+
 def _concise_modular_prompt(problem: ModularSequenceProblem) -> str:
     return (
         f"x0={problem.start}; for i=1..{problem.steps}, "
@@ -621,6 +700,43 @@ def build_parser() -> argparse.ArgumentParser:
     modular_vllm_parser.add_argument("--lora-id", type=int, default=1)
     modular_vllm_parser.add_argument("--max-lora-rank", type=int, default=32)
     modular_vllm_parser.set_defaults(func=evaluate_modular_vllm)
+
+    gsm_vllm_parser = subparsers.add_parser("evaluate-gsm-style-vllm")
+    gsm_vllm_parser.add_argument("--problems", type=Path, required=True)
+    gsm_vllm_parser.add_argument("--model", required=True)
+    gsm_vllm_parser.add_argument("--output", type=Path, required=True)
+    gsm_vllm_parser.add_argument("--summary", type=Path, required=True)
+    gsm_vllm_parser.add_argument("--num-rollouts", type=int, default=32)
+    gsm_vllm_parser.add_argument("--temperature", type=float, default=0.8)
+    gsm_vllm_parser.add_argument("--top-p", type=float, default=0.95)
+    gsm_vllm_parser.add_argument("--max-new-tokens", type=int, default=256)
+    gsm_vllm_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    gsm_vllm_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "2048")),
+    )
+    gsm_vllm_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    gsm_vllm_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    gsm_vllm_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    gsm_vllm_parser.set_defaults(func=evaluate_gsm_style_vllm)
 
     split_parser = subparsers.add_parser("validate-arithmetic-splits")
     split_parser.add_argument("--split", nargs="+", required=True)

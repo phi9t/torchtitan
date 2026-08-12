@@ -260,6 +260,28 @@ def test_gsm_style_parser_has_fixture_commands():
     assert str(evaluate.summary) == "summary.json"
 
 
+def test_gsm_style_vllm_parser_defaults_to_chat_prompt():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "evaluate-gsm-style-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+
+    assert args.prompt_variant == "chat"
+    assert args.num_rollouts == 32
+    assert args.max_new_tokens == 256
+
+
 def test_modular_sequences_generation_is_deterministic():
     first = modular_sequences.generate_split(seed=500, num_problems=4)
     second = modular_sequences.generate_split(seed=500, num_problems=4)

@@ -375,3 +375,15 @@ reasoning benchmarks.
   normalization smoke gate; the next stage is a small no-tool GSM-style
   real-model evaluation using the same verifier before any MATH-style or
   agentic harness expansion.
+- 2026-08-12: Added and ran the no-tool GSM-style vLLM smoke with Qwen3-1.7B
+  inside the bwrap rootfs. The new rootfs-managed entrypoint prepares the
+  checked-in GSM-style fixture splits, validates split overlap, prompts vLLM
+  directly with chat-formatted no-tool math prompts, verifies generations with
+  `gsm_style_normalized_final_v1`, and writes a report input. The smoke used
+  3 dev and 3 OOD fixture problems with 4 rollouts per problem. Dev reached
+  1.000 pass@1 and strict-format pass@1; OOD also reached 1.000 pass@1 and
+  strict-format pass@1, with one non-first-sample OOD format failure where the
+  model emitted `Final: <answer>`. This clears the first real-model GSM-style
+  plumbing gate only. It is not a public benchmark result because it uses
+  checked-in local fixtures rather than a pinned public GSM8K/GSM-style dataset
+  revision.

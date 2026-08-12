@@ -212,6 +212,32 @@ The first completed report is:
 experiments/scaffold_to_policy/reports/20260812T075500Z-gsm-style-smoke.md
 ```
 
+Run the first no-tool GSM-style real-model smoke through the same rootfs
+boundary:
+
+```bash
+experiments/scaffold_to_policy/run_gsm_style_vllm_smoke.sh
+```
+
+This evaluates Qwen3-1.7B with vLLM on the checked-in GSM-style dev/OOD
+fixtures, then verifies the outputs with the exact GSM-style final-answer
+normalizer. It writes artifacts under:
+
+```text
+experiments/scaffold_to_policy/data/gsm_style_vllm_smoke/
+experiments/scaffold_to_policy/results/gsm_style_vllm_smoke/
+```
+
+The first completed no-tool vLLM smoke used 3 dev and 3 OOD fixture problems,
+4 rollouts per problem, and reached 1.000 pass@1 and strict-format pass@1 on
+both splits. One non-first-sample OOD rollout emitted `Final: <answer>` and was
+rejected by answer normalization, while pass@1/pass@4 stayed at 1.000. The
+report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T080500Z-gsm-style-vllm-smoke.md
+```
+
 ## Agentic Benchmarks
 
 tau2-bench and Terminal-Bench/Harbor are in scope, but they enter after the
