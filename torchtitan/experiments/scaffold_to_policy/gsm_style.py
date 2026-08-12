@@ -345,6 +345,7 @@ def build_report_input(
     split_registry: Path,
     summary_paths: dict[str, Path],
     scaffold_budget: int,
+    runtime_path: Path | None = None,
 ) -> dict[str, object]:
     return report_artifacts.build_report_input(
         data_root=data_root,
@@ -358,6 +359,7 @@ def build_report_input(
         },
         split_registry=split_registry,
         summary_paths=summary_paths,
+        runtime_path=runtime_path,
         verifier={
             "kind": "exact",
             "name": "gsm_style_normalized_final_v1",

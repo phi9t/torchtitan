@@ -6,9 +6,13 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
+import importlib.util
 import json
 import os
+import platform
 from pathlib import Path
+import sys
 from typing import Callable
 
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
@@ -882,14 +886,167 @@ def preflight_vllm_gpu_memory(args: argparse.Namespace) -> None:
         )
 
 
+def capture_runtime_metadata(args: argparse.Namespace) -> None:
+    metadata = {
+        "schema_version": 1,
+        "kind": "scaffold_to_policy_runtime_metadata",
+        "run_id": args.run_id,
+        "rootfs": {
+            "active": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+            "entrypoint": "scripts/rootfs/enter_rootfs.sh",
+        },
+        "python": {
+            "executable": sys.executable,
+            "version": sys.version,
+            "version_info": list(sys.version_info[:5]),
+        },
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+            "platform": platform.platform(),
+        },
+        "packages": _runtime_package_versions(
+            ["torch", "vllm", "datasets", "transformers", "spmd_types"]
+        ),
+        "cuda": _runtime_cuda_metadata(),
+        "model": _runtime_model_metadata(args.model),
+        "vllm": {
+            "attention_backend": args.attention_backend,
+            "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+            "use_flashinfer_sampler": args.use_flashinfer_sampler,
+            "max_model_len": args.max_model_len,
+            "gpu_memory_utilization": args.gpu_memory_utilization,
+        },
+        "sampling": {
+            "prompt_variant": args.prompt_variant,
+            "num_rollouts": args.num_rollouts,
+            "temperature": args.temperature,
+            "top_p": args.top_p,
+            "max_new_tokens": args.max_new_tokens,
+        },
+        "environment": {
+            name: os.environ.get(name)
+            for name in [
+                "CUDA_VISIBLE_DEVICES",
+                "HF_HOME",
+                "HF_HUB_CACHE",
+                "VLLM_USE_FLASHINFER_SAMPLER",
+                "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND",
+                "SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE",
+                "SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER",
+            ]
+        },
+    }
+    arc_grid.write_json(args.output, metadata)
+
+
+def _runtime_package_versions(package_names: list[str]) -> dict[str, object]:
+    versions = {}
+    for package_name in package_names:
+        module_name = package_name.replace("-", "_")
+        spec = importlib.util.find_spec(module_name)
+        record: dict[str, object] = {"available": spec is not None}
+        try:
+            record["version"] = importlib.metadata.version(package_name)
+        except importlib.metadata.PackageNotFoundError:
+            record["version"] = None
+        versions[package_name] = record
+    return versions
+
+
+def _runtime_cuda_metadata() -> dict[str, object]:
+    try:
+        import torch
+    except ImportError as exc:
+        return {
+            "torch_imported": False,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        }
+
+    metadata: dict[str, object] = {
+        "torch_imported": True,
+        "torch_version": torch.__version__,
+        "cuda_version": torch.version.cuda,
+        "available": torch.cuda.is_available(),
+    }
+    if not torch.cuda.is_available():
+        metadata["device_count"] = 0
+        metadata["devices"] = []
+        return metadata
+
+    devices = []
+    for device_index in range(torch.cuda.device_count()):
+        device: dict[str, object] = {
+            "device_index": device_index,
+            "name": torch.cuda.get_device_name(device_index),
+        }
+        try:
+            free_bytes, total_bytes = torch.cuda.mem_get_info(device_index)
+        except Exception as exc:
+            device.update(
+                {
+                    "memory_query_ok": False,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+            )
+        else:
+            device.update(
+                {
+                    "memory_query_ok": True,
+                    "free_bytes": free_bytes,
+                    "total_bytes": total_bytes,
+                    "free_gib": free_bytes / (1024**3),
+                    "total_gib": total_bytes / (1024**3),
+                }
+            )
+        devices.append(device)
+    metadata["device_count"] = len(devices)
+    metadata["devices"] = devices
+    return metadata
+
+
+def _runtime_model_metadata(model: str) -> dict[str, object]:
+    path = Path(model)
+    metadata: dict[str, object] = {
+        "path": model,
+        "is_local_path": path.exists(),
+    }
+    if path.exists():
+        metadata["is_dir"] = path.is_dir()
+        if path.is_dir():
+            expected_files = [
+                "config.json",
+                "generation_config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+            ]
+            metadata["expected_files"] = {
+                name: (path / name).is_file() for name in expected_files
+            }
+            metadata["num_safetensors"] = len(list(path.glob("*.safetensors")))
+        else:
+            metadata["size_bytes"] = path.stat().st_size
+    return metadata
+
+
 def write_blocker_report_input(args: argparse.Namespace) -> None:
     artifact_paths = _parse_split_paths(args.artifact)
     blocker_payloads = report_artifacts.load_json_files(artifact_paths)
+    runtime = report_artifacts.load_json(args.runtime) if args.runtime is not None else None
     artifact_details = report_artifacts.describe_artifacts(
         artifact_paths,
         run_id=args.run_id,
         payloads=blocker_payloads,
     )
+    if args.runtime is not None:
+        artifact_details["runtime"] = report_artifacts.describe_artifact(
+            args.runtime,
+            run_id=args.run_id,
+            payload=runtime,
+        )
     freshness = report_artifacts.summarize_artifact_freshness(artifact_details)
     selected_values = [
         payload.get("selected")
@@ -900,6 +1057,7 @@ def write_blocker_report_input(args: argparse.Namespace) -> None:
         "blocker_artifacts_present": all(
             path.is_file() for path in artifact_paths.values()
         ),
+        "runtime_metadata_present": args.runtime is None or args.runtime.is_file(),
         "artifact_provenance_labeled": bool(freshness["all_labeled"]),
         "benchmark_execution_completed": False,
     }
@@ -921,11 +1079,14 @@ def write_blocker_report_input(args: argparse.Namespace) -> None:
         "artifacts": {
             "results_root": str(args.results_root),
             "blockers": {name: str(path) for name, path in artifact_paths.items()},
+            "runtime": None if args.runtime is None else str(args.runtime),
             "details": artifact_details,
             "freshness": freshness,
         },
         "blockers": blocker_payloads,
     }
+    if runtime is not None:
+        report["runtime"] = runtime
     arc_grid.write_json(args.output, report)
 
 
@@ -1444,6 +1605,7 @@ def build_arithmetic_report_input(args: argparse.Namespace) -> None:
         run_id=args.run_id,
         split_registry=args.split_registry,
         summary_paths=summary_paths,
+        runtime_path=args.runtime,
     )
     write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1465,6 +1627,7 @@ def build_modular_report_input(args: argparse.Namespace) -> None:
         split_registry=args.split_registry,
         summary_paths=summary_paths,
         evaluation_paths=evaluation_paths,
+        runtime_path=args.runtime,
     )
     modular_sequences.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1483,6 +1646,7 @@ def build_gsm_style_report_input(args: argparse.Namespace) -> None:
         split_registry=args.split_registry,
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
+        runtime_path=args.runtime,
     )
     gsm_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1501,6 +1665,7 @@ def build_math_style_report_input(args: argparse.Namespace) -> None:
         split_registry=args.split_registry,
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
+        runtime_path=args.runtime,
     )
     math_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1523,6 +1688,7 @@ def build_coding_style_report_input(args: argparse.Namespace) -> None:
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
         preflight_paths=preflight_paths,
+        runtime_path=args.runtime,
     )
     coding_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1541,6 +1707,7 @@ def build_contest_code_report_input(args: argparse.Namespace) -> None:
         split_registry=args.split_registry,
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
+        runtime_path=args.runtime,
     )
     contest_code.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1559,6 +1726,7 @@ def build_multiple_choice_report_input(args: argparse.Namespace) -> None:
         split_registry=args.split_registry,
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
+        runtime_path=args.runtime,
     )
     multiple_choice.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1581,6 +1749,7 @@ def build_arc_grid_report_input(args: argparse.Namespace) -> None:
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
         preflight_paths=preflight_paths,
+        runtime_path=args.runtime,
     )
     arc_grid.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -2211,6 +2380,10 @@ def _add_public_import_cache_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_runtime_report_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--runtime", type=Path)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Scaffold-to-policy task tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2514,6 +2687,35 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     vllm_memory_preflight_parser.set_defaults(func=preflight_vllm_gpu_memory)
+
+    runtime_parser = subparsers.add_parser("capture-runtime-metadata")
+    runtime_parser.add_argument("--output", type=Path, required=True)
+    runtime_parser.add_argument("--run-id", required=True)
+    runtime_parser.add_argument("--model", required=True)
+    runtime_parser.add_argument("--num-rollouts", type=int, required=True)
+    runtime_parser.add_argument("--temperature", type=float, required=True)
+    runtime_parser.add_argument("--top-p", type=float, required=True)
+    runtime_parser.add_argument("--max-new-tokens", type=int, required=True)
+    runtime_parser.add_argument("--prompt-variant", required=True)
+    runtime_parser.add_argument("--max-model-len", type=int)
+    runtime_parser.add_argument("--gpu-memory-utilization", type=float)
+    runtime_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    runtime_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    runtime_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    runtime_parser.set_defaults(func=capture_runtime_metadata)
 
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)
@@ -2964,6 +3166,7 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--split-registry", type=Path, required=True)
     report_parser.add_argument("--summary", nargs="+", required=True)
     report_parser.add_argument("--output", type=Path, required=True)
+    _add_runtime_report_arg(report_parser)
     report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -2979,6 +3182,7 @@ def build_parser() -> argparse.ArgumentParser:
     modular_report_parser.add_argument("--summary", nargs="+", required=True)
     modular_report_parser.add_argument("--evaluation", nargs="*")
     modular_report_parser.add_argument("--output", type=Path, required=True)
+    _add_runtime_report_arg(modular_report_parser)
     modular_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -2994,6 +3198,7 @@ def build_parser() -> argparse.ArgumentParser:
     gsm_report_parser.add_argument("--summary", nargs="+", required=True)
     gsm_report_parser.add_argument("--output", type=Path, required=True)
     gsm_report_parser.add_argument("--scaffold-budget", type=int, default=32)
+    _add_runtime_report_arg(gsm_report_parser)
     gsm_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3009,6 +3214,7 @@ def build_parser() -> argparse.ArgumentParser:
     math_report_parser.add_argument("--summary", nargs="+", required=True)
     math_report_parser.add_argument("--output", type=Path, required=True)
     math_report_parser.add_argument("--scaffold-budget", type=int, default=32)
+    _add_runtime_report_arg(math_report_parser)
     math_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3025,6 +3231,7 @@ def build_parser() -> argparse.ArgumentParser:
     coding_report_parser.add_argument("--preflight", nargs="*")
     coding_report_parser.add_argument("--output", type=Path, required=True)
     coding_report_parser.add_argument("--scaffold-budget", type=int, default=4)
+    _add_runtime_report_arg(coding_report_parser)
     coding_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3040,6 +3247,7 @@ def build_parser() -> argparse.ArgumentParser:
     contest_report_parser.add_argument("--summary", nargs="+", required=True)
     contest_report_parser.add_argument("--output", type=Path, required=True)
     contest_report_parser.add_argument("--scaffold-budget", type=int, default=2)
+    _add_runtime_report_arg(contest_report_parser)
     contest_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3061,6 +3269,7 @@ def build_parser() -> argparse.ArgumentParser:
     multiple_choice_report_parser.add_argument("--summary", nargs="+", required=True)
     multiple_choice_report_parser.add_argument("--output", type=Path, required=True)
     multiple_choice_report_parser.add_argument("--scaffold-budget", type=int, default=4)
+    _add_runtime_report_arg(multiple_choice_report_parser)
     multiple_choice_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3079,6 +3288,7 @@ def build_parser() -> argparse.ArgumentParser:
     arc_report_parser.add_argument("--preflight", nargs="*")
     arc_report_parser.add_argument("--output", type=Path, required=True)
     arc_report_parser.add_argument("--scaffold-budget", type=int, default=2)
+    _add_runtime_report_arg(arc_report_parser)
     arc_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3109,6 +3319,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     blocker_report_parser.add_argument("--blocker-type", required=True)
     blocker_report_parser.add_argument("--artifact", nargs="+", required=True)
+    _add_runtime_report_arg(blocker_report_parser)
     blocker_report_parser.add_argument("--limitation", action="append", default=[])
     blocker_report_parser.add_argument("--output", type=Path, required=True)
     blocker_report_parser.set_defaults(func=write_blocker_report_input)

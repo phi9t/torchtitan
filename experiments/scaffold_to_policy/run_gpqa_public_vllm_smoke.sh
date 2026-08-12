@@ -31,9 +31,11 @@ GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
 OFFLINE="${OFFLINE:-0}"
 DEV_RAW_CACHE="${DEV_RAW_CACHE:-}"
 OOD_RAW_CACHE="${OOD_RAW_CACHE:-}"
+RUNTIME_METADATA="${RESULTS_ROOT}/manifests/runtime_${RUN_ID}.json"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
 scaffold_setup_run_manifest
+scaffold_capture_vllm_runtime_metadata "${RUNTIME_METADATA}"
 
 offline_args=()
 case "${OFFLINE}" in
@@ -72,6 +74,7 @@ if ! scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_
     --lane reasoning \
     --blocker-type gpqa_import_blocker \
     --artifact "import_failure=${FAILURE_MARKER}" \
+    --runtime "${RUNTIME_METADATA}" \
     --limitation "GPQA Diamond import failed, commonly because the dataset is gated and HF_TOKEN is not configured inside the rootfs." \
     --limitation "No benchmark task execution or model score was produced." \
     --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
@@ -116,6 +119,7 @@ then
     --lane reasoning \
     --blocker-type vllm_gpu_memory_preflight \
     --artifact "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+    --runtime "${RUNTIME_METADATA}" \
     --limitation "GPQA Diamond run stopped before model execution because vLLM GPU memory preflight failed." \
     --limitation "No benchmark task execution or model score was produced." \
     --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
@@ -146,6 +150,7 @@ for split in dev ood_test; do
       --artifact \
         "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
         "stage_failure=${FAILURE_MARKER}" \
+      --runtime "${RUNTIME_METADATA}" \
       --limitation "GPQA Diamond run stopped during ${split} model execution because vLLM failed at runtime." \
       --limitation "No complete benchmark task execution or model score was produced." \
       --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
@@ -163,6 +168,7 @@ scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_
     "dev=${RESULTS_ROOT}/eval/dev_summary.json" \
     "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
   --scaffold-budget "${NUM_ROLLOUTS}" \
+  --runtime "${RUNTIME_METADATA}" \
   --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
 
 echo "wrote ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"

@@ -325,6 +325,7 @@ def build_report_input(
     run_id: str,
     split_registry: Path,
     summary_paths: dict[str, Path],
+    runtime_path: Path | None = None,
 ) -> dict[str, object]:
     return report_artifacts.build_report_input(
         data_root=data_root,
@@ -335,6 +336,7 @@ def build_report_input(
         scaffold={"type": "fixture_or_best_of_n", "budget": 32},
         split_registry=split_registry,
         summary_paths=summary_paths,
+        runtime_path=runtime_path,
         verifier={
             "kind": "exact",
             "name": "strict_final_integer_v1",

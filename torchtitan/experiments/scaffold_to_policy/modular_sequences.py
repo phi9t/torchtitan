@@ -386,6 +386,7 @@ def build_report_input(
     split_registry: Path,
     summary_paths: dict[str, Path],
     evaluation_paths: dict[str, Path] | None = None,
+    runtime_path: Path | None = None,
 ) -> dict[str, object]:
     registry = json.loads(split_registry.read_text())
     registry_splits = registry["splits"]
@@ -408,6 +409,7 @@ def build_report_input(
             summary_name: _registry_split_name(summary_name, registry_splits)
             for summary_name in summary_paths
         },
+        runtime_path=runtime_path,
         verifier={
             "kind": "exact",
             "name": "strict_final_modular_integer_v1",

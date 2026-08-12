@@ -476,6 +476,7 @@ def build_report_input(
     summary_paths: dict[str, Path],
     scaffold_budget: int,
     preflight_paths: dict[str, Path] | None = None,
+    runtime_path: Path | None = None,
 ) -> dict[str, object]:
     return report_artifacts.build_report_input(
         data_root=data_root,
@@ -491,6 +492,7 @@ def build_report_input(
         summary_paths=summary_paths,
         preflight_paths=preflight_paths,
         preflight_check_name="preflight_canonical_solutions_pass",
+        runtime_path=runtime_path,
         verifier={
             "kind": "executable",
             "name": "python_executable_tests_v1",

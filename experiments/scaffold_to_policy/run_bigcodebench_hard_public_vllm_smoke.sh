@@ -30,9 +30,11 @@ TOP_P="${TOP_P:-0.95}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-10}"
 INSTALL_BIGCODEBENCH_DEPS="${INSTALL_BIGCODEBENCH_DEPS:-1}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
+RUNTIME_METADATA="${RESULTS_ROOT}/manifests/runtime_${RUN_ID}.json"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
 scaffold_setup_run_manifest
+scaffold_capture_vllm_runtime_metadata "${RUNTIME_METADATA}"
 
 if [[ "${INSTALL_BIGCODEBENCH_DEPS}" == "1" ]]; then
   scaffold_run_stage install_bigcodebench_deps python -m pip install --break-system-packages -q \
@@ -106,6 +108,7 @@ then
       "dev_canonical=${RESULTS_ROOT}/eval/dev_canonical_preflight.json" \
       "ood_test_canonical=${RESULTS_ROOT}/eval/ood_test_canonical_preflight.json" \
       "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+    --runtime "${RUNTIME_METADATA}" \
     --limitation "BigCodeBench-Hard coding run stopped before model execution because vLLM GPU memory preflight failed." \
     --limitation "Canonical solution preflights may be present, but no model score was produced." \
     --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
@@ -144,6 +147,7 @@ if ! scaffold_run_stage evaluate_splits python -m torchtitan.experiments.scaffol
       "ood_test_canonical=${RESULTS_ROOT}/eval/ood_test_canonical_preflight.json" \
       "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
       "stage_failure=${FAILURE_MARKER}" \
+    --runtime "${RUNTIME_METADATA}" \
     --limitation "BigCodeBench-Hard coding run stopped during model execution because vLLM failed at runtime." \
     --limitation "Canonical solution preflights may be present, but no complete model score was produced." \
     --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
@@ -163,6 +167,7 @@ scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_
     "dev=${RESULTS_ROOT}/eval/dev_canonical_preflight.json" \
     "ood_test=${RESULTS_ROOT}/eval/ood_test_canonical_preflight.json" \
   --scaffold-budget "${NUM_ROLLOUTS}" \
+  --runtime "${RUNTIME_METADATA}" \
   --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
 
 echo "wrote ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"

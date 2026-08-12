@@ -24,6 +24,7 @@ def build_report_input(
     verifier: dict[str, object],
     preflight_paths: dict[str, Path] | None = None,
     preflight_check_name: str | None = None,
+    runtime_path: Path | None = None,
     summary_to_registry_split: dict[str, str] | None = None,
     extra_artifacts: dict[str, object] | None = None,
     extra_checks: dict[str, bool] | None = None,
@@ -31,6 +32,7 @@ def build_report_input(
 ) -> dict[str, object]:
     summaries = load_json_files(summary_paths)
     preflights = load_json_files(preflight_paths or {})
+    runtime = load_json(runtime_path) if runtime_path is not None else None
     registry = load_json(split_registry)
     registry_splits = registry["splits"]
     artifact_details = {
@@ -50,6 +52,12 @@ def build_report_input(
             payloads=preflights,
         ),
     }
+    if runtime_path is not None:
+        artifact_details["runtime"] = describe_artifact(
+            runtime_path,
+            run_id=run_id,
+            payload=runtime,
+        )
     freshness = summarize_artifact_freshness(artifact_details)
     checks = {
         "split_registry_selected": bool(registry.get("selected", False)),
@@ -68,6 +76,7 @@ def build_report_input(
         "preflights_present": all(
             path.is_file() for path in (preflight_paths or {}).values()
         ),
+        "runtime_metadata_present": runtime_path is None or runtime_path.is_file(),
         "preflight_split_counts_match": all(
             preflights[split]["num_problems"] == registry_splits[split]["num_problems"]
             for split in preflights
@@ -96,6 +105,7 @@ def build_report_input(
             "preflights": {
                 split: str(path) for split, path in (preflight_paths or {}).items()
             },
+            "runtime": None if runtime_path is None else str(runtime_path),
             "details": artifact_details,
             "freshness": freshness,
             **(extra_artifacts or {}),
@@ -106,6 +116,8 @@ def build_report_input(
     }
     if preflights:
         report["preflight"] = {"splits": preflights}
+    if runtime is not None:
+        report["runtime"] = runtime
     report.update(extra_sections or {})
     return report
 

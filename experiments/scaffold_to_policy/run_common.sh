@@ -136,3 +136,20 @@ output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(marker, indent=2, sort_keys=True) + "\n")
 PY
 }
+
+scaffold_capture_vllm_runtime_metadata() {
+  local output="$1"
+  scaffold_run_stage capture_runtime_metadata python -m torchtitan.experiments.scaffold_to_policy.cli capture-runtime-metadata \
+    --output "${output}" \
+    --run-id "${RUN_ID}" \
+    --model "${MODEL}" \
+    --num-rollouts "${NUM_ROLLOUTS}" \
+    --temperature "${TEMPERATURE}" \
+    --top-p "${TOP_P}" \
+    --max-new-tokens "${MAX_NEW_TOKENS}" \
+    --prompt-variant "${PROMPT_VARIANT}" \
+    --max-model-len "${MAX_MODEL_LEN:-${SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN:-2048}}" \
+    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
+    --attention-backend "${SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND:-TRITON_ATTN}" \
+    --use-flashinfer-sampler "${SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER:-0}"
+}

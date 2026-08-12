@@ -169,6 +169,50 @@ def test_shared_report_input_maps_adapter_summary_names(tmp_path):
     assert report_input["artifacts"]["freshness"]["num_artifacts"] == 2
 
 
+def test_shared_report_input_records_runtime_metadata(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    split_registry = data_root / "split_registry.json"
+    summary = results_root / "dev_summary.json"
+    runtime = results_root / "manifests" / "runtime_20260812T010101Z-runtime.json"
+    write_json(
+        split_registry,
+        {
+            "selected": True,
+            "splits": {"dev": {"num_problems": 1}},
+        },
+    )
+    write_json(summary, {"num_problems": 1})
+    write_json(
+        runtime,
+        {
+            "kind": "scaffold_to_policy_runtime_metadata",
+            "run_id": "20260812T010101Z-runtime",
+            "rootfs": {"active": True},
+            "model": {"path": "./assets/hf/Qwen3-1.7B"},
+        },
+    )
+
+    report_input = report_artifacts.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="20260812T010101Z-runtime",
+        task="fixture_task",
+        lane="reasoning",
+        scaffold={"type": "fixture", "budget": 1},
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        runtime_path=runtime,
+        verifier={"kind": "exact", "name": "fixture"},
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["runtime"]["rootfs"]["active"]
+    assert report_input["artifacts"]["runtime"] == str(runtime)
+    assert report_input["artifacts"]["details"]["runtime"]["sha256"]
+    assert report_input["artifacts"]["freshness"]["num_artifacts"] == 3
+
+
 def test_latest_report_index_selects_latest_matching_task(tmp_path):
     manifests = tmp_path / "manifests"
     first = manifests / "report_input_20260812T010000Z-a.json"
@@ -224,6 +268,7 @@ def test_blocker_report_input_records_artifact_provenance(tmp_path):
     parser = build_parser()
     results_root = tmp_path / "results"
     blocker = results_root / "eval" / "vllm_gpu_memory_preflight.json"
+    runtime = results_root / "manifests" / "runtime_fixture.json"
     output = results_root / "manifests" / "report_input_fixture.json"
     arc_grid.write_json(
         blocker,
@@ -232,6 +277,15 @@ def test_blocker_report_input_records_artifact_provenance(tmp_path):
             "kind": "vllm_gpu_memory_preflight",
             "selected": False,
             "reason": "insufficient free memory",
+        },
+    )
+    arc_grid.write_json(
+        runtime,
+        {
+            "schema_version": 1,
+            "kind": "scaffold_to_policy_runtime_metadata",
+            "run_id": "fixture",
+            "rootfs": {"active": True},
         },
     )
 
@@ -250,6 +304,8 @@ def test_blocker_report_input_records_artifact_provenance(tmp_path):
             "vllm_gpu_memory_preflight",
             "--artifact",
             f"gpu_memory={blocker}",
+            "--runtime",
+            str(runtime),
             "--limitation",
             "No model score was produced.",
             "--output",
@@ -265,6 +321,8 @@ def test_blocker_report_input_records_artifact_provenance(tmp_path):
     assert not report_input["checks"]["benchmark_execution_completed"]
     assert not report_input["checks"]["blocker_selected"]
     assert report_input["artifacts"]["details"]["gpu_memory"]["sha256"]
+    assert report_input["runtime"]["rootfs"]["active"]
+    assert report_input["artifacts"]["details"]["runtime"]["sha256"]
     assert report_input["limitations"] == ["No model score was produced."]
 
 
@@ -2010,8 +2068,33 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "vllm_gpu_memory_preflight",
             "--artifact",
             "gpu_memory=preflight.json",
+            "--runtime",
+            "runtime.json",
             "--output",
             "report_input.json",
+        ]
+    )
+    runtime = parser.parse_args(
+        [
+            "capture-runtime-metadata",
+            "--output",
+            "runtime.json",
+            "--run-id",
+            "run",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--num-rollouts",
+            "4",
+            "--temperature",
+            "0.2",
+            "--top-p",
+            "0.95",
+            "--max-new-tokens",
+            "1024",
+            "--prompt-variant",
+            "chat",
+            "--gpu-memory-utilization",
+            "0.6",
         ]
     )
 
@@ -2033,7 +2116,52 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert arc_eval.gpu_memory_utilization is None
     assert arc_eval_low_memory.gpu_memory_utilization == 0.24
     assert blocker.artifact == ["gpu_memory=preflight.json"]
+    assert blocker.runtime == Path("runtime.json")
     assert blocker.lane == "reasoning"
+    assert runtime.model == "./assets/hf/Qwen3-1.7B"
+    assert runtime.gpu_memory_utilization == 0.6
+
+
+def test_capture_runtime_metadata_writes_audit_record(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    parser = build_parser()
+    output = tmp_path / "runtime.json"
+    args = parser.parse_args(
+        [
+            "capture-runtime-metadata",
+            "--output",
+            str(output),
+            "--run-id",
+            "runtime-fixture",
+            "--model",
+            str(tmp_path / "missing-model"),
+            "--num-rollouts",
+            "4",
+            "--temperature",
+            "0.2",
+            "--top-p",
+            "0.95",
+            "--max-new-tokens",
+            "1024",
+            "--prompt-variant",
+            "chat",
+            "--max-model-len",
+            "2048",
+            "--gpu-memory-utilization",
+            "0.5",
+        ]
+    )
+    args.func(args)
+
+    payload = json.loads(output.read_text())
+    assert payload["kind"] == "scaffold_to_policy_runtime_metadata"
+    assert payload["run_id"] == "runtime-fixture"
+    assert payload["rootfs"]["active"]
+    assert payload["model"]["path"].endswith("missing-model")
+    assert payload["model"]["is_local_path"] is False
+    assert payload["packages"]["torch"]["available"] is not None
+    assert payload["vllm"]["gpu_memory_utilization"] == 0.5
+    assert payload["sampling"]["num_rollouts"] == 4
 
 
 def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):
