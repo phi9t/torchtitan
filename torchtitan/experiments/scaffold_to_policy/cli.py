@@ -25,6 +25,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
 from torchtitan.experiments.scaffold_to_policy.modular_sequences import (
     ModularSequenceProblem,
 )
+from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
 
 
@@ -45,6 +46,11 @@ def generate_modular_sequences(args: argparse.Namespace) -> None:
     modular_sequences.write_jsonl(args.output, [problem.to_json() for problem in problems])
 
 
+def prepare_gsm_style_split(args: argparse.Namespace) -> None:
+    problems = gsm_style.load_problems(args.input)
+    gsm_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
+
+
 def validate_arithmetic_splits(args: argparse.Namespace) -> None:
     split_paths = _parse_split_paths(args.split)
     registry = build_split_registry(split_paths)
@@ -59,6 +65,14 @@ def validate_modular_splits(args: argparse.Namespace) -> None:
     modular_sequences.write_json(args.output, registry)
     if not registry["selected"]:
         raise SystemExit("modular split validation failed")
+
+
+def validate_gsm_style_splits(args: argparse.Namespace) -> None:
+    split_paths = _parse_split_paths(args.split)
+    registry = gsm_style.build_split_registry(split_paths)
+    gsm_style.write_json(args.output, registry)
+    if not registry["selected"]:
+        raise SystemExit("gsm-style split validation failed")
 
 
 def evaluate_arithmetic_fixture(args: argparse.Namespace) -> None:
@@ -98,6 +112,29 @@ def evaluate_modular_fixture(args: argparse.Namespace) -> None:
     modular_sequences.write_json(
         args.summary,
         modular_sequences.summarize_evaluations(evaluations),
+    )
+
+
+def evaluate_gsm_style_fixture(args: argparse.Namespace) -> None:
+    problems = gsm_style.load_problems(args.problems)
+    fixture = _load_fixture(args.rollouts)
+    evaluations = []
+    for problem in problems:
+        if problem.problem_id not in fixture:
+            raise ValueError(f"missing rollouts for {problem.problem_id}")
+        evaluations.append(
+            gsm_style.evaluate_fixture_rollouts(
+                problem,
+                fixture[problem.problem_id][: args.max_rollouts],
+            )
+        )
+    gsm_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    gsm_style.write_json(
+        args.summary,
+        gsm_style.summarize_evaluations(evaluations),
     )
 
 
@@ -249,6 +286,23 @@ def build_modular_report_input(args: argparse.Namespace) -> None:
         raise SystemExit(f"modular report input failed: {', '.join(failed)}")
 
 
+def build_gsm_style_report_input(args: argparse.Namespace) -> None:
+    summary_paths = _parse_split_paths(args.summary)
+    report_input = gsm_style.build_report_input(
+        data_root=args.data_root,
+        results_root=args.results_root,
+        run_id=args.run_id,
+        split_registry=args.split_registry,
+        summary_paths=summary_paths,
+    )
+    gsm_style.write_json(args.output, report_input)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(f"gsm-style report input failed: {', '.join(failed)}")
+
+
 def build_modular_dataset(args: argparse.Namespace) -> None:
     evaluations = modular_sequences.load_evaluations(args.evaluations)
     examples = modular_sequences.build_training_examples(
@@ -290,6 +344,23 @@ def write_modular_fixture(args: argparse.Namespace) -> None:
         ]
         rows.append({"problem_id": problem.problem_id, "rollouts": rollouts})
     modular_sequences.write_jsonl(args.output, rows)
+
+
+def write_gsm_style_fixture(args: argparse.Namespace) -> None:
+    problems = gsm_style.load_problems(args.problems)
+    rows = []
+    for problem in problems:
+        correct_answer = problem.rationale or f"FINAL: {problem.answer}"
+        rollouts = [
+            correct_answer,
+            f"FINAL: {problem.normalized_answer} dollars",
+            f"FINAL: {int(problem.normalized_answer) + 1}"
+            if problem.normalized_answer.lstrip("-").isdigit()
+            else "FINAL: 0",
+            "I cannot solve this.",
+        ]
+        rows.append({"problem_id": problem.problem_id, "rollouts": rollouts})
+    gsm_style.write_jsonl(args.output, rows)
 
 
 def _build_arithmetic_vllm_prompts(
@@ -429,6 +500,11 @@ def build_parser() -> argparse.ArgumentParser:
     modular_generate_parser.add_argument("--max-modulus", type=int, default=997)
     modular_generate_parser.set_defaults(func=generate_modular_sequences)
 
+    gsm_prepare_parser = subparsers.add_parser("prepare-gsm-style-split")
+    gsm_prepare_parser.add_argument("--input", type=Path, required=True)
+    gsm_prepare_parser.add_argument("--output", type=Path, required=True)
+    gsm_prepare_parser.set_defaults(func=prepare_gsm_style_split)
+
     fixture_writer = subparsers.add_parser("write-arithmetic-fixture")
     fixture_writer.add_argument("--problems", type=Path, required=True)
     fixture_writer.add_argument("--output", type=Path, required=True)
@@ -438,6 +514,11 @@ def build_parser() -> argparse.ArgumentParser:
     modular_fixture_writer.add_argument("--problems", type=Path, required=True)
     modular_fixture_writer.add_argument("--output", type=Path, required=True)
     modular_fixture_writer.set_defaults(func=write_modular_fixture)
+
+    gsm_fixture_writer = subparsers.add_parser("write-gsm-style-fixture")
+    gsm_fixture_writer.add_argument("--problems", type=Path, required=True)
+    gsm_fixture_writer.add_argument("--output", type=Path, required=True)
+    gsm_fixture_writer.set_defaults(func=write_gsm_style_fixture)
 
     eval_parser = subparsers.add_parser("evaluate-arithmetic-fixture")
     eval_parser.add_argument("--problems", type=Path, required=True)
@@ -454,6 +535,14 @@ def build_parser() -> argparse.ArgumentParser:
     modular_eval_parser.add_argument("--summary", type=Path, required=True)
     modular_eval_parser.add_argument("--max-rollouts", type=int, default=32)
     modular_eval_parser.set_defaults(func=evaluate_modular_fixture)
+
+    gsm_eval_parser = subparsers.add_parser("evaluate-gsm-style-fixture")
+    gsm_eval_parser.add_argument("--problems", type=Path, required=True)
+    gsm_eval_parser.add_argument("--rollouts", type=Path, required=True)
+    gsm_eval_parser.add_argument("--output", type=Path, required=True)
+    gsm_eval_parser.add_argument("--summary", type=Path, required=True)
+    gsm_eval_parser.add_argument("--max-rollouts", type=int, default=32)
+    gsm_eval_parser.set_defaults(func=evaluate_gsm_style_fixture)
 
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)
@@ -543,6 +632,11 @@ def build_parser() -> argparse.ArgumentParser:
     modular_split_parser.add_argument("--output", type=Path, required=True)
     modular_split_parser.set_defaults(func=validate_modular_splits)
 
+    gsm_split_parser = subparsers.add_parser("validate-gsm-style-splits")
+    gsm_split_parser.add_argument("--split", nargs="+", required=True)
+    gsm_split_parser.add_argument("--output", type=Path, required=True)
+    gsm_split_parser.set_defaults(func=validate_gsm_style_splits)
+
     report_parser = subparsers.add_parser("build-arithmetic-report-input")
     report_parser.add_argument("--data-root", type=Path, required=True)
     report_parser.add_argument("--results-root", type=Path, required=True)
@@ -571,6 +665,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     modular_report_parser.set_defaults(func=build_modular_report_input)
+
+    gsm_report_parser = subparsers.add_parser("build-gsm-style-report-input")
+    gsm_report_parser.add_argument("--data-root", type=Path, required=True)
+    gsm_report_parser.add_argument("--results-root", type=Path, required=True)
+    gsm_report_parser.add_argument("--run-id", required=True)
+    gsm_report_parser.add_argument("--split-registry", type=Path, required=True)
+    gsm_report_parser.add_argument("--summary", nargs="+", required=True)
+    gsm_report_parser.add_argument("--output", type=Path, required=True)
+    gsm_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    gsm_report_parser.set_defaults(func=build_gsm_style_report_input)
 
     modular_dataset_parser = subparsers.add_parser("build-modular-dataset")
     modular_dataset_parser.add_argument("--evaluations", type=Path, required=True)

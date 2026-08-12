@@ -365,3 +365,13 @@ reasoning benchmarks.
   synthetic reasoning transfer gate and makes the next stage public
   GSM-style answer-normalization and fixture smoke work, followed by a small
   public reasoning run if the verifier semantics are stable.
+- 2026-08-12: Added `gsm_style` as the first public-reasoning-adjacent verifier
+  stage. It ingests JSONL problems with question/answer fields, normalizes
+  final answers from strict `FINAL:` lines and GSM8K `####` markers, and covers
+  commas, currency markers, boxed answers, integers, decimals, simple
+  fractions, and negative numbers. The rootfs-managed fixture smoke prepares
+  checked-in train/dev/OOD fixture splits, validates split overlap, evaluates
+  fixture rollouts, and writes a report input. This clears the GSM-style
+  normalization smoke gate; the next stage is a small no-tool GSM-style
+  real-model evaluation using the same verifier before any MATH-style or
+  agentic harness expansion.

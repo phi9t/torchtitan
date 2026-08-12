@@ -17,6 +17,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     write_jsonl,
 )
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
+from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
 
 
@@ -146,6 +147,117 @@ def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():
     assert args.prompt_variant == "chat"
     assert args.num_rollouts == 32
     assert args.max_model_len == 2048
+
+
+def test_gsm_style_normalizes_common_final_answer_forms():
+    assert gsm_style.normalize_answer("#### $1,250") == "1250"
+    assert gsm_style.normalize_answer(r"\boxed{36}") == "36"
+    assert gsm_style.normalize_answer(r"\frac{6}{4}") == "3/2"
+    assert gsm_style.normalize_answer("7.5 meters") == "15/2"
+    assert gsm_style.normalize_answer("-4") == "-4"
+
+
+def test_gsm_style_verifier_accepts_final_and_gsm8k_markers():
+    problem = gsm_style.GSMStyleProblem(
+        problem_id="gsm-fixture",
+        source="fixture",
+        question="What is 600 + 650?",
+        answer="$1,250",
+        normalized_answer="1250",
+    )
+
+    final = gsm_style.verify_answer(problem, "work\nFINAL: $1,250")
+    gsm8k = gsm_style.verify_answer(problem, "work\n#### 1250")
+    wrong = gsm_style.verify_answer(problem, "work\nFINAL: 1,251")
+    missing = gsm_style.verify_answer(problem, "work only")
+
+    assert final.success
+    assert gsm8k.success
+    assert not wrong.success
+    assert wrong.normalized_value == "1251"
+    assert not missing.success
+    assert missing.error == "missing final answer"
+
+
+def test_gsm_style_report_input_validates_summary_counts(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    rows = [
+        {
+            "question": "What is 20 + 22?",
+            "answer": "42",
+            "source": "fixture",
+        },
+        {
+            "question": "What is 3/4 + 1/2?",
+            "answer": "5/4",
+            "source": "fixture",
+        },
+    ]
+    gsm_style.write_jsonl(dev, rows)
+    problems = gsm_style.load_problems(dev)
+    gsm_style.write_jsonl(dev, [problem.to_json() for problem in problems])
+    split_registry = data_root / "split_registry.json"
+    gsm_style.write_json(
+        split_registry,
+        gsm_style.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    gsm_style.write_json(
+        summary,
+        gsm_style.summarize_evaluations(
+            [
+                gsm_style.evaluate_fixture_rollouts(
+                    problem,
+                    [f"FINAL: {problem.answer}"],
+                )
+                for problem in problems
+            ]
+        ),
+    )
+
+    report_input = gsm_style.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["task"] == "gsm_style"
+    assert report_input["verifier"]["kind"] == "exact"
+
+
+def test_gsm_style_parser_has_fixture_commands():
+    parser = build_parser()
+
+    prepare = parser.parse_args(
+        [
+            "prepare-gsm-style-split",
+            "--input",
+            "raw.jsonl",
+            "--output",
+            "prepared.jsonl",
+        ]
+    )
+    evaluate = parser.parse_args(
+        [
+            "evaluate-gsm-style-fixture",
+            "--problems",
+            "problems.jsonl",
+            "--rollouts",
+            "rollouts.jsonl",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+
+    assert str(prepare.input) == "raw.jsonl"
+    assert str(evaluate.summary) == "summary.json"
 
 
 def test_modular_sequences_generation_is_deterministic():

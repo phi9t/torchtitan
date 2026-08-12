@@ -1,0 +1,3 @@
+{"answer": "42", "question": "A class has 18 red pencils and 24 blue pencils. How many pencils are there in all?", "rationale": "18 + 24 = 42\n#### 42", "source": "local_gsm_style_fixture"}
+{"answer": "7.5", "question": "A rope is 15 meters long. It is cut into two equal pieces. How long is each piece?", "rationale": "15 / 2 = 7.5\nFINAL: 7.5", "source": "local_gsm_style_fixture"}
+{"answer": "\\boxed{36}", "question": "There are 9 bags with 4 marbles each. How many marbles are there?", "rationale": "9 * 4 = 36\nFINAL: \\boxed{36}", "source": "local_gsm_style_fixture"}

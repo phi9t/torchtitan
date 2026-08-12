@@ -1,0 +1,3 @@
+{"answer": "128", "question": "A library has 200 books. It lends out 86 and receives 14 returns. How many books are currently in the library?", "rationale": "200 - 86 = 114\n114 + 14 = 128\nFINAL: 128", "source": "local_gsm_style_fixture"}
+{"answer": "5/4", "question": "A tank is 3/4 full. Rain adds another 1/2 tank. How full is the tank?", "rationale": "3/4 + 1/2 = 3/4 + 2/4 = 5/4\nFINAL: 5/4", "source": "local_gsm_style_fixture"}
+{"answer": "900", "question": "A store sells 3 laptops for $300 each. How much money does it collect?", "rationale": "3 * 300 = 900\n#### $900", "source": "local_gsm_style_fixture"}

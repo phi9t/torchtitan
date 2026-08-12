@@ -46,7 +46,9 @@ The first reasoning lane should include:
   multi-step arithmetic word problems with strict `FINAL: <integer>` checking;
 - `modular_sequences`: a local synthetic exact-verifier task that generates
   modular recurrence problems with strict `FINAL: <integer>` checking;
-- GSM8K or a small GSM-style subset with parsed final-answer verification;
+- `gsm_style`: a fixture-backed GSM-style exact verifier that normalizes
+  `FINAL` and GSM8K `####` answers, commas, currency markers, boxed answers,
+  integers, decimals, and simple fractions;
 - a small MATH subset with task-appropriate answer normalization;
 - verifier-first synthetic reasoning tasks where exact verification is cheap.
 
@@ -188,6 +190,26 @@ base-elicitable pass@8 stayed at `1.000`. The report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T073500Z-modular-transfer-expanded.md
+```
+
+Run the first GSM-style verifier smoke through the bwrap rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_gsm_style_smoke.sh
+```
+
+The smoke prepares checked-in fixture JSONL splits, validates overlap, evaluates
+fixture rollouts, and writes a report input under:
+
+```text
+experiments/scaffold_to_policy/data/gsm_style_smoke/
+experiments/scaffold_to_policy/results/gsm_style_smoke/
+```
+
+The first completed report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T075500Z-gsm-style-smoke.md
 ```
 
 ## Agentic Benchmarks
