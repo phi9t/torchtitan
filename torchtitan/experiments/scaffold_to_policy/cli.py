@@ -230,12 +230,16 @@ def build_arithmetic_report_input(args: argparse.Namespace) -> None:
 
 def build_modular_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
+    evaluation_paths = None
+    if args.evaluation:
+        evaluation_paths = _parse_split_paths(args.evaluation)
     report_input = modular_sequences.build_report_input(
         data_root=args.data_root,
         results_root=args.results_root,
         run_id=args.run_id,
         split_registry=args.split_registry,
         summary_paths=summary_paths,
+        evaluation_paths=evaluation_paths,
     )
     modular_sequences.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -559,6 +563,7 @@ def build_parser() -> argparse.ArgumentParser:
     modular_report_parser.add_argument("--run-id", required=True)
     modular_report_parser.add_argument("--split-registry", type=Path, required=True)
     modular_report_parser.add_argument("--summary", nargs="+", required=True)
+    modular_report_parser.add_argument("--evaluation", nargs="*")
     modular_report_parser.add_argument("--output", type=Path, required=True)
     modular_report_parser.add_argument(
         "--require-selected",

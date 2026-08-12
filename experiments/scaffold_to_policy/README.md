@@ -159,6 +159,37 @@ to `0.250`. The report is:
 experiments/scaffold_to_policy/reports/20260812T071500Z-modular-transfer-smoke.md
 ```
 
+The first larger modular transfer run used the same calibrated task band with
+64 train, 32 dev, 32 OOD, 8 rollouts, and 24 LoRA training steps:
+
+```bash
+RUN_ID=20260812T073500Z-modular-transfer-expanded \
+DATA_ROOT=experiments/scaffold_to_policy/data/modular_sequences_transfer_expanded \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/modular_sequences_transfer_expanded \
+TRAIN_PROBLEMS=64 \
+DEV_PROBLEMS=32 \
+OOD_PROBLEMS=32 \
+NUM_ROLLOUTS=8 \
+EVAL_ROLLOUTS=8 \
+MAX_NEW_TOKENS=512 \
+TRAIN_STEPS=24 \
+CHECKPOINT_STEP=step-24 \
+NGPU=1 \
+MIN_TRAIN_EXAMPLES=20 \
+LORA_RANK=16 \
+LORA_ALPHA=32 \
+experiments/scaffold_to_policy/run_modular_sequences_transfer_smoke.sh
+```
+
+It produced a positive local synthetic transfer signal: dev pass@1 moved from
+`0.531` to `0.625`, OOD pass@1 from `0.375` to `0.594`, and base-elicitable
+subset pass@1 from `0.000` to `0.750` on dev and `0.800` on OOD while
+base-elicitable pass@8 stayed at `1.000`. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T073500Z-modular-transfer-expanded.md
+```
+
 ## Agentic Benchmarks
 
 tau2-bench and Terminal-Bench/Harbor are in scope, but they enter after the

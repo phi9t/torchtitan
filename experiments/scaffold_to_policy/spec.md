@@ -352,3 +352,16 @@ reasoning benchmarks.
   regressed from 0.500 to 0.250 on the four-problem smoke. The next step is a
   larger modular transfer run with enough dev/OOD examples to evaluate
   base-elicitable movement and OOD retention before public reasoning benchmarks.
+- 2026-08-12: Added modular transfer analysis to report inputs and ran the
+  larger `modular_sequences` transfer experiment under the bwrap rootfs. The
+  run used 64 train, 32 dev, 32 OOD, 8 rollouts, and 24 TorchTitan LoRA steps.
+  It collected 44 verifier-successful train examples, trained and exported a
+  PEFT/vLLM-compatible Qwen3-1.7B LoRA adapter, evaluated base and adapter
+  dev/OOD through vLLM, and wrote a report input with base-elicitable subset
+  metrics plus representative examples. Dev pass@1 improved from 0.531 to
+  0.625 and OOD pass@1 improved from 0.375 to 0.594. On base-elicitable
+  subsets, adapter pass@1 reached 0.750 over 4 dev problems and 0.800 over 10
+  OOD problems while pass@8/pass@32 stayed at 1.000. This clears the local
+  synthetic reasoning transfer gate and makes the next stage public
+  GSM-style answer-normalization and fixture smoke work, followed by a small
+  public reasoning run if the verifier semantics are stable.

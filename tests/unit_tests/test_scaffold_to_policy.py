@@ -322,6 +322,96 @@ def test_modular_sequences_report_input_accepts_adapter_summary_names(tmp_path):
     assert "adapter_raw_dev" in report_input["metrics"]["splits"]
 
 
+def test_modular_sequences_report_input_builds_transfer_analysis(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    problems = modular_sequences.generate_split(seed=507, num_problems=3)
+    modular_sequences.write_jsonl(dev, [problem.to_json() for problem in problems])
+    split_registry = data_root / "split_registry.json"
+    modular_sequences.write_json(
+        split_registry,
+        modular_sequences.build_split_registry({"dev": dev}),
+    )
+    base_evaluations = [
+        modular_sequences.evaluate_fixture_rollouts(
+            problems[0],
+            ["no final", f"FINAL: {problems[0].answer}"],
+        ),
+        modular_sequences.evaluate_fixture_rollouts(
+            problems[1],
+            [f"FINAL: {problems[1].answer}"],
+        ),
+        modular_sequences.evaluate_fixture_rollouts(
+            problems[2],
+            ["no final"],
+        ),
+    ]
+    adapter_evaluations = [
+        modular_sequences.evaluate_fixture_rollouts(
+            problems[0],
+            [f"FINAL: {problems[0].answer}"],
+        ),
+        modular_sequences.evaluate_fixture_rollouts(
+            problems[1],
+            ["no final"],
+        ),
+        modular_sequences.evaluate_fixture_rollouts(
+            problems[2],
+            ["no final"],
+        ),
+    ]
+    base_summary = results_root / "base_dev_summary.json"
+    adapter_summary = results_root / "adapter_raw_dev_summary.json"
+    base_rows = results_root / "base_dev_evaluations.jsonl"
+    adapter_rows = results_root / "adapter_raw_dev_evaluations.jsonl"
+    modular_sequences.write_json(
+        base_summary,
+        modular_sequences.summarize_evaluations(base_evaluations),
+    )
+    modular_sequences.write_json(
+        adapter_summary,
+        modular_sequences.summarize_evaluations(adapter_evaluations),
+    )
+    modular_sequences.write_jsonl(
+        base_rows,
+        [evaluation.to_json() for evaluation in base_evaluations],
+    )
+    modular_sequences.write_jsonl(
+        adapter_rows,
+        [evaluation.to_json() for evaluation in adapter_evaluations],
+    )
+
+    report_input = modular_sequences.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": base_summary, "adapter_raw_dev": adapter_summary},
+        evaluation_paths={"dev": base_rows, "adapter_raw_dev": adapter_rows},
+    )
+
+    subset_rows = report_input["analysis"]["base_elicitable_subsets"]
+    dev_base_subset = [
+        row for row in subset_rows if row["split"] == "dev" and row["arm"] == "base"
+    ][0]
+    dev_raw_subset = [
+        row
+        for row in subset_rows
+        if row["split"] == "dev" and row["arm"] == "adapter_raw"
+    ][0]
+    assert dev_base_subset["num_problems"] == 1
+    assert dev_base_subset["pass_at_1"] == 0.0
+    assert dev_base_subset["pass_at_8"] == 1.0
+    assert dev_raw_subset["pass_at_1"] == 1.0
+    examples = report_input["analysis"]["representative_examples"]
+    assert {example["category"] for example in examples} == {
+        "win",
+        "regression",
+        "unchanged_failure",
+    }
+
+
 def test_modular_sequences_vllm_parser_defaults_to_chat_prompt():
     parser = build_parser()
 

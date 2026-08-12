@@ -189,6 +189,11 @@ python -m torchtitan.experiments.scaffold_to_policy.cli build-modular-report-inp
     "ood_test=${RESULTS_ROOT}/eval/base/ood_test_summary.json" \
     "adapter_raw_dev=${RESULTS_ROOT}/eval/adapters/raw/dev_summary.json" \
     "adapter_raw_ood_test=${RESULTS_ROOT}/eval/adapters/raw/ood_test_summary.json" \
+  --evaluation \
+    "dev=${RESULTS_ROOT}/eval/base/dev_evaluations.jsonl" \
+    "ood_test=${RESULTS_ROOT}/eval/base/ood_test_evaluations.jsonl" \
+    "adapter_raw_dev=${RESULTS_ROOT}/eval/adapters/raw/dev_evaluations.jsonl" \
+    "adapter_raw_ood_test=${RESULTS_ROOT}/eval/adapters/raw/ood_test_evaluations.jsonl" \
   --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json" \
   --no-require-selected
 record_stage build_report_input fresh "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"

@@ -383,6 +383,7 @@ def build_report_input(
     run_id: str,
     split_registry: Path,
     summary_paths: dict[str, Path],
+    evaluation_paths: dict[str, Path] | None = None,
 ) -> dict[str, object]:
     summaries = {
         split: json.loads(path.read_text()) for split, path in summary_paths.items()
@@ -400,6 +401,12 @@ def build_report_input(
             for summary_name in summary_paths
         ),
     }
+    analysis = None
+    if evaluation_paths is not None:
+        analysis = build_transfer_analysis(
+            evaluation_paths=evaluation_paths,
+            registry_splits=registry_splits,
+        )
     return {
         "schema_version": 1,
         "run": {
@@ -413,6 +420,11 @@ def build_report_input(
             "results_root": str(results_root),
             "split_registry": str(split_registry),
             "summaries": {split: str(path) for split, path in summary_paths.items()},
+            "evaluations": (
+                None
+                if evaluation_paths is None
+                else {split: str(path) for split, path in evaluation_paths.items()}
+            ),
         },
         "verifier": {
             "kind": "exact",
@@ -421,6 +433,37 @@ def build_report_input(
         },
         "checks": checks,
         "metrics": {"splits": summaries},
+        "analysis": analysis,
+    }
+
+
+def build_transfer_analysis(
+    *,
+    evaluation_paths: dict[str, Path],
+    registry_splits: dict[str, object],
+) -> dict[str, object]:
+    evaluations = {
+        name: load_evaluations(path) for name, path in evaluation_paths.items()
+    }
+    by_name = {
+        name: {evaluation.problem.problem_id: evaluation for evaluation in rows}
+        for name, rows in evaluations.items()
+    }
+    base_names = [name for name in evaluations if name in registry_splits]
+    adapter_names = [name for name in evaluations if name not in registry_splits]
+    return {
+        "base_elicitable_subsets": _base_elicitable_subset_metrics(
+            by_name,
+            base_names=base_names,
+            adapter_names=adapter_names,
+            registry_splits=registry_splits,
+        ),
+        "representative_examples": _representative_examples(
+            by_name,
+            base_names=base_names,
+            adapter_names=adapter_names,
+            registry_splits=registry_splits,
+        ),
     }
 
 
@@ -545,6 +588,182 @@ def _registry_split_name(
         if summary_name.endswith(f"_{split}"):
             return split
     raise ValueError(f"summary {summary_name} does not match a registered split")
+
+
+def _base_elicitable_subset_metrics(
+    by_name: dict[str, dict[str, ModularProblemEvaluation]],
+    *,
+    base_names: Sequence[str],
+    adapter_names: Sequence[str],
+    registry_splits: dict[str, object],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for base_name in base_names:
+        base_by_id = by_name[base_name]
+        base_elicitable_ids = sorted(
+            problem_id
+            for problem_id, evaluation in base_by_id.items()
+            if evaluation.solved_at() is not None and evaluation.solved_at() != 1
+        )
+        if not base_elicitable_ids:
+            continue
+        base_subset = [base_by_id[problem_id] for problem_id in base_elicitable_ids]
+        rows.append(
+            {
+                "split": base_name,
+                "arm": "base",
+                "subset": "base_elicitable",
+                "num_problems": len(base_subset),
+                **_subset_metric_row(base_subset),
+            }
+        )
+        for adapter_name in adapter_names:
+            if _registry_split_name(adapter_name, registry_splits) != base_name:
+                continue
+            adapter_by_id = by_name[adapter_name]
+            adapter_subset = [
+                adapter_by_id[problem_id]
+                for problem_id in base_elicitable_ids
+                if problem_id in adapter_by_id
+            ]
+            if len(adapter_subset) != len(base_elicitable_ids):
+                continue
+            rows.append(
+                {
+                    "split": base_name,
+                    "arm": _arm_name(adapter_name, base_name),
+                    "subset": "base_elicitable",
+                    "num_problems": len(adapter_subset),
+                    **_subset_metric_row(adapter_subset),
+                }
+            )
+    return rows
+
+
+def _subset_metric_row(
+    evaluations: Sequence[ModularProblemEvaluation],
+) -> dict[str, float]:
+    return {
+        "pass_at_1": pass_at_k(evaluations, (1,))[1],
+        "pass_at_8": pass_at_k(evaluations, (8,))[8],
+        "pass_at_32": pass_at_k(evaluations, (32,))[32],
+        "strict_format_pass_at_1": pass_at_k(evaluations, (1,), strict=True)[1],
+        "strict_format_pass_at_8": pass_at_k(evaluations, (8,), strict=True)[8],
+        "strict_format_pass_at_32": pass_at_k(evaluations, (32,), strict=True)[32],
+    }
+
+
+def _representative_examples(
+    by_name: dict[str, dict[str, ModularProblemEvaluation]],
+    *,
+    base_names: Sequence[str],
+    adapter_names: Sequence[str],
+    registry_splits: dict[str, object],
+) -> list[dict[str, object]]:
+    examples: list[dict[str, object]] = []
+    selectors = (
+        ("win", _is_win),
+        ("regression", _is_regression),
+        ("unchanged_failure", _is_unchanged_failure),
+    )
+    for base_name in base_names:
+        base_by_id = by_name[base_name]
+        for adapter_name in adapter_names:
+            if _registry_split_name(adapter_name, registry_splits) != base_name:
+                continue
+            adapter_by_id = by_name[adapter_name]
+            common_problem_ids = sorted(set(base_by_id) & set(adapter_by_id))
+            for category, predicate in selectors:
+                for problem_id in common_problem_ids:
+                    base = base_by_id[problem_id]
+                    adapter = adapter_by_id[problem_id]
+                    if predicate(base, adapter):
+                        examples.append(
+                            {
+                                "split": base_name,
+                                "arm": _arm_name(adapter_name, base_name),
+                                "category": category,
+                                "problem_id": problem_id,
+                                "problem": _compact_problem(adapter.problem),
+                                "base": _compact_evaluation(base),
+                                "adapter": _compact_evaluation(adapter),
+                            }
+                        )
+                        break
+    return examples
+
+
+def _is_win(
+    base: ModularProblemEvaluation,
+    adapter: ModularProblemEvaluation,
+) -> bool:
+    adapter_solved_at = adapter.solved_at()
+    base_solved_at = base.solved_at()
+    return (
+        adapter_solved_at == 1
+        and (base_solved_at is None or base_solved_at > 1)
+    )
+
+
+def _is_regression(
+    base: ModularProblemEvaluation,
+    adapter: ModularProblemEvaluation,
+) -> bool:
+    return base.solved_at() == 1 and adapter.solved_at() != 1
+
+
+def _is_unchanged_failure(
+    base: ModularProblemEvaluation,
+    adapter: ModularProblemEvaluation,
+) -> bool:
+    return base.solved_at() is None and adapter.solved_at() is None
+
+
+def _compact_problem(problem: ModularSequenceProblem) -> dict[str, object]:
+    return {
+        "problem_id": problem.problem_id,
+        "start": problem.start,
+        "multiplier": problem.multiplier,
+        "step_coeff": problem.step_coeff,
+        "offset": problem.offset,
+        "modulus": problem.modulus,
+        "steps": problem.steps,
+        "answer": problem.answer,
+    }
+
+
+def _compact_evaluation(evaluation: ModularProblemEvaluation) -> dict[str, object]:
+    sample = _first_rollout(evaluation)
+    return {
+        "solved_at": evaluation.solved_at(),
+        "strict_solved_at": evaluation.strict_solved_at(),
+        "bucket": evaluation.bucket(),
+        "sample_index": sample.sample_index if sample is not None else None,
+        "success": None if sample is None else sample.verification.success,
+        "final_value": None if sample is None else sample.verification.final_value,
+        "error": None if sample is None else sample.verification.error,
+        "text_excerpt": "" if sample is None else _text_excerpt(sample.text),
+    }
+
+
+def _first_rollout(
+    evaluation: ModularProblemEvaluation,
+) -> ModularRollout | None:
+    return evaluation.rollouts[0] if evaluation.rollouts else None
+
+
+def _arm_name(summary_name: str, split: str) -> str:
+    suffix = f"_{split}"
+    if summary_name.endswith(suffix):
+        return summary_name[: -len(suffix)]
+    return summary_name
+
+
+def _text_excerpt(text: str, *, max_chars: int = 600) -> str:
+    normalized = "\n".join(line.rstrip() for line in text.strip().splitlines())
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[: max_chars - 3].rstrip() + "..."
 
 
 def _hash_lines(values: Sequence[str]) -> str:
