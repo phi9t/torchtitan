@@ -36,6 +36,13 @@ champion for the next Countdown iteration. `clean` remains useful as the
 conciseness/style control because formatting often emits repeated answer text
 after a valid strict trace.
 
+The report input now also includes artifact-derived `analysis`:
+base-elicitable subset metrics and deterministic representative examples for
+wins, regressions, unchanged failures, and format failures. On the
+base-elicitable OOD subset, `formatting` reaches 0.370 pass@1, 0.978 pass@32,
+0.343 strict pass@1, and 0.978 strict pass@32 over 230 problems. See
+`reports/20260812T002500Z-base-elicitable-and-examples.md`.
+
 ## 2026-08-11 Rootfs Smoke, Reduced Pilot, Clean-Split Full Eval
 
 All real Python setup, generation, training, evaluation, and summarization for

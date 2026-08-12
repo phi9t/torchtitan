@@ -272,3 +272,8 @@ generation.
   strict-format metrics plus format breakdowns in machine-readable rows. The
   continuation report input is
   `experiments/countdown_search_distill/results/manifests/report_input_20260812T001300Z-full-formatting-continuation.json`.
+- 2026-08-12: Extended the Countdown report input with artifact-derived
+  `analysis`: base-elicitable subset metrics and deterministic representative
+  examples for wins, regressions, unchanged failures, and format failures. This
+  closes the first reporting gap needed before replication/sweep and reasoning
+  transfer work.

@@ -241,3 +241,12 @@ Summary files report both arithmetic-trace pass@k and
 and an exact `FINAL: <target>` line, so output-contract regressions are visible
 separately from arithmetic success.
 
+When evaluation JSONL files are present, `build-report-input` also adds an
+`analysis` block with:
+
+- `base_elicitable_subsets`: base and adapter metrics restricted to problems
+  that the base model solved within 32 samples but not at sample 1;
+- `representative_examples`: deterministic examples for wins, regressions,
+  unchanged failures, and format failures, with compact problem metadata and
+  bounded rollout excerpts.
+

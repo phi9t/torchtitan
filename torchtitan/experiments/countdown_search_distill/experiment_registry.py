@@ -39,6 +39,12 @@ def build_countdown_report_input(
         for split in splits
     }
     adapter_matrix = _read_json_if_exists(adapter_eval_root / f"adapter_matrix_{mode}.json")
+    analysis = _build_countdown_analysis(
+        results_root=results_root,
+        adapter_eval_root=adapter_eval_root,
+        splits=splits,
+        arms=arms,
+    )
 
     return {
         "schema_version": 1,
@@ -101,6 +107,7 @@ def build_countdown_report_input(
             },
             "adapters": _compact_adapter_rows(adapter_matrix),
         },
+        "analysis": analysis,
         "checks": _report_checks(
             mode=mode,
             base_summaries=base_summaries,
@@ -119,6 +126,42 @@ def write_countdown_report_input(
     output_path.write_text(json.dumps(report_input, indent=2, sort_keys=True) + "\n")
 
 
+def _build_countdown_analysis(
+    *,
+    results_root: Path,
+    adapter_eval_root: Path,
+    splits: list[str],
+    arms: list[str],
+) -> dict[str, Any]:
+    base_by_split = {
+        split: _read_evaluation_rows(
+            results_root / "eval" / split / "base" / "evaluations.jsonl"
+        )
+        for split in splits
+    }
+    adapter_by_split_arm = {
+        (split, arm): _read_evaluation_rows(
+            adapter_eval_root / split / arm / "evaluations.jsonl"
+        )
+        for split in splits
+        for arm in arms
+    }
+    return {
+        "base_elicitable_subsets": _base_elicitable_subset_metrics(
+            base_by_split,
+            adapter_by_split_arm,
+            splits=splits,
+            arms=arms,
+        ),
+        "representative_examples": _representative_examples(
+            base_by_split,
+            adapter_by_split_arm,
+            splits=splits,
+            arms=arms,
+        ),
+    }
+
+
 def _arms_for_mode(mode: str) -> list[str]:
     if mode == "reduced":
         return ["raw", "hindsight", "curriculum"]
@@ -127,6 +170,269 @@ def _arms_for_mode(mode: str) -> list[str]:
     if mode == "smoke":
         return ["debug_smoke"]
     raise ValueError(f"unknown Countdown mode: {mode}")
+
+
+def _read_evaluation_rows(path: Path) -> dict[str, dict[str, Any]]:
+    if not path.is_file():
+        return {}
+    rows: dict[str, dict[str, Any]] = {}
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid evaluation row at {path}:{line_number}") from exc
+        if not isinstance(row, dict):
+            raise ValueError(f"evaluation row at {path}:{line_number} must be an object")
+        problem_id = row.get("problem_id")
+        if not isinstance(problem_id, str):
+            raise ValueError(f"evaluation row at {path}:{line_number} missing problem_id")
+        rows[problem_id] = row
+    return rows
+
+
+def _base_elicitable_subset_metrics(
+    base_by_split: dict[str, dict[str, dict[str, Any]]],
+    adapter_by_split_arm: dict[tuple[str, str], dict[str, dict[str, Any]]],
+    *,
+    splits: list[str],
+    arms: list[str],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for split in splits:
+        base_rows = base_by_split[split]
+        base_elicitable_ids = sorted(
+            problem_id
+            for problem_id, row in base_rows.items()
+            if _solved_at(row) is not None and _solved_at(row) != 1
+        )
+        base_subset = [base_rows[problem_id] for problem_id in base_elicitable_ids]
+        if not base_subset:
+            continue
+        base_metrics = _subset_metric_row(base_subset)
+        rows.append(
+            {
+                "split": split,
+                "arm": "base",
+                "subset": "base_elicitable",
+                "num_problems": len(base_subset),
+                **base_metrics,
+            }
+        )
+        for arm in arms:
+            adapter_rows = adapter_by_split_arm[(split, arm)]
+            subset = [
+                adapter_rows[problem_id]
+                for problem_id in base_elicitable_ids
+                if problem_id in adapter_rows
+            ]
+            if len(subset) != len(base_elicitable_ids):
+                continue
+            rows.append(
+                {
+                    "split": split,
+                    "arm": arm,
+                    "subset": "base_elicitable",
+                    "num_problems": len(subset),
+                    **_subset_metric_row(subset),
+                }
+            )
+    return rows
+
+
+def _subset_metric_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "pass_at_1": _pass_at(rows, 1, strict=False),
+        "pass_at_32": _pass_at(rows, 32, strict=False),
+        "strict_format_pass_at_1": _pass_at(rows, 1, strict=True),
+        "strict_format_pass_at_32": _pass_at(rows, 32, strict=True),
+    }
+
+
+def _pass_at(rows: list[dict[str, Any]], k: int, *, strict: bool) -> float:
+    if not rows:
+        return 0.0
+    solved = 0
+    for row in rows:
+        solved_at = _strict_solved_at(row) if strict else _solved_at(row)
+        if solved_at is not None and solved_at <= k:
+            solved += 1
+    return solved / len(rows)
+
+
+def _representative_examples(
+    base_by_split: dict[str, dict[str, dict[str, Any]]],
+    adapter_by_split_arm: dict[tuple[str, str], dict[str, dict[str, Any]]],
+    *,
+    splits: list[str],
+    arms: list[str],
+) -> list[dict[str, Any]]:
+    examples: list[dict[str, Any]] = []
+    selectors = (
+        ("win", _is_win),
+        ("regression", _is_regression),
+        ("unchanged_failure", _is_unchanged_failure),
+        ("format_failure", _is_format_failure),
+    )
+    for split in splits:
+        base_rows = base_by_split[split]
+        if not base_rows:
+            continue
+        for arm in arms:
+            adapter_rows = adapter_by_split_arm[(split, arm)]
+            if not adapter_rows:
+                continue
+            common_problem_ids = sorted(set(base_rows) & set(adapter_rows))
+            for category, predicate in selectors:
+                for problem_id in common_problem_ids:
+                    base_row = base_rows[problem_id]
+                    adapter_row = adapter_rows[problem_id]
+                    if predicate(base_row, adapter_row):
+                        examples.append(
+                            _example_row(
+                                split=split,
+                                arm=arm,
+                                category=category,
+                                base_row=base_row,
+                                adapter_row=adapter_row,
+                            )
+                        )
+                        break
+    return examples
+
+
+def _is_win(base_row: dict[str, Any], adapter_row: dict[str, Any]) -> bool:
+    base_solved_at = _solved_at(base_row)
+    adapter_solved_at = _solved_at(adapter_row)
+    return (
+        adapter_solved_at is not None
+        and adapter_solved_at == 1
+        and (base_solved_at is None or base_solved_at > 1)
+    )
+
+
+def _is_regression(base_row: dict[str, Any], adapter_row: dict[str, Any]) -> bool:
+    return _solved_at(base_row) == 1 and _solved_at(adapter_row) != 1
+
+
+def _is_unchanged_failure(base_row: dict[str, Any], adapter_row: dict[str, Any]) -> bool:
+    return _solved_at(base_row) is None and _solved_at(adapter_row) is None
+
+
+def _is_format_failure(base_row: dict[str, Any], adapter_row: dict[str, Any]) -> bool:
+    del base_row
+    return _solved_at(adapter_row) == 1 and _strict_solved_at(adapter_row) != 1
+
+
+def _example_row(
+    *,
+    split: str,
+    arm: str,
+    category: str,
+    base_row: dict[str, Any],
+    adapter_row: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "split": split,
+        "arm": arm,
+        "category": category,
+        "problem_id": str(adapter_row.get("problem_id")),
+        "problem": _compact_problem(adapter_row.get("problem", {})),
+        "base": _compact_evaluation_for_example(base_row),
+        "adapter": _compact_evaluation_for_example(adapter_row),
+    }
+
+
+def _compact_problem(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        "numbers": value.get("numbers"),
+        "target": value.get("target"),
+        "canonical_solution": value.get("canonical_solution")
+        or value.get("solution"),
+    }
+
+
+def _compact_evaluation_for_example(row: dict[str, Any]) -> dict[str, Any]:
+    sample = _first_rollout(row)
+    return {
+        "solved_at": _solved_at(row),
+        "strict_solved_at": _strict_solved_at(row),
+        "bucket": _bucket(row),
+        "sample_index": sample.get("sample_index"),
+        "success": sample.get("success"),
+        "final_value": sample.get("final_value"),
+        "error": sample.get("error"),
+        "text_excerpt": _text_excerpt(str(sample.get("text", ""))),
+    }
+
+
+def _solved_at(row: dict[str, Any]) -> int | None:
+    value = row.get("solved_at")
+    if value is not None:
+        return int(value)
+    for index, rollout in enumerate(_rollouts(row), start=1):
+        if rollout.get("success") is True:
+            return index
+    return None
+
+
+def _strict_solved_at(row: dict[str, Any]) -> int | None:
+    target = _target(row)
+    if target is None:
+        return None
+    for index, rollout in enumerate(_rollouts(row), start=1):
+        if rollout.get("success") is True and _has_strict_final_line(
+            str(rollout.get("text", "")),
+            target,
+        ):
+            return index
+    return None
+
+
+def _bucket(row: dict[str, Any]) -> str:
+    value = row.get("bucket")
+    if isinstance(value, str):
+        return value
+    solved_at = _solved_at(row)
+    if solved_at == 1:
+        return "easy"
+    if solved_at is None:
+        return "unreached"
+    return "elicitable"
+
+
+def _target(row: dict[str, Any]) -> int | None:
+    problem = row.get("problem")
+    if not isinstance(problem, dict):
+        return None
+    target = problem.get("target")
+    return None if target is None else int(target)
+
+
+def _rollouts(row: dict[str, Any]) -> list[dict[str, Any]]:
+    rollouts = row.get("rollouts", [])
+    if not isinstance(rollouts, list):
+        return []
+    return [rollout for rollout in rollouts if isinstance(rollout, dict)]
+
+
+def _first_rollout(row: dict[str, Any]) -> dict[str, Any]:
+    rollouts = _rollouts(row)
+    return rollouts[0] if rollouts else {}
+
+
+def _has_strict_final_line(text: str, target: int) -> bool:
+    return any(line.strip() == f"FINAL: {target}" for line in text.splitlines())
+
+
+def _text_excerpt(text: str, *, max_chars: int = 600) -> str:
+    normalized = "\n".join(line.rstrip() for line in text.strip().splitlines())
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[: max_chars - 3].rstrip() + "..."
 
 
 def _read_manifest(path: Path) -> list[dict[str, Any]]:

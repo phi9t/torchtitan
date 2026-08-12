@@ -959,6 +959,59 @@ def test_validate_splits_cli_fails_on_problem_key_overlap(tmp_path):
     }
 
 
+def _evaluation_row(
+    problem_id: str,
+    *,
+    target: int,
+    rollout_successes: list[bool],
+    final_lines: list[bool] | None = None,
+) -> dict[str, object]:
+    final_lines = final_lines or [False] * len(rollout_successes)
+    rollouts = []
+    for index, (success, has_final) in enumerate(
+        zip(rollout_successes, final_lines, strict=True)
+    ):
+        text = f"1 + {target - 1} = {target}"
+        if has_final:
+            text += f"\nFINAL: {target}"
+        rollouts.append(
+            {
+                "problem_id": problem_id,
+                "sample_index": index,
+                "text": text,
+                "success": success,
+                "final_value": target if success else None,
+                "error": None if success else "missing FINAL line",
+            }
+        )
+    solved_at = next(
+        (index for index, success in enumerate(rollout_successes, start=1) if success),
+        None,
+    )
+    if solved_at == 1:
+        bucket = "easy"
+    elif solved_at is None:
+        bucket = "unreached"
+    else:
+        bucket = "elicitable"
+    return {
+        "problem_id": problem_id,
+        "problem": {
+            "numbers": [1, target - 1],
+            "target": target,
+            "canonical_solution": [f"1 + {target - 1} = {target}", f"FINAL: {target}"],
+        },
+        "solved_at": solved_at,
+        "bucket": bucket,
+        "rollouts": rollouts,
+    }
+
+
+def _write_evaluation_rows(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+
 def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     root = tmp_path / "countdown"
     data = root / "data"
@@ -1011,6 +1064,35 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
         summary_path = results / "eval" / split / "base" / "summary.json"
         summary_path.parent.mkdir(parents=True)
         summary_path.write_text(json.dumps(summary) + "\n")
+        base_rows = [
+            _evaluation_row(
+                f"{split}-win",
+                target=20,
+                rollout_successes=[False, True],
+                final_lines=[False, True],
+            ),
+            _evaluation_row(
+                f"{split}-regression",
+                target=21,
+                rollout_successes=[True, False],
+                final_lines=[True, False],
+            ),
+            _evaluation_row(
+                f"{split}-unchanged",
+                target=22,
+                rollout_successes=[False, False],
+            ),
+            _evaluation_row(
+                f"{split}-format",
+                target=23,
+                rollout_successes=[False, True],
+                final_lines=[False, True],
+            ),
+        ]
+        _write_evaluation_rows(
+            results / "eval" / split / "base" / "evaluations.jsonl",
+            base_rows,
+        )
     adapter_root = results / "eval" / "adapters" / "full"
     rows = []
     for split in ("dev", "iid_test", "ood_test"):
@@ -1018,6 +1100,35 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
             summary_path = adapter_root / split / arm / "summary.json"
             summary_path.parent.mkdir(parents=True)
             summary_path.write_text(json.dumps(summary) + "\n")
+            adapter_rows = [
+                _evaluation_row(
+                    f"{split}-win",
+                    target=20,
+                    rollout_successes=[True, True],
+                    final_lines=[True, True],
+                ),
+                _evaluation_row(
+                    f"{split}-regression",
+                    target=21,
+                    rollout_successes=[False, True],
+                    final_lines=[False, True],
+                ),
+                _evaluation_row(
+                    f"{split}-unchanged",
+                    target=22,
+                    rollout_successes=[False, False],
+                ),
+                _evaluation_row(
+                    f"{split}-format",
+                    target=23,
+                    rollout_successes=[True, True],
+                    final_lines=[False, True],
+                ),
+            ]
+            _write_evaluation_rows(
+                adapter_root / split / arm / "evaluations.jsonl",
+                adapter_rows,
+            )
             rows.append(
                 {
                     "split": split,
@@ -1052,6 +1163,27 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     assert (
         report_input["metrics"]["adapters"][0]["strict_format_pass_at_1"] == 1.0
     )
+    subset_rows = report_input["analysis"]["base_elicitable_subsets"]
+    dev_base_subset = [
+        row
+        for row in subset_rows
+        if row["split"] == "dev" and row["arm"] == "base"
+    ][0]
+    dev_raw_subset = [
+        row
+        for row in subset_rows
+        if row["split"] == "dev" and row["arm"] == "raw"
+    ][0]
+    assert dev_base_subset["num_problems"] == 2
+    assert dev_base_subset["pass_at_1"] == 0.0
+    assert dev_base_subset["pass_at_32"] == 1.0
+    assert dev_raw_subset["pass_at_1"] == 1.0
+    examples = report_input["analysis"]["representative_examples"]
+    assert {
+        example["category"]
+        for example in examples
+        if example["split"] == "dev" and example["arm"] == "raw"
+    } == {"win", "regression", "unchanged_failure", "format_failure"}
     assert report_input["artifacts"]["split_registry"]["sha256"] is not None
     assert len(report_input["metrics"]["adapters"]) == 15
 
