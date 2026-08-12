@@ -28,9 +28,29 @@ PROMPT_VARIANT="${PROMPT_VARIANT:-chat}"
 TEMPERATURE="${TEMPERATURE:-0.2}"
 TOP_P="${TOP_P:-0.95}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
+OFFLINE="${OFFLINE:-0}"
+DEV_RAW_CACHE="${DEV_RAW_CACHE:-}"
+OOD_RAW_CACHE="${OOD_RAW_CACHE:-}"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
 scaffold_setup_run_manifest
+
+offline_args=()
+case "${OFFLINE}" in
+  1|true|TRUE|yes|YES)
+    offline_args=(--offline)
+    ;;
+esac
+
+dev_cache_args=()
+if [[ -n "${DEV_RAW_CACHE}" ]]; then
+  dev_cache_args=(--raw-cache "${DEV_RAW_CACHE}")
+fi
+
+ood_cache_args=()
+if [[ -n "${OOD_RAW_CACHE}" ]]; then
+  ood_cache_args=(--raw-cache "${OOD_RAW_CACHE}")
+fi
 
 if ! scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
   --dataset "${DATASET}" \
@@ -40,7 +60,9 @@ if ! scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_
   --limit "${DEV_PROBLEMS}" \
   --offset "${DEV_OFFSET}" \
   --output "${DATA_ROOT}/dev.jsonl" \
-  --provenance "${DATA_ROOT}/dev_provenance.json"; then
+  --provenance "${DATA_ROOT}/dev_provenance.json" \
+  "${dev_cache_args[@]}" \
+  "${offline_args[@]}"; then
   FAILURE_MARKER="${RESULTS_ROOT}/eval/gpqa_import_failure.json"
   scaffold_write_stage_failure_marker import_dev gpqa_import_blocker "${FAILURE_MARKER}"
   scaffold_run_stage write_import_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
@@ -65,7 +87,9 @@ scaffold_run_stage import_ood_test python -m torchtitan.experiments.scaffold_to_
   --limit "${OOD_PROBLEMS}" \
   --offset "${OOD_OFFSET}" \
   --output "${DATA_ROOT}/ood_test.jsonl" \
-  --provenance "${DATA_ROOT}/ood_test_provenance.json"
+  --provenance "${DATA_ROOT}/ood_test_provenance.json" \
+  "${ood_cache_args[@]}" \
+  "${offline_args[@]}"
 
 scaffold_run_stage validate_splits python -m torchtitan.experiments.scaffold_to_policy.cli validate-multiple-choice-splits \
   --split \

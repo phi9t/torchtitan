@@ -107,7 +107,23 @@ No GPQA task execution or model score was produced.
 1. Configure authenticated Hugging Face access inside the bwrap rootfs, then run
    `run_gpqa_public_vllm_smoke.sh` against `Idavidrein/gpqa` `gpqa_diamond`.
 2. If no live Hugging Face access is allowed, provide an authorized raw GPQA
-   cache and rerun the importer with the offline raw-cache path.
+   cache and rerun the same entrypoint with:
+
+   ```bash
+   OFFLINE=1 \
+   DEV_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_authorized/raw/dev.jsonl \
+   OOD_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_authorized/raw/ood.jsonl \
+   DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_authorized \
+   RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_authorized \
+   experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
+   ```
+
+   The offline-cache shell path was verified in
+   `20260812T143600Z-gpqa-offline-cache-smoke` using synthetic GPQA-shaped rows:
+   both imports ran inside the rootfs with `--offline --raw-cache`, provenance
+   recorded raw-cache hashes, split validation passed, and the run stopped at an
+   intentionally impossible GPU-memory preflight before vLLM launch. Real
+   authorized GPQA rows are still required for a benchmark-preserving result.
 3. Treat all existing public benchmark numbers as calibration slices unless a
    later run expands sample size, pins the complete evaluation object, and
    preserves the upstream metric.

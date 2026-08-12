@@ -364,6 +364,25 @@ claiming a score. With `HF_TOKEN` configured and access granted, the same
 entrypoint imports `Idavidrein/gpqa` `gpqa_diamond`, evaluates no-tool
 multiple-choice prompts, and verifies exact `FINAL: <A|B|C|D>` outputs.
 
+If live Hugging Face access is not available, provide authorized raw row caches
+through repo-visible paths and run the same entrypoint offline:
+
+```bash
+OFFLINE=1 \
+DEV_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_authorized/raw/dev.jsonl \
+OOD_RAW_CACHE=experiments/scaffold_to_policy/data/gpqa_authorized/raw/ood.jsonl \
+DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_authorized \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_authorized \
+experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
+```
+
+The offline-cache path was smoke-tested with synthetic GPQA-shaped rows in run
+`20260812T143600Z-gpqa-offline-cache-smoke`: rootfs imports used
+`--offline --raw-cache`, provenance recorded raw-cache hashes, split validation
+passed, and the run stopped at an intentionally impossible GPU-memory preflight
+without launching vLLM. Authorized real GPQA rows are still required for a
+benchmark-preserving GPQA result.
+
 Run the first ARC-AGI-2 no-tool smoke through the rootfs:
 
 ```bash
