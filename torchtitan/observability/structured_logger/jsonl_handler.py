@@ -186,7 +186,7 @@ class TraceJsonlHandler(logging.FileHandler):
         self._artifact_id = record_artifact(
             producer="structured_logger",
             kind="torchtitan.structured_events",
-            path=filepath,
+            path=self.baseFilename,
             state=ArtifactState.DECLARED,
             metadata={"format": "jsonl", "source": source},
         )

@@ -1152,6 +1152,39 @@ class TestRunEvidenceCorrelation:
             ArtifactState.COMPLETE.value,
         ]
 
+    def test_relative_output_uses_one_normalized_artifact_path(
+        self, tmp_path, monkeypatch, structured_logger_fixture, launcher_identity
+    ):
+        monkeypatch.chdir(tmp_path)
+        relative_output_dir = os.path.join("outputs", "relative-smoke")
+        output_path = tmp_path / relative_output_dir
+
+        with RunEvidence(
+            RunEvidence.Config(),
+            dump_folder=relative_output_dir,
+            job_config={"training": {"steps": 1}},
+            role="trainer",
+            actor_id="core",
+        ):
+            init_structured_logger(
+                rank=0, source="training", output_dir=relative_output_dir
+            )
+            close_structured_logger()
+
+        native_paths = list((output_path / "structured_logs").glob("*.jsonl"))
+        assert len(native_paths) == 1
+        artifact_rows = read_artifact_rows(output_path, launcher_identity)
+        assert [row["state"] for row in artifact_rows] == [
+            ArtifactState.DECLARED.value,
+            ArtifactState.COMPLETE.value,
+        ]
+        assert artifact_rows[0]["artifact_id"] == artifact_rows[1]["artifact_id"]
+        expected_evidence_path = f"structured_logs/{native_paths[0].name}"
+        assert [row["path"] for row in artifact_rows] == [
+            expected_evidence_path,
+            expected_evidence_path,
+        ]
+
     def test_close_attempts_every_handler_and_allows_reinitialization_after_error(
         self, tmp_path, structured_logger_fixture
     ):
