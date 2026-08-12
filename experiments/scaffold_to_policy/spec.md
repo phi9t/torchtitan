@@ -421,3 +421,16 @@ reasoning benchmarks.
   pass@2 0.500; OOD stayed at pass@1/pass@2 0.000 with assertion failures. This
   clears an executable-code harness gate only; it is not a HumanEval,
   LiveCodeBench, SWE-bench, Terminal-Bench, or Harbor benchmark claim.
+- 2026-08-12: Added and ran the first external-harness dry-run ingestion smoke.
+  The new `external_harness` module records pinned Harbor, Terminal-Bench 2.1,
+  and tau2-bench revisions, rootfs/runtime metadata, installed-package state,
+  raw score-like artifacts, trajectory fixtures, ingested artifacts, and a
+  shared report input. The completed rootfs run used Harbor revision
+  `b7e2f71b4563618af3a42279740f5f412dcf7046`, Terminal-Bench 2.1 revision
+  `7131e4375048a0e408a8fb404b5f499d726b695b`, and tau2-bench revision
+  `668d3bcd135c02aa3438f987ef45735b7c163ee3`. It confirmed rootfs launch,
+  pin capture, dry-run score/trajectory ingestion, and report-input checks, but
+  explicitly records that `harbor`, `terminal_bench`, and `tau2` are not
+  installed in the current rootfs and that Docker/bwrap binaries are not
+  available inside it. This clears only the dry-run ingestion contract; real
+  Harbor/Terminal-Bench and tau2 task execution remains incomplete.

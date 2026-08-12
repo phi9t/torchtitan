@@ -336,6 +336,34 @@ For tau2-bench, this repo should own rootfs-managed install/run pinning,
 trajectory and score ingestion, and report generation. The tau2 harness should
 own task execution.
 
+Run the first external-harness dry-run ingestion smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_external_harness_dry_run_smoke.sh
+```
+
+This records pinned Harbor, Terminal-Bench 2.1, and tau2-bench revisions,
+captures rootfs/runtime metadata, writes dry-run harness-owned score and
+trajectory fixtures, ingests them, and builds a shared report input. It does
+not install or execute the external harnesses and must not be cited as a
+benchmark result. The generated artifacts live under:
+
+```text
+experiments/scaffold_to_policy/results/external_harness_dry_run_smoke/
+```
+
+The first completed dry-run smoke used Harbor revision
+`b7e2f71b4563618af3a42279740f5f412dcf7046`, Terminal-Bench 2.1 revision
+`7131e4375048a0e408a8fb404b5f499d726b695b`, and tau2-bench revision
+`668d3bcd135c02aa3438f987ef45735b7c163ee3`. It confirmed the rootfs launch and
+ingestion contract, while recording that `harbor`, `terminal_bench`, and
+`tau2` are not installed in the current rootfs and Docker/bwrap binaries are
+not available inside that environment. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T103500Z-external-harness-dry-run-smoke.md
+```
+
 ## Registry Shape
 
 Each run family should be described by a machine-readable registry with:

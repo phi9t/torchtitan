@@ -18,6 +18,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
 )
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
 from torchtitan.experiments.scaffold_to_policy import coding_style
+from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
@@ -699,6 +700,79 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
     assert evaluated.prompt_variant == "chat"
     assert evaluated.num_rollouts == 4
     assert evaluated.max_new_tokens == 512
+
+
+def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    raw = results_root / "raw" / "harbor_terminal.json"
+    ingested_path = results_root / "ingested" / "harbor_terminal.json"
+    report_path = results_root / "manifests" / "report_input.json"
+
+    raw_record = external_harness.write_harness_smoke(
+        output=raw,
+        run_id="fixture",
+        harness_family="harbor_terminal",
+        pins=external_harness.default_harbor_terminal_pins(),
+        dry_run=True,
+        task_subset="dry-run",
+    )
+    ingested = external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id="fixture",
+        ingested_paths={"harbor_terminal": ingested_path},
+    )
+    external_harness.write_json(report_path, report_input)
+
+    assert raw_record["rootfs"]["in_rootfs"]
+    assert [pin["name"] for pin in raw_record["pins"]] == [
+        "harbor",
+        "terminal-bench-2-1",
+    ]
+    assert ingested["checks"]["dry_run_labeled"]
+    assert ingested["metric"]["name"] == "dry_run_compatibility"
+    assert all(report_input["checks"].values())
+    assert report_input["harnesses"]["harbor_terminal"]["mode"] == "dry_run"
+
+
+def test_external_harness_parser_accepts_dry_run_commands():
+    parser = build_parser()
+
+    raw = parser.parse_args(
+        [
+            "write-external-harness-smoke",
+            "--harness-family",
+            "tau2",
+            "--run-id",
+            "fixture",
+            "--task-subset",
+            "retail-dry-run",
+            "--output",
+            "raw.json",
+        ]
+    )
+    report = parser.parse_args(
+        [
+            "build-external-harness-report-input",
+            "--results-root",
+            "results",
+            "--run-id",
+            "fixture",
+            "--ingested",
+            "tau2=ingested.json",
+            "--output",
+            "report.json",
+        ]
+    )
+
+    assert raw.harness_family == "tau2"
+    assert raw.dry_run
+    assert report.ingested == ["tau2=ingested.json"]
 
 
 def test_modular_sequences_generation_is_deterministic():

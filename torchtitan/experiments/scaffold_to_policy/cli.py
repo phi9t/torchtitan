@@ -26,6 +26,7 @@ from torchtitan.experiments.scaffold_to_policy.modular_sequences import (
     ModularSequenceProblem,
 )
 from torchtitan.experiments.scaffold_to_policy import coding_style
+from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
@@ -677,6 +678,48 @@ def build_coding_style_report_input(args: argparse.Namespace) -> None:
             name for name, passed in report_input["checks"].items() if not passed
         ]
         raise SystemExit(f"coding-style report input failed: {', '.join(failed)}")
+
+
+def write_external_harness_smoke(args: argparse.Namespace) -> None:
+    if args.harness_family == "harbor_terminal":
+        pins = external_harness.default_harbor_terminal_pins()
+    elif args.harness_family == "tau2":
+        pins = external_harness.default_tau2_pins()
+    else:
+        raise ValueError(f"unknown harness family: {args.harness_family}")
+    external_harness.write_harness_smoke(
+        output=args.output,
+        run_id=args.run_id,
+        harness_family=args.harness_family,
+        pins=pins,
+        dry_run=args.dry_run,
+        task_subset=args.task_subset,
+    )
+
+
+def ingest_external_harness_smoke(args: argparse.Namespace) -> None:
+    external_harness.ingest_harness_smoke(
+        raw_result=args.raw_result,
+        output=args.output,
+        results_root=args.results_root,
+    )
+
+
+def build_external_harness_report_input(args: argparse.Namespace) -> None:
+    ingested_paths = _parse_split_paths(args.ingested)
+    report_input = external_harness.build_report_input(
+        results_root=args.results_root,
+        run_id=args.run_id,
+        ingested_paths=ingested_paths,
+    )
+    external_harness.write_json(args.output, report_input)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(
+            f"external-harness report input failed: {', '.join(failed)}"
+        )
 
 
 def rescore_math_style_evaluations(args: argparse.Namespace) -> None:
@@ -1387,6 +1430,42 @@ def build_parser() -> argparse.ArgumentParser:
     coding_rescore_parser.add_argument("--output", type=Path, required=True)
     coding_rescore_parser.add_argument("--summary", type=Path, required=True)
     coding_rescore_parser.set_defaults(func=rescore_coding_style_evaluations)
+
+    external_write_parser = subparsers.add_parser("write-external-harness-smoke")
+    external_write_parser.add_argument(
+        "--harness-family",
+        choices=["harbor_terminal", "tau2"],
+        required=True,
+    )
+    external_write_parser.add_argument("--run-id", required=True)
+    external_write_parser.add_argument("--task-subset", required=True)
+    external_write_parser.add_argument("--output", type=Path, required=True)
+    external_write_parser.add_argument(
+        "--dry-run",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    external_write_parser.set_defaults(func=write_external_harness_smoke)
+
+    external_ingest_parser = subparsers.add_parser("ingest-external-harness-smoke")
+    external_ingest_parser.add_argument("--raw-result", type=Path, required=True)
+    external_ingest_parser.add_argument("--results-root", type=Path, required=True)
+    external_ingest_parser.add_argument("--output", type=Path, required=True)
+    external_ingest_parser.set_defaults(func=ingest_external_harness_smoke)
+
+    external_report_parser = subparsers.add_parser(
+        "build-external-harness-report-input"
+    )
+    external_report_parser.add_argument("--results-root", type=Path, required=True)
+    external_report_parser.add_argument("--run-id", required=True)
+    external_report_parser.add_argument("--ingested", nargs="+", required=True)
+    external_report_parser.add_argument("--output", type=Path, required=True)
+    external_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    external_report_parser.set_defaults(func=build_external_harness_report_input)
 
     modular_dataset_parser = subparsers.add_parser("build-modular-dataset")
     modular_dataset_parser.add_argument("--evaluations", type=Path, required=True)
