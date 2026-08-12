@@ -787,6 +787,57 @@ def test_external_harness_installed_preflight_records_versions(tmp_path, monkeyp
     assert report_input["run"]["scaffold"]["type"] == "installed_preflight"
 
 
+def test_external_harness_task_score_report_accepts_success(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    raw = results_root / "raw" / "tau2_score.json"
+    ingested_path = results_root / "ingested" / "tau2_score.json"
+
+    external_harness.write_json(
+        raw,
+        {
+            "schema_version": 1,
+            "run_id": "fixture",
+            "harness_family": "tau2",
+            "mode": "task_score_smoke",
+            "task_subset": "mock",
+            "rootfs": {"in_rootfs": True},
+            "tools": {},
+            "pins": [
+                {
+                    "name": "tau2-bench",
+                    "installed": True,
+                    "installed_version": "1.0.1",
+                    "package_version": "1.0.1",
+                }
+            ],
+            "raw_result": {
+                "metric_name": "tau2_mock_score",
+                "score": 1.0,
+                "num_tasks": 1,
+                "score_source": "tau2 evaluator all_ignore_basis",
+                "task_metadata": {"task_id": "create_task_1"},
+                "trajectory": [],
+            },
+        },
+    )
+    ingested = external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id="fixture",
+        ingested_paths={"tau2": ingested_path},
+    )
+
+    assert ingested["checks"]["task_score_labeled"]
+    assert ingested["metric"]["task_metadata"]["task_id"] == "create_task_1"
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["scaffold"]["type"] == "task_score_smoke"
+
+
 def test_external_harness_parser_accepts_dry_run_commands():
     parser = build_parser()
 
@@ -843,6 +894,27 @@ def test_external_harness_parser_accepts_installed_preflight_command():
 
     assert args.harness_family == "harbor_terminal"
     assert args.cli_name == ["terminal-bench"]
+
+
+def test_external_harness_parser_accepts_tau2_score_command():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "write-tau2-mock-score-smoke",
+            "--run-id",
+            "fixture",
+            "--task-id",
+            "create_task_1",
+            "--evaluation-type",
+            "all_ignore_basis",
+            "--output",
+            "raw.json",
+        ]
+    )
+
+    assert args.task_id == "create_task_1"
+    assert args.evaluation_type == "all_ignore_basis"
 
 
 def test_modular_sequences_generation_is_deterministic():

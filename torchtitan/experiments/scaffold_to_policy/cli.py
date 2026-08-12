@@ -714,6 +714,15 @@ def write_external_harness_preflight(args: argparse.Namespace) -> None:
     )
 
 
+def write_tau2_mock_score_smoke(args: argparse.Namespace) -> None:
+    external_harness.write_tau2_mock_score_smoke(
+        output=args.output,
+        run_id=args.run_id,
+        task_id=args.task_id,
+        evaluation_type=args.evaluation_type,
+    )
+
+
 def ingest_external_harness_smoke(args: argparse.Namespace) -> None:
     external_harness.ingest_harness_smoke(
         raw_result=args.raw_result,
@@ -1477,6 +1486,23 @@ def build_parser() -> argparse.ArgumentParser:
     external_preflight_parser.add_argument("--output", type=Path, required=True)
     external_preflight_parser.add_argument("--cli-name", action="append", default=[])
     external_preflight_parser.set_defaults(func=write_external_harness_preflight)
+
+    tau2_score_parser = subparsers.add_parser("write-tau2-mock-score-smoke")
+    tau2_score_parser.add_argument("--run-id", required=True)
+    tau2_score_parser.add_argument("--task-id", default="create_task_1")
+    tau2_score_parser.add_argument(
+        "--evaluation-type",
+        default="all_ignore_basis",
+        choices=[
+            "env",
+            "action",
+            "communicate",
+            "all",
+            "all_ignore_basis",
+        ],
+    )
+    tau2_score_parser.add_argument("--output", type=Path, required=True)
+    tau2_score_parser.set_defaults(func=write_tau2_mock_score_smoke)
 
     external_ingest_parser = subparsers.add_parser("ingest-external-harness-smoke")
     external_ingest_parser.add_argument("--raw-result", type=Path, required=True)

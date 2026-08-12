@@ -183,6 +183,162 @@ def write_installed_preflight(
     return record
 
 
+def write_tau2_mock_score_smoke(
+    *,
+    output: Path,
+    run_id: str,
+    task_id: str,
+    evaluation_type: str,
+) -> dict[str, object]:
+    from tau2.data_model.message import (
+        AssistantMessage,
+        ToolCall,
+        ToolMessage,
+        UserMessage,
+    )
+    from tau2.data_model.simulation import (
+        AgentInfo,
+        Info,
+        Results,
+        SimulationRun,
+        TerminationReason,
+        UserInfo,
+    )
+    from tau2.environment.environment import EnvironmentInfo
+    from tau2.evaluator.evaluator import EvaluationType
+    from tau2.orchestrator.modes import CommunicationMode
+    from tau2.run import get_tasks
+    from tau2.scripts.evaluate_trajectories import compute_simulation_rewards
+
+    eval_type = EvaluationType(evaluation_type)
+    task = get_tasks("mock", task_ids=[task_id])[0]
+    messages = [
+        UserMessage(
+            id="u1",
+            role="user",
+            content=task.user_scenario.instructions,
+        ),
+        AssistantMessage(
+            id="a1",
+            role="assistant",
+            content=None,
+            tool_calls=[
+                ToolCall(
+                    id="call_1",
+                    name="create_task",
+                    arguments={
+                        "user_id": "user_1",
+                        "title": "Important Meeting",
+                    },
+                )
+            ],
+        ),
+        ToolMessage(
+            id="call_1",
+            role="tool",
+            requestor="assistant",
+            content=(
+                '{"task_id":"task_2","title":"Important Meeting",'
+                '"description":null,"status":"pending"}'
+            ),
+        ),
+        AssistantMessage(
+            id="a2",
+            role="assistant",
+            content="The Important Meeting task was created successfully for user_1.",
+        ),
+    ]
+    results = Results(
+        info=Info(
+            git_commit="fixture",
+            num_trials=1,
+            max_steps=20,
+            max_errors=10,
+            user_info=UserInfo(implementation="fixture_user"),
+            agent_info=AgentInfo(implementation="fixture_agent"),
+            environment_info=EnvironmentInfo(domain_name="mock", policy="mock policy"),
+        ),
+        tasks=[task],
+        simulations=[
+            SimulationRun(
+                id="sim-create-task-1",
+                task_id=task.id,
+                start_time="2026-01-01T00:00:00",
+                end_time="2026-01-01T00:00:01",
+                duration=1.0,
+                termination_reason=TerminationReason.AGENT_STOP,
+                messages=messages,
+                mode=CommunicationMode.HALF_DUPLEX.value,
+            )
+        ],
+    )
+    rescored = compute_simulation_rewards(results, evaluation_type=eval_type)
+    simulation = rescored.simulations[0]
+    reward_info = simulation.reward_info
+    if reward_info is None:
+        raise RuntimeError("tau2 scorer did not return reward_info")
+    record = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "harness_family": "tau2",
+        "mode": "task_score_smoke",
+        "task_subset": "mock",
+        "rootfs": {
+            "in_rootfs": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+            "python": sys.executable,
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        },
+        "tools": {
+            "git": _tool_version("git"),
+            "docker": _tool_version("docker"),
+            "bwrap": _tool_version("bwrap"),
+        },
+        "pins": [pin.to_json() for pin in default_tau2_pins()],
+        "raw_result": {
+            "metric_name": "tau2_mock_score",
+            "score": reward_info.reward,
+            "num_tasks": 1,
+            "score_source": f"tau2 evaluator {eval_type.value}",
+            "task_metadata": {
+                "domain": "mock",
+                "task_id": task.id,
+                "evaluation_type": eval_type.value,
+                "termination_reason": simulation.termination_reason.value,
+                "reward_breakdown": {
+                    key.value: value
+                    for key, value in (reward_info.reward_breakdown or {}).items()
+                },
+            },
+            "trajectory": [
+                {
+                    "step": 0,
+                    "actor": "fixture_user",
+                    "event": "request_create_task",
+                },
+                {
+                    "step": 1,
+                    "actor": "fixture_agent",
+                    "event": "call_create_task",
+                },
+                {
+                    "step": 2,
+                    "actor": "tau2_mock_environment",
+                    "event": "return_tool_result",
+                },
+                {
+                    "step": 3,
+                    "actor": "tau2_evaluator",
+                    "event": "compute_reward",
+                },
+            ],
+        },
+        "tau2_results": rescored.model_dump(mode="json"),
+    }
+    write_json(output, record)
+    return record
+
+
 def ingest_harness_smoke(
     *,
     raw_result: Path,
@@ -196,6 +352,7 @@ def ingest_harness_smoke(
         "raw_result_present": bool(raw.get("raw_result")),
         "dry_run_labeled": raw.get("mode") == "dry_run",
         "installed_preflight_labeled": raw.get("mode") == "installed_preflight",
+        "task_score_labeled": raw.get("mode") == "task_score_smoke",
         "all_imports_available": all(
             bool(pin.get("installed")) for pin in raw.get("pins", [])
         ),
@@ -225,6 +382,7 @@ def ingest_harness_smoke(
             "score": score,
             "num_tasks": raw["raw_result"]["num_tasks"],
             "score_source": raw["raw_result"]["score_source"],
+            "task_metadata": raw["raw_result"].get("task_metadata", {}),
         },
         "cli": raw.get("cli", []),
         "trajectory": raw["raw_result"]["trajectory"],
@@ -249,6 +407,9 @@ def build_report_input(
         for value in ingested.values()
         if value["checks"]["installed_preflight_labeled"]
     ]
+    task_score_values = [
+        value for value in ingested.values() if value["checks"]["task_score_labeled"]
+    ]
     checks = {
         "ingested_present": all(path.is_file() for path in ingested_paths.values()),
         "all_rootfs_selected": all(
@@ -257,6 +418,7 @@ def build_report_input(
         "all_modes_labeled": all(
             value["checks"]["dry_run_labeled"]
             or value["checks"]["installed_preflight_labeled"]
+            or value["checks"]["task_score_labeled"]
             for value in ingested.values()
         ),
         "all_pins_present": all(
@@ -269,6 +431,10 @@ def build_report_input(
         "installed_preflight_versions_match": all(
             value["checks"]["all_versions_match"] for value in installed_preflight_values
         ),
+        "task_score_smokes_succeeded": all(
+            value["metric"]["num_tasks"] > 0 and value["metric"]["score"] >= 1.0
+            for value in task_score_values
+        ),
     }
     mode_counts: dict[str, int] = {}
     for value in ingested.values():
@@ -277,8 +443,18 @@ def build_report_input(
     scaffold_type = (
         "installed_preflight"
         if mode_counts.get("installed_preflight", 0) == len(ingested)
+        else "task_score_smoke"
+        if mode_counts.get("task_score_smoke", 0) == len(ingested)
         else "dry_run_ingestion"
     )
+    limitations = [
+        "compatibility and artifact-ingestion evidence only",
+        "no model, adapter, or harness capability claim",
+    ]
+    if scaffold_type == "task_score_smoke":
+        limitations.append("fixture trajectory only; external benchmark agent was not run")
+    else:
+        limitations.append("no external benchmark task execution")
     return {
         "schema_version": 1,
         "run": {
@@ -297,11 +473,7 @@ def build_report_input(
         "harnesses": ingested,
         "mode_counts": mode_counts,
         "checks": checks,
-        "limitations": [
-            "compatibility and artifact-ingestion evidence only",
-            "no external benchmark task execution",
-            "no model, adapter, or harness capability claim",
-        ],
+        "limitations": limitations,
     }
 
 
@@ -393,6 +565,12 @@ def _cli_probe(name: str) -> dict[str, object]:
 
 
 def _limitations_for_mode(mode: object) -> list[str]:
+    if mode == "task_score_smoke":
+        return [
+            "fixture trajectory scored by upstream harness evaluator",
+            "external benchmark agent was not run",
+            "not a model capability or benchmark score",
+        ]
     if mode == "installed_preflight":
         return [
             "package import and version preflight only",

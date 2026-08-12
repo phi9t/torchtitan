@@ -452,3 +452,14 @@ reasoning benchmarks.
   package-install gate only. Real upstream Harbor/Terminal-Bench and tau2 task
   execution, scorer invocation, and final-state or executable-test artifact
   capture remain incomplete.
+- 2026-08-12: Added and ran the first tau2 scorer-ingestion smoke. The new
+  rootfs-managed entrypoint installs Sierra tau2-bench from the pinned revision,
+  clones the same pinned repo under the ignored results tree for its `data/`
+  directory, constructs a deterministic valid mock-domain `create_task_1`
+  trajectory, scores it with tau2's own evaluator using `all_ignore_basis`,
+  ingests the result, and writes a report input. The completed run reached
+  reward 1.0 with DB, ACTION, and COMMUNICATE reward components all equal to
+  1.0. This clears tau2 task-definition and scorer ingestion for a fixture
+  trajectory. It still does not clear full tau2 agent execution because no
+  external benchmark agent, user simulator, local model provider, or non-fixture
+  trajectory was run.

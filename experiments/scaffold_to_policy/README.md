@@ -393,6 +393,30 @@ no-external-LLM dummy-user pairings. The report is:
 experiments/scaffold_to_policy/reports/20260812T105500Z-external-harness-preflight-smoke.md
 ```
 
+Run the first tau2 scorer-ingestion smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_tau2_mock_score_smoke.sh
+```
+
+This installs Sierra tau2-bench from the pinned revision, uses its pinned
+`data/` checkout for the mock domain, constructs a deterministic valid
+`create_task_1` fixture trajectory, scores it with tau2's own evaluator, and
+ingests the result. It is a scorer-preserving fixture smoke, not a model or
+agent benchmark result. The generated artifacts live under:
+
+```text
+experiments/scaffold_to_policy/results/tau2_mock_score_smoke/
+```
+
+The first completed run scored the mock task with `all_ignore_basis` and
+reached reward `1.0`, with DB, ACTION, and COMMUNICATE reward components all
+equal to `1.0`. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T121500Z-tau2-mock-score-smoke.md
+```
+
 ## Registry Shape
 
 Each run family should be described by a machine-readable registry with:
