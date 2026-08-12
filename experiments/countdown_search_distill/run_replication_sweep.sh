@@ -17,6 +17,8 @@ LORA_RANKS="${LORA_RANKS:-32}"
 NGPU="${NGPU:-8}"
 CHECKPOINT_STEP="${CHECKPOINT_STEP:-step-94}"
 FORCE="${FORCE:-0}"
+SWEEP_GROUP="${SWEEP_GROUP:-replication}"
+LABEL_PREFIX="${LABEL_PREFIX:-}"
 
 case "${MODE}" in
   full|reduced) ;;
@@ -28,7 +30,7 @@ read -r -a SEED_LIST <<< "${SEEDS}"
 read -r -a TRAIN_SIZE_LIST <<< "${TRAIN_SIZES}"
 read -r -a LORA_RANK_LIST <<< "${LORA_RANKS}"
 
-SWEEP_ROOT="${TORCHTITAN_COUNTDOWN_ROOT}/sweeps/replication"
+SWEEP_ROOT="${TORCHTITAN_COUNTDOWN_ROOT}/sweeps/${SWEEP_GROUP}"
 mkdir -p "${SWEEP_ROOT}"
 SUMMARY="${SWEEP_ROOT}/replication_sweep_${MODE}.jsonl"
 touch "${SUMMARY}"
@@ -36,9 +38,9 @@ touch "${SUMMARY}"
 for seed in "${SEED_LIST[@]}"; do
   for train_size in "${TRAIN_SIZE_LIST[@]}"; do
     for lora_rank in "${LORA_RANK_LIST[@]}"; do
-      label="seed${seed}_train${train_size}_rank${lora_rank}"
+      label="${LABEL_PREFIX}seed${seed}_train${train_size}_rank${lora_rank}"
       run_id="${RUN_ID_PREFIX:-$(date -u +%Y%m%dT%H%M%SZ)-replication}-${label}"
-      run_root="${TORCHTITAN_COUNTDOWN_ROOT}/sweeps/replication/${label}"
+      run_root="${SWEEP_ROOT}/${label}"
       data_root="${run_root}/data"
       results_root="${run_root}/results"
       mkdir -p "${data_root}" "${results_root}"
@@ -69,6 +71,7 @@ row = {
     "seed": int("${seed}"),
     "train_size": int("${train_size}"),
     "lora_rank": int("${lora_rank}"),
+    "sweep_group": "${SWEEP_GROUP}",
     "data_root": "${data_root}",
     "results_root": "${results_root}",
     "report_input": "${report_input}",

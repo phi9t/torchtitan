@@ -256,11 +256,11 @@ Use `run_replication_sweep.sh` for second-draw or champion-arm sweep runs. It
 always re-enters the bwrap rootfs and writes isolated artifacts under:
 
 ```text
-experiments/countdown_search_distill/sweeps/replication/<label>/
+experiments/countdown_search_distill/sweeps/<sweep_group>/<label>/
 ```
 
 The default run is a second full-mode `clean` arm draw with seed 43, train size
-2000, and LoRA rank 32:
+2000, LoRA rank 32, and `SWEEP_GROUP=replication`:
 
 ```bash
 experiments/countdown_search_distill/run_replication_sweep.sh
@@ -273,6 +273,20 @@ SEEDS="43 44" \
 TRAIN_SIZES="1000 2000" \
 LORA_RANKS="16 32" \
 ARMS=clean \
+NGPU=8 \
+experiments/countdown_search_distill/run_replication_sweep.sh
+```
+
+Use a separate `SWEEP_GROUP` or `LABEL_PREFIX` for follow-up champion sweeps so
+new arms do not collide with completed clean-arm replication roots:
+
+```bash
+SWEEP_GROUP=formatting_replication \
+LABEL_PREFIX=formatting_ \
+SEEDS=43 \
+TRAIN_SIZES=2000 \
+LORA_RANKS=16 \
+ARMS=formatting \
 NGPU=8 \
 experiments/countdown_search_distill/run_replication_sweep.sh
 ```

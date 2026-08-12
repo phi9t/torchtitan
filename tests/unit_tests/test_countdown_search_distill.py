@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -1371,6 +1372,17 @@ def test_qwen3_countdown_formatting_config_uses_formatting_dataset():
         "data/train/formatting.jsonl"
     )
     assert config.dump_folder.endswith("results/train/formatting")
+
+
+def test_replication_sweep_runner_supports_isolated_sweep_groups():
+    script = Path(
+        "experiments/countdown_search_distill/run_replication_sweep.sh"
+    ).read_text()
+
+    assert 'SWEEP_GROUP="${SWEEP_GROUP:-replication}"' in script
+    assert 'LABEL_PREFIX="${LABEL_PREFIX:-}"' in script
+    assert 'SWEEP_ROOT="${TORCHTITAN_COUNTDOWN_ROOT}/sweeps/${SWEEP_GROUP}"' in script
+    assert 'run_root="${SWEEP_ROOT}/${label}"' in script
 
 
 def test_qwen3_fused_qkv_lora_b_split_preserves_grouped_order():
