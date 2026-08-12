@@ -306,6 +306,29 @@ between missing final answers and wrong final values. The report is:
 experiments/scaffold_to_policy/reports/20260812T083500Z-aime-public-vllm-smoke.md
 ```
 
+The larger AIME calibration used 8 dev and 8 OOD public AIME 2024 examples,
+8 rollouts per problem, and the same no-tool exact final-integer verifier:
+
+```bash
+RUN_ID=20260812Taime-8x8-rollouts8-lowmem \
+DATA_ROOT=experiments/scaffold_to_policy/data/aime_public_vllm_8x8_rollouts8 \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/aime_public_vllm_8x8_rollouts8 \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 NUM_ROLLOUTS=8 \
+GPU_MEMORY_UTILIZATION=0.05 \
+MAX_NEW_TOKENS=1024 \
+PROMPT_VARIANT=chat \
+experiments/scaffold_to_policy/run_aime_public_vllm_smoke.sh
+```
+
+It reached dev pass@1/pass@8/pass@32 `0.125` and OOD
+pass@1/pass@8/pass@32 `0.000`. The only solved dev problem was `AIME/67`,
+solved in all eight rollouts; no OOD problem was elicitable at eight samples.
+The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812Taime-8x8-rollouts8.md
+```
+
 Run the GPQA Diamond gate through the rootfs:
 
 ```bash

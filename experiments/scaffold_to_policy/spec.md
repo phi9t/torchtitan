@@ -954,3 +954,13 @@ reasoning benchmarks.
   ARC context fit and missing-`FINAL` failure modes without producing an
   exact-grid solve. The report is
   `experiments/scaffold_to_policy/reports/20260812Tarc-packed-strict-chat-results.md`.
+- 2026-08-12: Expanded the AIME hard-reasoning calibration to 8 rollouts on the
+  same 8 dev / 8 OOD public AIME 2024 slice. Run
+  `20260812Taime-8x8-rollouts8-lowmem` used Qwen3-1.7B/vLLM, no tools, the
+  exact final-integer verifier, `MAX_NEW_TOKENS=1024`, and
+  `GPU_MEMORY_UTILIZATION=0.05` inside the bwrap rootfs. It reached dev
+  pass@1/pass@8/pass@32 0.125 and OOD pass@1/pass@8/pass@32 0.0. The only
+  solved dev problem was `AIME/67`, solved in all eight rollouts; no additional
+  dev or OOD problems became elicitable at eight samples. Missing final answers
+  remained the largest failure mode, followed by wrong final integers. The
+  report is `experiments/scaffold_to_policy/reports/20260812Taime-8x8-rollouts8.md`.
