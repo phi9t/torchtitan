@@ -17,7 +17,9 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     write_jsonl,
 )
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
+from torchtitan.experiments.scaffold_to_policy import coding_style
 from torchtitan.experiments.scaffold_to_policy import gsm_style
+from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
 
 
@@ -346,6 +348,357 @@ def test_gsm_style_vllm_parser_defaults_to_chat_prompt():
     assert args.prompt_variant == "chat"
     assert args.num_rollouts == 32
     assert args.max_new_tokens == 256
+
+
+def test_math_style_normalizes_boxed_numeric_and_symbolic_answers():
+    assert math_style.normalize_answer(r"\boxed{2}") == "2"
+    assert math_style.normalize_answer(r"\boxed{\frac{6}{4}}") == "3/2"
+    assert math_style.normalize_answer("$7.5$") == "15/2"
+    assert math_style.normalize_answer(r"\boxed{\sqrt{3}}") == "sqrt3"
+
+
+def test_math_style_verifier_accepts_final_and_boxed_markers():
+    problem = math_style.MathStyleProblem(
+        problem_id="math-fixture",
+        source="fixture",
+        problem="How many roots?",
+        answer=r"\boxed{2}",
+        normalized_answer="2",
+    )
+
+    final = math_style.verify_answer(problem, "work\nFINAL: 2")
+    boxed = math_style.verify_answer(problem, r"work therefore \boxed{2}")
+    wrong = math_style.verify_answer(problem, "work\nFINAL: 3")
+    missing = math_style.verify_answer(problem, "work only")
+
+    assert final.success
+    assert boxed.success
+    assert not wrong.success
+    assert wrong.normalized_value == "3"
+    assert not missing.success
+    assert missing.error == "missing final answer"
+
+
+def test_math_style_import_public_rows_records_revision_source(tmp_path):
+    rows = [
+        {
+            "problem": r"How many vertical asymptotes does $1/(x^2-1)$ have?",
+            "level": "Level 3",
+            "type": "Algebra",
+            "solution": r"The roots are $1$ and $-1$, so there are \boxed{2}.",
+        },
+        {
+            "problem": "What is half of 3?",
+            "level": "Level 1",
+            "type": "Algebra",
+            "solution": r"Half of 3 is \boxed{\frac{3}{2}}.",
+        },
+    ]
+
+    problems = math_style.import_public_rows(
+        rows,
+        source="EleutherAI/hendrycks_math:algebra:abc123:test",
+        limit=1,
+        offset=1,
+    )
+    provenance = math_style.build_public_provenance(
+        dataset="EleutherAI/hendrycks_math",
+        subset="algebra",
+        revision="abc123",
+        source_split="test",
+        output=tmp_path / "dev.jsonl",
+        limit=1,
+        offset=1,
+        problems=problems,
+    )
+
+    assert len(problems) == 1
+    assert problems[0].answer == r"\frac{3}{2}"
+    assert problems[0].normalized_answer == "3/2"
+    assert problems[0].category == "Algebra"
+    assert provenance["revision"] == "abc123"
+    assert provenance["num_problems"] == 1
+
+
+def test_math_style_report_input_validates_summary_counts(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    rows = [
+        {
+            "problem_id": "math-1",
+            "source": "fixture",
+            "problem": "What is 1 + 1?",
+            "answer": "2",
+            "normalized_answer": "2",
+        },
+        {
+            "problem_id": "math-2",
+            "source": "fixture",
+            "problem": "What is 3/2?",
+            "answer": r"\frac{3}{2}",
+            "normalized_answer": "3/2",
+        },
+    ]
+    math_style.write_jsonl(dev, rows)
+    problems = math_style.load_problems(dev)
+    split_registry = data_root / "split_registry.json"
+    math_style.write_json(
+        split_registry,
+        math_style.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    math_style.write_json(
+        summary,
+        math_style.summarize_evaluations(
+            [
+                math_style.evaluate_fixture_rollouts(
+                    problem,
+                    [f"FINAL: {problem.answer}"],
+                )
+                for problem in problems
+            ]
+        ),
+    )
+
+    report_input = math_style.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        scaffold_budget=1,
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["task"] == "math_style"
+    assert report_input["run"]["scaffold"]["budget"] == 1
+    assert report_input["verifier"]["limitations"]
+
+
+def test_math_style_load_evaluations_rescores_rollout_texts(tmp_path):
+    problem = math_style.MathStyleProblem(
+        problem_id="math-1",
+        source="fixture",
+        problem="What is 2 + 2?",
+        answer="4",
+        normalized_answer="4",
+    )
+    evaluations = [
+        math_style.evaluate_fixture_rollouts(
+            problem,
+            ["FINAL: 5", "FINAL: 4"],
+        )
+    ]
+    path = tmp_path / "evaluations.jsonl"
+    math_style.write_jsonl(path, [evaluation.to_json() for evaluation in evaluations])
+
+    loaded = math_style.load_evaluations(path)
+
+    assert loaded[0].solved_at() == 2
+    assert loaded[0].rollouts[0].verification.normalized_value == "5"
+    assert loaded[0].rollouts[1].verification.success
+
+
+def test_math_style_parsers_default_to_pinned_public_algebra_and_chat_prompt():
+    parser = build_parser()
+
+    imported = parser.parse_args(
+        [
+            "import-math-split",
+            "--output",
+            "dev.jsonl",
+            "--provenance",
+            "dev_provenance.json",
+            "--revision",
+            "abc123",
+            "--limit",
+            "8",
+        ]
+    )
+    evaluated = parser.parse_args(
+        [
+            "evaluate-math-style-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+
+    assert imported.dataset == "EleutherAI/hendrycks_math"
+    assert imported.subset == "algebra"
+    assert imported.source_split == "test"
+    assert evaluated.prompt_variant == "chat"
+    assert evaluated.num_rollouts == 32
+    assert evaluated.max_new_tokens == 512
+
+
+def test_coding_style_verifier_runs_python_tests():
+    problem = coding_style.CodingStyleProblem(
+        problem_id="HumanEval/fixture",
+        source="fixture",
+        prompt="def add_one(x):\n    ",
+        test="def check(candidate):\n    assert candidate(1) == 2\n    assert candidate(-1) == 0",
+        entry_point="add_one",
+    )
+
+    correct = coding_style.verify_solution(problem, "return x + 1")
+    wrong = coding_style.verify_solution(problem, "return x + 2")
+
+    assert correct.success
+    assert not wrong.success
+    assert wrong.error == "assertion failure"
+
+
+def test_coding_style_extracts_markdown_fenced_code():
+    problem = coding_style.CodingStyleProblem(
+        problem_id="HumanEval/fence",
+        source="fixture",
+        prompt="def square(x):\n    ",
+        test="def check(candidate):\n    assert candidate(4) == 16",
+        entry_point="square",
+    )
+
+    verified = coding_style.verify_solution(
+        problem,
+        "Here is the code:\n```python\ndef square(x):\n    return x * x\n```",
+    )
+
+    assert verified.success
+    assert verified.extracted_code.startswith("def square")
+
+
+def test_coding_style_import_public_rows_records_revision_source(tmp_path):
+    rows = [
+        {
+            "task_id": "HumanEval/0",
+            "prompt": "def has_close_elements(numbers, threshold):\n    ",
+            "canonical_solution": "return False",
+            "test": "def check(candidate):\n    assert candidate([1.0, 2.0], 0.1) == False",
+            "entry_point": "has_close_elements",
+        },
+        {
+            "task_id": "HumanEval/1",
+            "prompt": "def separate_paren_groups(paren_string):\n    ",
+            "canonical_solution": "return []",
+            "test": "def check(candidate):\n    assert candidate('()') == ['()']",
+            "entry_point": "separate_paren_groups",
+        },
+    ]
+
+    problems = coding_style.import_public_rows(
+        rows,
+        source="openai/openai_humaneval:abc123:test",
+        limit=1,
+        offset=1,
+    )
+    provenance = coding_style.build_public_provenance(
+        dataset="openai/openai_humaneval",
+        subset=None,
+        revision="abc123",
+        source_split="test",
+        output=tmp_path / "dev.jsonl",
+        limit=1,
+        offset=1,
+        problems=problems,
+    )
+
+    assert len(problems) == 1
+    assert problems[0].problem_id == "HumanEval/1"
+    assert problems[0].entry_point == "separate_paren_groups"
+    assert provenance["revision"] == "abc123"
+    assert provenance["num_problems"] == 1
+
+
+def test_coding_style_report_input_validates_summary_counts(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    rows = [
+        {
+            "problem_id": "HumanEval/fixture",
+            "source": "fixture",
+            "prompt": "def add_one(x):\n    ",
+            "test": "def check(candidate):\n    assert candidate(1) == 2",
+            "entry_point": "add_one",
+        }
+    ]
+    coding_style.write_jsonl(dev, rows)
+    problems = coding_style.load_problems(dev)
+    split_registry = data_root / "split_registry.json"
+    coding_style.write_json(
+        split_registry,
+        coding_style.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    coding_style.write_json(
+        summary,
+        coding_style.summarize_evaluations(
+            [
+                coding_style.evaluate_fixture_rollouts(
+                    problems[0],
+                    ["return x + 1"],
+                )
+            ]
+        ),
+    )
+
+    report_input = coding_style.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        scaffold_budget=1,
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["task"] == "coding_style"
+    assert report_input["run"]["lane"] == "coding"
+    assert report_input["verifier"]["kind"] == "executable"
+
+
+def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt():
+    parser = build_parser()
+
+    imported = parser.parse_args(
+        [
+            "import-humaneval-split",
+            "--output",
+            "dev.jsonl",
+            "--provenance",
+            "dev_provenance.json",
+            "--revision",
+            "abc123",
+            "--limit",
+            "4",
+        ]
+    )
+    evaluated = parser.parse_args(
+        [
+            "evaluate-coding-style-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+
+    assert imported.dataset == "openai/openai_humaneval"
+    assert imported.subset is None
+    assert imported.source_split == "test"
+    assert evaluated.prompt_variant == "chat"
+    assert evaluated.num_rollouts == 4
+    assert evaluated.max_new_tokens == 512
 
 
 def test_modular_sequences_generation_is_deterministic():

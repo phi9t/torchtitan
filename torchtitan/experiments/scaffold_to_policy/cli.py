@@ -25,7 +25,9 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
 from torchtitan.experiments.scaffold_to_policy.modular_sequences import (
     ModularSequenceProblem,
 )
+from torchtitan.experiments.scaffold_to_policy import coding_style
 from torchtitan.experiments.scaffold_to_policy import gsm_style
+from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
 
 
@@ -91,6 +93,95 @@ def import_gsm8k_split(args: argparse.Namespace) -> None:
         gsm_style.write_json(args.provenance, provenance)
 
 
+def import_math_split(args: argparse.Namespace) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "datasets is required for import-math-split. Run through the "
+            "TorchTitan rootfs."
+        ) from exc
+
+    dataset = load_dataset(
+        args.dataset,
+        args.subset,
+        split=args.source_split,
+        revision=args.revision,
+    )
+    source = (
+        f"{args.dataset}:{args.subset}:{args.revision}:"
+        f"{args.source_split}"
+    )
+    problems = math_style.import_public_rows(
+        dataset,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    math_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    if args.provenance is not None:
+        provenance = math_style.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        math_style.write_json(args.provenance, provenance)
+
+
+def import_humaneval_split(args: argparse.Namespace) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "datasets is required for import-humaneval-split. Run through the "
+            "TorchTitan rootfs."
+        ) from exc
+
+    if args.subset:
+        dataset = load_dataset(
+            args.dataset,
+            args.subset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    else:
+        dataset = load_dataset(
+            args.dataset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    source = coding_style._public_source(
+        args.dataset,
+        args.subset,
+        args.revision,
+        args.source_split,
+    )
+    problems = coding_style.import_public_rows(
+        dataset,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    coding_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    if args.provenance is not None:
+        provenance = coding_style.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        coding_style.write_json(args.provenance, provenance)
+
+
 def validate_arithmetic_splits(args: argparse.Namespace) -> None:
     split_paths = _parse_split_paths(args.split)
     registry = build_split_registry(split_paths)
@@ -113,6 +204,22 @@ def validate_gsm_style_splits(args: argparse.Namespace) -> None:
     gsm_style.write_json(args.output, registry)
     if not registry["selected"]:
         raise SystemExit("gsm-style split validation failed")
+
+
+def validate_math_style_splits(args: argparse.Namespace) -> None:
+    split_paths = _parse_split_paths(args.split)
+    registry = math_style.build_split_registry(split_paths)
+    math_style.write_json(args.output, registry)
+    if not registry["selected"]:
+        raise SystemExit("math-style split validation failed")
+
+
+def validate_coding_style_splits(args: argparse.Namespace) -> None:
+    split_paths = _parse_split_paths(args.split)
+    registry = coding_style.build_split_registry(split_paths)
+    coding_style.write_json(args.output, registry)
+    if not registry["selected"]:
+        raise SystemExit("coding-style split validation failed")
 
 
 def evaluate_arithmetic_fixture(args: argparse.Namespace) -> None:
@@ -175,6 +282,53 @@ def evaluate_gsm_style_fixture(args: argparse.Namespace) -> None:
     gsm_style.write_json(
         args.summary,
         gsm_style.summarize_evaluations(evaluations),
+    )
+
+
+def evaluate_math_style_fixture(args: argparse.Namespace) -> None:
+    problems = math_style.load_problems(args.problems)
+    fixture = _load_fixture(args.rollouts)
+    evaluations = []
+    for problem in problems:
+        if problem.problem_id not in fixture:
+            raise ValueError(f"missing rollouts for {problem.problem_id}")
+        evaluations.append(
+            math_style.evaluate_fixture_rollouts(
+                problem,
+                fixture[problem.problem_id][: args.max_rollouts],
+            )
+        )
+    math_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    math_style.write_json(
+        args.summary,
+        math_style.summarize_evaluations(evaluations),
+    )
+
+
+def evaluate_coding_style_fixture(args: argparse.Namespace) -> None:
+    problems = coding_style.load_problems(args.problems)
+    fixture = _load_fixture(args.rollouts)
+    evaluations = []
+    for problem in problems:
+        if problem.problem_id not in fixture:
+            raise ValueError(f"missing rollouts for {problem.problem_id}")
+        evaluations.append(
+            coding_style.evaluate_fixture_rollouts(
+                problem,
+                fixture[problem.problem_id][: args.max_rollouts],
+                timeout_seconds=args.timeout_seconds,
+            )
+        )
+    coding_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    coding_style.write_json(
+        args.summary,
+        coding_style.summarize_evaluations(evaluations),
     )
 
 
@@ -336,6 +490,103 @@ def evaluate_gsm_style_vllm(args: argparse.Namespace) -> None:
     )
 
 
+def evaluate_math_style_vllm(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-math-style-vllm. Run through the "
+            "TorchTitan rootfs or use evaluate-math-style-fixture."
+        ) from exc
+
+    problems = math_style.load_problems(args.problems)
+    prompts = _build_math_style_vllm_prompts(problems, args)
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(prompts, sampling_params)
+    evaluations = []
+    for problem, output in zip(problems, outputs):
+        evaluations.append(
+            math_style.evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+            )
+        )
+    math_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    math_style.write_json(
+        args.summary,
+        math_style.summarize_evaluations(evaluations),
+    )
+
+
+def evaluate_coding_style_vllm(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-coding-style-vllm. Run through the "
+            "TorchTitan rootfs or use evaluate-coding-style-fixture."
+        ) from exc
+
+    problems = coding_style.load_problems(args.problems)
+    prompts = _build_coding_style_vllm_prompts(problems, args)
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(prompts, sampling_params)
+    evaluations = []
+    for problem, output in zip(problems, outputs):
+        evaluations.append(
+            coding_style.evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+                timeout_seconds=args.timeout_seconds,
+            )
+        )
+    coding_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    coding_style.write_json(
+        args.summary,
+        coding_style.summarize_evaluations(evaluations),
+    )
+
+
 def build_arithmetic_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
     report_input = build_report_input(
@@ -390,6 +641,66 @@ def build_gsm_style_report_input(args: argparse.Namespace) -> None:
             name for name, passed in report_input["checks"].items() if not passed
         ]
         raise SystemExit(f"gsm-style report input failed: {', '.join(failed)}")
+
+
+def build_math_style_report_input(args: argparse.Namespace) -> None:
+    summary_paths = _parse_split_paths(args.summary)
+    report_input = math_style.build_report_input(
+        data_root=args.data_root,
+        results_root=args.results_root,
+        run_id=args.run_id,
+        split_registry=args.split_registry,
+        summary_paths=summary_paths,
+        scaffold_budget=args.scaffold_budget,
+    )
+    math_style.write_json(args.output, report_input)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(f"math-style report input failed: {', '.join(failed)}")
+
+
+def build_coding_style_report_input(args: argparse.Namespace) -> None:
+    summary_paths = _parse_split_paths(args.summary)
+    report_input = coding_style.build_report_input(
+        data_root=args.data_root,
+        results_root=args.results_root,
+        run_id=args.run_id,
+        split_registry=args.split_registry,
+        summary_paths=summary_paths,
+        scaffold_budget=args.scaffold_budget,
+    )
+    coding_style.write_json(args.output, report_input)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(f"coding-style report input failed: {', '.join(failed)}")
+
+
+def rescore_math_style_evaluations(args: argparse.Namespace) -> None:
+    evaluations = math_style.load_evaluations(args.evaluations)
+    math_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    math_style.write_json(
+        args.summary,
+        math_style.summarize_evaluations(evaluations),
+    )
+
+
+def rescore_coding_style_evaluations(args: argparse.Namespace) -> None:
+    evaluations = coding_style.load_evaluations(args.evaluations)
+    coding_style.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    coding_style.write_json(
+        args.summary,
+        coding_style.summarize_evaluations(evaluations),
+    )
 
 
 def build_modular_dataset(args: argparse.Namespace) -> None:
@@ -565,6 +876,68 @@ def _build_gsm_style_vllm_prompts(
     ]
 
 
+def _build_math_style_vllm_prompts(
+    problems: list[math_style.MathStyleProblem],
+    args: argparse.Namespace,
+) -> list[str]:
+    if args.prompt_variant == "plain":
+        return [math_style.prompt_for_problem(problem) for problem in problems]
+    if args.prompt_variant != "chat":
+        raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return [
+        tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You solve MATH benchmark problems. Return a short "
+                        "calculation trace and end with FINAL: <answer>."
+                    ),
+                },
+                {"role": "user", "content": math_style.prompt_for_problem(problem)},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        for problem in problems
+    ]
+
+
+def _build_coding_style_vllm_prompts(
+    problems: list[coding_style.CodingStyleProblem],
+    args: argparse.Namespace,
+) -> list[str]:
+    if args.prompt_variant == "plain":
+        return [coding_style.prompt_for_problem(problem) for problem in problems]
+    if args.prompt_variant != "chat":
+        raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return [
+        tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You solve Python programming tasks. Return only Python "
+                        "code for the requested function, with no Markdown."
+                    ),
+                },
+                {"role": "user", "content": coding_style.prompt_for_problem(problem)},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        for problem in problems
+    ]
+
+
 def _concise_modular_prompt(problem: ModularSequenceProblem) -> str:
     return (
         f"x0={problem.start}; for i=1..{problem.steps}, "
@@ -636,6 +1009,28 @@ def build_parser() -> argparse.ArgumentParser:
     gsm8k_import_parser.add_argument("--offset", type=int, default=0)
     gsm8k_import_parser.set_defaults(func=import_gsm8k_split)
 
+    math_import_parser = subparsers.add_parser("import-math-split")
+    math_import_parser.add_argument("--output", type=Path, required=True)
+    math_import_parser.add_argument("--provenance", type=Path)
+    math_import_parser.add_argument("--dataset", default="EleutherAI/hendrycks_math")
+    math_import_parser.add_argument("--subset", default="algebra")
+    math_import_parser.add_argument("--source-split", default="test")
+    math_import_parser.add_argument("--revision", required=True)
+    math_import_parser.add_argument("--limit", type=int, required=True)
+    math_import_parser.add_argument("--offset", type=int, default=0)
+    math_import_parser.set_defaults(func=import_math_split)
+
+    humaneval_import_parser = subparsers.add_parser("import-humaneval-split")
+    humaneval_import_parser.add_argument("--output", type=Path, required=True)
+    humaneval_import_parser.add_argument("--provenance", type=Path)
+    humaneval_import_parser.add_argument("--dataset", default="openai/openai_humaneval")
+    humaneval_import_parser.add_argument("--subset")
+    humaneval_import_parser.add_argument("--source-split", default="test")
+    humaneval_import_parser.add_argument("--revision", required=True)
+    humaneval_import_parser.add_argument("--limit", type=int, required=True)
+    humaneval_import_parser.add_argument("--offset", type=int, default=0)
+    humaneval_import_parser.set_defaults(func=import_humaneval_split)
+
     fixture_writer = subparsers.add_parser("write-arithmetic-fixture")
     fixture_writer.add_argument("--problems", type=Path, required=True)
     fixture_writer.add_argument("--output", type=Path, required=True)
@@ -674,6 +1069,23 @@ def build_parser() -> argparse.ArgumentParser:
     gsm_eval_parser.add_argument("--summary", type=Path, required=True)
     gsm_eval_parser.add_argument("--max-rollouts", type=int, default=32)
     gsm_eval_parser.set_defaults(func=evaluate_gsm_style_fixture)
+
+    math_eval_parser = subparsers.add_parser("evaluate-math-style-fixture")
+    math_eval_parser.add_argument("--problems", type=Path, required=True)
+    math_eval_parser.add_argument("--rollouts", type=Path, required=True)
+    math_eval_parser.add_argument("--output", type=Path, required=True)
+    math_eval_parser.add_argument("--summary", type=Path, required=True)
+    math_eval_parser.add_argument("--max-rollouts", type=int, default=32)
+    math_eval_parser.set_defaults(func=evaluate_math_style_fixture)
+
+    coding_eval_parser = subparsers.add_parser("evaluate-coding-style-fixture")
+    coding_eval_parser.add_argument("--problems", type=Path, required=True)
+    coding_eval_parser.add_argument("--rollouts", type=Path, required=True)
+    coding_eval_parser.add_argument("--output", type=Path, required=True)
+    coding_eval_parser.add_argument("--summary", type=Path, required=True)
+    coding_eval_parser.add_argument("--max-rollouts", type=int, default=32)
+    coding_eval_parser.add_argument("--timeout-seconds", type=float, default=5.0)
+    coding_eval_parser.set_defaults(func=evaluate_coding_style_fixture)
 
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)
@@ -790,6 +1202,81 @@ def build_parser() -> argparse.ArgumentParser:
     )
     gsm_vllm_parser.set_defaults(func=evaluate_gsm_style_vllm)
 
+    math_vllm_parser = subparsers.add_parser("evaluate-math-style-vllm")
+    math_vllm_parser.add_argument("--problems", type=Path, required=True)
+    math_vllm_parser.add_argument("--model", required=True)
+    math_vllm_parser.add_argument("--output", type=Path, required=True)
+    math_vllm_parser.add_argument("--summary", type=Path, required=True)
+    math_vllm_parser.add_argument("--num-rollouts", type=int, default=32)
+    math_vllm_parser.add_argument("--temperature", type=float, default=0.8)
+    math_vllm_parser.add_argument("--top-p", type=float, default=0.95)
+    math_vllm_parser.add_argument("--max-new-tokens", type=int, default=512)
+    math_vllm_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    math_vllm_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "2048")),
+    )
+    math_vllm_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    math_vllm_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    math_vllm_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    math_vllm_parser.set_defaults(func=evaluate_math_style_vllm)
+
+    coding_vllm_parser = subparsers.add_parser("evaluate-coding-style-vllm")
+    coding_vllm_parser.add_argument("--problems", type=Path, required=True)
+    coding_vllm_parser.add_argument("--model", required=True)
+    coding_vllm_parser.add_argument("--output", type=Path, required=True)
+    coding_vllm_parser.add_argument("--summary", type=Path, required=True)
+    coding_vllm_parser.add_argument("--num-rollouts", type=int, default=4)
+    coding_vllm_parser.add_argument("--temperature", type=float, default=0.2)
+    coding_vllm_parser.add_argument("--top-p", type=float, default=0.95)
+    coding_vllm_parser.add_argument("--max-new-tokens", type=int, default=512)
+    coding_vllm_parser.add_argument("--timeout-seconds", type=float, default=5.0)
+    coding_vllm_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    coding_vllm_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "2048")),
+    )
+    coding_vllm_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    coding_vllm_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    coding_vllm_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    coding_vllm_parser.set_defaults(func=evaluate_coding_style_vllm)
+
     split_parser = subparsers.add_parser("validate-arithmetic-splits")
     split_parser.add_argument("--split", nargs="+", required=True)
     split_parser.add_argument("--output", type=Path, required=True)
@@ -804,6 +1291,16 @@ def build_parser() -> argparse.ArgumentParser:
     gsm_split_parser.add_argument("--split", nargs="+", required=True)
     gsm_split_parser.add_argument("--output", type=Path, required=True)
     gsm_split_parser.set_defaults(func=validate_gsm_style_splits)
+
+    math_split_parser = subparsers.add_parser("validate-math-style-splits")
+    math_split_parser.add_argument("--split", nargs="+", required=True)
+    math_split_parser.add_argument("--output", type=Path, required=True)
+    math_split_parser.set_defaults(func=validate_math_style_splits)
+
+    coding_split_parser = subparsers.add_parser("validate-coding-style-splits")
+    coding_split_parser.add_argument("--split", nargs="+", required=True)
+    coding_split_parser.add_argument("--output", type=Path, required=True)
+    coding_split_parser.set_defaults(func=validate_coding_style_splits)
 
     report_parser = subparsers.add_parser("build-arithmetic-report-input")
     report_parser.add_argument("--data-root", type=Path, required=True)
@@ -848,6 +1345,48 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     gsm_report_parser.set_defaults(func=build_gsm_style_report_input)
+
+    math_report_parser = subparsers.add_parser("build-math-style-report-input")
+    math_report_parser.add_argument("--data-root", type=Path, required=True)
+    math_report_parser.add_argument("--results-root", type=Path, required=True)
+    math_report_parser.add_argument("--run-id", required=True)
+    math_report_parser.add_argument("--split-registry", type=Path, required=True)
+    math_report_parser.add_argument("--summary", nargs="+", required=True)
+    math_report_parser.add_argument("--output", type=Path, required=True)
+    math_report_parser.add_argument("--scaffold-budget", type=int, default=32)
+    math_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    math_report_parser.set_defaults(func=build_math_style_report_input)
+
+    coding_report_parser = subparsers.add_parser("build-coding-style-report-input")
+    coding_report_parser.add_argument("--data-root", type=Path, required=True)
+    coding_report_parser.add_argument("--results-root", type=Path, required=True)
+    coding_report_parser.add_argument("--run-id", required=True)
+    coding_report_parser.add_argument("--split-registry", type=Path, required=True)
+    coding_report_parser.add_argument("--summary", nargs="+", required=True)
+    coding_report_parser.add_argument("--output", type=Path, required=True)
+    coding_report_parser.add_argument("--scaffold-budget", type=int, default=4)
+    coding_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    coding_report_parser.set_defaults(func=build_coding_style_report_input)
+
+    math_rescore_parser = subparsers.add_parser("rescore-math-style-evaluations")
+    math_rescore_parser.add_argument("--evaluations", type=Path, required=True)
+    math_rescore_parser.add_argument("--output", type=Path, required=True)
+    math_rescore_parser.add_argument("--summary", type=Path, required=True)
+    math_rescore_parser.set_defaults(func=rescore_math_style_evaluations)
+
+    coding_rescore_parser = subparsers.add_parser("rescore-coding-style-evaluations")
+    coding_rescore_parser.add_argument("--evaluations", type=Path, required=True)
+    coding_rescore_parser.add_argument("--output", type=Path, required=True)
+    coding_rescore_parser.add_argument("--summary", type=Path, required=True)
+    coding_rescore_parser.set_defaults(func=rescore_coding_style_evaluations)
 
     modular_dataset_parser = subparsers.add_parser("build-modular-dataset")
     modular_dataset_parser.add_argument("--evaluations", type=Path, required=True)

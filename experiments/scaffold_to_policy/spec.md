@@ -398,3 +398,26 @@ reasoning benchmarks.
   dev pass@4 0.750, OOD pass@1 0.625, and OOD pass@4 0.750. This clears the
   first public reasoning plumbing and calibration gate, but it remains too
   small for a public benchmark claim or adapter-training conclusion.
+- 2026-08-12: Added and ran the first pinned public MATH-style no-tool smoke.
+  The new `math_style` module imports `EleutherAI/hendrycks_math` algebra rows
+  at explicit dataset revision `21a5633873b6a120296cce3e2df9d5550074f4a3`,
+  extracts boxed dataset answers, normalizes final answers conservatively, and
+  records verifier limitations in report inputs. The completed rootfs/vLLM run
+  used 8 dev and 8 OOD examples from the algebra test split with 4 rollouts per
+  problem. After rescoring saved generations with observed normalization fixes,
+  dev reached pass@1 0.750 and pass@4 0.750; OOD reached pass@1 0.750 and
+  pass@4 0.875. This clears the first harder public reasoning smoke, but it
+  remains too small for a benchmark claim and the verifier intentionally does
+  not score symbolic algebra equivalence, interval/set semantics, matrices, or
+  multi-answer semantics.
+- 2026-08-12: Added and ran the first coding-lane smoke. The new
+  `coding_style` module imports `openai/openai_humaneval` rows at explicit
+  dataset revision `7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544`, prompts
+  Qwen3-1.7B through vLLM inside the bwrap rootfs, extracts candidate Python
+  code, and scores it by running the benchmark tests in a separate Python
+  subprocess with a timeout. The completed smoke used 2 dev and 2 OOD examples
+  with 2 rollouts per problem. After rescoring saved generations with a
+  corrected prompt-preamble extraction rule, dev reached pass@1 0.500 and
+  pass@2 0.500; OOD stayed at pass@1/pass@2 0.000 with assertion failures. This
+  clears an executable-code harness gate only; it is not a HumanEval,
+  LiveCodeBench, SWE-bench, Terminal-Bench, or Harbor benchmark claim.

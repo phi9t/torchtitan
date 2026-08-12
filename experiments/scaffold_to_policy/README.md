@@ -262,6 +262,66 @@ pass@4 `0.750`, OOD pass@1 `0.625`, and OOD pass@4 `0.750`. The report is:
 experiments/scaffold_to_policy/reports/20260812T083000Z-gsm8k-public-vllm-smoke.md
 ```
 
+Run the first pinned public MATH-style no-tool smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_math_public_vllm_smoke.sh
+```
+
+This imports small dev/OOD slices from `EleutherAI/hendrycks_math` algebra at
+dataset revision `21a5633873b6a120296cce3e2df9d5550074f4a3`, evaluates
+Qwen3-1.7B with vLLM without tools, and verifies outputs with
+`math_style_normalized_final_v1`. The generated public-slice artifacts live
+under:
+
+```text
+experiments/scaffold_to_policy/data/math_public_vllm_smoke/
+experiments/scaffold_to_policy/results/math_public_vllm_smoke/
+```
+
+The first completed MATH smoke used 8 dev and 8 OOD examples from the algebra
+test split, 4 rollouts per problem, and reached dev pass@1 `0.750`, dev
+pass@4 `0.750`, OOD pass@1 `0.750`, and OOD pass@4 `0.875` after rescoring
+saved generations with the corrected normalizer. The exact verifier remains
+conservative: it does not score symbolic algebra equivalence, interval/set
+semantics, matrices, or multi-answer semantics. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T091500Z-math-public-vllm-smoke.md
+```
+
+## Initial Coding Benchmarks
+
+The first coding lane uses `coding_style`, a repo-owned executable-test harness
+for small HumanEval slices. It is a stepping stone toward LiveCodeBench,
+SWE-bench, Terminal-Bench, and Harbor-backed runs, not a substitute for their
+official harnesses.
+
+Run the first pinned public HumanEval no-tool smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_humaneval_public_vllm_smoke.sh
+```
+
+This imports small dev/OOD slices from `openai/openai_humaneval` at dataset
+revision `7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544`, evaluates Qwen3-1.7B
+with vLLM, extracts candidate Python code, and runs the benchmark tests in a
+separate Python subprocess with a timeout. The generated artifacts live under:
+
+```text
+experiments/scaffold_to_policy/data/humaneval_public_vllm_smoke/
+experiments/scaffold_to_policy/results/humaneval_public_vllm_smoke/
+```
+
+The first completed coding smoke used 2 dev and 2 OOD examples, 2 rollouts per
+problem, and reached dev pass@1 `0.500`, dev pass@2 `0.500`, OOD pass@1
+`0.000`, and OOD pass@2 `0.000` after rescoring saved generations with a
+corrected prompt-preamble extraction rule. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T101500Z-humaneval-public-vllm-smoke.md
+```
+
 ## Agentic Benchmarks
 
 tau2-bench and Terminal-Bench/Harbor are in scope, but they enter after the
