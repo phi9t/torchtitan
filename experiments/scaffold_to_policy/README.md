@@ -877,6 +877,28 @@ learned-policy, or general Terminal-Bench capability result. The report is:
 experiments/scaffold_to_policy/reports/20260812Tscripted-headless-and-hard-reruns.md
 ```
 
+Run the Qwen3/vLLM Harbor model agent:
+
+```bash
+RUN_ID=20260812Tqwen-headless-terminal-official-verifier \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/terminal_bench_harbor_qwen_headless_official_verifier \
+HARBOR_AGENT=torchtitan.experiments.scaffold_to_policy.harbor_headless_terminal_agent:HeadlessTerminalQwenAgent \
+TIMEOUT_SECONDS=1200 \
+SCAFFOLD_TO_POLICY_HARBOR_GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_terminal_bench_oracle_probe.sh
+```
+
+The agent uses the Harbor venv only as the harness process and spawns rootfs
+`/usr/bin/python` for local Qwen3-1.7B/vLLM generation. The final run reached
+Harbor's official verifier with `n_trials=1`, `n_errors=0`, no trial
+exceptions, and reward `0.0`. This clears model-policy execution plumbing for
+one pinned Terminal-Bench task, but it is not a successful task solve. The
+report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812Tqwen-harbor-model-agent.md
+```
+
 The first completed larger BigCodeBench-Hard `contract_chat` rerun used:
 
 ```bash

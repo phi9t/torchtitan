@@ -911,3 +911,17 @@ reasoning benchmarks.
   `n_trials=1`, `n_errors=0`, and metric `1.0`. This is a bounded scripted
   policy/harness smoke, not a Qwen3, learned-policy, or general Terminal-Bench
   capability result.
+- 2026-08-12: Added and ran a Qwen3/vLLM Harbor custom agent for the same
+  pinned `headless-terminal` task. The final run
+  `20260812Tqwen-headless-terminal-official-verifier` used Harbor's Docker
+  environment and official verifier, while the agent generated
+  `/app/headless_terminal.py` with rootfs `/usr/bin/python`, local Qwen3-1.7B,
+  vLLM, `attention_backend=TRITON_ATTN`, `VLLM_USE_FLASHINFER_SAMPLER=0`, and
+  `GPU_MEMORY_UTILIZATION=0.05`. The final artifact is an official
+  model-policy execution result: `n_trials=1`, `n_errors=0`,
+  `num_trial_exceptions=0`, and verifier reward `0.0`. The generated code
+  imported successfully but required a `session_id` constructor argument, so six
+  of seven released tests failed. Earlier Qwen Harbor attempts are recorded as
+  wrapper/boundary failures: missing vLLM in the Harbor venv, FlashInfer CUDA
+  compile mismatch before forcing Triton attention, stdout JSON parsing
+  collision with vLLM logs, and multiline quoting during container write.
