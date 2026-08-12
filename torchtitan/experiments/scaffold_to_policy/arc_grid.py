@@ -187,6 +187,17 @@ def compact_prompt_for_problem(problem: ARCGridProblem) -> str:
     return "\n".join(lines)
 
 
+def packed_prompt_for_problem(problem: ARCGridProblem) -> str:
+    lines = ["ARC. Digits are cells, / separates rows. End FINAL:<json-grid>."]
+    for index, example in enumerate(problem.train_examples, start=1):
+        lines.append(
+            f"E{index} I={_packed_grid(example.input_grid)} "
+            f"O={_packed_grid(example.output_grid)}"
+        )
+    lines.append(f"T={_packed_grid(problem.test_input)}")
+    return "\n".join(lines)
+
+
 def verify_answer(problem: ARCGridProblem, text: str) -> ARCGridVerification:
     final_value = _extract_final_value(text)
     if final_value is None:
@@ -558,6 +569,10 @@ def _extract_final_value(text: str) -> str | None:
 
 def _compact_grid_json(grid: Grid) -> str:
     return json.dumps(_grid_to_lists(grid), separators=(",", ":"))
+
+
+def _packed_grid(grid: Grid) -> str:
+    return "/".join("".join(str(cell) for cell in row) for row in grid)
 
 
 def _grid_to_lists(grid: Grid) -> list[list[int]]:

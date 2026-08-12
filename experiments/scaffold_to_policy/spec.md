@@ -842,6 +842,16 @@ reasoning benchmarks.
   `FINAL:<json-grid>` contract, but removes most natural-language boilerplate.
   Rootfs preflight on the known blocker task `ARC-AGI-2/009d5c81/0` reduced the
   prompt from 4473 to 4383 tokens, but still exceeded the 4096-token model
-  window with a 256-token generation reserve. This is a partial compression
-  branch, not a solved ARC context issue; the next ARC branch needs either
-  stronger lossless serialization or a larger-context model configuration.
+  window with a 256-token generation reserve. This was a partial compression
+  branch, not a solved ARC context issue.
+- 2026-08-12: Added an opt-in ARC-AGI-2 `packed_chat` prompt variant. The
+  variant preserves the released example grids, test grid, and exact
+  `FINAL:<json-grid>` output contract, but serializes prompt-side grids as digit
+  rows separated by `/`. Rootfs preflight on `ARC-AGI-2/009d5c81/0` reduced the
+  prompt to 2389 tokens and 2645 total tokens with a 256-token generation
+  reserve, clearing the 4096-token context gate. A tiny hard-lane refresh
+  `20260812Tarc-packed-chat-stage-refresh` also cleared the OOD prompt
+  preflight for `ARC-AGI-2/18419cfa/0` at 3025 prompt tokens and 3281 total
+  tokens, then reached model execution and stopped at the existing vLLM
+  KV-cache initialization blocker. This is a prompt/context infrastructure
+  improvement only; no ARC model score was produced.

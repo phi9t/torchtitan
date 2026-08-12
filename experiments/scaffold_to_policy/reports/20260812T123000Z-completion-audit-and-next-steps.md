@@ -177,6 +177,15 @@ reasoning/coding report inputs:
   `ARC-AGI-2/009d5c81/0`, whose chat prompt exceeded the 4096-token model limit
   even with `MAX_NEW_TOKENS=256`; the runner wrote a blocker report and JSONL
   trace instead of stopping at a raw preflight failure.
+- ARC `packed_chat` is now the next prompt branch for over-context exact-grid
+  tasks. It preserves the JSON final-answer verifier while serializing
+  prompt-side grids as digit rows separated by `/`. On `ARC-AGI-2/009d5c81/0`,
+  prompt preflight improved from 4473 chat tokens and 4383 compact-chat tokens
+  to 2389 packed-chat tokens, clearing the 4096-token gate with a 256-token
+  generation reserve. Tiny refresh run
+  `20260812Tarc-packed-chat-stage-refresh` cleared both dev and OOD prompt
+  preflights, then reached the existing vLLM KV-cache initialization blocker.
+  This is not an ARC model score.
 - BigCodeBench-Hard refresh run
   `20260812Tbigcode-hard-lane-stage-refresh` passed 1-problem dev and OOD
   canonical preflights, passed GPU-memory selection at
