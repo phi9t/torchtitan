@@ -10,6 +10,7 @@ import time
 from collections import namedtuple
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -119,10 +120,11 @@ class TensorBoardLogger(BaseLogger):
     def __init__(self, log_dir: str, tag: str | None = None):
         self.tag = tag
         self.writer = SummaryWriter(log_dir, max_queue=1000)
+        self._evidence_path = str(Path(log_dir).resolve())
         self._artifact_id = record_artifact(
             producer="tensorboard",
             kind="tensorboard.event_stream",
-            path=log_dir,
+            path=self._evidence_path,
             state=ArtifactState.DECLARED,
             metadata={"format": "event_directory"},
         )
@@ -137,21 +139,24 @@ class TensorBoardLogger(BaseLogger):
     def close(self) -> None:
         try:
             self.writer.close()
-        except Exception:
+        except BaseException:
             if self._artifact_id is not None and not self._artifact_closed:
                 try:
                     record_artifact(
                         producer="tensorboard",
                         kind="tensorboard.event_stream",
-                        path=self.writer.log_dir,
+                        path=self._evidence_path,
                         state=ArtifactState.FAILED,
                         artifact_id=self._artifact_id,
                         metadata={"format": "event_directory"},
                     )
-                except Exception:
-                    logger.exception(
-                        "failed to append run evidence while recording TensorBoard failure"
-                    )
+                except BaseException:
+                    try:
+                        logger.exception(
+                            "failed to append run evidence while recording TensorBoard failure"
+                        )
+                    except BaseException:
+                        pass
                 self._artifact_closed = True
             raise
         if self._artifact_id is not None and not self._artifact_closed:
@@ -160,16 +165,19 @@ class TensorBoardLogger(BaseLogger):
                 completed_artifact_id = record_artifact(
                     producer="tensorboard",
                     kind="tensorboard.event_stream",
-                    path=self.writer.log_dir,
+                    path=self._evidence_path,
                     state=ArtifactState.COMPLETE,
                     artifact_id=self._artifact_id,
                     metadata={"format": "event_directory"},
                 )
-            except Exception:
+            except BaseException:
                 if handling_exception:
-                    logger.exception(
-                        "failed to append run evidence while handling another exception"
-                    )
+                    try:
+                        logger.exception(
+                            "failed to append run evidence while handling another exception"
+                        )
+                    except BaseException:
+                        pass
                     return
                 raise
             if completed_artifact_id is not None:

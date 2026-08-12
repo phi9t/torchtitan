@@ -12,6 +12,7 @@ import os
 from abc import abstractmethod
 from collections.abc import Iterable
 from datetime import timedelta
+from pathlib import Path
 from typing import Protocol, TYPE_CHECKING
 
 import torch
@@ -65,13 +66,13 @@ def _configure_flight_recorder(comm_config: CommConfig, base_folder: str) -> Non
     # Dump on timeout by default if trace buffer is enabled.
     _warn_overwrite_env(dump_on_timeout, "1")
     dump_dir = os.path.join(base_folder, comm_config.save_traces_folder)
-    prefix = os.path.join(dump_dir, comm_config.save_traces_file_prefix)
+    native_prefix = f"{dump_dir}/{comm_config.save_traces_file_prefix}"
     os.makedirs(dump_dir, exist_ok=True)
-    _warn_overwrite_env(trace_file, prefix)
+    _warn_overwrite_env(trace_file, native_prefix)
     record_artifact(
         producer="pytorch_flight_recorder",
         kind="pytorch.flight_recorder.dump",
-        path=prefix,
+        path=str(Path(native_prefix).resolve()),
         state=ArtifactState.DECLARED,
         metadata={
             "format": "pytorch_flight_recorder_dump",
