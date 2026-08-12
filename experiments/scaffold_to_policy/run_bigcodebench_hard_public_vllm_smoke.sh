@@ -104,6 +104,7 @@ for split in dev ood_test; do
     --prompt-variant "${PROMPT_VARIANT}" \
     --temperature "${TEMPERATURE}" \
     --top-p "${TOP_P}" \
+    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
     --timeout-seconds "${TIMEOUT_SECONDS}"
 done
 

@@ -687,30 +687,49 @@ def preflight_vllm_gpu_memory(args: argparse.Namespace) -> None:
         }
     else:
         device_index = args.device_index
-        free_bytes, total_bytes = torch.cuda.mem_get_info(device_index)
-        required_bytes = int(total_bytes * args.gpu_memory_utilization)
-        preflight = {
-            "schema_version": 1,
-            "kind": "vllm_gpu_memory_preflight",
-            "selected": free_bytes >= required_bytes,
-            "reason": "sufficient free memory"
-            if free_bytes >= required_bytes
-            else "insufficient free memory",
-            "gpu_memory_utilization": args.gpu_memory_utilization,
-            "devices": [
-                {
-                    "device_index": device_index,
-                    "name": torch.cuda.get_device_name(device_index),
-                    "free_bytes": free_bytes,
-                    "total_bytes": total_bytes,
-                    "required_bytes": required_bytes,
-                    "free_gib": free_bytes / (1024**3),
-                    "total_gib": total_bytes / (1024**3),
-                    "required_gib": required_bytes / (1024**3),
-                    "selected": free_bytes >= required_bytes,
-                }
-            ],
-        }
+        try:
+            free_bytes, total_bytes = torch.cuda.mem_get_info(device_index)
+            device_name = torch.cuda.get_device_name(device_index)
+        except Exception as exc:
+            preflight = {
+                "schema_version": 1,
+                "kind": "vllm_gpu_memory_preflight",
+                "selected": False,
+                "reason": "cuda memory query failed",
+                "gpu_memory_utilization": args.gpu_memory_utilization,
+                "devices": [
+                    {
+                        "device_index": device_index,
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                        "selected": False,
+                    }
+                ],
+            }
+        else:
+            required_bytes = int(total_bytes * args.gpu_memory_utilization)
+            preflight = {
+                "schema_version": 1,
+                "kind": "vllm_gpu_memory_preflight",
+                "selected": free_bytes >= required_bytes,
+                "reason": "sufficient free memory"
+                if free_bytes >= required_bytes
+                else "insufficient free memory",
+                "gpu_memory_utilization": args.gpu_memory_utilization,
+                "devices": [
+                    {
+                        "device_index": device_index,
+                        "name": device_name,
+                        "free_bytes": free_bytes,
+                        "total_bytes": total_bytes,
+                        "required_bytes": required_bytes,
+                        "free_gib": free_bytes / (1024**3),
+                        "total_gib": total_bytes / (1024**3),
+                        "required_gib": required_bytes / (1024**3),
+                        "selected": free_bytes >= required_bytes,
+                    }
+                ],
+            }
     arc_grid.write_json(args.output, preflight)
     if args.require_selected and not preflight["selected"]:
         device = preflight["devices"][0] if preflight["devices"] else {}
@@ -750,6 +769,8 @@ def evaluate_arithmetic_vllm(args: argparse.Namespace) -> None:
     }
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(prompts, sampling_params)
     evaluations = []
@@ -808,6 +829,8 @@ def evaluate_modular_vllm(args: argparse.Namespace) -> None:
         llm_kwargs["max_lora_rank"] = args.max_lora_rank
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(
         prompts,
@@ -860,6 +883,8 @@ def evaluate_gsm_style_vllm(args: argparse.Namespace) -> None:
     }
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(prompts, sampling_params)
     evaluations = []
@@ -908,6 +933,8 @@ def evaluate_math_style_vllm(args: argparse.Namespace) -> None:
     }
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(prompts, sampling_params)
     evaluations = []
@@ -956,6 +983,8 @@ def evaluate_coding_style_vllm(args: argparse.Namespace) -> None:
     }
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(prompts, sampling_params)
     evaluations = []
@@ -1005,6 +1034,8 @@ def evaluate_multiple_choice_vllm(args: argparse.Namespace) -> None:
     }
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(prompts, sampling_params)
     evaluations = []
@@ -1996,6 +2027,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["0", "1"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
     )
+    vllm_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+    )
     vllm_parser.set_defaults(func=evaluate_arithmetic_vllm)
 
     modular_vllm_parser = subparsers.add_parser("evaluate-modular-vllm")
@@ -2037,6 +2073,11 @@ def build_parser() -> argparse.ArgumentParser:
     modular_vllm_parser.add_argument("--lora-name", default="modular_adapter")
     modular_vllm_parser.add_argument("--lora-id", type=int, default=1)
     modular_vllm_parser.add_argument("--max-lora-rank", type=int, default=32)
+    modular_vllm_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+    )
     modular_vllm_parser.set_defaults(func=evaluate_modular_vllm)
 
     gsm_vllm_parser = subparsers.add_parser("evaluate-gsm-style-vllm")
@@ -2074,6 +2115,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["0", "1"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
     )
+    gsm_vllm_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+    )
     gsm_vllm_parser.set_defaults(func=evaluate_gsm_style_vllm)
 
     math_vllm_parser = subparsers.add_parser("evaluate-math-style-vllm")
@@ -2110,6 +2156,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--use-flashinfer-sampler",
         choices=["0", "1"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    math_vllm_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
     )
     math_vllm_parser.set_defaults(func=evaluate_math_style_vllm)
 
@@ -2149,6 +2200,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["0", "1"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
     )
+    coding_vllm_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+    )
     coding_vllm_parser.set_defaults(func=evaluate_coding_style_vllm)
 
     multiple_choice_vllm_parser = subparsers.add_parser("evaluate-multiple-choice-vllm")
@@ -2185,6 +2241,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--use-flashinfer-sampler",
         choices=["0", "1"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    multiple_choice_vllm_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
     )
     multiple_choice_vllm_parser.set_defaults(func=evaluate_multiple_choice_vllm)
 

@@ -29,11 +29,12 @@ Completed or materially advanced:
 Not complete:
 
 - GPQA Diamond still requires Hugging Face gated dataset credentials.
-- Terminal-Bench/Harbor full execution is blocked by missing Docker or an
-  equivalent Harbor backend inside the hermetic rootfs.
+- Terminal-Bench/Harbor oracle execution now works through the bwrap rootfs
+  with explicit host Docker passthrough and host-path repo binding, but it is
+  still an oracle harness smoke rather than a model or agent score.
 - tau2-bench full agent execution is incomplete; package, loader, fixture
-  scorer ingestion, and upstream `tau2 run` launch have cleared, but the first
-  upstream execution probe produced one infra error and zero evaluated tasks.
+  scorer ingestion, and upstream `tau2 run` launch have cleared, but current
+  offline execution probes still produce infra errors and zero evaluated tasks.
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
 - The registry/reporting surface still needs broader latest-row selection,
@@ -47,7 +48,7 @@ Not complete:
 | 1-8 run identity, manifests, provenance, environment | Partial | Countdown report inputs, scaffold smoke report inputs, rootfs shell entrypoints, external harness metadata | Manifest stage freshness is stronger in Countdown than in the general scaffold lane; canonical latest-row selection is still not generalized. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
-| 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh` | Docker-backed Harbor execution still lacks a hermetic backend. |
+| 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
 | 21-22 local generated reasoning tasks | Complete for initial lane | `arithmetic_words`, `modular_sequences`, and modular transfer reports | Larger modular transfer replication is still needed before adapter-science claims. |
 | 23-25 public no-tool reasoning semantics | Mostly complete | GSM8K, MATH, AIME, ARC-AGI-2 scripts and reports | GPQA Diamond is blocked by auth; all public runs are too small for public benchmark claims. |
 | 26-29 external harness boundaries and labels | Partial | `external_harness` module, dry-run/preflight/tau2/Terminal-Bench reports, tau2 execution-probe ingestion | Full Terminal-Bench/Harbor and successful tau2 task evaluation remain incomplete. |
@@ -83,6 +84,13 @@ BigCodeBench-Hard executable smoke:
   splits passed canonical preflight 8/8 after rootfs dependency repair, and the
   model reached dev/OOD pass@1/pass@4 `0.000`. All 64 sampled candidates failed
   released unit tests as assertion failures.
+- Follow-up blocked: the `contract_chat` prompt condition now has parser and
+  runner support plus consistent `GPU_MEMORY_UTILIZATION` forwarding into
+  vLLM. The same selected slice still passes canonical preflight 8/8 on dev and
+  8/8 on OOD, but current shared-GPU contention from unrelated SGLang
+  processes prevented a model result. The hardened memory preflight now records
+  both insufficient-memory and CUDA memory-query failures as JSON blocker
+  artifacts.
 
 ## New Hardening Landed From This Audit
 
@@ -122,12 +130,17 @@ post-generation scoring surprises.
      execution and verifier semantics.
 
 3. tau2-bench:
-   - Blocker: the first upstream `tau2 run` execution probe recorded
-     `termination_reason: infrastructure_error`, zero evaluated tasks, and
-     `DummyUser.__init__() got an unexpected keyword argument 'tools'`.
-   - Required next step: add a minimal local model-provider or deterministic
-     benchmark-agent execution path that produces a non-fixture tau2 trajectory
-     and scores it with tau2's official evaluator.
+   - Progress: the first upstream `tau2 run` execution probe exposed a solo
+     dummy-user constructor mismatch; the runner default now uses tau2's
+     constructor-compatible `llm_agent` plus `user_simulator` pair and exposes
+     `TAU2_USER_LLM`.
+   - Current blocker: in hermetic offline mode, LiteLLM rejects
+     `model=fake`, so tau2 records `BadRequestError`, one infra error, and zero
+     evaluated tasks.
+   - Required next step: add a real compatible provider endpoint inside rootfs
+     or a benchmark-preserving deterministic provider/agent execution path that
+     produces a non-fixture tau2 trajectory and scores it with tau2's official
+     evaluator.
 
 4. Registry/reporting:
    - Blocker: scaffold lanes still have per-task report builders rather than a

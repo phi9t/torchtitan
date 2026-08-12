@@ -21,9 +21,10 @@ TAU2_REVISION="${TAU2_REVISION:-668d3bcd135c02aa3438f987ef45735b7c163ee3}"
 TAU2_REPO_DIR="${TAU2_REPO_DIR:-${RESULTS_ROOT}/src/tau2-bench}"
 TAU2_SAVE_NAME="${TAU2_SAVE_NAME:-${RUN_ID}}"
 TAU2_TASK_ID="${TAU2_TASK_ID:-create_task_1}"
-TAU2_AGENT="${TAU2_AGENT:-llm_agent_solo}"
+TAU2_AGENT="${TAU2_AGENT:-llm_agent}"
 TAU2_AGENT_LLM="${TAU2_AGENT_LLM:-fake}"
-TAU2_USER="${TAU2_USER:-dummy_user}"
+TAU2_USER="${TAU2_USER:-user_simulator}"
+TAU2_USER_LLM="${TAU2_USER_LLM:-fake}"
 TAU2_MAX_STEPS="${TAU2_MAX_STEPS:-2}"
 TAU2_MAX_ERRORS="${TAU2_MAX_ERRORS:-1}"
 TAU2_TIMEOUT="${TAU2_TIMEOUT:-20}"
@@ -71,6 +72,7 @@ rm -rf "${TAU2_DATA_DIR}/simulations/${TAU2_SAVE_NAME}"
     --agent "${TAU2_AGENT}" \
     --agent-llm "${TAU2_AGENT_LLM}" \
     --user "${TAU2_USER}" \
+    --user-llm "${TAU2_USER_LLM}" \
     --max-steps "${TAU2_MAX_STEPS}" \
     --max-errors "${TAU2_MAX_ERRORS}" \
     --timeout "${TAU2_TIMEOUT}" \

@@ -1182,6 +1182,7 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
     assert evaluated.prompt_variant == "chat"
     assert evaluated.num_rollouts == 4
     assert evaluated.max_new_tokens == 512
+    assert evaluated.gpu_memory_utilization is None
 
     contract = parser.parse_args(
         [
@@ -1196,10 +1197,47 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
             "summary.json",
             "--prompt-variant",
             "contract_chat",
+            "--gpu-memory-utilization",
+            "0.4",
         ]
     )
 
     assert contract.prompt_variant == "contract_chat"
+    assert contract.gpu_memory_utilization == 0.4
+
+    math = parser.parse_args(
+        [
+            "evaluate-math-style-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+            "--gpu-memory-utilization",
+            "0.5",
+        ]
+    )
+    multiple_choice = parser.parse_args(
+        [
+            "evaluate-multiple-choice-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+            "--gpu-memory-utilization",
+            "0.6",
+        ]
+    )
+
+    assert math.gpu_memory_utilization == 0.5
+    assert multiple_choice.gpu_memory_utilization == 0.6
 
 
 def test_harder_reasoning_and_coding_parsers_accept_public_commands():

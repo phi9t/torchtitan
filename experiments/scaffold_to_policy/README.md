@@ -501,6 +501,16 @@ had only 4.729 GiB free versus 160.516 GiB required. The blocked report is:
 experiments/scaffold_to_policy/reports/20260812T183000Z-bigcodebench-contract-chat-blocked.md
 ```
 
+The runner now passes `GPU_MEMORY_UTILIZATION` through both the preflight and
+`evaluate-coding-style-vllm`, matching the ARC runner behavior. A later
+rootfs retry under shared-GPU contention confirmed the same 8/8 dev and 8/8
+OOD canonical preflight for the `contract_chat` slice, but the model run still
+did not complete because unrelated root-owned SGLang processes consumed nearly
+all eight B200s. Under the most contended state, even CUDA memory discovery
+failed; `preflight-vllm-gpu-memory` now records that as structured blocker
+JSON with `reason: cuda memory query failed` instead of losing the diagnostic
+to a Python traceback.
+
 The current completion audit and blocker map is:
 
 ```text
@@ -632,6 +642,15 @@ The report is:
 ```text
 experiments/scaffold_to_policy/reports/20260812T132500Z-tau2-execution-probe.md
 ```
+
+The current runner default uses tau2's non-solo `llm_agent` plus
+`user_simulator` pairing because this matches tau2's constructor contract; it
+also exposes `TAU2_USER_LLM`. In a hermetic offline run with
+`TAU2_AGENT_LLM=fake` and `TAU2_USER_LLM=fake`, tau2 reaches the simulation
+loop but LiteLLM rejects `model=fake` as an unknown provider, so the probe
+still records one infra error and zero evaluated tasks. A successful nonfixture
+tau2 execution therefore needs either a real compatible provider endpoint
+inside the rootfs or a benchmark-preserving deterministic provider/agent path.
 
 Run the Terminal-Bench / Harbor oracle execution probe through the rootfs:
 

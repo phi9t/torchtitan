@@ -656,3 +656,33 @@ reasoning benchmarks.
   prompt with `strict_chat`; a format-repair or two-stage final-emission
   condition is the better next ARC branch. The report is
   `experiments/scaffold_to_policy/reports/20260812T150000Z-arc-strict-chat-results.md`.
+- 2026-08-12: Fixed the Terminal-Bench/Harbor bwrap-to-Docker host-path
+  boundary. The rootfs entrypoint now binds the checkout at its real host path
+  when Docker passthrough is enabled, and Harbor runs from that host-visible
+  path so verifier bind mounts exist from the Docker daemon's point of view.
+  The run `20260812T190000Z-terminal-bench-harbor-hostpath` completed one
+  pinned `headless-terminal` oracle trial with Harbor `n_trials=1`,
+  `n_errors=0`, mean metric 1.0, and verifier reward 1.0. This clears the
+  Harbor/Docker/Compose/verifier-mount infrastructure smoke, but it remains an
+  oracle harness result rather than a model or agent capability claim.
+- 2026-08-12: Continued tau2 upstream execution probing. The initial solo
+  default exposed a tau2 revision mismatch: `DummyUser` is required for solo
+  mode but its constructor does not accept the `tools` argument that the runner
+  now passes. The runner default now uses tau2's constructor-compatible
+  `llm_agent` plus `user_simulator` pair and exposes `TAU2_USER_LLM`. In a
+  hermetic offline run with `fake` model names, tau2 reaches the simulation loop
+  but LiteLLM rejects `model=fake` as an unknown provider, producing one infra
+  error and zero evaluated tasks. The next tau2 step is a real compatible
+  provider endpoint inside rootfs or a benchmark-preserving deterministic
+  provider/agent path that still writes and scores tau2's official
+  `results.json`.
+- 2026-08-12: Hardened the shared vLLM memory controls for harder reasoning and
+  coding. The `preflight-vllm-gpu-memory` command now writes structured blocker
+  JSON even when CUDA memory discovery itself fails under extreme contention,
+  and the vLLM evaluators for arithmetic, modular sequences, GSM-style, MATH /
+  AIME style, coding, and multiple choice now accept and forward
+  `--gpu-memory-utilization`. AIME and GPQA rootfs runners now run the same GPU
+  memory preflight before model launch. Retried BigCodeBench-Hard
+  `contract_chat` and GPQA runs remained blocked by shared-machine state:
+  GPQA is gated without `HF_TOKEN`, and unrelated root-owned SGLang processes
+  consumed nearly all eight B200s, in one case causing CUDA memory-query OOM.

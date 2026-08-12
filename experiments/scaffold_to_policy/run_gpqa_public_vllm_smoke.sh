@@ -34,6 +34,7 @@ MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-1024}"
 PROMPT_VARIANT="${PROMPT_VARIANT:-chat}"
 TEMPERATURE="${TEMPERATURE:-0.2}"
 TOP_P="${TOP_P:-0.95}"
+GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
 
@@ -91,6 +92,10 @@ python -m torchtitan.experiments.scaffold_to_policy.cli validate-multiple-choice
     "ood_test=${DATA_ROOT}/ood_test.jsonl" \
   --output "${DATA_ROOT}/split_registry.json"
 
+python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
+  --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
+
 for split in dev ood_test; do
   python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-multiple-choice-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \
@@ -101,7 +106,8 @@ for split in dev ood_test; do
     --max-new-tokens "${MAX_NEW_TOKENS}" \
     --prompt-variant "${PROMPT_VARIANT}" \
     --temperature "${TEMPERATURE}" \
-    --top-p "${TOP_P}"
+    --top-p "${TOP_P}" \
+    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
 done
 
 python -m torchtitan.experiments.scaffold_to_policy.cli build-multiple-choice-report-input \
