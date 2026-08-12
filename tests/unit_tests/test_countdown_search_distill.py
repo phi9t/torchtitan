@@ -5,6 +5,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -760,6 +762,66 @@ def test_runtime_preflight_cli_fails_missing_asset(tmp_path):
     decision = json.loads(decision_path.read_text())
     assert not decision["selected"]
     assert not decision["checks"]["model_assets"]["config_json"]
+
+
+def test_gpu_runtime_preflight_checks_free_memory(monkeypatch):
+    from torchtitan.experiments.countdown_search_distill import cli
+
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
+        @staticmethod
+        def device_count():
+            return 2
+
+        @staticmethod
+        def mem_get_info(device_idx):
+            gib = 1024**3
+            free_gib = [180, 120][device_idx]
+            return free_gib * gib, 180 * gib
+
+    fake_torch = types.SimpleNamespace(cuda=FakeCuda())
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    checks, diagnostics = cli._check_gpu_runtime(
+        require_gpu=True,
+        min_free_memory_gib=160,
+    )
+
+    assert checks["torch_imported"]
+    assert checks["cuda_available"]
+    assert checks["cuda_device_count_positive"]
+    assert checks["cuda_memory_check_supported"]
+    assert not checks["min_free_memory_per_device"]
+    assert diagnostics["devices"][0]["passed"]
+    assert not diagnostics["devices"][1]["passed"]
+
+
+def test_gpu_runtime_preflight_can_disable_free_memory_check(monkeypatch):
+    from torchtitan.experiments.countdown_search_distill import cli
+
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
+        @staticmethod
+        def device_count():
+            return 1
+
+    fake_torch = types.SimpleNamespace(cuda=FakeCuda())
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    checks, diagnostics = cli._check_gpu_runtime(
+        require_gpu=True,
+        min_free_memory_gib=0,
+    )
+
+    assert checks["min_free_memory_per_device"]
+    assert checks["cuda_memory_check_supported"]
+    assert diagnostics["devices"] == []
 
 
 def test_validate_eval_matrix_cli_checks_split_sizes_and_rollouts(tmp_path):

@@ -567,7 +567,10 @@ def preflight_runtime(args: argparse.Namespace) -> None:
         for module in args.required_modules
     }
     asset_checks = _check_model_assets(args.model)
-    gpu_checks = _check_gpu_runtime(args.require_gpu)
+    gpu_checks, gpu_diagnostics = _check_gpu_runtime(
+        args.require_gpu,
+        args.min_free_gpu_memory_gib,
+    )
     rootfs_active = os.environ.get("TORCHTITAN_IN_ROOTFS") == "1"
     env_checks = {
         "rootfs_active": (not args.require_rootfs) or rootfs_active,
@@ -599,6 +602,9 @@ def preflight_runtime(args: argparse.Namespace) -> None:
             if isinstance(passed, bool)
         ),
         "checks": checks,
+        "diagnostics": {
+            "gpu": gpu_diagnostics,
+        },
         "model": str(args.model),
         "required_modules": args.required_modules,
     }
@@ -690,21 +696,63 @@ def _check_model_assets(model_dir: Path) -> dict[str, bool]:
     }
 
 
-def _check_gpu_runtime(require_gpu: bool) -> dict[str, bool]:
+def _check_gpu_runtime(
+    require_gpu: bool,
+    min_free_memory_gib: float,
+) -> tuple[dict[str, bool], dict[str, object]]:
     try:
         import torch
     except ImportError:
-        return {
+        checks = {
             "torch_imported": False,
             "cuda_available": not require_gpu,
             "cuda_device_count_positive": not require_gpu,
+            "cuda_memory_check_supported": (not require_gpu)
+            or min_free_memory_gib <= 0,
+            "min_free_memory_per_device": (not require_gpu)
+            or min_free_memory_gib <= 0,
+        }
+        return checks, {
+            "min_free_memory_gib": min_free_memory_gib,
+            "devices": [],
         }
     cuda_available = bool(torch.cuda.is_available())
     cuda_device_count = int(torch.cuda.device_count())
-    return {
+    checks = {
         "torch_imported": True,
         "cuda_available": (not require_gpu) or cuda_available,
         "cuda_device_count_positive": (not require_gpu) or cuda_device_count > 0,
+    }
+    device_details = []
+    memory_check_supported = min_free_memory_gib <= 0
+    min_free_memory_passed = min_free_memory_gib <= 0
+    if cuda_available and cuda_device_count > 0 and min_free_memory_gib > 0:
+        memory_check_supported = hasattr(torch.cuda, "mem_get_info")
+        if memory_check_supported:
+            min_free_memory_bytes = int(min_free_memory_gib * 1024**3)
+            min_free_memory_passed = True
+            for device_idx in range(cuda_device_count):
+                free_bytes, total_bytes = torch.cuda.mem_get_info(device_idx)
+                device_passed = int(free_bytes) >= min_free_memory_bytes
+                min_free_memory_passed = min_free_memory_passed and device_passed
+                device_details.append(
+                    {
+                        "index": device_idx,
+                        "free_gib": round(int(free_bytes) / 1024**3, 3),
+                        "total_gib": round(int(total_bytes) / 1024**3, 3),
+                        "min_free_gib": min_free_memory_gib,
+                        "passed": device_passed,
+                    }
+                )
+    checks["cuda_memory_check_supported"] = (
+        (not require_gpu) or min_free_memory_gib <= 0 or memory_check_supported
+    )
+    checks["min_free_memory_per_device"] = (
+        (not require_gpu) or min_free_memory_gib <= 0 or min_free_memory_passed
+    )
+    return checks, {
+        "min_free_memory_gib": min_free_memory_gib,
+        "devices": device_details,
     }
 
 
@@ -1000,6 +1048,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--require-gpu",
         action=argparse.BooleanOptionalAction,
         default=True,
+    )
+    runtime_preflight_parser.add_argument(
+        "--min-free-gpu-memory-gib",
+        type=float,
+        default=float(os.environ.get("COUNTDOWN_MIN_FREE_GPU_MEMORY_GIB", "160")),
+        help=(
+            "Minimum free memory required on each visible CUDA device. "
+            "Use 0 to disable the memory check."
+        ),
     )
     runtime_preflight_parser.set_defaults(func=preflight_runtime)
 
