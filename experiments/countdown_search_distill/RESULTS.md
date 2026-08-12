@@ -1,5 +1,44 @@
 # Countdown Search-Distill Results
 
+## 2026-08-12 Formatting Champion Replication
+
+The formatting champion replication completed under the bwrap rootfs using an
+isolated sweep root:
+
+```text
+experiments/countdown_search_distill/sweeps/formatting_replication/formatting_seed43_train2000_rank16/
+```
+
+The run trained `formatting` at seed 43, train size 2000, LoRA rank 16, exported
+the TorchTitan checkpoint to a PEFT/vLLM adapter directory, evaluated base and
+adapter on dev/IID/OOD with 32 rollouts per problem, and wrote:
+
+```text
+experiments/countdown_search_distill/reports/20260812T054500Z-formatting-replication.md
+```
+
+Aggregate formatting-adapter results:
+
+| Split | pass@1 | pass@32 | strict pass@1 | strict pass@32 |
+| --- | ---: | ---: | ---: | ---: |
+| dev | 0.278 | 0.916 | 0.268 | 0.914 |
+| iid_test | 0.293 | 0.911 | 0.287 | 0.907 |
+| ood_test | 0.302 | 0.914 | 0.302 | 0.914 |
+
+Base-elicitable subset results:
+
+| Split | Problems | pass@1 | pass@32 | strict pass@1 | strict pass@32 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| dev | 223 | 0.323 | 0.996 | 0.305 | 0.991 |
+| iid_test | 466 | 0.378 | 0.985 | 0.371 | 0.981 |
+| ood_test | 280 | 0.382 | 0.993 | 0.382 | 0.993 |
+
+Decision: the formatting strategy has replicated and remains the Countdown
+performance champion for pass@1 and strict pass@1. Countdown has enough
+replicated evidence to move the next active work to reasoning-lane transfer.
+The next Countdown-specific improvement should target stop-quality shaping for
+post-answer repetition.
+
 ## 2026-08-12 Clean-Arm Replication And Rank-Size Sweep
 
 The clean-arm replication and rank-size sweep completed under the bwrap rootfs.

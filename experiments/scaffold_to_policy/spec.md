@@ -242,12 +242,15 @@ executed replication checkpoint. The key reports are:
 - `experiments/countdown_search_distill/reports/20260812T001300Z-formatting-arm-results-and-audit.md`
 - `experiments/countdown_search_distill/reports/20260812T002500Z-base-elicitable-and-examples.md`
 - `experiments/countdown_search_distill/reports/20260812T043000Z-replication-rank-size-sweep.md`
+- `experiments/countdown_search_distill/reports/20260812T054500Z-formatting-replication.md`
+- `experiments/scaffold_to_policy/reports/20260812T055500Z-arithmetic-words-vllm-smoke.md`
 
 The most important immediate caveats to preserve are:
 
 - the original clean-split full report reused full checkpoints and exported
-  adapters from an earlier full run, while later formatting and replication
-  cells produced fresh scoped artifacts;
+  adapters from an earlier full run, while later formatting, clean
+  replication, and formatting replication cells produced fresh scoped
+  artifacts;
 - arithmetic pass@k and strict `FINAL: <target>` pass@k must remain separate;
 - run manifests and report inputs now exist, but broader benchmark claims still
   need canonical latest-row selection, stronger fresh/reused stage surfacing,
@@ -256,9 +259,10 @@ The most important immediate caveats to preserve are:
 - Terminal-Bench/Harbor and tau2-bench should enter as harness smokes before
   scientific adapter evaluations.
 
-Suggested first ticket after this checkpoint: replicate the `formatting`
-champion under the same isolated sweep layout, then add one local exact-verifier
-reasoning task to prove transfer before public reasoning benchmarks.
+Suggested first ticket after this checkpoint: move the local `arithmetic_words`
+exact-verifier task from fixture smoke to real rootfs-managed scaffold
+collection and evaluation, then add one more local symbolic or constraint task
+before public reasoning benchmarks.
 
 ## Implementation Progress
 
@@ -299,3 +303,25 @@ reasoning task to prove transfer before public reasoning benchmarks.
   `clean` reached 0.351 pass@1 and 1.000 pass@32 over 279 problems. This clears
   the clean-arm replication gate and shifts the next Countdown work to
   formatting-champion replication plus reasoning-task transfer.
+- 2026-08-12: Executed the formatting-champion replication under the same
+  rootfs-managed isolated sweep layout. The run used seed 43, train size 2000,
+  LoRA rank 16, and the `formatting` arm. It produced a fresh TorchTitan
+  checkpoint, PEFT/vLLM adapter export, dev/IID/OOD base and adapter
+  evaluations, adapter matrix, report input, and timestamped report. The
+  formatting adapter reached dev pass@1 0.278, dev pass@32 0.916, OOD pass@1
+  0.302, and OOD pass@32 0.914. On the OOD base-elicitable subset it reached
+  0.382 strict pass@1 and 0.993 strict pass@32 over 280 problems. This clears
+  the formatting replication gate and makes reasoning-task transfer the active
+  next lane.
+- 2026-08-12: Added the first real-model reasoning smoke for
+  `arithmetic_words`. The existing fixture smoke remains a CPU-testable
+  registry/verifier path; the new
+  `experiments/scaffold_to_policy/run_arithmetic_words_vllm_smoke.sh` entrypoint
+  runs Qwen3-1.7B generation through vLLM inside the bwrap rootfs, verifies
+  dev/OOD outputs with the strict final-integer checker, and writes a report
+  input under `experiments/scaffold_to_policy/results/arithmetic_words_vllm_smoke/`.
+- 2026-08-12: Ran the arithmetic-words vLLM smoke. The rootfs/vLLM/verifier
+  path completed and report-input checks passed, but the generated task was too
+  easy: dev and OOD both reached 1.000 pass@1 and strict pass@1 over four
+  problems. This is infrastructure evidence only; the next reasoning step is
+  calibrated harder local reasoning generation.

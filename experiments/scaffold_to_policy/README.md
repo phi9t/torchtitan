@@ -65,6 +65,27 @@ experiments/scaffold_to_policy/data/arithmetic_words_smoke/
 experiments/scaffold_to_policy/results/arithmetic_words_smoke/
 ```
 
+Run the first real-model reasoning smoke through the same rootfs boundary:
+
+```bash
+experiments/scaffold_to_policy/run_arithmetic_words_vllm_smoke.sh
+```
+
+This evaluates Qwen3-1.7B with vLLM on tiny dev/OOD arithmetic-word splits,
+then verifies the outputs with the strict `FINAL: <integer>` checker. It writes
+artifacts under:
+
+```text
+experiments/scaffold_to_policy/data/arithmetic_words_vllm_smoke/
+experiments/scaffold_to_policy/results/arithmetic_words_vllm_smoke/
+```
+
+The first completed smoke is summarized in:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T055500Z-arithmetic-words-vllm-smoke.md
+```
+
 ## Agentic Benchmarks
 
 tau2-bench and Terminal-Bench/Harbor are in scope, but they enter after the

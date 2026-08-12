@@ -8,11 +8,13 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     build_split_registry,
     evaluate_fixture_rollouts,
     generate_split,
+    prompt_for_problem,
     summarize_evaluations,
     verify_answer,
     write_json,
     write_jsonl,
 )
+from torchtitan.experiments.scaffold_to_policy.cli import build_parser
 
 
 def test_arithmetic_words_generation_is_deterministic():
@@ -38,6 +40,15 @@ def test_arithmetic_words_verifier_requires_strict_final_line():
     assert wrong.strict_final
     assert correct.success
     assert correct.strict_final
+
+
+def test_arithmetic_words_prompt_names_strict_output_contract():
+    problem = generate_split(seed=1, num_problems=1)[0]
+
+    prompt = prompt_for_problem(problem)
+
+    assert problem.prompt in prompt
+    assert "FINAL: <integer>" in prompt
 
 
 def test_arithmetic_words_summary_reports_pass_curves():
@@ -110,3 +121,25 @@ def test_arithmetic_words_report_input_validates_summary_counts(tmp_path):
     assert report_input["run"]["lane"] == "reasoning"
     assert report_input["verifier"]["kind"] == "exact"
     assert json.loads(summary.read_text())["num_problems"] == 2
+
+
+def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "evaluate-arithmetic-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+
+    assert args.prompt_variant == "chat"
+    assert args.num_rollouts == 32
+    assert args.max_model_len == 2048

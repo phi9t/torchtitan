@@ -228,11 +228,11 @@ dev pass@32, IID pass@32, OOD pass@32, and OOD base-elicitable pass@1. Rank 32
 with 2000 examples is strongest on IID pass@1. Rank 16 with 1000 examples is
 strongest on OOD pass@1 but not on OOD pass@32.
 
-The strict-format results remain a separate issue. The earlier `formatting` arm
-is still the champion for strict output compliance and overall pass@1 on the
-original clean full split. The current clean-arm sweep is therefore evidence
-for replicated scaffold-to-policy compression, not evidence that the best
-formatting strategy has been replicated yet.
+The strict-format results remain a separate issue for the clean arm. The later
+formatting replication in
+`reports/20260812T054500Z-formatting-replication.md` replicated the stronger
+strict-output strategy under the same seed-43, train-2000, rank-16 sweep
+layout.
 
 ## Infrastructure Notes
 
@@ -268,14 +268,10 @@ What needs improvement:
 
 ## Decision
 
-Countdown has now cleared the replication gate for the clean arm: the effect
-replicated under seed 43 and a new isolated split/run root. The next Countdown
-step should be a formatting-champion replication/sweep, because formatting is
-the current best arm for pass@1 and strict pass@1 on the original clean full
-split.
-
-The broader program can now start the reasoning-first expansion in parallel
-with that formatting replication:
+Countdown cleared the replication gate for the clean arm in this run, and the
+follow-up formatting replication has since cleared the strict-output champion
+replication gate. The broader program can now start the reasoning-first
+expansion:
 
 1. Add one local exact-verifier arithmetic word-problem task.
 2. Add one local symbolic or constraint-puzzle task with deterministic checking.

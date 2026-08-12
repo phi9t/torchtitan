@@ -182,6 +182,17 @@ def generate_split(*, seed: int, num_problems: int) -> list[ArithmeticWordProble
     return problems
 
 
+def prompt_for_problem(problem: ArithmeticWordProblem) -> str:
+    return "\n".join(
+        [
+            "Solve this arithmetic word problem.",
+            problem.prompt,
+            "Return a short calculation trace.",
+            "The last line must be exactly FINAL: <integer>.",
+        ]
+    )
+
+
 def verify_answer(problem: ArithmeticWordProblem, text: str) -> ArithmeticVerification:
     matches = [
         int(match.group(1))

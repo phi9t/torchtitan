@@ -7,14 +7,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
+    ArithmeticWordProblem,
     build_report_input,
     build_split_registry,
     evaluate_fixture_rollouts,
     generate_split,
     load_problems,
+    prompt_for_problem,
     summarize_evaluations,
     write_json,
     write_jsonl,
@@ -51,6 +54,48 @@ def evaluate_arithmetic_fixture(args: argparse.Namespace) -> None:
     write_json(args.summary, summarize_evaluations(evaluations))
 
 
+def evaluate_arithmetic_vllm(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-arithmetic-vllm. Run through the "
+            "TorchTitan rootfs or use evaluate-arithmetic-fixture."
+        ) from exc
+
+    problems = load_problems(args.problems)
+    prompts = _build_arithmetic_vllm_prompts(problems, args)
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(prompts, sampling_params)
+    evaluations = []
+    for problem, output in zip(problems, outputs):
+        evaluations.append(
+            evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+            )
+        )
+    write_jsonl(args.output, [evaluation.to_json() for evaluation in evaluations])
+    write_json(args.summary, summarize_evaluations(evaluations))
+
+
 def build_arithmetic_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
     report_input = build_report_input(
@@ -79,6 +124,37 @@ def write_arithmetic_fixture(args: argparse.Namespace) -> None:
         ]
         rows.append({"problem_id": problem.problem_id, "rollouts": rollouts})
     write_jsonl(args.output, rows)
+
+
+def _build_arithmetic_vllm_prompts(
+    problems: list[ArithmeticWordProblem],
+    args: argparse.Namespace,
+) -> list[str]:
+    if args.prompt_variant == "plain":
+        return [prompt_for_problem(problem) for problem in problems]
+    if args.prompt_variant != "chat":
+        raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return [
+        tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You solve arithmetic word problems. Return a short "
+                        "calculation trace and end with FINAL: <integer>."
+                    ),
+                },
+                {"role": "user", "content": prompt_for_problem(problem)},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        for problem in problems
+    ]
 
 
 def _load_fixture(path: Path) -> dict[str, list[str]]:
@@ -129,6 +205,43 @@ def build_parser() -> argparse.ArgumentParser:
     eval_parser.add_argument("--summary", type=Path, required=True)
     eval_parser.add_argument("--max-rollouts", type=int, default=32)
     eval_parser.set_defaults(func=evaluate_arithmetic_fixture)
+
+    vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
+    vllm_parser.add_argument("--problems", type=Path, required=True)
+    vllm_parser.add_argument("--model", required=True)
+    vllm_parser.add_argument("--output", type=Path, required=True)
+    vllm_parser.add_argument("--summary", type=Path, required=True)
+    vllm_parser.add_argument("--num-rollouts", type=int, default=32)
+    vllm_parser.add_argument("--temperature", type=float, default=0.8)
+    vllm_parser.add_argument("--top-p", type=float, default=0.95)
+    vllm_parser.add_argument("--max-new-tokens", type=int, default=192)
+    vllm_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    vllm_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "2048")),
+    )
+    vllm_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    vllm_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    vllm_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    vllm_parser.set_defaults(func=evaluate_arithmetic_vllm)
 
     split_parser = subparsers.add_parser("validate-arithmetic-splits")
     split_parser.add_argument("--split", nargs="+", required=True)
