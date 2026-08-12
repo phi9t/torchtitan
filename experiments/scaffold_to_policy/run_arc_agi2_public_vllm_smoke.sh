@@ -5,17 +5,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/run_common.sh"
 
-if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
-  exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_arc_agi2_public_vllm_smoke.sh" "$@"
-fi
-
-cd "${REPO_ROOT}"
-export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
-export HF_HOME="${REPO_ROOT}/.cache/huggingface"
-export HF_HUB_CACHE="${HF_HOME}/hub"
-export VLLM_USE_FLASHINFER_SAMPLER="${SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER:-0}"
+scaffold_enter_rootfs_if_needed "run_arc_agi2_public_vllm_smoke.sh" "$@"
+scaffold_setup_env
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-arc-agi2-public-vllm-smoke}"
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
@@ -41,16 +34,17 @@ if [[ -n "${GPU_MEMORY_UTILIZATION}" ]]; then
 fi
 
 mkdir -p "${DATA_ROOT}/src" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
+scaffold_setup_run_manifest
 
 ARC_SRC="${DATA_ROOT}/src/ARC-AGI-2"
 if [[ ! -d "${ARC_SRC}/.git" ]]; then
   rm -rf "${ARC_SRC}"
-  git clone "${ARC_REPO_URL}" "${ARC_SRC}"
+  scaffold_run_stage clone_arc_repo git clone "${ARC_REPO_URL}" "${ARC_SRC}"
 fi
-git -C "${ARC_SRC}" fetch --depth 1 origin "${ARC_REVISION}"
-git -C "${ARC_SRC}" checkout --detach "${ARC_REVISION}"
+scaffold_run_stage fetch_arc_revision git -C "${ARC_SRC}" fetch --depth 1 origin "${ARC_REVISION}"
+scaffold_run_stage checkout_arc_revision git -C "${ARC_SRC}" checkout --detach "${ARC_REVISION}"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli import-arc-grid-split \
+scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_policy.cli import-arc-grid-split \
   --task-dir "${ARC_SRC}/data" \
   --repo-url "${ARC_REPO_URL}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -60,7 +54,7 @@ python -m torchtitan.experiments.scaffold_to_policy.cli import-arc-grid-split \
   --output "${DATA_ROOT}/dev.jsonl" \
   --provenance "${DATA_ROOT}/dev_provenance.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli import-arc-grid-split \
+scaffold_run_stage import_ood_test python -m torchtitan.experiments.scaffold_to_policy.cli import-arc-grid-split \
   --task-dir "${ARC_SRC}/data" \
   --repo-url "${ARC_REPO_URL}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -70,14 +64,14 @@ python -m torchtitan.experiments.scaffold_to_policy.cli import-arc-grid-split \
   --output "${DATA_ROOT}/ood_test.jsonl" \
   --provenance "${DATA_ROOT}/ood_test_provenance.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli validate-arc-grid-splits \
+scaffold_run_stage validate_splits python -m torchtitan.experiments.scaffold_to_policy.cli validate-arc-grid-splits \
   --split \
     "dev=${DATA_ROOT}/dev.jsonl" \
     "ood_test=${DATA_ROOT}/ood_test.jsonl" \
   --output "${DATA_ROOT}/split_registry.json"
 
 for split in dev ood_test; do
-  python -m torchtitan.experiments.scaffold_to_policy.cli preflight-arc-grid-prompts \
+  scaffold_run_stage "preflight_${split}_prompts" python -m torchtitan.experiments.scaffold_to_policy.cli preflight-arc-grid-prompts \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
     --output "${RESULTS_ROOT}/eval/${split}_prompt_preflight.json" \
@@ -90,11 +84,11 @@ memory_preflight_args=()
 if [[ -n "${GPU_MEMORY_UTILIZATION}" ]]; then
   memory_preflight_args=(--gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}")
 fi
-python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
+scaffold_run_stage preflight_gpu_memory python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
   --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
   "${memory_preflight_args[@]}" \
   --no-require-selected
-if ! python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
+if ! scaffold_run_stage require_gpu_memory_selected python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
 import json
 import sys
 
@@ -102,7 +96,7 @@ payload = json.loads(open(sys.argv[1]).read())
 raise SystemExit(0 if payload.get("selected") else 1)
 PY
 then
-  python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+  scaffold_run_stage write_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
     --results-root "${RESULTS_ROOT}" \
     --run-id "${RUN_ID}" \
     --task arc_grid \
@@ -120,7 +114,7 @@ then
 fi
 
 for split in dev ood_test; do
-  python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-arc-grid-vllm \
+  if ! scaffold_run_stage "evaluate_${split}" python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-arc-grid-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
     --output "${RESULTS_ROOT}/eval/${split}_evaluations.jsonl" \
@@ -131,10 +125,29 @@ for split in dev ood_test; do
     --prompt-variant "${PROMPT_VARIANT}" \
     --temperature "${TEMPERATURE}" \
     --top-p "${TOP_P}" \
-    "${gpu_memory_args[@]}"
+    "${gpu_memory_args[@]}"; then
+    FAILURE_MARKER="${RESULTS_ROOT}/eval/${split}_vllm_runtime_failure.json"
+    scaffold_write_stage_failure_marker "evaluate_${split}" vllm_runtime_failure "${FAILURE_MARKER}"
+    scaffold_run_stage write_runtime_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+      --results-root "${RESULTS_ROOT}" \
+      --run-id "${RUN_ID}" \
+      --task arc_grid \
+      --lane reasoning \
+      --blocker-type vllm_runtime_failure \
+      --artifact \
+        "dev_prompt=${RESULTS_ROOT}/eval/dev_prompt_preflight.json" \
+        "ood_test_prompt=${RESULTS_ROOT}/eval/ood_test_prompt_preflight.json" \
+        "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+        "stage_failure=${FAILURE_MARKER}" \
+      --limitation "ARC-AGI-2 exact-grid run stopped during ${split} model execution because vLLM failed at runtime." \
+      --limitation "Prompt preflights may be present, but no complete model score was produced." \
+      --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    echo "wrote ARC-AGI-2 runtime blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    exit 0
+  fi
 done
 
-python -m torchtitan.experiments.scaffold_to_policy.cli build-arc-grid-report-input \
+scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_to_policy.cli build-arc-grid-report-input \
   --data-root "${DATA_ROOT}" \
   --results-root "${RESULTS_ROOT}" \
   --run-id "${RUN_ID}" \

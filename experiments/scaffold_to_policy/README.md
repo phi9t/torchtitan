@@ -548,6 +548,16 @@ GPU-memory preflight failures. A blocker report sets scaffold budget `0`,
 records `benchmark_execution_completed=false`, hashes the blocker artifacts,
 and explicitly states that no model score was produced.
 
+Those hard-lane runners also source `run_common.sh`, which re-enters the bwrap
+rootfs, sets the repo-local Python/Hugging Face/vLLM environment, and writes a
+run-scoped JSONL command-stage manifest at
+`$RESULTS_ROOT/manifests/$RUN_ID.jsonl`. Each row records the stage name,
+command argv, rootfs state, start/end time, duration, return code, data root,
+and results root. If vLLM passes the memory-selection preflight but fails during
+model initialization, the runner writes a JSON stage-failure marker and a
+`vllm_runtime_failure` blocker report instead of leaving only a failed shell
+exit. The stage-failure marker points back to the JSONL command trace.
+
 Public dataset imports can be made offline-replayable by caching the exact raw
 rows selected for a split:
 

@@ -154,6 +154,11 @@ artifact layout.
   training arms, verifier, matrix validation, and report rendering.
 - Make run directories immutable and run-scoped. Avoid mutable-only manifests
   such as a single `current` file for benchmark-grade results.
+- Use `experiments/scaffold_to_policy/run_common.sh` for scaffold hard-lane
+  shell runners that need rootfs re-entry and command-stage manifests. The
+  manifest is a run-scoped JSONL file under `results/.../manifests/` and records
+  stage name, command argv, rootfs state, start/end time, duration, return code,
+  data root, and results root.
 - Record artifact provenance for split files, training data, checkpoints,
   exported adapters, evaluator outputs, summaries, and reports.
 - Record whether a stage produced fresh artifacts, skipped existing artifacts,
@@ -807,3 +812,15 @@ reasoning benchmarks.
   remaining public-run dependency on live Hub access once a slice has been
   materialized, while preserving each benchmark's task-specific importer and
   exact verifier semantics.
+- 2026-08-12: Added shared scaffold command-stage manifests for the harder
+  reasoning and coding shell runners. `run_common.sh` now centralizes rootfs
+  re-entry, hermetic environment setup, run-scoped JSONL stage manifests, and
+  JSON stage-failure markers. AIME, ARC-AGI-2, and BigCodeBench-Hard now record
+  import, validation, preflight, model-evaluation, blocker-report, and final
+  report-input commands with start/end timestamps and return codes. Runtime
+  vLLM initialization failures are promoted to `vllm_runtime_failure` blocker
+  report inputs instead of leaving only a failed shell exit. Rootfs validation
+  with `20260812Tstage-manifest-aime-runtime-blocker-2` confirmed that a passing
+  GPU-memory selection preflight can still fail at vLLM KV-cache initialization;
+  the runner now exits cleanly after writing both a stage-failure marker and a
+  blocker report. This is blocker evidence only, not a model score.

@@ -5,17 +5,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/run_common.sh"
 
-if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
-  exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_aime_public_vllm_smoke.sh" "$@"
-fi
-
-cd "${REPO_ROOT}"
-export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
-export HF_HOME="${REPO_ROOT}/.cache/huggingface"
-export HF_HUB_CACHE="${HF_HOME}/hub"
-export VLLM_USE_FLASHINFER_SAMPLER="${SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER:-0}"
+scaffold_enter_rootfs_if_needed "run_aime_public_vllm_smoke.sh" "$@"
+scaffold_setup_env
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-aime-public-vllm-smoke}"
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
@@ -37,13 +30,14 @@ TOP_P="${TOP_P:-0.95}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
+scaffold_setup_run_manifest
 
 subset_args=()
 if [[ -n "${DATASET_SUBSET}" ]]; then
   subset_args=(--subset "${DATASET_SUBSET}")
 fi
 
-python -m torchtitan.experiments.scaffold_to_policy.cli import-aime-split \
+scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_policy.cli import-aime-split \
   --dataset "${DATASET}" \
   "${subset_args[@]}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -53,7 +47,7 @@ python -m torchtitan.experiments.scaffold_to_policy.cli import-aime-split \
   --output "${DATA_ROOT}/dev.jsonl" \
   --provenance "${DATA_ROOT}/dev_provenance.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli import-aime-split \
+scaffold_run_stage import_ood_test python -m torchtitan.experiments.scaffold_to_policy.cli import-aime-split \
   --dataset "${DATASET}" \
   "${subset_args[@]}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -63,17 +57,17 @@ python -m torchtitan.experiments.scaffold_to_policy.cli import-aime-split \
   --output "${DATA_ROOT}/ood_test.jsonl" \
   --provenance "${DATA_ROOT}/ood_test_provenance.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli validate-math-style-splits \
+scaffold_run_stage validate_splits python -m torchtitan.experiments.scaffold_to_policy.cli validate-math-style-splits \
   --split \
     "dev=${DATA_ROOT}/dev.jsonl" \
     "ood_test=${DATA_ROOT}/ood_test.jsonl" \
   --output "${DATA_ROOT}/split_registry.json"
 
-python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
+scaffold_run_stage preflight_gpu_memory python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
   --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
   --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
   --no-require-selected
-if ! python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
+if ! scaffold_run_stage require_gpu_memory_selected python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
 import json
 import sys
 
@@ -81,7 +75,7 @@ payload = json.loads(open(sys.argv[1]).read())
 raise SystemExit(0 if payload.get("selected") else 1)
 PY
 then
-  python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+  scaffold_run_stage write_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
     --results-root "${RESULTS_ROOT}" \
     --run-id "${RUN_ID}" \
     --task math_style \
@@ -96,7 +90,7 @@ then
 fi
 
 for split in dev ood_test; do
-  python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-math-style-vllm \
+  if ! scaffold_run_stage "evaluate_${split}" python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-math-style-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
     --output "${RESULTS_ROOT}/eval/${split}_evaluations.jsonl" \
@@ -106,10 +100,27 @@ for split in dev ood_test; do
     --prompt-variant "${PROMPT_VARIANT}" \
     --temperature "${TEMPERATURE}" \
     --top-p "${TOP_P}" \
-    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
+    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"; then
+    FAILURE_MARKER="${RESULTS_ROOT}/eval/${split}_vllm_runtime_failure.json"
+    scaffold_write_stage_failure_marker "evaluate_${split}" vllm_runtime_failure "${FAILURE_MARKER}"
+    scaffold_run_stage write_runtime_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+      --results-root "${RESULTS_ROOT}" \
+      --run-id "${RUN_ID}" \
+      --task math_style \
+      --lane reasoning \
+      --blocker-type vllm_runtime_failure \
+      --artifact \
+        "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+        "stage_failure=${FAILURE_MARKER}" \
+      --limitation "AIME hard-reasoning run stopped during ${split} model execution because vLLM failed at runtime." \
+      --limitation "No complete benchmark task execution or model score was produced." \
+      --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    echo "wrote AIME runtime blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    exit 0
+  fi
 done
 
-python -m torchtitan.experiments.scaffold_to_policy.cli build-math-style-report-input \
+scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_to_policy.cli build-math-style-report-input \
   --data-root "${DATA_ROOT}" \
   --results-root "${RESULTS_ROOT}" \
   --run-id "${RUN_ID}" \

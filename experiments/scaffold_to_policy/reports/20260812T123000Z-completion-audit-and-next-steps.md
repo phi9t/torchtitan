@@ -48,7 +48,7 @@ Not complete:
 
 | Spec stories | Status | Evidence | Remaining gap |
 | --- | --- | --- | --- |
-| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details, blocker report inputs, raw-cache import provenance | Stage-level command manifests remain thinner than the original ideal of start/end/return-code capture for every stage. |
+| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details, blocker report inputs, raw-cache import provenance, hard-lane command-stage manifests | Command-stage manifests are now present for AIME, ARC-AGI-2, and BigCodeBench-Hard. Some older smoke runners still use thinner traces. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
@@ -158,6 +158,19 @@ reasoning/coding report inputs:
   report inputs with scaffold budget `0`, `benchmark_execution_completed=false`,
   artifact hashes, freshness labels, and explicit limitations. AIME, ARC-AGI-2,
   and BigCodeBench-Hard use this for vLLM GPU-memory preflight failures.
+- `experiments/scaffold_to_policy/run_common.sh` now provides rootfs re-entry,
+  hermetic environment setup, run-scoped JSONL command-stage manifests, and
+  JSON stage-failure markers for scaffold hard-lane runners. AIME, ARC-AGI-2,
+  and BigCodeBench-Hard record import, validation, preflight, model evaluation,
+  blocker-report, and final report-input commands with start/end timestamps and
+  return codes.
+- Runtime vLLM initialization failures are promoted to `vllm_runtime_failure`
+  blocker report inputs. Validation run
+  `20260812Tstage-manifest-aime-runtime-blocker-2` passed the GPU-memory
+  selection preflight at `GPU_MEMORY_UTILIZATION=0.02`, then failed during
+  vLLM KV-cache initialization with negative available KV cache memory; the
+  runner exited cleanly after writing a stage-failure marker, JSONL command
+  manifest, and blocker report. This is not a model score.
 - Refreshed blocker evidence: GPQA auth blocker
   `20260812T114339Z-gpqa-auth-refresh`; AIME GPU blocker
   `20260812T114923Z-aime-gpu-blocker-report`, with 1.72 GiB free versus
@@ -217,11 +230,13 @@ reasoning/coding report inputs:
      selection is available through `write-latest-report-index`. External
      harness report inputs now reuse the artifact provenance helpers while
      preserving harness-specific semantics. Hard-run blocker reports now cover
-     vLLM GPU-memory preflight failures without producing score artifacts.
-     Public import commands now support offline raw-row caches with provenance.
+     vLLM GPU-memory preflight and runtime initialization failures without
+     producing score artifacts. Public import commands now support offline
+     raw-row caches with provenance. AIME, ARC-AGI-2, and BigCodeBench-Hard now
+     emit run-scoped command-stage manifests for their hard-lane shell runners.
    - Remaining gap: model/policy execution blockers remain outside the
-     report-input builder itself, and full command-stage manifests are still
-     thinner than the original ideal.
+     report-input builder itself, and older smoke runners still have thinner
+     command-stage traces than the hard-lane runners.
    - Required next step: continue blocker-first execution for GPQA auth,
      volatile GPU-backed hard runs, and model/policy agents for Harbor and
      tau2.
