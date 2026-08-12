@@ -179,7 +179,7 @@ class TorchFTCheckpointManager(CheckpointManager):
         # class would incorrectly raise in that case, so we override to handle it.
         if self.save_future is None:
             return
-        self.save_future.result()
+        self._wait_for_save_future()
         # ASYNC_WITH_PINNED_MEM: the stager manages the future's lifecycle;
         # all other modes (ASYNC, DISABLED with FT) should clear the future.
         if self.async_mode != AsyncMode.ASYNC_WITH_PINNED_MEM:
