@@ -1,11 +1,29 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
 
 import importlib.metadata
 import json
 from pathlib import Path
 
 import pytest
+from torchtitan.experiments.scaffold_to_policy import (
+    arc_grid,
+    cli as scaffold_cli,
+    coding_style,
+    contest_code,
+    external_harness,
+    gsm_style,
+    math_style,
+    modular_sequences,
+    multiple_choice,
+    report_artifacts,
+)
 
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     build_report_input,
@@ -18,17 +36,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     write_json,
     write_jsonl,
 )
-from torchtitan.experiments.scaffold_to_policy import cli as scaffold_cli
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
-from torchtitan.experiments.scaffold_to_policy import arc_grid
-from torchtitan.experiments.scaffold_to_policy import coding_style
-from torchtitan.experiments.scaffold_to_policy import contest_code
-from torchtitan.experiments.scaffold_to_policy import external_harness
-from torchtitan.experiments.scaffold_to_policy import gsm_style
-from torchtitan.experiments.scaffold_to_policy import math_style
-from torchtitan.experiments.scaffold_to_policy import modular_sequences
-from torchtitan.experiments.scaffold_to_policy import multiple_choice
-from torchtitan.experiments.scaffold_to_policy import report_artifacts
 
 
 def test_arithmetic_words_generation_is_deterministic():
@@ -260,8 +268,16 @@ def test_latest_report_index_selects_latest_matching_task(tmp_path):
 
     assert index["selected"]
     assert index["num_candidates"] == 2
+    # latest_attempt is the most recent report regardless of checks; latest_valid
+    # is the most recent one whose checks all pass. A later failure (b) must not
+    # hide the last valid evidence (a).
+    assert index["latest_attempt"]["run_id"] == "20260812T020000Z-b"
+    assert not index["latest_attempt"]["checks_passed"]
+    assert index["latest_valid"]["run_id"] == "20260812T010000Z-a"
+    assert index["latest_valid"]["checks_passed"]
+    assert index["num_valid"] == 1
+    # latest aliases latest_attempt for backward compatibility.
     assert index["latest"]["run_id"] == "20260812T020000Z-b"
-    assert not index["latest"]["checks_passed"]
     assert index["latest"]["artifact"]["sha256"]
 
 
@@ -1847,7 +1863,9 @@ def test_coding_style_report_input_accepts_canonical_preflight(tmp_path):
         "reused_or_unscoped": 3,
     }
     assert (
-        report_input["artifacts"]["details"]["summaries"]["dev"]["run_binding"]["status"]
+        report_input["artifacts"]["details"]["summaries"]["dev"]["run_binding"][
+            "status"
+        ]
         == "reused_or_unscoped"
     )
 
@@ -2361,9 +2379,7 @@ def test_runtime_doctor_writes_selected_contract(tmp_path, monkeypatch):
     monkeypatch.setattr(
         scaffold_cli,
         "_runtime_package_versions",
-        lambda names: {
-            name: {"available": True, "version": "1.0"} for name in names
-        },
+        lambda names: {name: {"available": True, "version": "1.0"} for name in names},
     )
     monkeypatch.setattr(
         scaffold_cli,
@@ -2456,9 +2472,7 @@ def test_runtime_doctor_fails_when_required_rootfs_missing(tmp_path, monkeypatch
     monkeypatch.setattr(
         scaffold_cli,
         "_runtime_package_versions",
-        lambda names: {
-            name: {"available": True, "version": "1.0"} for name in names
-        },
+        lambda names: {name: {"available": True, "version": "1.0"} for name in names},
     )
     monkeypatch.setattr(
         scaffold_cli,
@@ -2513,7 +2527,9 @@ def test_runtime_doctor_fails_when_required_rootfs_missing(tmp_path, monkeypatch
     assert not rootfs_clause["selected"]
 
 
-def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):
+def test_external_harness_smoke_ingestion_records_pins_and_rootfs(
+    tmp_path, monkeypatch
+):
     monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
     results_root = tmp_path / "results"
     raw = results_root / "raw" / "harbor_terminal.json"

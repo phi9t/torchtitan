@@ -7,6 +7,9 @@ set -euo pipefail
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROOTFS_DIR="$REPO_ROOT/scripts/rootfs"
 
+# shellcheck source=scripts/rootfs/rootfs_target.sh
+source "$ROOTFS_DIR/rootfs_target.sh"
+
 TAG="torchtitan-rootfs:local"
 DEST="$ROOTFS_DIR/rootfs"
 REBUILD=0
@@ -70,6 +73,12 @@ die() {
 
 command -v docker >/dev/null || die "docker not found on host"
 
+# Resolve the destination through the shared fail-closed resolver before any
+# Docker work or filesystem mutation. An arbitrary --dest that is not in the
+# allowlist, is symlinked, or has a symlinked parent is refused here rather
+# than becoming a deletion target below.
+DEST="$(rootfs_resolve_managed_dest "$DEST")"
+
 image_exists() { docker image inspect "$TAG" >/dev/null 2>&1; }
 
 if image_exists && [[ "$REBUILD" -eq 0 ]]; then
@@ -118,7 +127,15 @@ cid="$(docker create "$TAG")"
 trap 'docker rm -f "$cid" >/dev/null 2>&1 || true; rm -rf "$STAGE"' EXIT
 docker export "$cid" | tar -C "$STAGE" -xf -
 [[ -x "$STAGE/bin/bash" ]] || die "export produced an unusable rootfs (no bin/bash)"
-rm -rf "$DEST"
+# Mark the staged tree as builder-owned before it can replace the destination,
+# so a later rebuild can prove the target is a managed rootfs.
+rootfs_write_ownership_marker "$STAGE"
+# Only replace an existing destination that carries a valid ownership marker;
+# an unrelated or ambiguous existing directory is never removed.
+if [[ -e "$DEST" ]]; then
+  rootfs_assert_removable "$DEST"
+  rm -rf "$DEST"
+fi
 mv "$STAGE" "$DEST"
 trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
 

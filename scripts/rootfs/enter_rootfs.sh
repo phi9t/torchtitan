@@ -6,6 +6,11 @@ set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROOTFS="$REPO_ROOT/scripts/rootfs/rootfs"
+ROOTFS_DEFAULT="$ROOTFS"
+ROOTFS_EXPLICIT=0
+
+# shellcheck source=scripts/rootfs/rootfs_target.sh
+source "$REPO_ROOT/scripts/rootfs/rootfs_target.sh"
 
 usage() {
   cat <<'EOF'
@@ -32,10 +37,12 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --rootfs)
       ROOTFS="${2:?--rootfs requires a value}"
+      ROOTFS_EXPLICIT=1
       shift 2
       ;;
     --rootfs=*)
       ROOTFS="${1#*=}"
+      ROOTFS_EXPLICIT=1
       shift
       ;;
     --)
@@ -62,7 +69,14 @@ die() {
 command -v bwrap >/dev/null || die "bwrap not found on host"
 
 if [[ ! -x "$ROOTFS/bin/bash" ]]; then
-  printf '\033[1m== rootfs not found at %s; building it ==\033[0m\n' "$ROOTFS" >&2
+  # Fail-closed construction (runtime_preflight_roadmap.md Section 8.2, Wave
+  # F0): implicit build is allowed only for the canonical default rootfs. A
+  # missing custom --rootfs is an error, not an invitation to build, so a typo
+  # cannot silently trigger Docker work or a deletion at an arbitrary path.
+  if [[ "$ROOTFS_EXPLICIT" -eq 1 || "$ROOTFS" != "$ROOTFS_DEFAULT" ]]; then
+    die "rootfs not found at $ROOTFS; refusing implicit build of a custom --rootfs (build it explicitly with scripts/rootfs/build_rootfs.sh)"
+  fi
+  printf '\033[1m== rootfs not found at %s; building default ==\033[0m\n' "$ROOTFS" >&2
   "$REPO_ROOT/scripts/rootfs/build_rootfs.sh" --dest "$ROOTFS"
   [[ -x "$ROOTFS/bin/bash" ]] || die "rootfs build did not produce a usable rootfs at $ROOTFS"
 fi

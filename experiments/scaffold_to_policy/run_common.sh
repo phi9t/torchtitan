@@ -30,7 +30,42 @@ scaffold_setup_run_manifest() {
   export TORCHTITAN_SCAFFOLD_TO_POLICY_RESULTS_ROOT="${RESULTS_ROOT}"
   export TORCHTITAN_SCAFFOLD_TO_POLICY_MANIFEST="${TORCHTITAN_SCAFFOLD_TO_POLICY_MANIFEST:-${RESULTS_ROOT}/manifests/${RUN_ID}.jsonl}"
   mkdir -p "${RESULTS_ROOT}/manifests"
-  : > "${TORCHTITAN_SCAFFOLD_TO_POLICY_MANIFEST}"
+  # Append-only: a manifest is scientific evidence, so a repeated setup (a nested
+  # doctor call, a retry, or a re-run under the same RUN_ID) must never erase
+  # prior rows. Create the file if it does not exist, then record a distinct
+  # attempt marker so downstream tools can separate one operational execution
+  # from another within the same run.
+  local stage_invocation_id
+  stage_invocation_id="$(scaffold_new_stage_invocation_id)"
+  export TORCHTITAN_SCAFFOLD_TO_POLICY_STAGE_INVOCATION_ID="${stage_invocation_id}"
+  RUN_ID="${RUN_ID}" \
+    STAGE_INVOCATION_ID="${stage_invocation_id}" \
+    MANIFEST="${TORCHTITAN_SCAFFOLD_TO_POLICY_MANIFEST}" \
+    python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+marker = {
+    "kind": "manifest_attempt",
+    "run_id": os.environ["RUN_ID"],
+    "stage_invocation_id": os.environ["STAGE_INVOCATION_ID"],
+}
+manifest = Path(os.environ["MANIFEST"])
+manifest.parent.mkdir(parents=True, exist_ok=True)
+with manifest.open("a") as f:
+    f.write(json.dumps(marker, sort_keys=True) + "\n")
+PY
+}
+
+scaffold_new_stage_invocation_id() {
+  # A stage_invocation_id identifies one actual stage launch within an attempt.
+  # Combine a UTC timestamp with process and random entropy so repeated calls in
+  # the same second still produce distinct identifiers.
+  printf 'inv-%s-%s-%s\n' \
+    "$(date -u +%Y%m%dT%H%M%SZ)" \
+    "$$" \
+    "${RANDOM}${RANDOM}"
 }
 
 scaffold_run_stage() {
@@ -69,6 +104,7 @@ scaffold_run_stage() {
     DATA_ROOT="${TORCHTITAN_SCAFFOLD_TO_POLICY_DATA_ROOT:-}" \
     RESULTS_ROOT="${TORCHTITAN_SCAFFOLD_TO_POLICY_RESULTS_ROOT}" \
     STAGE_STATUS_PATH="${status_path}" \
+    STAGE_INVOCATION_ID="${TORCHTITAN_SCAFFOLD_TO_POLICY_STAGE_INVOCATION_ID:-}" \
     COMMAND_JSON="$(printf '%s\n' "$@" | python -c 'import json, sys; print(json.dumps([line.rstrip("\n") for line in sys.stdin]))')" \
     MANIFEST="${TORCHTITAN_SCAFFOLD_TO_POLICY_MANIFEST}" \
     python - <<'PY'
@@ -89,6 +125,9 @@ row = {
     "data_root": os.environ["DATA_ROOT"] or None,
     "results_root": os.environ["RESULTS_ROOT"],
 }
+stage_invocation_id = os.environ.get("STAGE_INVOCATION_ID", "")
+if stage_invocation_id:
+    row["stage_invocation_id"] = stage_invocation_id
 stage_status_path = os.environ["STAGE_STATUS_PATH"]
 if stage_status_path and Path(stage_status_path).is_file():
     stage_status = json.loads(Path(stage_status_path).read_text())

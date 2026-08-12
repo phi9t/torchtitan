@@ -1,5 +1,11 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
 
 """Run-artifact provenance helpers for scaffold-to-policy reports."""
 
@@ -126,6 +132,82 @@ def load_json(path: Path) -> object:
     return json.loads(path.read_text())
 
 
+def validate_report_identity(
+    payload: dict[str, object],
+    *,
+    seen: dict[str, str],
+) -> str:
+    """Reject reusing a run_id with a different declaration digest.
+
+    A run_id identifies one immutable scientific declaration (roadmap 3.1).
+    Reusing it with a different normalized declaration is an error, because it
+    would let a later, differently configured run silently masquerade as the
+    same result. ``seen`` maps observed run_ids to their declaration digest and
+    is updated in place. Returns the declaration digest.
+    """
+
+    run = payload.get("run")
+    if not isinstance(run, dict):
+        raise ValueError("report payload has no run object")
+    run_id = run.get("run_id")
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("report payload has no run.run_id")
+    declaration = payload.get("declaration")
+    if declaration is None:
+        # Fall back to the run object when no separate declaration is present,
+        # so historical reports without an explicit declaration still bind to a
+        # stable digest rather than silently skipping the check.
+        declaration = run
+    digest = _declaration_digest(declaration)
+    prior = seen.get(run_id)
+    if prior is not None and prior != digest:
+        raise ValueError(
+            f"run_id {run_id!r} reused with a different declaration digest: "
+            f"{prior} != {digest}"
+        )
+    seen[run_id] = digest
+    return digest
+
+
+def validate_pass_at_k_budget(
+    summary: dict[str, object],
+    *,
+    num_rollouts: int,
+) -> list[int]:
+    """Reject pass@k claims whose k exceeds the actual rollout budget.
+
+    A pass@k value is only measurable when at least k rollouts were sampled per
+    problem (roadmap 19, Wave F0). A summary that reports pass@32 from an
+    8-rollout budget is overstating evidence. Returns the sorted list of valid
+    k values.
+    """
+
+    if num_rollouts < 1:
+        raise ValueError(f"num_rollouts must be >= 1, got {num_rollouts}")
+    pass_at_k = summary.get("pass_at_k")
+    if not isinstance(pass_at_k, dict):
+        raise ValueError("summary has no pass_at_k object")
+    ks = []
+    over_budget = []
+    for key in pass_at_k:
+        k = int(key)
+        if k > num_rollouts:
+            over_budget.append(k)
+        else:
+            ks.append(k)
+    if over_budget:
+        raise ValueError(
+            f"pass@k claims exceed the rollout budget of {num_rollouts}: "
+            f"{sorted(over_budget)}"
+        )
+    return sorted(ks)
+
+
+def _declaration_digest(declaration: object) -> str:
+    normalized = json.dumps(declaration, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 def load_json_files(paths: dict[str, Path]) -> dict[str, object]:
     return {name: load_json(path) for name, path in paths.items()}
 
@@ -162,17 +244,29 @@ def build_latest_report_index(
                 "artifact": describe_artifact(path, run_id=run_id, payload=payload),
             }
         )
-    candidates.sort(key=lambda candidate: (str(candidate["run_id"]), str(candidate["path"])))
-    latest = candidates[-1] if candidates else None
+    candidates.sort(
+        key=lambda candidate: (str(candidate["run_id"]), str(candidate["path"]))
+    )
+    latest_attempt = candidates[-1] if candidates else None
+    valid_candidates = [c for c in candidates if c["checks_passed"]]
+    latest_valid = valid_candidates[-1] if valid_candidates else None
     return {
         "schema_version": 1,
         "kind": "latest_report_input_index",
-        "selected": latest is not None,
+        "selected": latest_attempt is not None,
         "manifests_dir": str(manifests_dir),
         "pattern": pattern,
         "task": task,
-        "latest": latest,
+        # latest_attempt is the most recent terminal report input regardless of
+        # its checks; latest_valid is the most recent one whose checks all pass.
+        # Reporting both keeps a recent failure from silently replacing or hiding
+        # the last valid evidence (roadmap 7.3). ``latest`` aliases
+        # ``latest_attempt`` for backward compatibility.
+        "latest_attempt": latest_attempt,
+        "latest_valid": latest_valid,
+        "latest": latest_attempt,
         "num_candidates": len(candidates),
+        "num_valid": len(valid_candidates),
         "candidates": candidates,
     }
 
@@ -263,7 +357,9 @@ def _payload_contains_run_id(payload: object | None, run_id: str) -> bool:
     if isinstance(payload, str):
         return payload == run_id or run_id in payload
     if isinstance(payload, dict):
-        return any(_payload_contains_run_id(value, run_id) for value in payload.values())
+        return any(
+            _payload_contains_run_id(value, run_id) for value in payload.values()
+        )
     if isinstance(payload, (list, tuple)):
         return any(_payload_contains_run_id(value, run_id) for value in payload)
     return False
