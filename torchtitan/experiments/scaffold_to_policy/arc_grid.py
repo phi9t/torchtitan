@@ -198,6 +198,22 @@ def packed_prompt_for_problem(problem: ARCGridProblem) -> str:
     return "\n".join(lines)
 
 
+def packed_strict_prompt_for_problem(problem: ARCGridProblem) -> str:
+    lines = [
+        "ARC. Digits are cells, / separates rows.",
+        "Infer output from examples.",
+        "Reply with exactly one line: FINAL: <json-grid>.",
+        "No reasoning, markdown, labels, or code fences.",
+    ]
+    for index, example in enumerate(problem.train_examples, start=1):
+        lines.append(
+            f"E{index} I={_packed_grid(example.input_grid)} "
+            f"O={_packed_grid(example.output_grid)}"
+        )
+    lines.append(f"T={_packed_grid(problem.test_input)}")
+    return "\n".join(lines)
+
+
 def verify_answer(problem: ARCGridProblem, text: str) -> ARCGridVerification:
     final_value = _extract_final_value(text)
     if final_value is None:

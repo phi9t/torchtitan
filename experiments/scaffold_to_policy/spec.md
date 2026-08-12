@@ -940,3 +940,17 @@ reasoning benchmarks.
   execution plumbing under the bwrap rootfs, but it is a hard-negative task
   result rather than a successful tau2 benchmark score. The report is
   `experiments/scaffold_to_policy/reports/20260812Ttau2-qwen-model-policy.md`.
+- 2026-08-12: Continued the hard ARC-AGI-2 exact-grid branch with packed-grid
+  prompt conditions. The new `packed_strict_chat` variant combines the packed
+  digit-row serialization from `packed_chat` with a strict one-line
+  `FINAL: <json-grid>` contract. Both packed runs used the same 8 dev / 8 OOD
+  training-split slice, 4 rollouts, Qwen3-1.7B/vLLM, `MAX_MODEL_LEN=4096`,
+  `MAX_NEW_TOKENS=256`, and `GPU_MEMORY_UTILIZATION=0.05` inside the bwrap
+  rootfs. Prompt preflight selected all 16 problems at 4096 context:
+  `packed_strict_chat` max total tokens were 2672 on dev and 3795 on OOD.
+  `packed_chat` reached dev/OOD pass@1/pass@4/pass@32 0.0 with all 64 rollouts
+  missing the final grid. `packed_strict_chat` also reached pass@1/pass@4/pass@32
+  0.0, but shifted the failure mode to malformed final JSON grids. This fixes
+  ARC context fit and missing-`FINAL` failure modes without producing an
+  exact-grid solve. The report is
+  `experiments/scaffold_to_policy/reports/20260812Tarc-packed-strict-chat-results.md`.

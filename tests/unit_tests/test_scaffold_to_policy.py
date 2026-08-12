@@ -958,6 +958,29 @@ def test_arc_grid_packed_prompt_preserves_grids_with_shorter_serialization():
     assert len(packed) < len(compact)
 
 
+def test_arc_grid_packed_strict_prompt_combines_packing_and_final_contract():
+    problem = arc_grid.ARCGridProblem(
+        problem_id="ARC-AGI-2/fixture/0",
+        source="fixture",
+        train_examples=(
+            arc_grid.ARCExample(
+                input_grid=((1, 0), (0, 1)),
+                output_grid=((0, 1), (1, 0)),
+            ),
+        ),
+        test_input=((2, 0), (0, 2)),
+        test_output=((0, 2), (2, 0)),
+    )
+
+    prompt = arc_grid.packed_strict_prompt_for_problem(problem)
+
+    assert "Digits are cells, / separates rows" in prompt
+    assert "E1 I=10/01 O=01/10" in prompt
+    assert "T=20/02" in prompt
+    assert "Reply with exactly one line: FINAL: <json-grid>." in prompt
+    assert "No reasoning" in prompt
+
+
 def test_arc_grid_imports_tasks_and_reports(tmp_path):
     task_dir = tmp_path / "arc" / "training"
     task_dir.mkdir(parents=True)

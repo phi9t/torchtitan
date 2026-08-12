@@ -385,6 +385,34 @@ failures. The completed report is:
 experiments/scaffold_to_policy/reports/20260812T150000Z-arc-strict-chat-results.md
 ```
 
+To keep the same 8 dev / 8 OOD slice inside a 4096-token context, use the
+packed-grid prompt:
+
+```bash
+RUN_ID=20260812Tarc-agi2-packed-strict-chat-calibration \
+DATA_ROOT=experiments/scaffold_to_policy/data/arc_agi2_public_vllm_calibration_packed_strict_chat \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/arc_agi2_public_vllm_calibration_packed_strict_chat \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 NUM_ROLLOUTS=4 \
+GPU_MEMORY_UTILIZATION=0.05 \
+SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN=4096 \
+MAX_MODEL_LEN=4096 \
+MAX_NEW_TOKENS=256 \
+PROMPT_VARIANT=packed_strict_chat \
+experiments/scaffold_to_policy/run_arc_agi2_public_vllm_smoke.sh
+```
+
+The completed packed runs selected all 8 dev and 8 OOD problems at 4096
+context. `packed_chat` reached dev/OOD pass@1/pass@4 `0.000` with all failures
+classified as missing final grids. `packed_strict_chat` also reached
+dev/OOD pass@1/pass@4 `0.000`, but shifted failures to malformed final JSON
+grids. This means packing solved the context blocker and strict packing solved
+the missing-`FINAL` blocker, but neither solved exact-grid output construction.
+The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812Tarc-packed-strict-chat-results.md
+```
+
 ## Initial Coding Benchmarks
 
 The first coding lane uses `coding_style`, a repo-owned executable-test harness

@@ -1815,11 +1815,34 @@ def _build_arc_grid_vllm_prompts(
         "strict_chat",
         "compact_chat",
         "packed_chat",
+        "packed_strict_chat",
     }:
         raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
+    if args.prompt_variant == "packed_strict_chat":
+        return [
+            tokenizer.apply_chat_template(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Solve ARC. User grids use digit rows separated by /. "
+                            "Return only one line matching FINAL: <json-grid>."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": arc_grid.packed_strict_prompt_for_problem(problem),
+                    },
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+            for problem in problems
+        ]
     if args.prompt_variant == "packed_chat":
         return [
             tokenizer.apply_chat_template(
@@ -2178,7 +2201,14 @@ def build_parser() -> argparse.ArgumentParser:
     arc_preflight_parser.add_argument("--max-new-tokens", type=int, default=768)
     arc_preflight_parser.add_argument(
         "--prompt-variant",
-        choices=["plain", "chat", "strict_chat", "compact_chat", "packed_chat"],
+        choices=[
+            "plain",
+            "chat",
+            "strict_chat",
+            "compact_chat",
+            "packed_chat",
+            "packed_strict_chat",
+        ],
         default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
     )
     arc_preflight_parser.add_argument(
@@ -2525,7 +2555,14 @@ def build_parser() -> argparse.ArgumentParser:
     arc_vllm_parser.add_argument("--max-new-tokens", type=int, default=768)
     arc_vllm_parser.add_argument(
         "--prompt-variant",
-        choices=["plain", "chat", "strict_chat", "compact_chat", "packed_chat"],
+        choices=[
+            "plain",
+            "chat",
+            "strict_chat",
+            "compact_chat",
+            "packed_chat",
+            "packed_strict_chat",
+        ],
         default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
     )
     arc_vllm_parser.add_argument(
