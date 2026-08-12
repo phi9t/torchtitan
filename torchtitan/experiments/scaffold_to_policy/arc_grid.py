@@ -12,6 +12,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from torchtitan.experiments.scaffold_to_policy import report_artifacts
+
 
 FINAL_RE = re.compile(r"^\s*FINAL:\s*(.+?)\s*$", re.IGNORECASE)
 
@@ -404,6 +406,24 @@ def build_report_input(
         for split, path in (preflight_paths or {}).items()
     }
     registry = json.loads(split_registry.read_text())
+    artifact_details = {
+        "split_registry": report_artifacts.describe_artifact(
+            split_registry,
+            run_id=run_id,
+            payload=registry,
+        ),
+        "summaries": report_artifacts.describe_artifacts(
+            summary_paths,
+            run_id=run_id,
+            payloads=summaries,
+        ),
+        "preflights": report_artifacts.describe_artifacts(
+            preflight_paths or {},
+            run_id=run_id,
+            payloads=preflights,
+        ),
+    }
+    freshness = report_artifacts.summarize_artifact_freshness(artifact_details)
     checks = {
         "split_registry_selected": bool(registry.get("selected", False)),
         "summaries_present": all(path.is_file() for path in summary_paths.values()),
@@ -423,6 +443,7 @@ def build_report_input(
         "preflight_prompts_fit_context": all(
             bool(preflight.get("selected", False)) for preflight in preflights.values()
         ),
+        "artifact_provenance_labeled": bool(freshness["all_labeled"]),
     }
     return {
         "schema_version": 1,
@@ -443,6 +464,8 @@ def build_report_input(
             "preflights": {
                 split: str(path) for split, path in (preflight_paths or {}).items()
             },
+            "details": artifact_details,
+            "freshness": freshness,
         },
         "verifier": {
             "kind": "exact",

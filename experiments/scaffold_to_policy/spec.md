@@ -729,3 +729,25 @@ reasoning benchmarks.
   `task_execution_probes_succeeded=false`. The official reward breakdown was
   DB 0.0 and COMMUNICATE 1.0. This is a bounded baseline and evaluator-path
   check, not a learned policy result.
+- 2026-08-12: Hardened public hard-reasoning and coding report-input
+  provenance. The new shared `report_artifacts` helper records per-artifact
+  path, existence, size, sha256, mtime, and whether the artifact is run-scoped
+  by path or JSON payload. `math_style`, `multiple_choice`, `arc_grid`, and
+  `coding_style` report inputs now include `artifacts.details`,
+  `artifacts.freshness`, and an `artifact_provenance_labeled` check. This does
+  not mark reused artifacts as failures; it makes fresh-vs-reused status
+  machine-readable so later audits do not overclaim stale or unscoped outputs.
+- 2026-08-12: Revisited the BigCodeBench-Hard `contract_chat` hard coding
+  condition after GPU memory became briefly available. A completed 2 dev / 2
+  OOD rerun, `20260812T235500Z-bigcodebench-hard-contract-chat-rerun`, passed
+  canonical preflight on both splits and reached dev/OOD pass@1 through pass@4
+  of 0.000, with all 16 candidates failing released tests as assertion
+  failures. An expanded 8 dev / 8 OOD attempt initially exposed a canonical
+  preflight timeout on `BigCodeBench/17`; rerunning with
+  `TIMEOUT_SECONDS=30` selected all 16 canonical solutions and completed the
+  8-problem dev half with pass@1 through pass@4 of 0.000 over 32 candidates.
+  The OOD half remained infrastructure-blocked: after a successful memory
+  preflight, shared-GPU state changed and vLLM saw only 6.6 GiB free at startup
+  versus 21.4 GiB requested at `GPU_MEMORY_UTILIZATION=0.12`. This leaves the
+  completed small contract-chat result and a partial expanded dev result, not a
+  completed expanded BigCodeBench-Hard result.

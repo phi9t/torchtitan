@@ -40,14 +40,15 @@ Not complete:
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
 - The registry/reporting surface still needs broader latest-row selection,
-  stronger fresh/reused stage surfacing, and more offline dataset-loader
-  hardening.
+  broader shared-registry factoring, and more offline dataset-loader hardening.
+  Fresh/reused artifact surfacing is now present for the hard public
+  reasoning/coding report inputs.
 
 ## User Story Audit
 
 | Spec stories | Status | Evidence | Remaining gap |
 | --- | --- | --- | --- |
-| 1-8 run identity, manifests, provenance, environment | Partial | Countdown report inputs, scaffold smoke report inputs, rootfs shell entrypoints, external harness metadata | Manifest stage freshness is stronger in Countdown than in the general scaffold lane; canonical latest-row selection is still not generalized. |
+| 1-8 run identity, manifests, provenance, environment | Partial | Countdown report inputs, scaffold smoke report inputs, rootfs shell entrypoints, external harness metadata, hard public report artifact details | Manifest stage freshness is stronger in Countdown than in the general scaffold lane; canonical latest-row selection is still not generalized. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
@@ -86,13 +87,21 @@ BigCodeBench-Hard executable smoke:
   splits passed canonical preflight 8/8 after rootfs dependency repair, and the
   model reached dev/OOD pass@1/pass@4 `0.000`. All 64 sampled candidates failed
   released unit tests as assertion failures.
-- Follow-up blocked: the `contract_chat` prompt condition now has parser and
+- Follow-up completed: the `contract_chat` prompt condition now has parser and
   runner support plus consistent `GPU_MEMORY_UTILIZATION` forwarding into
-  vLLM. The same selected slice still passes canonical preflight 8/8 on dev and
-  8/8 on OOD, but current shared-GPU contention from unrelated SGLang
-  processes prevented a model result. The hardened memory preflight now records
-  both insufficient-memory and CUDA memory-query failures as JSON blocker
-  artifacts.
+  vLLM. Run `20260812T235500Z-bigcodebench-hard-contract-chat-rerun` completed
+  a 2 dev / 2 OOD slice after memory became available at
+  `GPU_MEMORY_UTILIZATION=0.24`. Both splits passed canonical preflight, and
+  both reached pass@1/pass@4 `0.000`; all 16 sampled candidates failed released
+  unit tests as assertion failures.
+- Follow-up partially blocked: the expanded 8 dev / 8 OOD `contract_chat`
+  attempt selected all canonical solutions after increasing
+  `TIMEOUT_SECONDS=30`. The dev half completed with pass@1/pass@4 `0.000` over
+  8 problems and 32 candidates. The OOD half did not complete because shared GPU
+  memory changed after a successful preflight: vLLM later saw only 6.6 GiB free
+  versus 21.4 GiB requested at `GPU_MEMORY_UTILIZATION=0.12`. This is an
+  infrastructure-blocked partial expanded result, not a completed expanded
+  score.
 
 ## New Hardening Landed From This Audit
 
@@ -112,6 +121,18 @@ This pass adds a canonical-solution preflight for executable coding splits:
 This turns missing Python packages, broken released tests, and canonical
 solution import failures into early infrastructure failures instead of
 post-generation scoring surprises.
+
+This pass also adds machine-readable artifact freshness for the hard public
+reasoning/coding report inputs:
+
+- `report_artifacts.describe_artifact` records path, existence, size, sha256,
+  mtime, and run binding for report inputs.
+- `math_style`, `multiple_choice`, `arc_grid`, and `coding_style` report inputs
+  now include `artifacts.details`, `artifacts.freshness`, and
+  `artifact_provenance_labeled`.
+- Freshness is conservative: artifacts are labeled `fresh` only when the run ID
+  appears in the artifact path or JSON payload; otherwise they are labeled
+  `reused_or_unscoped` rather than failed.
 
 ## Blocker Backlog
 
@@ -156,6 +177,8 @@ post-generation scoring surprises.
 4. Registry/reporting:
    - Blocker: scaffold lanes still have per-task report builders rather than a
      single general registry.
+   - Progress: hard public reasoning/coding report inputs now label artifact
+     freshness and hashes, reducing stale-result overclaim risk.
    - Required next step: factor the common split/report/preflight checks into a
      shared registry module after the current task-specific behaviors stabilize.
 

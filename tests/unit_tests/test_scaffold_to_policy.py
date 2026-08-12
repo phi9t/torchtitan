@@ -1132,7 +1132,7 @@ def test_coding_style_report_input_accepts_canonical_preflight(tmp_path):
     report_input = coding_style.build_report_input(
         data_root=data_root,
         results_root=results_root,
-        run_id="fixture",
+        run_id="20260812T000000Z-unscoped",
         split_registry=split_registry,
         summary_paths={"dev": summary},
         scaffold_budget=1,
@@ -1144,6 +1144,64 @@ def test_coding_style_report_input_accepts_canonical_preflight(tmp_path):
         "dev": str(preflight),
     }
     assert report_input["preflight"]["splits"]["dev"]["selected"]
+    assert report_input["checks"]["artifact_provenance_labeled"]
+    assert report_input["artifacts"]["freshness"]["status_counts"] == {
+        "reused_or_unscoped": 3,
+    }
+    assert (
+        report_input["artifacts"]["details"]["summaries"]["dev"]["run_binding"]["status"]
+        == "reused_or_unscoped"
+    )
+
+
+def test_coding_style_report_input_marks_run_scoped_artifacts_fresh(tmp_path):
+    run_id = "20260812T235959Z-fixture"
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results" / run_id
+    dev = data_root / "dev.jsonl"
+    problem = coding_style.CodingStyleProblem(
+        problem_id="HumanEval/fixture",
+        source="fixture",
+        prompt="def add_one(x):\n    ",
+        test="def check(candidate):\n    assert candidate(1) == 2",
+        entry_point="add_one",
+        canonical_solution="    return x + 1",
+    )
+    coding_style.write_jsonl(dev, [problem.to_json()])
+    split_registry = data_root / f"split_registry_{run_id}.json"
+    coding_style.write_json(
+        split_registry,
+        coding_style.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    coding_style.write_json(
+        summary,
+        {
+            **coding_style.summarize_evaluations(
+                [coding_style.evaluate_fixture_rollouts(problem, ["return x + 1"])]
+            ),
+            "run_id": run_id,
+        },
+    )
+    preflight = results_root / "dev_canonical_preflight.json"
+    coding_style.write_json(
+        preflight,
+        coding_style.preflight_canonical_solutions([problem]),
+    )
+
+    report_input = coding_style.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id=run_id,
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        scaffold_budget=1,
+        preflight_paths={"dev": preflight},
+    )
+
+    assert report_input["checks"]["artifact_provenance_labeled"]
+    assert report_input["artifacts"]["freshness"]["status_counts"] == {"fresh": 3}
+    assert report_input["artifacts"]["details"]["summaries"]["dev"]["sha256"]
 
 
 def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt():

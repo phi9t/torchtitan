@@ -12,6 +12,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from torchtitan.experiments.scaffold_to_policy import report_artifacts
+
 
 FINAL_RE = re.compile(r"^\s*FINAL:\s*([A-D])\s*$", re.IGNORECASE)
 LETTER_RE = re.compile(r"\b([A-D])\b", re.IGNORECASE)
@@ -317,6 +319,19 @@ def build_report_input(
         split: json.loads(path.read_text()) for split, path in summary_paths.items()
     }
     registry = json.loads(split_registry.read_text())
+    artifact_details = {
+        "split_registry": report_artifacts.describe_artifact(
+            split_registry,
+            run_id=run_id,
+            payload=registry,
+        ),
+        "summaries": report_artifacts.describe_artifacts(
+            summary_paths,
+            run_id=run_id,
+            payloads=summaries,
+        ),
+    }
+    freshness = report_artifacts.summarize_artifact_freshness(artifact_details)
     checks = {
         "split_registry_selected": bool(registry.get("selected", False)),
         "summaries_present": all(path.is_file() for path in summary_paths.values()),
@@ -325,6 +340,7 @@ def build_report_input(
             == registry["splits"][split]["num_problems"]
             for split in summary_paths
         ),
+        "artifact_provenance_labeled": bool(freshness["all_labeled"]),
     }
     return {
         "schema_version": 1,
@@ -342,6 +358,8 @@ def build_report_input(
             "results_root": str(results_root),
             "split_registry": str(split_registry),
             "summaries": {split: str(path) for split, path in summary_paths.items()},
+            "details": artifact_details,
+            "freshness": freshness,
         },
         "verifier": {
             "kind": "exact",

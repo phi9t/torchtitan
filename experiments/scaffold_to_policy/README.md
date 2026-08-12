@@ -517,6 +517,31 @@ The current completion audit and blocker map is:
 experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md
 ```
 
+Hard public reasoning/coding report inputs now include artifact provenance
+details. `math_style`, `multiple_choice`, `arc_grid`, and `coding_style`
+reports record per-artifact hashes, mtimes, and whether each artifact is
+run-scoped (`fresh`) or only `reused_or_unscoped`. Reused artifacts are not
+treated as failed checks, but the status is machine-readable for audit reports.
+
+The BigCodeBench-Hard `contract_chat` condition has one completed small rerun
+and one partial expanded rerun:
+
+```bash
+RUN_ID=20260812T235500Z-bigcodebench-hard-contract-chat-rerun \
+DATA_ROOT=experiments/scaffold_to_policy/data/bigcodebench_hard_public_vllm_expanded_clean \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_rerun \
+DEV_PROBLEMS=2 OOD_PROBLEMS=2 DEV_OFFSET=0 OOD_OFFSET=32 \
+NUM_ROLLOUTS=4 PROMPT_VARIANT=contract_chat GPU_MEMORY_UTILIZATION=0.24 \
+SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN=8192 \
+experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
+```
+
+That run completed under the bwrap rootfs and reached dev/OOD pass@1/pass@4
+`0.000`; all sampled candidates failed released tests as assertion failures.
+The later 8 dev / 8 OOD attempt with `TIMEOUT_SECONDS=30` completed the dev
+half at pass@1/pass@4 `0.000`, but the OOD half remained blocked because GPU
+memory changed between preflight and vLLM startup.
+
 ## Agentic Benchmarks
 
 tau2-bench and Terminal-Bench/Harbor are in scope, but they enter after the
