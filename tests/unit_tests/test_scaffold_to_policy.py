@@ -219,6 +219,54 @@ def test_latest_report_index_selects_latest_matching_task(tmp_path):
     assert index["latest"]["artifact"]["sha256"]
 
 
+def test_blocker_report_input_records_artifact_provenance(tmp_path):
+    parser = build_parser()
+    results_root = tmp_path / "results"
+    blocker = results_root / "eval" / "vllm_gpu_memory_preflight.json"
+    output = results_root / "manifests" / "report_input_fixture.json"
+    arc_grid.write_json(
+        blocker,
+        {
+            "schema_version": 1,
+            "kind": "vllm_gpu_memory_preflight",
+            "selected": False,
+            "reason": "insufficient free memory",
+        },
+    )
+
+    args = parser.parse_args(
+        [
+            "write-blocker-report-input",
+            "--results-root",
+            str(results_root),
+            "--run-id",
+            "fixture",
+            "--task",
+            "coding_style",
+            "--lane",
+            "coding",
+            "--blocker-type",
+            "vllm_gpu_memory_preflight",
+            "--artifact",
+            f"gpu_memory={blocker}",
+            "--limitation",
+            "No model score was produced.",
+            "--output",
+            str(output),
+        ]
+    )
+    args.func(args)
+
+    report_input = json.loads(output.read_text())
+    assert report_input["run"]["scaffold"]["budget"] == 0
+    assert report_input["checks"]["blocker_artifacts_present"]
+    assert report_input["checks"]["artifact_provenance_labeled"]
+    assert not report_input["checks"]["benchmark_execution_completed"]
+    assert not report_input["checks"]["blocker_selected"]
+    assert report_input["artifacts"]["details"]["gpu_memory"]["sha256"]
+    assert report_input["limitations"] == ["No model score was produced."]
+
+
 def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():
     parser = build_parser()
 
@@ -1525,6 +1573,25 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "0.24",
         ]
     )
+    blocker = parser.parse_args(
+        [
+            "write-blocker-report-input",
+            "--results-root",
+            "results",
+            "--run-id",
+            "run",
+            "--task",
+            "math_style",
+            "--lane",
+            "reasoning",
+            "--blocker-type",
+            "vllm_gpu_memory_preflight",
+            "--artifact",
+            "gpu_memory=preflight.json",
+            "--output",
+            "report_input.json",
+        ]
+    )
 
     assert aime.dataset == "HuggingFaceH4/aime_2024"
     assert gpqa.subset == "gpqa_diamond"
@@ -1541,6 +1608,8 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert arc_eval.max_model_len == 4096
     assert arc_eval.gpu_memory_utilization is None
     assert arc_eval_low_memory.gpu_memory_utilization == 0.24
+    assert blocker.artifact == ["gpu_memory=preflight.json"]
+    assert blocker.lane == "reasoning"
 
 
 def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):

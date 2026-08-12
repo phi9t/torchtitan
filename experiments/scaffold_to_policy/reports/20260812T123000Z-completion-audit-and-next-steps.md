@@ -41,14 +41,14 @@ Not complete:
   claims.
 - The registry/reporting surface still needs more offline dataset-loader
   hardening. Shared report-input factoring, fresh/reused artifact surfacing,
-  latest-report indexing, and external-harness artifact provenance now cover
-  the main scaffold lanes.
+  latest-report indexing, external-harness artifact provenance, and hard-run
+  blocker report inputs now cover the main scaffold lanes.
 
 ## User Story Audit
 
 | Spec stories | Status | Evidence | Remaining gap |
 | --- | --- | --- | --- |
-| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details | Offline dataset-loader hardening remains separate from report-input provenance. |
+| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details, blocker report inputs | Offline dataset-loader hardening remains separate from report-input provenance. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
@@ -56,7 +56,7 @@ Not complete:
 | 23-25 public no-tool reasoning semantics | Mostly complete | GSM8K, MATH, AIME, ARC-AGI-2 scripts and reports | GPQA Diamond is blocked by auth; all public runs are too small for public benchmark claims. |
 | 26-29 external harness boundaries and labels | Partial | `external_harness` module, dry-run/preflight/tau2/Terminal-Bench reports, tau2 execution-probe ingestion | Terminal-Bench/Harbor `nop` baseline and tau2 noop baseline execution are green; model or learned-policy execution remains incomplete. |
 | 30 generated artifact hygiene | Complete for checked tree | Generated results/data roots are ignored; current tracked edits are code/docs/tests only | Continue to avoid committing runtime results. |
-| 31-36 future-agent spec, gates, caveats, examples, exact verifiers, upstream metrics | Mostly complete | `spec.md`, README, reports with examples, exact verifiers, external harness notes | Need a shared registry abstraction for all scaffold lanes rather than per-lane report builders. |
+| 31-36 future-agent spec, gates, caveats, examples, exact verifiers, upstream metrics | Mostly complete | `spec.md`, README, reports with examples, exact verifiers, shared report builder, latest-report index, external harness provenance, blocker manifests | Offline dataset-loader hardening and real model/policy agent execution remain incomplete. |
 
 ## Harder Reasoning And Coding Status
 
@@ -102,6 +102,11 @@ BigCodeBench-Hard executable smoke:
   versus 21.4 GiB requested at `GPU_MEMORY_UTILIZATION=0.12`. This is an
   infrastructure-blocked partial expanded result, not a completed expanded
   score.
+- Follow-up blocker refresh: `20260812T114938Z-bigcodebench-hard-gpu-blocker-report`
+  wrote a report input after both 1-problem canonical preflights passed but the
+  vLLM GPU preflight found only 1.72 GiB free versus 3.57 GiB required at
+  `GPU_MEMORY_UTILIZATION=0.02`. This is a coding-lane blocker report, not a
+  model score.
 
 ## New Hardening Landed From This Audit
 
@@ -149,6 +154,16 @@ reasoning/coding report inputs:
   helpers for ingested Harbor/Terminal-Bench and tau2 artifacts while keeping
   harness-specific completion, reward, and mode checks separate from the
   split-summary report builder.
+- `write-blocker-report-input` now turns hard-run infrastructure blockers into
+  report inputs with scaffold budget `0`, `benchmark_execution_completed=false`,
+  artifact hashes, freshness labels, and explicit limitations. AIME, ARC-AGI-2,
+  and BigCodeBench-Hard use this for vLLM GPU-memory preflight failures.
+- Refreshed blocker evidence: GPQA auth blocker
+  `20260812T114339Z-gpqa-auth-refresh`; AIME GPU blocker
+  `20260812T114923Z-aime-gpu-blocker-report`, with 1.72 GiB free versus
+  3.57 GiB required at `GPU_MEMORY_UTILIZATION=0.02`; BigCodeBench-Hard GPU
+  blocker `20260812T114938Z-bigcodebench-hard-gpu-blocker-report`, with both
+  canonical preflights selected but no model execution.
 
 ## Blocker Backlog
 
@@ -196,7 +211,8 @@ reasoning/coding report inputs:
      labels through `report_artifacts.build_report_input`; latest report-input
      selection is available through `write-latest-report-index`. External
      harness report inputs now reuse the artifact provenance helpers while
-     preserving harness-specific semantics.
+     preserving harness-specific semantics. Hard-run blocker reports now cover
+     vLLM GPU-memory preflight failures without producing score artifacts.
    - Remaining gap: offline dataset-loader hardening and model/policy
      execution blockers remain outside the report-input builder itself.
    - Required next step: continue blocker-first execution for GPQA auth,

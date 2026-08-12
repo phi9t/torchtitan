@@ -71,7 +71,29 @@ python -m torchtitan.experiments.scaffold_to_policy.cli validate-math-style-spli
 
 python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
   --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
-  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
+  --no-require-selected
+if ! python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
+import json
+import sys
+
+payload = json.loads(open(sys.argv[1]).read())
+raise SystemExit(0 if payload.get("selected") else 1)
+PY
+then
+  python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+    --results-root "${RESULTS_ROOT}" \
+    --run-id "${RUN_ID}" \
+    --task math_style \
+    --lane reasoning \
+    --blocker-type vllm_gpu_memory_preflight \
+    --artifact "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+    --limitation "AIME hard-reasoning run stopped before model execution because vLLM GPU memory preflight failed." \
+    --limitation "No benchmark task execution or model score was produced." \
+    --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  echo "wrote AIME blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  exit 0
+fi
 
 for split in dev ood_test; do
   python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-math-style-vllm \

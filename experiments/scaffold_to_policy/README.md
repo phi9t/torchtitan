@@ -529,6 +529,25 @@ External-harness report inputs keep their own task-execution and reward
 semantics, but reuse the same artifact provenance helpers for ingested Harbor,
 Terminal-Bench, and tau2 artifacts.
 
+Infrastructure blockers can also be promoted to report inputs without producing
+benchmark scores:
+
+```bash
+python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+  --results-root experiments/scaffold_to_policy/results/aime_gpu_blocker_report \
+  --run-id 20260812T114923Z-aime-gpu-blocker-report \
+  --task math_style \
+  --lane reasoning \
+  --blocker-type vllm_gpu_memory_preflight \
+  --artifact gpu_memory=experiments/scaffold_to_policy/results/aime_gpu_blocker_report/eval/vllm_gpu_memory_preflight.json \
+  --output experiments/scaffold_to_policy/results/aime_gpu_blocker_report/manifests/report_input_20260812T114923Z-aime-gpu-blocker-report.json
+```
+
+The AIME, ARC-AGI-2, and BigCodeBench-Hard runners now use this path for vLLM
+GPU-memory preflight failures. A blocker report sets scaffold budget `0`,
+records `benchmark_execution_completed=false`, hashes the blocker artifacts,
+and explicitly states that no model score was produced.
+
 To select the latest run-scoped report input without relying on a mutable
 `current` pointer, write a latest-report index from any manifests directory:
 
@@ -557,6 +576,13 @@ That run completed under the bwrap rootfs and reached dev/OOD pass@1/pass@4
 The later 8 dev / 8 OOD attempt with `TIMEOUT_SECONDS=30` completed the dev
 half at pass@1/pass@4 `0.000`, but the OOD half remained blocked because GPU
 memory changed between preflight and vLLM startup.
+
+The refreshed hard coding blocker run
+`20260812T114938Z-bigcodebench-hard-gpu-blocker-report` wrote a report input
+instead of launching vLLM on a crowded GPU. Both selected canonical preflights
+passed 1/1, but the GPU preflight saw only 1.72 GiB free versus 3.57 GiB
+required at `GPU_MEMORY_UTILIZATION=0.02`, so
+`benchmark_execution_completed=false` and no score was produced.
 
 ## Agentic Benchmarks
 

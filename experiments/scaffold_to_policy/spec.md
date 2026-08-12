@@ -778,3 +778,20 @@ reasoning benchmarks.
   harness-specific completion and reward semantics. This closes the remaining
   provenance-surface gap for external harness smokes; model or learned-policy
   agent execution remains a separate incomplete requirement.
+- 2026-08-12: Added first-class blocker report inputs for hard benchmark
+  infrastructure failures. The new `write-blocker-report-input` CLI turns
+  preflight artifacts into report inputs with scaffold budget `0`,
+  `benchmark_execution_completed=false`, artifact hashes, freshness labels, and
+  explicit limitations. AIME, ARC-AGI-2, and BigCodeBench-Hard now use this path
+  for vLLM GPU-memory preflight failures. Refreshed rootfs runs confirmed the
+  behavior under the current shared-machine state: GPQA still wrote a gated
+  dataset auth blocker at
+  `experiments/scaffold_to_policy/results/gpqa_public_vllm_auth_refresh/manifests/report_input_20260812T114339Z-gpqa-auth-refresh.json`;
+  AIME wrote
+  `experiments/scaffold_to_policy/results/aime_gpu_blocker_report/manifests/report_input_20260812T114923Z-aime-gpu-blocker-report.json`
+  with only 1.72 GiB free versus 3.57 GiB required at
+  `GPU_MEMORY_UTILIZATION=0.02`; BigCodeBench-Hard wrote
+  `experiments/scaffold_to_policy/results/bigcodebench_hard_gpu_blocker_report/manifests/report_input_20260812T114938Z-bigcodebench-hard-gpu-blocker-report.json`
+  after both 1-problem canonical preflights passed but the same GPU-memory
+  blocker prevented model execution. These are blocker artifacts only, not new
+  model scores.

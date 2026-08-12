@@ -742,6 +742,53 @@ def preflight_vllm_gpu_memory(args: argparse.Namespace) -> None:
         )
 
 
+def write_blocker_report_input(args: argparse.Namespace) -> None:
+    artifact_paths = _parse_split_paths(args.artifact)
+    blocker_payloads = report_artifacts.load_json_files(artifact_paths)
+    artifact_details = report_artifacts.describe_artifacts(
+        artifact_paths,
+        run_id=args.run_id,
+        payloads=blocker_payloads,
+    )
+    freshness = report_artifacts.summarize_artifact_freshness(artifact_details)
+    selected_values = [
+        payload.get("selected")
+        for payload in blocker_payloads.values()
+        if isinstance(payload, dict) and "selected" in payload
+    ]
+    checks = {
+        "blocker_artifacts_present": all(
+            path.is_file() for path in artifact_paths.values()
+        ),
+        "artifact_provenance_labeled": bool(freshness["all_labeled"]),
+        "benchmark_execution_completed": False,
+    }
+    if selected_values:
+        checks["blocker_selected"] = all(bool(value) for value in selected_values)
+    report = {
+        "schema_version": 1,
+        "run": {
+            "run_id": args.run_id,
+            "task": args.task,
+            "lane": args.lane,
+            "scaffold": {
+                "type": args.blocker_type,
+                "budget": 0,
+            },
+        },
+        "checks": checks,
+        "limitations": args.limitation,
+        "artifacts": {
+            "results_root": str(args.results_root),
+            "blockers": {name: str(path) for name, path in artifact_paths.items()},
+            "details": artifact_details,
+            "freshness": freshness,
+        },
+        "blockers": blocker_payloads,
+    }
+    arc_grid.write_json(args.output, report)
+
+
 def evaluate_arithmetic_vllm(args: argparse.Namespace) -> None:
     os.environ.setdefault(
         "VLLM_USE_FLASHINFER_SAMPLER",
@@ -2470,6 +2517,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     latest_report_parser.set_defaults(func=write_latest_report_index)
+
+    blocker_report_parser = subparsers.add_parser("write-blocker-report-input")
+    blocker_report_parser.add_argument("--results-root", type=Path, required=True)
+    blocker_report_parser.add_argument("--run-id", required=True)
+    blocker_report_parser.add_argument("--task", required=True)
+    blocker_report_parser.add_argument(
+        "--lane",
+        choices=["reasoning", "coding", "agentic", "external_harness"],
+        required=True,
+    )
+    blocker_report_parser.add_argument("--blocker-type", required=True)
+    blocker_report_parser.add_argument("--artifact", nargs="+", required=True)
+    blocker_report_parser.add_argument("--limitation", action="append", default=[])
+    blocker_report_parser.add_argument("--output", type=Path, required=True)
+    blocker_report_parser.set_defaults(func=write_blocker_report_input)
 
     math_rescore_parser = subparsers.add_parser("rescore-math-style-evaluations")
     math_rescore_parser.add_argument("--evaluations", type=Path, required=True)

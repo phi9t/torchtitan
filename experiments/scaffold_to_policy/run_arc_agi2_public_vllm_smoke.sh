@@ -92,7 +92,32 @@ if [[ -n "${GPU_MEMORY_UTILIZATION}" ]]; then
 fi
 python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
   --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
-  "${memory_preflight_args[@]}"
+  "${memory_preflight_args[@]}" \
+  --no-require-selected
+if ! python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
+import json
+import sys
+
+payload = json.loads(open(sys.argv[1]).read())
+raise SystemExit(0 if payload.get("selected") else 1)
+PY
+then
+  python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+    --results-root "${RESULTS_ROOT}" \
+    --run-id "${RUN_ID}" \
+    --task arc_grid \
+    --lane reasoning \
+    --blocker-type vllm_gpu_memory_preflight \
+    --artifact \
+      "dev_prompt=${RESULTS_ROOT}/eval/dev_prompt_preflight.json" \
+      "ood_test_prompt=${RESULTS_ROOT}/eval/ood_test_prompt_preflight.json" \
+      "gpu_memory=${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+    --limitation "ARC-AGI-2 exact-grid run stopped before model execution because vLLM GPU memory preflight failed." \
+    --limitation "Prompt preflights may be present, but no model score was produced." \
+    --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  echo "wrote ARC-AGI-2 blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  exit 0
+fi
 
 for split in dev ood_test; do
   python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-arc-grid-vllm \
