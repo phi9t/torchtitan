@@ -525,6 +525,16 @@ optional preflight checks, artifact hashes, mtimes, and conservative
 fresh-vs-reused labeling. Reused artifacts are not treated as failed checks, but
 the status is machine-readable for audit reports.
 
+To select the latest run-scoped report input without relying on a mutable
+`current` pointer, write a latest-report index from any manifests directory:
+
+```bash
+python -m torchtitan.experiments.scaffold_to_policy.cli write-latest-report-index \
+  --manifests-dir experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_rerun/manifests \
+  --task coding_style \
+  --output experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_rerun/manifests/latest_report_index.json
+```
+
 The BigCodeBench-Hard `contract_chat` condition has one completed small rerun
 and one partial expanded rerun:
 

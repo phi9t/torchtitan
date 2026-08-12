@@ -39,16 +39,17 @@ Not complete:
   agent has been run.
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
-- The registry/reporting surface still needs broader latest-row selection and
-  more offline dataset-loader hardening. Shared report-input factoring and
-  fresh/reused artifact surfacing now cover the main exact-verifier scaffold
-  lanes.
+- The registry/reporting surface still needs more offline dataset-loader
+  hardening and a decision on how much external-harness reporting should share
+  with split-summary report inputs. Shared report-input factoring,
+  fresh/reused artifact surfacing, and latest-report indexing now cover the
+  main exact-verifier scaffold lanes.
 
 ## User Story Audit
 
 | Spec stories | Status | Evidence | Remaining gap |
 | --- | --- | --- | --- |
-| 1-8 run identity, manifests, provenance, environment | Partial | Countdown report inputs, shared scaffold report inputs, rootfs shell entrypoints, external harness metadata, report artifact details | Manifest stage freshness is stronger in Countdown than in the general scaffold lane; canonical latest-row selection is still not generalized. |
+| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details | External harness reporting is still separate because its semantics are not split-summary based. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
@@ -137,6 +138,14 @@ reasoning/coding report inputs:
 - Freshness is conservative: artifacts are labeled `fresh` only when the run ID
   appears in the artifact path or JSON payload; otherwise they are labeled
   `reused_or_unscoped` rather than failed.
+- `report_artifacts.build_latest_report_index` and the
+  `write-latest-report-index` CLI command scan `report_input_*.json` files,
+  extract embedded run IDs, optionally filter by task, and write an auditable
+  latest-candidate index without relying on a mutable `current` pointer.
+- Rootfs selector smoke:
+  `write-latest-report-index --manifests-dir experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_rerun/manifests --task coding_style`
+  selected `20260812T235500Z-bigcodebench-hard-contract-chat-rerun` with a
+  fresh report artifact and passing checks.
 
 ## Blocker Backlog
 
@@ -181,13 +190,13 @@ reasoning/coding report inputs:
 4. Registry/reporting:
    - Progress: the main exact-verifier scaffold lanes now share report-input
      split checks, optional preflight checks, artifact hashes, and freshness
-     labels through `report_artifacts.build_report_input`.
-   - Remaining gap: canonical latest-row selection is still not generalized,
-     and external-harness report inputs are separate because their semantics are
-     not split-summary based.
-   - Required next step: add latest-run row selection and decide whether the
-     external-harness report shape should reuse only artifact provenance helpers
-     or a separate harness-specific shared builder.
+     labels through `report_artifacts.build_report_input`; latest report-input
+     selection is available through `write-latest-report-index`.
+   - Remaining gap: external-harness report inputs are separate because their
+     semantics are not split-summary based.
+   - Required next step: decide whether the external-harness report shape should
+     reuse only artifact provenance helpers or a separate harness-specific
+     shared builder.
 
 ## Promotion Guidance
 

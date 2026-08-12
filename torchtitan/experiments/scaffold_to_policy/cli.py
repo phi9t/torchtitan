@@ -32,6 +32,7 @@ from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
 from torchtitan.experiments.scaffold_to_policy import multiple_choice
+from torchtitan.experiments.scaffold_to_policy import report_artifacts
 
 
 def generate_arithmetic_words(args: argparse.Namespace) -> None:
@@ -1242,6 +1243,17 @@ def build_arc_grid_report_input(args: argparse.Namespace) -> None:
         raise SystemExit(f"arc-grid report input failed: {', '.join(failed)}")
 
 
+def write_latest_report_index(args: argparse.Namespace) -> None:
+    index = report_artifacts.build_latest_report_index(
+        manifests_dir=args.manifests_dir,
+        pattern=args.pattern,
+        task=args.task,
+    )
+    write_json(args.output, index)
+    if args.require_selected and not index["selected"]:
+        raise SystemExit("latest report index failed: no report inputs matched")
+
+
 def write_external_harness_smoke(args: argparse.Namespace) -> None:
     if args.harness_family == "harbor_terminal":
         pins = external_harness.default_harbor_terminal_pins()
@@ -2446,6 +2458,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     arc_report_parser.set_defaults(func=build_arc_grid_report_input)
+
+    latest_report_parser = subparsers.add_parser("write-latest-report-index")
+    latest_report_parser.add_argument("--manifests-dir", type=Path, required=True)
+    latest_report_parser.add_argument("--output", type=Path, required=True)
+    latest_report_parser.add_argument("--pattern", default="report_input_*.json")
+    latest_report_parser.add_argument("--task")
+    latest_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    latest_report_parser.set_defaults(func=write_latest_report_index)
 
     math_rescore_parser = subparsers.add_parser("rescore-math-style-evaluations")
     math_rescore_parser.add_argument("--evaluations", type=Path, required=True)

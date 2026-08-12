@@ -118,6 +118,53 @@ def load_json_files(paths: dict[str, Path]) -> dict[str, object]:
     return {name: load_json(path) for name, path in paths.items()}
 
 
+def build_latest_report_index(
+    *,
+    manifests_dir: Path,
+    pattern: str = "report_input_*.json",
+    task: str | None = None,
+) -> dict[str, object]:
+    candidates = []
+    for path in sorted(manifests_dir.glob(pattern)):
+        payload = load_json(path)
+        if not isinstance(payload, dict):
+            raise ValueError(f"report input at {path} is not a JSON object")
+        run = payload.get("run")
+        if not isinstance(run, dict):
+            raise ValueError(f"report input at {path} has no run object")
+        run_id = run.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            raise ValueError(f"report input at {path} has no run.run_id")
+        if task is not None and run.get("task") != task:
+            continue
+        checks = payload.get("checks", {})
+        if not isinstance(checks, dict):
+            raise ValueError(f"report input at {path} has non-object checks")
+        candidates.append(
+            {
+                "run_id": run_id,
+                "path": str(path),
+                "task": run.get("task"),
+                "lane": run.get("lane"),
+                "checks_passed": all(bool(value) for value in checks.values()),
+                "artifact": describe_artifact(path, run_id=run_id, payload=payload),
+            }
+        )
+    candidates.sort(key=lambda candidate: (str(candidate["run_id"]), str(candidate["path"])))
+    latest = candidates[-1] if candidates else None
+    return {
+        "schema_version": 1,
+        "kind": "latest_report_input_index",
+        "selected": latest is not None,
+        "manifests_dir": str(manifests_dir),
+        "pattern": pattern,
+        "task": task,
+        "latest": latest,
+        "num_candidates": len(candidates),
+        "candidates": candidates,
+    }
+
+
 def describe_artifact(
     path: Path,
     *,

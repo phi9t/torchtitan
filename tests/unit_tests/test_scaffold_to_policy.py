@@ -168,6 +168,57 @@ def test_shared_report_input_maps_adapter_summary_names(tmp_path):
     assert report_input["artifacts"]["freshness"]["num_artifacts"] == 2
 
 
+def test_latest_report_index_selects_latest_matching_task(tmp_path):
+    manifests = tmp_path / "manifests"
+    first = manifests / "report_input_20260812T010000Z-a.json"
+    second = manifests / "report_input_20260812T020000Z-b.json"
+    other = manifests / "report_input_20260812T030000Z-other.json"
+    write_json(
+        first,
+        {
+            "run": {
+                "run_id": "20260812T010000Z-a",
+                "task": "math_style",
+                "lane": "reasoning",
+            },
+            "checks": {"selected": True},
+        },
+    )
+    write_json(
+        second,
+        {
+            "run": {
+                "run_id": "20260812T020000Z-b",
+                "task": "math_style",
+                "lane": "reasoning",
+            },
+            "checks": {"selected": False},
+        },
+    )
+    write_json(
+        other,
+        {
+            "run": {
+                "run_id": "20260812T030000Z-other",
+                "task": "coding_style",
+                "lane": "coding",
+            },
+            "checks": {"selected": True},
+        },
+    )
+
+    index = report_artifacts.build_latest_report_index(
+        manifests_dir=manifests,
+        task="math_style",
+    )
+
+    assert index["selected"]
+    assert index["num_candidates"] == 2
+    assert index["latest"]["run_id"] == "20260812T020000Z-b"
+    assert not index["latest"]["checks_passed"]
+    assert index["latest"]["artifact"]["sha256"]
+
+
 def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():
     parser = build_parser()
 
@@ -1332,6 +1383,23 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
 
     assert math.gpu_memory_utilization == 0.5
     assert multiple_choice.gpu_memory_utilization == 0.6
+
+    latest = parser.parse_args(
+        [
+            "write-latest-report-index",
+            "--manifests-dir",
+            "results/manifests",
+            "--output",
+            "latest.json",
+            "--task",
+            "coding_style",
+            "--no-require-selected",
+        ]
+    )
+
+    assert latest.pattern == "report_input_*.json"
+    assert latest.task == "coding_style"
+    assert not latest.require_selected
 
 
 def test_harder_reasoning_and_coding_parsers_accept_public_commands():

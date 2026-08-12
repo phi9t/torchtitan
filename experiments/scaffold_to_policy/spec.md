@@ -760,3 +760,13 @@ reasoning benchmarks.
   metadata, scaffold labels, task-specific preflight names, and transfer
   analysis. This materially advances the shared registry/reporting seam without
   changing benchmark semantics or treating reused artifacts as failures.
+- 2026-08-12: Added canonical latest-report selection for scaffold report
+  inputs. `report_artifacts.build_latest_report_index` scans
+  `report_input_*.json` files, extracts embedded `run.run_id`, optionally
+  filters by task, records whether each candidate's checks passed, and writes a
+  JSON index with the selected latest candidate plus all candidates. The CLI
+  command `write-latest-report-index` exposes this path for rootfs audits. A
+  rootfs smoke over the BigCodeBench-Hard `contract_chat` manifests selected
+  `20260812T235500Z-bigcodebench-hard-contract-chat-rerun` with a fresh
+  run-bound report artifact and passing checks. This avoids mutable-only
+  `current` pointers while preserving auditable candidate history.
