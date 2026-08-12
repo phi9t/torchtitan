@@ -33,6 +33,11 @@ MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-768}"
 PROMPT_VARIANT="${PROMPT_VARIANT:-chat}"
 TEMPERATURE="${TEMPERATURE:-0.2}"
 TOP_P="${TOP_P:-0.95}"
+GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-${SCAFFOLD_TO_POLICY_VLLM_GPU_MEMORY_UTILIZATION:-}}"
+gpu_memory_args=()
+if [[ -n "${GPU_MEMORY_UTILIZATION}" ]]; then
+  gpu_memory_args=(--gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}")
+fi
 
 mkdir -p "${DATA_ROOT}/src" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
 
@@ -80,7 +85,8 @@ for split in dev ood_test; do
     --max-new-tokens "${MAX_NEW_TOKENS}" \
     --prompt-variant "${PROMPT_VARIANT}" \
     --temperature "${TEMPERATURE}" \
-    --top-p "${TOP_P}"
+    --top-p "${TOP_P}" \
+    "${gpu_memory_args[@]}"
 done
 
 python -m torchtitan.experiments.scaffold_to_policy.cli build-arc-grid-report-input \

@@ -972,6 +972,8 @@ def evaluate_arc_grid_vllm(args: argparse.Namespace) -> None:
     }
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(prompts, sampling_params)
     evaluations = []
@@ -2031,6 +2033,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-model-len",
         type=int,
         default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "4096")),
+    )
+    arc_vllm_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=(
+            None
+            if os.environ.get("SCAFFOLD_TO_POLICY_VLLM_GPU_MEMORY_UTILIZATION") is None
+            else float(os.environ["SCAFFOLD_TO_POLICY_VLLM_GPU_MEMORY_UTILIZATION"])
+        ),
     )
     arc_vllm_parser.add_argument(
         "--attention-backend",

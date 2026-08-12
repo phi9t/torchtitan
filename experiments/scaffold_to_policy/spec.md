@@ -535,3 +535,18 @@ reasoning benchmarks.
   now performs that preflight for dev and OOD before spending GPU time, so
   missing rootfs packages are surfaced as early infrastructure failures instead
   of late scoring failures.
+- 2026-08-12: Ran the larger ARC-AGI-2 exact-grid calibration requested by the
+  completion audit. The run
+  `20260812T131000Z-arc-agi2-public-vllm-calibration` used 8 dev and 8 OOD
+  training-split tasks, 4 rollouts per problem, the same pinned ARC revision
+  `f3283f727488ad98fe575ea6a5ac981e4a188e49`, and the same exact
+  `FINAL: <json-grid>` verifier. Because another process occupied most local
+  B200 memory, `evaluate-arc-grid-vllm` now supports
+  `--gpu-memory-utilization`, and the completed run used
+  `GPU_MEMORY_UTILIZATION=0.24`. Because one selected ARC prompt exceeded 4096
+  tokens, the completed run used `SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN=8192`.
+  Dev reached pass@1 0.000 and pass@4 0.125 with one elicitable problem; OOD
+  reached pass@1/pass@4 0.000. The dominant failures were parse/format failures
+  around the strict final-grid contract, not rootfs or scorer failures. The
+  report is
+  `experiments/scaffold_to_policy/reports/20260812T131000Z-arc-agi2-calibration.md`.

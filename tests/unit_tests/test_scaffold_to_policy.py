@@ -1183,6 +1183,21 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "summary.json",
         ]
     )
+    arc_eval_low_memory = parser.parse_args(
+        [
+            "evaluate-arc-grid-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+            "--gpu-memory-utilization",
+            "0.24",
+        ]
+    )
 
     assert aime.dataset == "HuggingFaceH4/aime_2024"
     assert gpqa.subset == "gpqa_diamond"
@@ -1195,6 +1210,8 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert multiple.num_rollouts == 4
     assert arc_eval.prompt_variant == "chat"
     assert arc_eval.max_model_len == 4096
+    assert arc_eval.gpu_memory_utilization is None
+    assert arc_eval_low_memory.gpu_memory_utilization == 0.24
 
 
 def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):

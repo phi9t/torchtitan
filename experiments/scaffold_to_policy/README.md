@@ -337,6 +337,17 @@ literally or emitted an incorrect grid. The report is:
 experiments/scaffold_to_policy/reports/20260812T092000Z-arc-bigcodebench-hard-smokes.md
 ```
 
+The larger ARC calibration used 8 dev and 8 OOD training-split tasks with
+4 rollouts per problem. Because the local B200s were partially occupied, the run
+used `GPU_MEMORY_UTILIZATION=0.24`; because one selected prompt exceeded
+4096 tokens, it used `SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN=8192`. It reached
+dev pass@1 `0.000`, dev pass@4 `0.125`, and OOD pass@1/pass@4 `0.000`. The
+report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T131000Z-arc-agi2-calibration.md
+```
+
 ## Initial Coding Benchmarks
 
 The first coding lane uses `coding_style`, a repo-owned executable-test harness
