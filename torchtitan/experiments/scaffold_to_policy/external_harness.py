@@ -419,6 +419,7 @@ def write_terminal_bench_execution_probe(
     cwd: Path,
     timeout_seconds: float,
     harbor_result_json: Path | None = None,
+    agent_name: str = "oracle",
 ) -> dict[str, object]:
     try:
         completed = subprocess.run(
@@ -447,6 +448,7 @@ def write_terminal_bench_execution_probe(
         and int(harbor_result["num_errors"]) == 0
         and int(harbor_result["num_trial_exceptions"]) == 0
     )
+    benchmark_score = float(harbor_result.get("mean_metric") or 0.0)
     record = {
         "schema_version": 1,
         "run_id": run_id,
@@ -467,15 +469,17 @@ def write_terminal_bench_execution_probe(
         "pins": [pin.to_json() for pin in default_harbor_terminal_pins()],
         "raw_result": {
             "metric_name": "terminal_bench_execution_probe",
-            "score": 1.0 if success else 0.0,
+            "score": benchmark_score if success else 0.0,
             "num_tasks": 1 if success else 0,
-            "score_source": "terminal-bench CLI oracle task execution",
+            "score_source": f"Harbor terminal-bench {agent_name} task execution",
             "task_metadata": {
                 "task_id": task_id,
+                "agent_name": agent_name,
                 "command": list(command),
                 "cwd": str(cwd),
                 "returncode": returncode,
                 "timed_out": timed_out,
+                "execution_completed": success,
                 "stdout_tail": stdout[-4000:],
                 "stderr_tail": stderr[-4000:],
                 **harbor_result,
@@ -489,7 +493,7 @@ def write_terminal_bench_execution_probe(
                 {
                     "step": 1,
                     "actor": "terminal_bench",
-                    "event": "oracle_task_execution"
+                    "event": f"{agent_name}_task_execution"
                     if success
                     else "execution_blocked_or_failed",
                 },
@@ -562,6 +566,7 @@ def write_tau2_execution_probe(
                 "cwd": str(cwd),
                 "returncode": returncode,
                 "timed_out": timed_out,
+                "execution_completed": success,
                 "results_json": str(results_json),
                 "stdout_tail": stdout[-4000:],
                 "stderr_tail": stderr[-4000:],
@@ -692,6 +697,15 @@ def build_report_input(
         ),
         "task_execution_probes_succeeded": all(
             value["metric"]["num_tasks"] > 0 and value["metric"]["score"] >= 1.0
+            for value in task_execution_probe_values
+        ),
+        "task_execution_probes_completed": all(
+            value["metric"]["num_tasks"] > 0
+            and bool(
+                value["metric"]
+                .get("task_metadata", {})
+                .get("execution_completed", False)
+            )
             for value in task_execution_probe_values
         ),
     }
@@ -855,6 +869,7 @@ def _summarize_harbor_terminal_result(
         return {
             "harbor_result_json": None,
             "results_present": False,
+            "mean_metric": None,
             "num_total_trials": 0,
             "num_completed_trials": 0,
             "num_errored_trials": 0,
@@ -868,6 +883,7 @@ def _summarize_harbor_terminal_result(
         return {
             "harbor_result_json": str(result_json),
             "results_present": False,
+            "mean_metric": None,
             "num_total_trials": 0,
             "num_completed_trials": 0,
             "num_errored_trials": 0,
@@ -886,6 +902,12 @@ def _summarize_harbor_terminal_result(
     ]
     num_trials = sum(int(value.get("n_trials", 0) or 0) for value in eval_summaries)
     num_errors = sum(int(value.get("n_errors", 0) or 0) for value in eval_summaries)
+    metric_values = []
+    for value in eval_summaries:
+        for metric in value.get("metrics") or []:
+            if isinstance(metric, dict) and metric.get("mean") is not None:
+                metric_values.append(float(metric["mean"]))
+    mean_metric = metric_values[0] if metric_values else None
     exception_stats: dict[str, list[str]] = {}
     for value in eval_summaries:
         for exception_type, trial_names in (value.get("exception_stats") or {}).items():
@@ -920,6 +942,7 @@ def _summarize_harbor_terminal_result(
     return {
         "harbor_result_json": str(result_json),
         "results_present": True,
+        "mean_metric": mean_metric,
         "num_total_trials": int(result.get("n_total_trials", 0) or 0),
         "num_completed_trials": int(stats.get("n_completed_trials", 0) or 0),
         "num_errored_trials": int(stats.get("n_errored_trials", 0) or 0),

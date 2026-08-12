@@ -719,6 +719,27 @@ result. The current report is:
 experiments/scaffold_to_policy/reports/20260812T190000Z-terminal-bench-harbor-hostpath.md
 ```
 
+Run a non-oracle Harbor baseline by selecting Harbor's built-in `nop` agent:
+
+```bash
+HARBOR_AGENT=nop \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/terminal_bench_harbor_nop_baseline \
+experiments/scaffold_to_policy/run_terminal_bench_oracle_probe.sh
+```
+
+The runner name is historical; `HARBOR_AGENT` controls the actual Harbor agent
+passed to `harbor run`. The completed baseline
+`20260812T111500Z-terminal-bench-harbor-nop-baseline` ran one
+`headless-terminal` trial with `agent_name=nop`, `n_trials=1`, `n_errors=0`,
+no trial exceptions, and mean metric `0.0`. The scaffold report input records
+`task_execution_probes_completed=true` and
+`task_execution_probes_succeeded=false`, separating a clean harness execution
+from a solved benchmark task. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T111500Z-terminal-bench-harbor-nop-baseline.md
+```
+
 ## Registry Shape
 
 Each run family should be described by a machine-readable registry with:

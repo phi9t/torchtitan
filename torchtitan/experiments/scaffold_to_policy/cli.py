@@ -1302,6 +1302,7 @@ def write_terminal_bench_execution_probe(args: argparse.Namespace) -> None:
         cwd=args.cwd,
         timeout_seconds=args.timeout_seconds,
         harbor_result_json=args.harbor_result_json,
+        agent_name=args.agent_name,
     )
 
 
@@ -2520,6 +2521,7 @@ def build_parser() -> argparse.ArgumentParser:
     terminal_probe_parser.add_argument("--task-id", required=True)
     terminal_probe_parser.add_argument("--cwd", type=Path, required=True)
     terminal_probe_parser.add_argument("--harbor-result-json", type=Path, required=True)
+    terminal_probe_parser.add_argument("--agent-name", default="oracle")
     terminal_probe_parser.add_argument("--timeout-seconds", type=float, default=120.0)
     terminal_probe_parser.add_argument("--output", type=Path, required=True)
     terminal_probe_parser.add_argument("command", nargs=argparse.REMAINDER)

@@ -708,3 +708,13 @@ reasoning benchmarks.
   host-side `nvidia-smi` showed all eight B200s occupied by SGLang scheduler
   processes. No new BigCodeBench-Hard, ARC, AIME, or GPQA model score should be
   inferred from this blocker refresh.
+- 2026-08-12: Advanced Terminal-Bench/Harbor beyond the oracle-only
+  infrastructure probe by running Harbor's built-in `nop` agent on the same
+  pinned `headless-terminal` task. The Terminal-Bench runner now accepts
+  `HARBOR_AGENT` and the ingestion layer separates completed task execution
+  from benchmark reward via `task_execution_probes_completed`. Run
+  `20260812T111500Z-terminal-bench-harbor-nop-baseline` completed one non-oracle
+  trial with Harbor `n_trials=1`, `n_errors=0`, no trial exceptions, mean metric
+  0.0, `task_execution_probes_completed=true`, and
+  `task_execution_probes_succeeded=false`. This is a valid bounded baseline and
+  verifier-path check, not a policy capability success.

@@ -23,6 +23,7 @@ TERMINAL_BENCH_REPO_DIR="${TERMINAL_BENCH_REPO_DIR:-${RESULTS_ROOT}/src/terminal
 HARBOR_VERSION="${HARBOR_VERSION:-0.21.0}"
 TERMINAL_BENCH_VERSION="${TERMINAL_BENCH_VERSION:-0.2.18}"
 TASK_ID="${TASK_ID:-headless-terminal}"
+HARBOR_AGENT="${HARBOR_AGENT:-oracle}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 
 mkdir -p "${RESULTS_ROOT}/raw" "${RESULTS_ROOT}/ingested" "${RESULTS_ROOT}/manifests" "${RESULTS_ROOT}/runs" "${RESULTS_ROOT}/src"
@@ -62,6 +63,7 @@ git -C "${TERMINAL_BENCH_REPO_DIR}" checkout --quiet "${TERMINAL_BENCH_REVISION}
   --task-id "${TASK_ID}" \
   --cwd "${DOCKER_REPO_ROOT}" \
   --harbor-result-json "${RESULTS_ROOT}/runs/${RUN_ID}/result.json" \
+  --agent-name "${HARBOR_AGENT}" \
   --timeout-seconds "${TIMEOUT_SECONDS}" \
   --output "${RESULTS_ROOT}/raw/terminal_bench_execution_probe.json" \
   "${VENV_DIR}/bin/harbor" run \
@@ -69,7 +71,7 @@ git -C "${TERMINAL_BENCH_REPO_DIR}" checkout --quiet "${TERMINAL_BENCH_REVISION}
     --jobs-dir "${RESULTS_ROOT}/runs" \
     --job-name "${RUN_ID}" \
     --env docker \
-    --agent oracle \
+    --agent "${HARBOR_AGENT}" \
     --n-concurrent 1 \
     --n-attempts 1 \
     --max-retries 0 \

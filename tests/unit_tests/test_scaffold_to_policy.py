@@ -1672,6 +1672,7 @@ def test_terminal_bench_execution_probe_rejects_harbor_runtime_error(
         cwd=tmp_path,
         timeout_seconds=5.0,
         harbor_result_json=harbor_result,
+        agent_name="oracle",
     )
     ingested = external_harness.ingest_harness_smoke(
         raw_result=raw,
@@ -1688,6 +1689,8 @@ def test_terminal_bench_execution_probe_rejects_harbor_runtime_error(
     assert raw_record["raw_result"]["score"] == 0.0
     assert raw_record["raw_result"]["num_tasks"] == 0
     assert metadata["returncode"] == 0
+    assert metadata["agent_name"] == "oracle"
+    assert not metadata["execution_completed"]
     assert metadata["results_present"]
     assert metadata["num_trials"] == 0
     assert metadata["num_errors"] == 1
@@ -1695,6 +1698,65 @@ def test_terminal_bench_execution_probe_rejects_harbor_runtime_error(
     assert metadata["trial_exceptions"][0]["exception_type"] == "RuntimeError"
     assert ingested["checks"]["task_execution_probe_labeled"]
     assert not report_input["checks"]["task_execution_probes_succeeded"]
+    assert not report_input["checks"]["task_execution_probes_completed"]
+
+
+def test_terminal_bench_execution_probe_accepts_completed_zero_score_baseline(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    run_id = "fixture-terminal-nop"
+    harbor_result = results_root / "runs" / run_id / "result.json"
+    raw = results_root / "raw" / "terminal_probe.json"
+    ingested_path = results_root / "ingested" / "terminal_probe.json"
+    external_harness.write_json(
+        harbor_result,
+        {
+            "n_total_trials": 1,
+            "stats": {
+                "n_completed_trials": 1,
+                "n_errored_trials": 0,
+                "evals": {
+                    "nop__adhoc": {
+                        "n_trials": 1,
+                        "n_errors": 0,
+                        "metrics": [{"mean": 0.0}],
+                    },
+                },
+            },
+        },
+    )
+
+    raw_record = external_harness.write_terminal_bench_execution_probe(
+        output=raw,
+        run_id=run_id,
+        task_id="headless-terminal",
+        command=["python", "-c", "print('harbor baseline')"],
+        cwd=tmp_path,
+        timeout_seconds=5.0,
+        harbor_result_json=harbor_result,
+        agent_name="nop",
+    )
+    external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id=run_id,
+        ingested_paths={"terminal": ingested_path},
+    )
+
+    metadata = raw_record["raw_result"]["task_metadata"]
+    assert raw_record["raw_result"]["score"] == 0.0
+    assert raw_record["raw_result"]["num_tasks"] == 1
+    assert metadata["agent_name"] == "nop"
+    assert metadata["execution_completed"]
+    assert metadata["mean_metric"] == 0.0
+    assert not report_input["checks"]["task_execution_probes_succeeded"]
+    assert report_input["checks"]["task_execution_probes_completed"]
 
 
 def test_external_harness_parser_accepts_dry_run_commands():
@@ -1801,6 +1863,8 @@ def test_external_harness_parser_accepts_terminal_bench_commands():
             ".",
             "--harbor-result-json",
             "result.json",
+            "--agent-name",
+            "nop",
             "--output",
             "raw.json",
             "tb",
@@ -1811,6 +1875,7 @@ def test_external_harness_parser_accepts_terminal_bench_commands():
 
     assert result.task_id == "headless-terminal"
     assert probe.harbor_result_json == Path("result.json")
+    assert probe.agent_name == "nop"
     assert probe.command == ["tb", "runs", "create"]
 
 
