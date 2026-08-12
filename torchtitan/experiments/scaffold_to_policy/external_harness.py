@@ -81,7 +81,7 @@ def default_tau2_pins() -> list[HarnessPin]:
             revision="668d3bcd135c02aa3438f987ef45735b7c163ee3",
             package_module="tau2",
             package_name="tau2",
-            package_version="2.3.3",
+            package_version="1.0.1",
             role="benchmark tasks and scoring",
         )
     ]
@@ -363,7 +363,12 @@ def _tool_version(name: str) -> str | None:
 
 
 def _cli_probe(name: str) -> dict[str, object]:
-    path = shutil.which(name)
+    path = shutil.which(
+        name,
+        path=os.pathsep.join(
+            [str(Path(sys.executable).parent), os.environ.get("PATH", "")]
+        ),
+    )
     row: dict[str, object] = {"name": name, "path": path}
     if path is None:
         row["help_returncode"] = None

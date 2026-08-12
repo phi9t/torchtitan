@@ -370,21 +370,24 @@ Run the installed external-harness package preflight through the rootfs:
 experiments/scaffold_to_policy/run_external_harness_preflight_smoke.sh
 ```
 
-This creates an isolated virtualenv under the ignored results tree, installs
-`harbor==0.21.0`, `terminal-bench==0.2.18`, and `tau2==2.3.3`, verifies that
-the expected Python modules import with matching package versions, ingests the
-raw preflight artifacts, and builds a shared report input. It does not execute
-Terminal-Bench, Harbor, or tau2 tasks and must not be cited as a benchmark
-result. The generated artifacts live under:
+This creates isolated virtualenvs under the ignored results tree, installs
+`harbor==0.21.0`, `terminal-bench==0.2.18`, and Sierra tau2-bench from the
+pinned git revision, verifies that the expected Python modules import with
+matching package versions, ingests the raw preflight artifacts, and builds a
+shared report input. It does not complete Terminal-Bench, Harbor, or tau2 tasks
+and must not be cited as a benchmark result. The generated artifacts live under:
 
 ```text
-experiments/scaffold_to_policy/results/external_harness_preflight_smoke/
+experiments/scaffold_to_policy/results/external_harness_preflight_corrected/
 ```
 
 The first completed installed preflight used the same repo revision pins as the
 dry-run smoke. It passed rootfs, import, and version checks for all pinned
-packages, while recording that no `harbor`, `terminal-bench`, `tb`, or `tau2`
-CLI executable is exposed by those installs. The report is:
+packages after splitting Harbor/Terminal-Bench and tau2-bench into separate
+venvs. The corrected run found the `harbor`, `terminal-bench`, `tb`, and `tau2`
+CLI entrypoints. A follow-up tau2 mock-domain runner probe reached tau2's
+runner and results writer, but ended with infrastructure errors for the tested
+no-external-LLM dummy-user pairings. The report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T105500Z-external-harness-preflight-smoke.md

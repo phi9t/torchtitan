@@ -1,6 +1,9 @@
 # External Harness Installed-Preflight Smoke
 
-Run ID: `20260812T105500Z-external-harness-preflight-smoke`
+Run IDs:
+
+- initial preflight: `20260812T105500Z-external-harness-preflight-smoke`
+- corrected preflight: `20260812T112500Z-external-harness-preflight-corrected`
 
 This run upgrades the external agentic-harness lane from dry-run artifact
 ingestion to a real package-install and import preflight inside the TorchTitan
@@ -16,17 +19,19 @@ RESULTS_ROOT=experiments/scaffold_to_policy/results/external_harness_preflight_s
 experiments/scaffold_to_policy/run_external_harness_preflight_smoke.sh
 ```
 
-The script re-entered through `scripts/rootfs/enter_rootfs.sh`, created an
-isolated virtualenv under the ignored results tree, installed pinned harness
+The script re-entered through `scripts/rootfs/enter_rootfs.sh`, created
+isolated virtualenvs under the ignored results tree, installed pinned harness
 packages, wrote raw preflight artifacts, ingested them, and built the shared
-report input.
+report input. The corrected run uses separate virtualenvs for
+Harbor/Terminal-Bench and tau2-bench because the pinned packages have
+incompatible dependency constraints in one environment.
 
 ## Summary
 
 | Harness family | Packages | Import/version check | CLI check | Task execution |
 | --- | --- | --- | --- | --- |
-| `harbor_terminal` | `harbor==0.21.0`, `terminal-bench==0.2.18` | passed | no `harbor`, `terminal-bench`, or `tb` executable found | not run |
-| `tau2` | `tau2==2.3.3` | passed | no `tau2` executable found | not run |
+| `harbor_terminal` | `harbor==0.21.0`, `terminal-bench==0.2.18` | passed | `harbor`, `terminal-bench`, and `tb` found | not run |
+| `tau2` | Sierra tau2-bench git revision, package `tau2==1.0.1` | passed | `tau2` found | attempted mock runner; infra errors |
 
 Report-input checks all passed:
 
@@ -52,14 +57,22 @@ tau2:
 
 - tau2-bench repo: `https://github.com/sierra-research/tau2-bench.git`
 - tau2-bench revision: `668d3bcd135c02aa3438f987ef45735b7c163ee3`
-- tau2 package: `tau2==2.3.3`
+- tau2 package from the pinned repo: `tau2==1.0.1`
+
+The initial run incorrectly installed PyPI `tau2==2.3.3`, which is a magnetic
+relaxation package from a different project. The corrected run installs
+Sierra's tau2-bench from the pinned git revision and verifies package version
+`1.0.1`.
 
 ## Environment Evidence
 
-Both raw preflight artifacts report:
+The corrected raw preflight artifacts report:
 
 - `rootfs.in_rootfs=true`
-- Python: `experiments/scaffold_to_policy/results/external_harness_preflight_smoke/.venv-harness-preflight/bin/python`
+- Harbor/Terminal-Bench Python:
+  `experiments/scaffold_to_policy/results/external_harness_preflight_corrected/.venv-harbor-terminal-preflight/bin/python`
+- tau2 Python:
+  `experiments/scaffold_to_policy/results/external_harness_preflight_corrected/.venv-tau2-preflight/bin/python`
 - Python version: `3.12.3`
 - platform: `Linux-5.15.152.bsk.9-amd64-x86_64-with-glibc2.39`
 - `git`: `git version 2.43.0`
@@ -92,9 +105,9 @@ tau2 package evidence:
   "name": "tau2-bench",
   "package_module": "tau2",
   "package_name": "tau2",
-  "package_version": "2.3.3",
+  "package_version": "1.0.1",
   "installed": true,
-  "installed_version": "2.3.3"
+  "installed_version": "1.0.1"
 }
 ```
 
@@ -116,32 +129,53 @@ The ingested trajectories deliberately stop at preflight:
 ## Infra Notes
 
 The earlier `/tmp` virtualenv attempt failed because each bwrap entry gets a
-fresh `/tmp`. The working path keeps the harness virtualenv under:
+fresh `/tmp`. The working path keeps harness virtualenvs under:
 
 ```text
-experiments/scaffold_to_policy/results/external_harness_preflight_smoke/.venv-harness-preflight/
+experiments/scaffold_to_policy/results/external_harness_preflight_corrected/.venv-harbor-terminal-preflight/
+experiments/scaffold_to_policy/results/external_harness_preflight_corrected/.venv-tau2-preflight/
 ```
 
 That directory is generated runtime state and remains outside git.
 
-Pip emitted dependency warnings because the isolated harness virtualenv installs
+Pip emitted dependency warnings because the isolated harness virtualenvs install
 only the external harness packages, not the full TorchTitan development
 requirements. This is acceptable for this preflight because the script imports
-only the scaffold-to-policy CLI and harness packages, but real benchmark task
-execution should either install TorchTitan requirements into that virtualenv or
-move the external harness packages into the standard rootfs Python environment.
+only the scaffold-to-policy CLI and harness packages.
+
+## Task-Execution Probe
+
+After the corrected preflight, a minimal tau2 mock-domain runner probe was
+attempted through the tau2-bench CLI with `TAU2_DATA_DIR` pointed at the pinned
+repo checkout under the ignored results tree. This reached tau2's task loader,
+runner, retry loop, and results writer, but both no-external-LLM pairings ended
+as infrastructure errors:
+
+- `llm_agent_gt` with `dummy_user` failed with `Dummy user can only be used with solo agent`;
+- `llm_agent_solo` with `dummy_user` failed with
+  `DummyUser.__init__() got an unexpected keyword argument 'tools'`.
+
+The saved tau2 result files are generated artifacts under:
+
+```text
+experiments/scaffold_to_policy/results/external_harness_preflight_corrected/src/tau2-bench/data/simulations/
+```
+
+They contain `termination_reason: "infrastructure_error"` and `Evaluated: 0`,
+so they are not successful tau2 benchmark evaluations. They are useful blocker
+evidence for the next harness-integration step.
 
 ## Remaining Work
 
 This clears the package-install/import/version gate for the external harness
 lane. The next gate is real upstream-harness task execution:
 
-- identify the package-supported entrypoint for `terminal-bench==0.2.18` when
-  no `terminal-bench` or `tb` executable is exposed;
-- decide whether Harbor should be invoked as a Python API or via a repo checkout
-  rather than the pip package alone;
-- identify the package-supported tau2 task runner when no `tau2` executable is
-  exposed;
+- choose a Terminal-Bench task and execution environment; the CLI is available
+  but expects containerized task execution;
+- decide whether Harbor should run Terminal-Bench through `harbor run`,
+  `harbor exec`, or a job config that preserves Harbor's own scorer;
+- choose a tau2-bench agent/user pairing that can run at least one mock-domain
+  task without external API keys, or wire a local model provider explicitly;
 - add a one-task or minimal-subset task-execution smoke that preserves each
   benchmark's upstream scorer and records final-state or executable-test
   artifacts;

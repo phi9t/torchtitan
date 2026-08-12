@@ -435,13 +435,20 @@ reasoning benchmarks.
   available inside it. This clears only the dry-run ingestion contract; real
   Harbor/Terminal-Bench and tau2 task execution remains incomplete.
 - 2026-08-12: Added and ran the installed external-harness package preflight
-  smoke. The new rootfs-managed entrypoint creates an isolated virtualenv under
-  the ignored results tree, installs `harbor==0.21.0`,
-  `terminal-bench==0.2.18`, and `tau2==2.3.3`, writes raw package
+  smoke. The rootfs-managed entrypoint creates isolated virtualenvs under the
+  ignored results tree, installs `harbor==0.21.0`,
+  `terminal-bench==0.2.18`, and Sierra tau2-bench from revision
+  `668d3bcd135c02aa3438f987ef45735b7c163ee3`, writes raw package
   import/version preflight artifacts, ingests them, and builds a shared report
-  input. The completed run passed rootfs, import, and version checks for
-  Harbor, Terminal-Bench, and tau2 packages, while recording that no `harbor`,
-  `terminal-bench`, `tb`, or `tau2` CLI executable is exposed by those package
-  installs. This clears the pinned package-install gate only. Real upstream
-  Harbor/Terminal-Bench and tau2 task execution, scorer invocation, and
-  final-state or executable-test artifact capture remain incomplete.
+  input. The initial run incorrectly used PyPI `tau2==2.3.3`, which is an
+  unrelated magnetic-relaxation package; the corrected run installs tau2-bench
+  as package `tau2==1.0.1`. Harbor/Terminal-Bench and tau2-bench require
+  separate venvs because their pinned dependencies conflict in one
+  environment. The corrected run passed rootfs, import, version, and CLI
+  checks for `harbor`, `terminal-bench`, `tb`, and `tau2`. Follow-up tau2
+  mock-domain runner probes reached tau2's task loader, retry loop, and results
+  writer, but the tested no-external-LLM `dummy_user` pairings ended as
+  infrastructure errors with zero evaluated tasks. This clears the corrected
+  package-install gate only. Real upstream Harbor/Terminal-Bench and tau2 task
+  execution, scorer invocation, and final-state or executable-test artifact
+  capture remain incomplete.

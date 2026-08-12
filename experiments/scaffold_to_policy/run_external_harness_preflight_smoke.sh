@@ -16,28 +16,36 @@ export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-external-harness-preflight-smoke}"
 RESULTS_ROOT="${RESULTS_ROOT:-experiments/scaffold_to_policy/results/external_harness_preflight_smoke}"
-VENV_DIR="${VENV_DIR:-${RESULTS_ROOT}/.venv-harness-preflight}"
+HARBOR_TERMINAL_VENV_DIR="${HARBOR_TERMINAL_VENV_DIR:-${RESULTS_ROOT}/.venv-harbor-terminal-preflight}"
+TAU2_VENV_DIR="${TAU2_VENV_DIR:-${RESULTS_ROOT}/.venv-tau2-preflight}"
 HARBOR_VERSION="${HARBOR_VERSION:-0.21.0}"
 TERMINAL_BENCH_VERSION="${TERMINAL_BENCH_VERSION:-0.2.18}"
-TAU2_VERSION="${TAU2_VERSION:-2.3.3}"
+TAU2_REVISION="${TAU2_REVISION:-668d3bcd135c02aa3438f987ef45735b7c163ee3}"
 
 mkdir -p "${RESULTS_ROOT}/raw" "${RESULTS_ROOT}/ingested" "${RESULTS_ROOT}/manifests"
 
 if [[ "${RECREATE_VENV:-1}" == "1" ]]; then
-  rm -rf "${VENV_DIR}"
+  rm -rf "${HARBOR_TERMINAL_VENV_DIR}" "${TAU2_VENV_DIR}"
 fi
 
-if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
-  python -m virtualenv "${VENV_DIR}"
+if [[ ! -x "${HARBOR_TERMINAL_VENV_DIR}/bin/python" ]]; then
+  python -m virtualenv "${HARBOR_TERMINAL_VENV_DIR}"
 fi
 
-"${VENV_DIR}/bin/python" -m pip install -q --upgrade pip
-"${VENV_DIR}/bin/python" -m pip install -q \
+"${HARBOR_TERMINAL_VENV_DIR}/bin/python" -m pip install -q --upgrade pip
+"${HARBOR_TERMINAL_VENV_DIR}/bin/python" -m pip install -q \
   "harbor==${HARBOR_VERSION}" \
-  "terminal-bench==${TERMINAL_BENCH_VERSION}" \
-  "tau2==${TAU2_VERSION}"
+  "terminal-bench==${TERMINAL_BENCH_VERSION}"
 
-"${VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli write-external-harness-preflight \
+if [[ ! -x "${TAU2_VENV_DIR}/bin/python" ]]; then
+  python -m virtualenv "${TAU2_VENV_DIR}"
+fi
+
+"${TAU2_VENV_DIR}/bin/python" -m pip install -q --upgrade pip
+"${TAU2_VENV_DIR}/bin/python" -m pip install -q \
+  "git+https://github.com/sierra-research/tau2-bench.git@${TAU2_REVISION}"
+
+"${HARBOR_TERMINAL_VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli write-external-harness-preflight \
   --harness-family harbor_terminal \
   --run-id "${RUN_ID}" \
   --task-subset "terminal-bench-preflight" \
@@ -46,24 +54,24 @@ fi
   --cli-name tb \
   --output "${RESULTS_ROOT}/raw/harbor_terminal_preflight.json"
 
-"${VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli ingest-external-harness-smoke \
+"${HARBOR_TERMINAL_VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli ingest-external-harness-smoke \
   --raw-result "${RESULTS_ROOT}/raw/harbor_terminal_preflight.json" \
   --results-root "${RESULTS_ROOT}" \
   --output "${RESULTS_ROOT}/ingested/harbor_terminal_preflight.json"
 
-"${VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli write-external-harness-preflight \
+"${TAU2_VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli write-external-harness-preflight \
   --harness-family tau2 \
   --run-id "${RUN_ID}" \
   --task-subset "tau2-preflight" \
   --cli-name tau2 \
   --output "${RESULTS_ROOT}/raw/tau2_preflight.json"
 
-"${VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli ingest-external-harness-smoke \
+"${TAU2_VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli ingest-external-harness-smoke \
   --raw-result "${RESULTS_ROOT}/raw/tau2_preflight.json" \
   --results-root "${RESULTS_ROOT}" \
   --output "${RESULTS_ROOT}/ingested/tau2_preflight.json"
 
-"${VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli build-external-harness-report-input \
+"${HARBOR_TERMINAL_VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli build-external-harness-report-input \
   --results-root "${RESULTS_ROOT}" \
   --run-id "${RUN_ID}" \
   --ingested \
