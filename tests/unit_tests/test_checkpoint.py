@@ -432,6 +432,129 @@ class TestCheckpointManager(unittest.TestCase):
         manager.close()
 
     @mock.patch("torch.distributed.get_rank", return_value=0)
+    @mock.patch("torchtitan.components.checkpoint.dcp.load")
+    def test_sync_load_state_preparation_failure_records_checkpoint_evidence(
+        self, mock_load, mock_rank
+    ):
+        checkpoint_id = os.path.join(self.test_folder, "step-7")
+        os.makedirs(checkpoint_id)
+        Path(checkpoint_id, ".metadata").touch()
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=self.trainer_config.checkpoint,
+            sd_adapter=None,
+            base_folder="",
+        )
+
+        with checkpoint_evidence(self.test_folder, self._testMethodName) as evidence:
+            with mock.patch.object(
+                manager,
+                "_states_to_load",
+                side_effect=RuntimeError("load state preparation failed"),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError, "load state preparation failed"
+                ):
+                    manager.load(step=7)
+            rows = checkpoint_artifact_rows(evidence)
+
+        self.assertEqual([row["state"] for row in rows], ["declared", "failed"])
+        self.assertEqual({row["relation"] for row in rows}, {"input"})
+        mock_load.assert_not_called()
+        manager.close()
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    @mock.patch("torchtitan.components.checkpoint.dcp.load")
+    def test_sync_load_state_preparation_preserves_error_when_evidence_cleanup_fails(
+        self, mock_load, mock_rank
+    ):
+        checkpoint_id = os.path.join(self.test_folder, "step-7")
+        os.makedirs(checkpoint_id)
+        Path(checkpoint_id, ".metadata").touch()
+        failed_transitions = []
+
+        def fail_failed_transition(**kwargs):
+            if kwargs["state"] is ArtifactState.FAILED:
+                failed_transitions.append(kwargs["state"])
+                raise OSError("failed evidence append")
+            return record_run_artifact(**kwargs)
+
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=self.trainer_config.checkpoint,
+            sd_adapter=None,
+            base_folder="",
+        )
+
+        with checkpoint_evidence(self.test_folder, self._testMethodName):
+            with mock.patch.object(
+                manager,
+                "_states_to_load",
+                side_effect=RuntimeError("load state preparation failed"),
+            ), mock.patch(
+                "torchtitan.components.checkpoint.record_artifact",
+                side_effect=fail_failed_transition,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError, "load state preparation failed"
+                ):
+                    manager.load(step=7)
+
+        self.assertEqual(failed_transitions, [ArtifactState.FAILED])
+        mock_load.assert_not_called()
+        manager.close()
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    @mock.patch("torchtitan.components.checkpoint.dcp.load")
+    def test_sync_hf_load_records_checkpoint_input_evidence_format(
+        self, mock_load, mock_rank
+    ):
+        checkpoint_id = os.path.join(self.test_folder, "hf-checkpoint")
+        os.makedirs(checkpoint_id)
+        config = self.trainer_config.checkpoint
+        config.folder = "new-checkpoints"
+        config.initial_load_path = checkpoint_id
+        config.initial_load_model_only = True
+        config.initial_load_in_hf = True
+        sd_adapter = mock.MagicMock()
+        sd_adapter.to_hf.side_effect = lambda states: states
+        sd_adapter.from_hf.side_effect = lambda states: states
+        sd_adapter.get_hf_storage_reader.return_value = mock.sentinel.hf_reader
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=config,
+            sd_adapter=sd_adapter,
+            base_folder=self.test_folder,
+        )
+
+        with checkpoint_evidence(self.test_folder, self._testMethodName) as evidence:
+            self.assertTrue(manager.load())
+            rows = checkpoint_artifact_rows(evidence)
+
+        self.assertEqual([row["state"] for row in rows], ["declared", "complete"])
+        self.assertEqual({row["relation"] for row in rows}, {"input"})
+        self.assertEqual(
+            {row["metadata"]["format"] for row in rows},
+            {"huggingface_safetensors"},
+        )
+        mock_load.assert_called_once_with(
+            mock.ANY, storage_reader=mock.sentinel.hf_reader
+        )
+        manager.close()
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
     @mock.patch("torchtitan.components.checkpoint.dcp.save")
     def test_sync_hf_save_records_checkpoint_evidence_format(
         self, mock_save, mock_rank

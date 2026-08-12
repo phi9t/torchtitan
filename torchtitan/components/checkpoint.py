@@ -964,7 +964,6 @@ class CheckpointManager(Configurable):
         logger.info(f"Loading the checkpoint from {checkpoint_id}.")
         begin = time.monotonic()
 
-        states = self._states_to_load(model_only)
         metadata = self._checkpoint_artifact_metadata(
             step=step,
             model_only=model_only,
@@ -977,6 +976,7 @@ class CheckpointManager(Configurable):
             metadata=metadata,
         )
         try:
+            states = self._states_to_load(model_only)
             self.dcp_load(
                 states,
                 checkpoint_id=checkpoint_id,
