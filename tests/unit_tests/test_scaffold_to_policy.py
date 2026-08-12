@@ -21,6 +21,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
 from torchtitan.experiments.scaffold_to_policy import arc_grid
 from torchtitan.experiments.scaffold_to_policy import coding_style
+from torchtitan.experiments.scaffold_to_policy import contest_code
 from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
@@ -763,6 +764,26 @@ def test_multiple_choice_verifier_requires_final_letter():
     assert correct.success
 
 
+def test_multiple_choice_verifier_supports_ten_choice_rows():
+    problem = multiple_choice.MultipleChoiceProblem(
+        problem_id="mc-10",
+        source="fixture",
+        question="Which option is correct?",
+        choices=tuple(f"choice {index}" for index in range(10)),
+        answer="J",
+    )
+
+    prompt = multiple_choice.prompt_for_problem(problem)
+    correct = multiple_choice.verify_answer(problem, "trace\nFINAL: J")
+    wrong = multiple_choice.verify_answer(problem, "trace\nFINAL: A")
+
+    assert "J. choice 9" in prompt
+    assert "FINAL: X, where X is one of A, B, C, D, E, F, G, H, I, J" in prompt
+    assert "Do not include angle brackets" in prompt
+    assert correct.success
+    assert wrong.error == "final value A does not match answer J"
+
+
 def test_multiple_choice_imports_gpqa_rows_and_reports(tmp_path):
     rows = [
         {
@@ -858,6 +879,64 @@ def test_import_gpqa_split_accepts_offline_raw_cache(tmp_path):
     provenance = json.loads(provenance_path.read_text())
     assert problems[0].answer == "A"
     assert problems[0].choices[0] == "A specialist fact."
+    assert provenance["row_source"] == "raw_cache"
+    assert provenance["offline"]
+
+
+def test_import_mmlu_pro_split_accepts_offline_raw_cache(tmp_path):
+    parser = build_parser()
+    raw_cache = tmp_path / "raw" / "mmlu_pro.jsonl"
+    output = tmp_path / "data" / "dev.jsonl"
+    provenance_path = tmp_path / "data" / "dev_provenance.json"
+    multiple_choice.write_jsonl(
+        raw_cache,
+        [
+            {
+                "question_id": 7,
+                "question": "Which abstract algebra statement is correct?",
+                "options": [
+                    "option A",
+                    "option B",
+                    "option C",
+                    "option D",
+                    "option E",
+                    "option F",
+                    "option G",
+                    "option H",
+                    "option I",
+                    "option J",
+                ],
+                "answer": "H",
+                "answer_index": 7,
+                "cot_content": "The answer is H.",
+            }
+        ],
+    )
+
+    args = parser.parse_args(
+        [
+            "import-mmlu-pro-split",
+            "--raw-cache",
+            str(raw_cache),
+            "--offline",
+            "--output",
+            str(output),
+            "--provenance",
+            str(provenance_path),
+            "--revision",
+            "main",
+            "--limit",
+            "1",
+        ]
+    )
+    args.func(args)
+
+    problems = multiple_choice.load_problems(output)
+    provenance = json.loads(provenance_path.read_text())
+    assert problems[0].problem_id == "MMLU-Pro/7"
+    assert problems[0].answer == "H"
+    assert len(problems[0].choices) == 10
+    assert provenance["dataset"] == "TIGER-Lab/MMLU-Pro"
     assert provenance["row_source"] == "raw_cache"
     assert provenance["offline"]
 
@@ -1308,6 +1387,87 @@ def test_import_bigcodebench_split_accepts_offline_raw_cache(tmp_path):
     assert provenance["offline"]
 
 
+def test_contest_code_imports_livecodebench_rows_and_runs_public_tests():
+    rows = [
+        {
+            "question_title": "Echo",
+            "question_content": "Read one integer and print it.",
+            "question_id": "fixture_echo",
+            "starter_code": "",
+            "difficulty": "easy",
+            "public_test_cases": json.dumps(
+                [
+                    {"input": "3\n", "output": "3\n", "testtype": "stdin"},
+                    {"input": "10\n", "output": "10\n", "testtype": "stdin"},
+                ]
+            ),
+        }
+    ]
+
+    problems = contest_code.import_livecodebench_rows(
+        rows,
+        source="livecodebench/code_generation:main:test",
+    )
+    correct = contest_code.verify_solution(
+        problems[0],
+        "import sys\nprint(sys.stdin.read().strip())\n",
+    )
+    wrong = contest_code.verify_solution(problems[0], "print(0)\n")
+
+    assert problems[0].problem_id == "LiveCodeBench/fixture_echo"
+    assert len(problems[0].public_tests) == 2
+    assert correct.success
+    assert correct.passed_tests == 2
+    assert not wrong.success
+    assert wrong.error == "wrong answer"
+
+
+def test_import_livecodebench_split_accepts_offline_raw_cache(tmp_path):
+    parser = build_parser()
+    raw_cache = tmp_path / "raw" / "livecodebench.jsonl"
+    output = tmp_path / "data" / "dev.jsonl"
+    provenance_path = tmp_path / "data" / "dev_provenance.json"
+    contest_code.write_jsonl(
+        raw_cache,
+        [
+            {
+                "question_title": "Echo",
+                "question_content": "Read one integer and print it.",
+                "question_id": "fixture_echo",
+                "starter_code": "",
+                "difficulty": "easy",
+                "public_test_cases": json.dumps(
+                    [{"input": "3\n", "output": "3\n", "testtype": "stdin"}]
+                ),
+            }
+        ],
+    )
+
+    args = parser.parse_args(
+        [
+            "import-livecodebench-split",
+            "--raw-cache",
+            str(raw_cache),
+            "--offline",
+            "--output",
+            str(output),
+            "--provenance",
+            str(provenance_path),
+            "--revision",
+            "main",
+            "--limit",
+            "1",
+        ]
+    )
+    args.func(args)
+
+    problems = contest_code.load_problems(output)
+    provenance = json.loads(provenance_path.read_text())
+    assert problems[0].problem_id == "LiveCodeBench/fixture_echo"
+    assert provenance["row_source"] == "raw_cache"
+    assert provenance["offline"]
+
+
 def test_coding_style_preserves_indented_completion_bodies():
     problem = coding_style.CodingStyleProblem(
         problem_id="BigCodeBench/indented",
@@ -1622,6 +1782,40 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
         "dev=dev_evaluations.jsonl",
         "ood_test=ood_test_evaluations.jsonl",
     ]
+
+    livecodebench = parser.parse_args(
+        [
+            "import-livecodebench-split",
+            "--output",
+            "dev.jsonl",
+            "--revision",
+            "main",
+            "--limit",
+            "2",
+        ]
+    )
+    contest_split_eval = parser.parse_args(
+        [
+            "evaluate-contest-code-vllm-splits",
+            "--problems",
+            "dev=dev.jsonl",
+            "ood_test=ood_test.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "dev=dev_evaluations.jsonl",
+            "ood_test=ood_test_evaluations.jsonl",
+            "--summary",
+            "dev=dev_summary.json",
+            "ood_test=ood_test_summary.json",
+        ]
+    )
+
+    assert livecodebench.dataset == "livecodebench/code_generation"
+    assert livecodebench.source_split == "test"
+    assert contest_split_eval.prompt_variant == "chat"
+    assert contest_split_eval.num_rollouts == 2
+    assert contest_split_eval.max_new_tokens == 1024
 
     math = parser.parse_args(
         [

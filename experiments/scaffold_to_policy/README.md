@@ -329,6 +329,29 @@ The report is:
 experiments/scaffold_to_policy/reports/20260812Taime-8x8-rollouts8.md
 ```
 
+Run the first public MMLU-Pro no-tool calibration through the rootfs:
+
+```bash
+RUN_ID=20260812Tmmlu-pro-8x8-rollouts4-promptfix \
+DATA_ROOT=experiments/scaffold_to_policy/data/mmlu_pro_public_vllm_8x8_rollouts4 \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/mmlu_pro_public_vllm_8x8_rollouts4_promptfix \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 DEV_OFFSET=0 OOD_OFFSET=32 \
+NUM_ROLLOUTS=4 MAX_NEW_TOKENS=1024 \
+GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_mmlu_pro_public_vllm_smoke.sh
+```
+
+This imports `TIGER-Lab/MMLU-Pro` validation rows, preserves up to ten answer
+choices, evaluates Qwen3-1.7B with vLLM, and scores exact final letters with
+the multiple-choice verifier. The prompt-fixed run reached dev
+pass@1/pass@4/pass@32 `0.250` and OOD pass@1/pass@4/pass@32 `0.750`; strict
+format pass@k matched answer pass@k because the repaired prompt eliminated
+missing-final failures. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812Tmmlu-pro-8x8-rollouts4.md
+```
+
 Run the GPQA Diamond gate through the rootfs:
 
 ```bash
@@ -483,6 +506,28 @@ problem. It reached dev pass@1 `1.000`, dev pass@2 `1.000`, OOD pass@1
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T084000Z-mbpp-public-vllm-smoke.md
+```
+
+Run the first LiveCodeBench public-test smoke through the rootfs:
+
+```bash
+RUN_ID=20260812Tlivecodebench-public-vllm-smoke \
+DATA_ROOT=experiments/scaffold_to_policy/data/livecodebench_public_vllm_smoke \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/livecodebench_public_vllm_smoke \
+DEV_PROBLEMS=2 OOD_PROBLEMS=2 DEV_OFFSET=0 OOD_OFFSET=32 \
+NUM_ROLLOUTS=2 MAX_NEW_TOKENS=1536 \
+GPU_MEMORY_UTILIZATION=0.05 TIMEOUT_SECONDS=10 \
+experiments/scaffold_to_policy/run_livecodebench_public_vllm_smoke.sh
+```
+
+This uses the `contest_code` stdin/stdout verifier for
+`livecodebench/code_generation` rows. It executes released public tests only,
+so it is not an official LiveCodeBench score. The completed smoke reached
+dev/OOD pass@1/pass@2/pass@32 `0.000`; failures were indentation errors and
+wrong public-test outputs. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812Tlivecodebench-public-vllm-smoke.md
 ```
 
 Run the first pinned BigCodeBench-Hard no-tool smoke through the rootfs:

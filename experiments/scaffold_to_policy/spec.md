@@ -964,3 +964,27 @@ reasoning benchmarks.
   dev or OOD problems became elicitable at eight samples. Missing final answers
   remained the largest failure mode, followed by wrong final integers. The
   report is `experiments/scaffold_to_policy/reports/20260812Taime-8x8-rollouts8.md`.
+- 2026-08-12: Added the MMLU-Pro hard multiple-choice reasoning lane. The
+  runner `run_mmlu_pro_public_vllm_smoke.sh` imports `TIGER-Lab/MMLU-Pro`
+  validation rows, preserves up to ten answer choices, evaluates Qwen3-1.7B
+  with vLLM inside the bwrap rootfs, and scores exact final letters. Run
+  `20260812Tmmlu-pro-8x8-rollouts4-promptfix` used 8 dev / 8 OOD rows,
+  offsets 0 / 32, 4 rollouts, `MAX_NEW_TOKENS=1024`, and
+  `GPU_MEMORY_UTILIZATION=0.05`. It reached dev pass@1/pass@4/pass@32 0.25
+  with 2 easy and 6 unreached rows; OOD reached pass@1/pass@4/pass@32 0.75
+  with 6 easy and 2 unreached rows. Strict-format pass@k matched answer pass@k
+  after repairing the prompt from angle-bracket examples to `FINAL: X`. The
+  report is
+  `experiments/scaffold_to_policy/reports/20260812Tmmlu-pro-8x8-rollouts4.md`.
+- 2026-08-12: Added the LiveCodeBench public-test coding lane. The new
+  `contest_code` verifier imports `livecodebench/code_generation` rows,
+  preserves public stdin/stdout tests, runs candidate Python in isolated
+  subprocesses, and writes report inputs with an explicit limitation that this
+  is public-test-only and not an official LiveCodeBench score. Run
+  `20260812Tlivecodebench-public-vllm-smoke` used 2 dev / 2 OOD rows,
+  offsets 0 / 32, 2 rollouts, `MAX_NEW_TOKENS=1536`,
+  `TIMEOUT_SECONDS=10`, and `GPU_MEMORY_UTILIZATION=0.05` inside the bwrap
+  rootfs. Dev and OOD both reached pass@1/pass@2/pass@32 0.0; all four
+  selected problems were unreached, with failures split between indentation
+  errors and wrong public-test outputs. The report is
+  `experiments/scaffold_to_policy/reports/20260812Tlivecodebench-public-vllm-smoke.md`.

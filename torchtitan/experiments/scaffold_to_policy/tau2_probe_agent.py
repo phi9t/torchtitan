@@ -270,6 +270,52 @@ def _model_dump(value: Any) -> Any:
     return str(value)
 
 
+def _truncate_text(value: Any, *, limit: int = 600) -> Any:
+    if not isinstance(value, str) or len(value) <= limit:
+        return value
+    return value[:limit] + "...[truncated]"
+
+
+def _compact_message(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return _truncate_text(value)
+    compact: dict[str, Any] = {}
+    for key in (
+        "role",
+        "content",
+        "tool_calls",
+        "name",
+        "arguments",
+        "requestor",
+        "error",
+    ):
+        if key in value and value[key] is not None:
+            compact[key] = _truncate_text(value[key])
+    return compact
+
+
+def _compact_recent_messages(value: Any, *, limit: int = 6) -> Any:
+    if isinstance(value, list):
+        return [_compact_message(item) for item in value[-limit:]]
+    return _compact_message(value)
+
+
+def _compact_tool(value: Any) -> Any:
+    dumped = _model_dump(value)
+    if isinstance(dumped, dict):
+        compact = {
+            key: _truncate_text(dumped[key], limit=300)
+            for key in ("name", "description")
+            if key in dumped
+        }
+        for key in ("parameters", "schema", "args_schema"):
+            if key in dumped:
+                compact[key] = dumped[key]
+                break
+        return compact
+    return _truncate_text(dumped, limit=300)
+
+
 def _extract_json_object(text: str) -> dict[str, Any]:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
@@ -291,10 +337,13 @@ def _generate_qwen_tau2_action(
     turn_index: int,
 ) -> dict[str, Any]:
     model_path = os.environ.get("SCAFFOLD_TO_POLICY_TAU2_MODEL", "./assets/hf/Qwen3-1.7B")
+    dumped_latest_message = _model_dump(latest_message)
+    recent_messages = _compact_recent_messages(dumped_latest_message)
     payload = {
         "domain_policy": domain_policy,
-        "tools": [_model_dump(tool) for tool in tools],
-        "latest_message": _model_dump(latest_message),
+        "tools": [_compact_tool(tool) for tool in tools],
+        "latest_message": recent_messages[-1] if isinstance(recent_messages, list) else recent_messages,
+        "recent_messages": recent_messages,
         "turn_index": turn_index,
         "model_path": model_path,
         "gpu_memory_utilization": float(
@@ -322,13 +371,16 @@ system = (
     "Return only JSON. To call a tool, return "
     "{\"type\":\"tool\",\"name\":\"tool_name\",\"arguments\":{...}}. "
     "To stop or answer the user, return {\"type\":\"stop\",\"content\":\"...\"}. "
-    "Use only listed tools and obey the domain policy."
+    "Use only listed tools and obey the domain policy. "
+    "If the most recent tool result reports success, do not call the tool again; "
+    "confirm completion with a stop action."
 )
 user = json.dumps(
     {
         "domain_policy": payload["domain_policy"],
         "tools": payload["tools"],
         "latest_message": payload["latest_message"],
+        "recent_messages": payload["recent_messages"],
         "turn_index": payload["turn_index"],
     },
     indent=2,

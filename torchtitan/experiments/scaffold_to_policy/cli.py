@@ -28,6 +28,7 @@ from torchtitan.experiments.scaffold_to_policy.modular_sequences import (
 )
 from torchtitan.experiments.scaffold_to_policy import arc_grid
 from torchtitan.experiments.scaffold_to_policy import coding_style
+from torchtitan.experiments.scaffold_to_policy import contest_code
 from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
@@ -301,6 +302,46 @@ def import_gpqa_split(args: argparse.Namespace) -> None:
         )
 
 
+def import_mmlu_pro_split(args: argparse.Namespace) -> None:
+    rows, row_source = _load_public_rows(args)
+    source = multiple_choice._public_source(
+        args.dataset,
+        args.subset,
+        args.revision,
+        args.source_split,
+    )
+    problems = multiple_choice.import_mmlu_pro_rows(
+        rows,
+        source=source,
+        limit=None,
+        offset=0,
+    )
+    multiple_choice.write_jsonl(
+        args.output,
+        [problem.to_json() for problem in problems],
+    )
+    if args.provenance is not None:
+        provenance = multiple_choice.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        multiple_choice.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
+
+
 def import_arc_grid_split(args: argparse.Namespace) -> None:
     task_dir = args.task_dir / args.source_split
     task_paths = sorted(task_dir.glob("*.json"))
@@ -439,6 +480,46 @@ def import_bigcodebench_split(args: argparse.Namespace) -> None:
         )
 
 
+def import_livecodebench_split(args: argparse.Namespace) -> None:
+    rows, row_source = _load_public_rows(args)
+    source = contest_code._public_source(
+        args.dataset,
+        args.subset,
+        args.revision,
+        args.source_split,
+    )
+    problems = contest_code.import_livecodebench_rows(
+        rows,
+        source=source,
+        limit=None,
+        offset=0,
+    )
+    contest_code.write_jsonl(
+        args.output,
+        [problem.to_json() for problem in problems],
+    )
+    if args.provenance is not None:
+        provenance = contest_code.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        contest_code.write_json(
+            args.provenance,
+            _augment_public_provenance(
+                provenance,
+                row_source=row_source,
+                raw_cache=args.raw_cache,
+                offline=args.offline,
+            ),
+        )
+
+
 def validate_arithmetic_splits(args: argparse.Namespace) -> None:
     split_paths = _parse_split_paths(args.split)
     registry = build_split_registry(split_paths)
@@ -477,6 +558,14 @@ def validate_coding_style_splits(args: argparse.Namespace) -> None:
     coding_style.write_json(args.output, registry)
     if not registry["selected"]:
         raise SystemExit("coding-style split validation failed")
+
+
+def validate_contest_code_splits(args: argparse.Namespace) -> None:
+    split_paths = _parse_split_paths(args.split)
+    registry = contest_code.build_split_registry(split_paths)
+    contest_code.write_json(args.output, registry)
+    if not registry["selected"]:
+        raise SystemExit("contest-code split validation failed")
 
 
 def validate_multiple_choice_splits(args: argparse.Namespace) -> None:
@@ -602,6 +691,30 @@ def evaluate_coding_style_fixture(args: argparse.Namespace) -> None:
     coding_style.write_json(
         args.summary,
         coding_style.summarize_evaluations(evaluations),
+    )
+
+
+def evaluate_contest_code_fixture(args: argparse.Namespace) -> None:
+    problems = contest_code.load_problems(args.problems)
+    fixture = _load_fixture(args.rollouts)
+    evaluations = []
+    for problem in problems:
+        if problem.problem_id not in fixture:
+            raise ValueError(f"missing rollouts for {problem.problem_id}")
+        evaluations.append(
+            contest_code.evaluate_fixture_rollouts(
+                problem,
+                fixture[problem.problem_id][: args.max_rollouts],
+                timeout_seconds=args.timeout_seconds,
+            )
+        )
+    contest_code.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    contest_code.write_json(
+        args.summary,
+        contest_code.summarize_evaluations(evaluations),
     )
 
 
@@ -1152,6 +1265,77 @@ def evaluate_coding_style_vllm_splits(args: argparse.Namespace) -> None:
         )
 
 
+def evaluate_contest_code_vllm_splits(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-contest-code-vllm-splits. Run through "
+            "the TorchTitan rootfs or use evaluate-contest-code-fixture."
+        ) from exc
+
+    problem_paths = _parse_split_paths(args.problems)
+    output_paths = _parse_split_paths(args.output)
+    summary_paths = _parse_split_paths(args.summary)
+    if set(problem_paths) != set(output_paths) or set(problem_paths) != set(
+        summary_paths
+    ):
+        raise ValueError("--problems, --output, and --summary must name same splits")
+
+    problems_by_split = {
+        split: contest_code.load_problems(path)
+        for split, path in problem_paths.items()
+    }
+    all_prompts = []
+    prompt_index: list[tuple[str, contest_code.ContestCodeProblem]] = []
+    for split, problems in problems_by_split.items():
+        split_prompts = _build_contest_code_vllm_prompts(problems, args)
+        all_prompts.extend(split_prompts)
+        prompt_index.extend((split, problem) for problem in problems)
+
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(all_prompts, sampling_params)
+
+    evaluations_by_split = {split: [] for split in problem_paths}
+    for (split, problem), output in zip(prompt_index, outputs):
+        evaluations_by_split[split].append(
+            contest_code.evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+                timeout_seconds=args.timeout_seconds,
+            )
+        )
+
+    for split, evaluations in evaluations_by_split.items():
+        contest_code.write_jsonl(
+            output_paths[split],
+            [evaluation.to_json() for evaluation in evaluations],
+        )
+        contest_code.write_json(
+            summary_paths[split],
+            contest_code.summarize_evaluations(evaluations),
+        )
+
+
 def evaluate_multiple_choice_vllm(args: argparse.Namespace) -> None:
     os.environ.setdefault(
         "VLLM_USE_FLASHINFER_SAMPLER",
@@ -1346,6 +1530,24 @@ def build_coding_style_report_input(args: argparse.Namespace) -> None:
             name for name, passed in report_input["checks"].items() if not passed
         ]
         raise SystemExit(f"coding-style report input failed: {', '.join(failed)}")
+
+
+def build_contest_code_report_input(args: argparse.Namespace) -> None:
+    summary_paths = _parse_split_paths(args.summary)
+    report_input = contest_code.build_report_input(
+        data_root=args.data_root,
+        results_root=args.results_root,
+        run_id=args.run_id,
+        split_registry=args.split_registry,
+        summary_paths=summary_paths,
+        scaffold_budget=args.scaffold_budget,
+    )
+    contest_code.write_json(args.output, report_input)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(f"contest-code report input failed: {', '.join(failed)}")
 
 
 def build_multiple_choice_report_input(args: argparse.Namespace) -> None:
@@ -1769,6 +1971,39 @@ def _build_coding_style_vllm_prompts(
     ]
 
 
+def _build_contest_code_vllm_prompts(
+    problems: list[contest_code.ContestCodeProblem],
+    args: argparse.Namespace,
+) -> list[str]:
+    if args.prompt_variant == "plain":
+        return [contest_code.prompt_for_problem(problem) for problem in problems]
+    if args.prompt_variant != "chat":
+        raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return [
+        tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You solve programming contest tasks. Return only "
+                        "complete Python 3 source code. Read from standard "
+                        "input and write to standard output. Do not include "
+                        "Markdown fences or explanatory prose."
+                    ),
+                },
+                {"role": "user", "content": contest_code.prompt_for_problem(problem)},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        for problem in problems
+    ]
+
+
 def _build_multiple_choice_vllm_prompts(
     problems: list[multiple_choice.MultipleChoiceProblem],
     args: argparse.Namespace,
@@ -2049,6 +2284,18 @@ def build_parser() -> argparse.ArgumentParser:
     _add_public_import_cache_args(gpqa_import_parser)
     gpqa_import_parser.set_defaults(func=import_gpqa_split)
 
+    mmlu_pro_import_parser = subparsers.add_parser("import-mmlu-pro-split")
+    mmlu_pro_import_parser.add_argument("--output", type=Path, required=True)
+    mmlu_pro_import_parser.add_argument("--provenance", type=Path)
+    mmlu_pro_import_parser.add_argument("--dataset", default="TIGER-Lab/MMLU-Pro")
+    mmlu_pro_import_parser.add_argument("--subset")
+    mmlu_pro_import_parser.add_argument("--source-split", default="validation")
+    mmlu_pro_import_parser.add_argument("--revision", required=True)
+    mmlu_pro_import_parser.add_argument("--limit", type=int, required=True)
+    mmlu_pro_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(mmlu_pro_import_parser)
+    mmlu_pro_import_parser.set_defaults(func=import_mmlu_pro_split)
+
     arc_import_parser = subparsers.add_parser("import-arc-grid-split")
     arc_import_parser.add_argument("--task-dir", type=Path, required=True)
     arc_import_parser.add_argument("--output", type=Path, required=True)
@@ -2107,6 +2354,23 @@ def build_parser() -> argparse.ArgumentParser:
     _add_public_import_cache_args(bigcodebench_import_parser)
     bigcodebench_import_parser.set_defaults(func=import_bigcodebench_split)
 
+    livecodebench_import_parser = subparsers.add_parser(
+        "import-livecodebench-split"
+    )
+    livecodebench_import_parser.add_argument("--output", type=Path, required=True)
+    livecodebench_import_parser.add_argument("--provenance", type=Path)
+    livecodebench_import_parser.add_argument(
+        "--dataset",
+        default="livecodebench/code_generation",
+    )
+    livecodebench_import_parser.add_argument("--subset")
+    livecodebench_import_parser.add_argument("--source-split", default="test")
+    livecodebench_import_parser.add_argument("--revision", required=True)
+    livecodebench_import_parser.add_argument("--limit", type=int, required=True)
+    livecodebench_import_parser.add_argument("--offset", type=int, default=0)
+    _add_public_import_cache_args(livecodebench_import_parser)
+    livecodebench_import_parser.set_defaults(func=import_livecodebench_split)
+
     fixture_writer = subparsers.add_parser("write-arithmetic-fixture")
     fixture_writer.add_argument("--problems", type=Path, required=True)
     fixture_writer.add_argument("--output", type=Path, required=True)
@@ -2162,6 +2426,15 @@ def build_parser() -> argparse.ArgumentParser:
     coding_eval_parser.add_argument("--max-rollouts", type=int, default=32)
     coding_eval_parser.add_argument("--timeout-seconds", type=float, default=5.0)
     coding_eval_parser.set_defaults(func=evaluate_coding_style_fixture)
+
+    contest_eval_parser = subparsers.add_parser("evaluate-contest-code-fixture")
+    contest_eval_parser.add_argument("--problems", type=Path, required=True)
+    contest_eval_parser.add_argument("--rollouts", type=Path, required=True)
+    contest_eval_parser.add_argument("--output", type=Path, required=True)
+    contest_eval_parser.add_argument("--summary", type=Path, required=True)
+    contest_eval_parser.add_argument("--max-rollouts", type=int, default=32)
+    contest_eval_parser.add_argument("--timeout-seconds", type=float, default=5.0)
+    contest_eval_parser.set_defaults(func=evaluate_contest_code_fixture)
 
     coding_preflight_parser = subparsers.add_parser(
         "preflight-coding-style-canonical"
@@ -2502,6 +2775,51 @@ def build_parser() -> argparse.ArgumentParser:
     )
     coding_vllm_splits_parser.set_defaults(func=evaluate_coding_style_vllm_splits)
 
+    contest_vllm_splits_parser = subparsers.add_parser(
+        "evaluate-contest-code-vllm-splits"
+    )
+    contest_vllm_splits_parser.add_argument("--problems", nargs="+", required=True)
+    contest_vllm_splits_parser.add_argument("--model", required=True)
+    contest_vllm_splits_parser.add_argument("--output", nargs="+", required=True)
+    contest_vllm_splits_parser.add_argument("--summary", nargs="+", required=True)
+    contest_vllm_splits_parser.add_argument("--num-rollouts", type=int, default=2)
+    contest_vllm_splits_parser.add_argument("--temperature", type=float, default=0.2)
+    contest_vllm_splits_parser.add_argument("--top-p", type=float, default=0.95)
+    contest_vllm_splits_parser.add_argument("--max-new-tokens", type=int, default=1024)
+    contest_vllm_splits_parser.add_argument("--timeout-seconds", type=float, default=5.0)
+    contest_vllm_splits_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    contest_vllm_splits_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "4096")),
+    )
+    contest_vllm_splits_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    contest_vllm_splits_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    contest_vllm_splits_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    contest_vllm_splits_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+    )
+    contest_vllm_splits_parser.set_defaults(func=evaluate_contest_code_vllm_splits)
+
     multiple_choice_vllm_parser = subparsers.add_parser("evaluate-multiple-choice-vllm")
     multiple_choice_vllm_parser.add_argument("--problems", type=Path, required=True)
     multiple_choice_vllm_parser.add_argument("--model", required=True)
@@ -2622,6 +2940,11 @@ def build_parser() -> argparse.ArgumentParser:
     coding_split_parser.add_argument("--output", type=Path, required=True)
     coding_split_parser.set_defaults(func=validate_coding_style_splits)
 
+    contest_split_parser = subparsers.add_parser("validate-contest-code-splits")
+    contest_split_parser.add_argument("--split", nargs="+", required=True)
+    contest_split_parser.add_argument("--output", type=Path, required=True)
+    contest_split_parser.set_defaults(func=validate_contest_code_splits)
+
     multiple_choice_split_parser = subparsers.add_parser(
         "validate-multiple-choice-splits"
     )
@@ -2708,6 +3031,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     coding_report_parser.set_defaults(func=build_coding_style_report_input)
+
+    contest_report_parser = subparsers.add_parser("build-contest-code-report-input")
+    contest_report_parser.add_argument("--data-root", type=Path, required=True)
+    contest_report_parser.add_argument("--results-root", type=Path, required=True)
+    contest_report_parser.add_argument("--run-id", required=True)
+    contest_report_parser.add_argument("--split-registry", type=Path, required=True)
+    contest_report_parser.add_argument("--summary", nargs="+", required=True)
+    contest_report_parser.add_argument("--output", type=Path, required=True)
+    contest_report_parser.add_argument("--scaffold-budget", type=int, default=2)
+    contest_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    contest_report_parser.set_defaults(func=build_contest_code_report_input)
 
     multiple_choice_report_parser = subparsers.add_parser(
         "build-multiple-choice-report-input"

@@ -15,8 +15,9 @@ from pathlib import Path
 from torchtitan.experiments.scaffold_to_policy import report_artifacts
 
 
-FINAL_RE = re.compile(r"^\s*FINAL:\s*([A-D])\s*$", re.IGNORECASE)
-LETTER_RE = re.compile(r"\b([A-D])\b", re.IGNORECASE)
+MAX_CHOICES = 10
+ANSWER_LETTERS = tuple(chr(ord("A") + index) for index in range(MAX_CHOICES))
+FINAL_RE = re.compile(r"^\s*FINAL:\s*([A-J])\s*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -24,7 +25,7 @@ class MultipleChoiceProblem:
     problem_id: str
     source: str
     question: str
-    choices: tuple[str, str, str, str]
+    choices: tuple[str, ...]
     answer: str
     explanation: str | None = None
 
@@ -106,18 +107,23 @@ class MultipleChoiceProblemEvaluation:
 
 
 def prompt_for_problem(problem: MultipleChoiceProblem) -> str:
+    choice_lines = [
+        f"{letter}. {choice}"
+        for letter, choice in zip(ANSWER_LETTERS, problem.choices, strict=True)
+    ]
     return "\n".join(
         [
             "Answer this multiple-choice reasoning question.",
             problem.question,
             "",
-            f"A. {problem.choices[0]}",
-            f"B. {problem.choices[1]}",
-            f"C. {problem.choices[2]}",
-            f"D. {problem.choices[3]}",
+            *choice_lines,
             "",
             "Return a short reasoning trace.",
-            "The last line must be exactly FINAL: <A|B|C|D>.",
+            (
+                "The last line must be exactly FINAL: X, where X is one of "
+                f"{', '.join(_letters_for(problem))}. Do not include angle "
+                "brackets or multiple letters."
+            ),
         ]
     )
 
@@ -280,6 +286,44 @@ def import_gpqa_rows(
     return problems
 
 
+def import_mmlu_pro_rows(
+    rows: Iterable[dict[str, object]],
+    *,
+    source: str,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[MultipleChoiceProblem]:
+    problems = []
+    for row_index, row in enumerate(rows):
+        if row_index < offset:
+            continue
+        if limit is not None and len(problems) >= limit:
+            break
+        options = tuple(str(option) for option in row["options"])
+        answer = str(row.get("answer") or "").strip().upper()
+        if not answer:
+            answer_index = int(row["answer_index"])
+            answer = ANSWER_LETTERS[answer_index]
+        explanation_value = row.get("cot_content")
+        question_id_value = row.get("question_id")
+        question_id = (
+            str(question_id_value)
+            if question_id_value is not None
+            else _problem_id(source, str(row["question"]), answer)
+        )
+        problems.append(
+            MultipleChoiceProblem(
+                problem_id=f"MMLU-Pro/{question_id}",
+                source=source,
+                question=str(row["question"]),
+                choices=options,
+                answer=answer,
+                explanation=None if explanation_value is None else str(explanation_value),
+            )
+        )
+    return problems
+
+
 def build_public_provenance(
     *,
     dataset: str,
@@ -330,7 +374,7 @@ def build_report_input(
         verifier={
             "kind": "exact",
             "name": "multiple_choice_final_letter_v1",
-            "output_contract": "A line exactly matching FINAL: <A|B|C|D>.",
+            "output_contract": "A line exactly matching FINAL: X, where X is one answer letter.",
             "limitations": [
                 "choice order is fixed by importer",
                 "no partial credit or semantic judging",
@@ -383,16 +427,18 @@ def load_evaluations(path: Path) -> list[MultipleChoiceProblemEvaluation]:
 
 def _problem_from_json(row: dict[str, object]) -> MultipleChoiceProblem:
     choices = tuple(str(choice) for choice in row["choices"])
-    if len(choices) != 4:
-        raise ValueError("multiple-choice problems require exactly four choices")
+    if not 2 <= len(choices) <= MAX_CHOICES:
+        raise ValueError(
+            f"multiple-choice problems require 2 to {MAX_CHOICES} choices"
+        )
     answer = str(row["answer"]).strip().upper()
-    if answer not in {"A", "B", "C", "D"}:
+    if answer not in set(_letters_for_choices(choices)):
         raise ValueError(f"invalid answer letter: {answer}")
     return MultipleChoiceProblem(
         problem_id=str(row["problem_id"]),
         source=str(row.get("source", "multiple_choice")),
         question=str(row["question"]),
-        choices=(choices[0], choices[1], choices[2], choices[3]),
+        choices=choices,
         answer=answer,
         explanation=None if row.get("explanation") is None else str(row.get("explanation")),
     )
@@ -404,6 +450,14 @@ def _extract_final_value(text: str) -> str | None:
         if match is not None:
             return match.group(1).upper()
     return None
+
+
+def _letters_for(problem: MultipleChoiceProblem) -> tuple[str, ...]:
+    return _letters_for_choices(problem.choices)
+
+
+def _letters_for_choices(choices: Sequence[str]) -> tuple[str, ...]:
+    return ANSWER_LETTERS[: len(choices)]
 
 
 def _public_source(
