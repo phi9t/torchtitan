@@ -13,6 +13,7 @@ import json
 import os
 import platform
 from pathlib import Path
+import shutil
 import sys
 from typing import Callable
 from urllib.request import Request, urlopen
@@ -1138,6 +1139,269 @@ def capture_runtime_metadata(args: argparse.Namespace) -> None:
         },
     }
     arc_grid.write_json(args.output, metadata)
+
+
+def doctor_runtime_contract(args: argparse.Namespace) -> None:
+    runtime = {
+        "schema_version": 1,
+        "kind": "scaffold_to_policy_runtime_contract_doctor",
+        "run_id": args.run_id,
+        "contract_version": 1,
+        "rootfs": {
+            "active": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+            "entrypoint": "scripts/rootfs/enter_rootfs.sh",
+            "required": args.require_rootfs,
+        },
+        "python": {
+            "executable": sys.executable,
+            "version": sys.version,
+            "version_info": list(sys.version_info[:5]),
+        },
+        "packages": _runtime_package_versions(args.required_package),
+        "cuda": _runtime_cuda_metadata(),
+        "model": _runtime_model_metadata(args.model),
+        "hf_cache": _runtime_hf_cache_metadata(),
+        "vllm": {
+            "gpu_memory_utilization": args.gpu_memory_utilization,
+            "device_index": args.device_index,
+            "max_model_len": args.max_model_len,
+            "attention_backend": args.attention_backend,
+            "use_flashinfer_sampler": args.use_flashinfer_sampler,
+        },
+        "external_harness": _runtime_executable_metadata(args.required_executable),
+        "environment": {
+            name: os.environ.get(name)
+            for name in [
+                "CUDA_VISIBLE_DEVICES",
+                "HF_HOME",
+                "HF_HUB_CACHE",
+                "PYTHONPATH",
+                "TORCHTITAN_IN_ROOTFS",
+                "VLLM_USE_FLASHINFER_SAMPLER",
+            ]
+        },
+    }
+    clauses = _runtime_contract_clauses(runtime, args)
+    runtime["clauses"] = clauses
+    runtime["selected"] = all(bool(clause["selected"]) for clause in clauses)
+    runtime["summary"] = {
+        "num_clauses": len(clauses),
+        "num_selected": sum(1 for clause in clauses if clause["selected"]),
+        "failed": [
+            clause["name"] for clause in clauses if not clause["selected"]
+        ],
+    }
+    arc_grid.write_json(args.output, runtime)
+    if args.require_selected and not runtime["selected"]:
+        raise SystemExit(
+            "runtime contract doctor failed: "
+            + ", ".join(str(name) for name in runtime["summary"]["failed"])
+        )
+
+
+def _runtime_contract_clauses(
+    runtime: dict[str, object],
+    args: argparse.Namespace,
+) -> list[dict[str, object]]:
+    clauses = []
+
+    def add_clause(
+        name: str,
+        selected: bool,
+        *,
+        requirement: str,
+        details: object | None = None,
+    ) -> None:
+        clauses.append(
+            {
+                "name": name,
+                "selected": selected,
+                "requirement": requirement,
+                "details": details,
+            }
+        )
+
+    rootfs = runtime["rootfs"]
+    assert isinstance(rootfs, dict)
+    add_clause(
+        "rootfs_active",
+        (not args.require_rootfs) or bool(rootfs.get("active")),
+        requirement="real experiment setup, generation, training, evaluation, and external harness work must run inside scripts/rootfs/enter_rootfs.sh",
+        details=rootfs,
+    )
+
+    packages = runtime["packages"]
+    assert isinstance(packages, dict)
+    missing_packages = [
+        name
+        for name, record in packages.items()
+        if isinstance(record, dict) and not record.get("available")
+    ]
+    add_clause(
+        "required_python_packages",
+        not missing_packages,
+        requirement="rootfs Python must import every required experiment package",
+        details={"missing": missing_packages, "packages": packages},
+    )
+
+    model = runtime["model"]
+    assert isinstance(model, dict)
+    expected_files = model.get("expected_files")
+    missing_model_files = []
+    if isinstance(expected_files, dict):
+        missing_model_files = [
+            name for name, present in expected_files.items() if not present
+        ]
+    model_selected = bool(model.get("is_local_path")) and (
+        not args.require_model_assets
+        or (
+            bool(model.get("is_dir"))
+            and not missing_model_files
+            and int(model.get("num_safetensors", 0)) > 0
+        )
+    )
+    add_clause(
+        "model_assets",
+        model_selected,
+        requirement="local model assets must include config/tokenizer files and at least one safetensors shard",
+        details={"model": model, "missing_expected_files": missing_model_files},
+    )
+
+    cuda = runtime["cuda"]
+    assert isinstance(cuda, dict)
+    devices = cuda.get("devices", [])
+    visible_devices = devices if isinstance(devices, list) else []
+    memory_ok_devices = [
+        device
+        for device in visible_devices
+        if isinstance(device, dict) and device.get("memory_query_ok")
+    ]
+    add_clause(
+        "cuda_visible",
+        (not args.require_cuda)
+        or (bool(cuda.get("available")) and len(visible_devices) >= args.min_gpus),
+        requirement="CUDA must be available with the requested minimum GPU count",
+        details={
+            "available": cuda.get("available"),
+            "device_count": cuda.get("device_count"),
+            "min_gpus": args.min_gpus,
+        },
+    )
+    add_clause(
+        "cuda_memory_query",
+        (not args.require_cuda) or len(memory_ok_devices) >= args.min_gpus,
+        requirement="CUDA memory queries must succeed for visible GPUs",
+        details={"memory_ok_device_count": len(memory_ok_devices)},
+    )
+
+    gpu_memory = _runtime_contract_gpu_memory(runtime, args)
+    add_clause(
+        "vllm_gpu_memory_headroom",
+        (not args.require_vllm_memory) or bool(gpu_memory["selected"]),
+        requirement="selected GPU must have free memory >= total memory * gpu_memory_utilization",
+        details=gpu_memory,
+    )
+
+    hf_cache = runtime["hf_cache"]
+    assert isinstance(hf_cache, dict)
+    add_clause(
+        "hf_cache_root",
+        bool(hf_cache.get("hf_home_exists")),
+        requirement="HF_HOME must resolve to a repo-visible cache directory",
+        details=hf_cache,
+    )
+
+    external_harness = runtime["external_harness"]
+    assert isinstance(external_harness, dict)
+    missing_executables = [
+        name
+        for name, record in external_harness.items()
+        if isinstance(record, dict) and not record.get("available")
+    ]
+    add_clause(
+        "required_executables",
+        not missing_executables,
+        requirement="requested external harness executables must be discoverable on PATH",
+        details={"missing": missing_executables, "executables": external_harness},
+    )
+    return clauses
+
+
+def _runtime_contract_gpu_memory(
+    runtime: dict[str, object],
+    args: argparse.Namespace,
+) -> dict[str, object]:
+    cuda = runtime["cuda"]
+    assert isinstance(cuda, dict)
+    devices = cuda.get("devices", [])
+    if not isinstance(devices, list):
+        devices = []
+    if not devices:
+        return {
+            "selected": False,
+            "reason": "no cuda devices",
+            "device_index": args.device_index,
+            "gpu_memory_utilization": args.gpu_memory_utilization,
+        }
+    matching = [
+        device
+        for device in devices
+        if isinstance(device, dict) and device.get("device_index") == args.device_index
+    ]
+    if not matching:
+        return {
+            "selected": False,
+            "reason": "device index unavailable",
+            "device_index": args.device_index,
+            "gpu_memory_utilization": args.gpu_memory_utilization,
+        }
+    device = matching[0]
+    if not device.get("memory_query_ok"):
+        return {
+            "selected": False,
+            "reason": "cuda memory query failed",
+            "device": device,
+            "gpu_memory_utilization": args.gpu_memory_utilization,
+        }
+    free_bytes = int(device["free_bytes"])
+    total_bytes = int(device["total_bytes"])
+    required_bytes = int(total_bytes * args.gpu_memory_utilization)
+    return {
+        "selected": free_bytes >= required_bytes,
+        "reason": "sufficient free memory"
+        if free_bytes >= required_bytes
+        else "insufficient free memory",
+        "device_index": args.device_index,
+        "name": device.get("name"),
+        "free_bytes": free_bytes,
+        "total_bytes": total_bytes,
+        "required_bytes": required_bytes,
+        "free_gib": free_bytes / (1024**3),
+        "total_gib": total_bytes / (1024**3),
+        "required_gib": required_bytes / (1024**3),
+        "gpu_memory_utilization": args.gpu_memory_utilization,
+    }
+
+
+def _runtime_hf_cache_metadata() -> dict[str, object]:
+    hf_home = Path(os.environ.get("HF_HOME", ".cache/huggingface"))
+    hf_hub_cache = Path(os.environ.get("HF_HUB_CACHE", hf_home / "hub"))
+    return {
+        "hf_home": str(hf_home),
+        "hf_home_exists": hf_home.is_dir(),
+        "hf_hub_cache": str(hf_hub_cache),
+        "hf_hub_cache_exists": hf_hub_cache.is_dir(),
+    }
+
+
+def _runtime_executable_metadata(names: list[str]) -> dict[str, object]:
+    return {
+        name: {
+            "available": shutil.which(name) is not None,
+            "path": shutil.which(name),
+        }
+        for name in names
+    }
 
 
 def _runtime_package_versions(package_names: list[str]) -> dict[str, object]:
@@ -2953,6 +3217,66 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
     )
     runtime_parser.set_defaults(func=capture_runtime_metadata)
+
+    doctor_parser = subparsers.add_parser("doctor-runtime-contract")
+    doctor_parser.add_argument("--output", type=Path, required=True)
+    doctor_parser.add_argument("--run-id", required=True)
+    doctor_parser.add_argument("--model", default="./assets/hf/Qwen3-1.7B")
+    doctor_parser.add_argument(
+        "--required-package",
+        action="append",
+        default=["torch", "vllm", "datasets", "transformers", "spmd_types"],
+    )
+    doctor_parser.add_argument(
+        "--required-executable",
+        action="append",
+        default=[],
+    )
+    doctor_parser.add_argument("--min-gpus", type=int, default=1)
+    doctor_parser.add_argument("--device-index", type=int, default=0)
+    doctor_parser.add_argument("--max-model-len", type=int, default=2048)
+    doctor_parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=float(
+            os.environ.get("SCAFFOLD_TO_POLICY_VLLM_GPU_MEMORY_UTILIZATION", "0.05")
+        ),
+    )
+    doctor_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    doctor_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    doctor_parser.add_argument(
+        "--require-rootfs",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    doctor_parser.add_argument(
+        "--require-cuda",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    doctor_parser.add_argument(
+        "--require-vllm-memory",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    doctor_parser.add_argument(
+        "--require-model-assets",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    doctor_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    doctor_parser.set_defaults(func=doctor_runtime_contract)
 
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)

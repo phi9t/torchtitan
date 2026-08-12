@@ -18,6 +18,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     write_json,
     write_jsonl,
 )
+from torchtitan.experiments.scaffold_to_policy import cli as scaffold_cli
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
 from torchtitan.experiments.scaffold_to_policy import arc_grid
 from torchtitan.experiments.scaffold_to_policy import coding_style
@@ -2259,6 +2260,22 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "0.6",
         ]
     )
+    doctor = parser.parse_args(
+        [
+            "doctor-runtime-contract",
+            "--output",
+            "doctor.json",
+            "--run-id",
+            "doctor",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--required-executable",
+            "python",
+            "--gpu-memory-utilization",
+            "0.05",
+            "--no-require-selected",
+        ]
+    )
 
     assert aime.dataset == "HuggingFaceH4/aime_2024"
     assert aime.raw_cache == Path("raw/aime.jsonl")
@@ -2286,6 +2303,15 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert blocker.lane == "reasoning"
     assert runtime.model == "./assets/hf/Qwen3-1.7B"
     assert runtime.gpu_memory_utilization == 0.6
+    assert doctor.required_package == [
+        "torch",
+        "vllm",
+        "datasets",
+        "transformers",
+        "spmd_types",
+    ]
+    assert doctor.required_executable == ["python"]
+    assert not doctor.require_selected
 
 
 def test_capture_runtime_metadata_writes_audit_record(tmp_path, monkeypatch):
@@ -2328,6 +2354,163 @@ def test_capture_runtime_metadata_writes_audit_record(tmp_path, monkeypatch):
     assert payload["packages"]["torch"]["available"] is not None
     assert payload["vllm"]["gpu_memory_utilization"] == 0.5
     assert payload["sampling"]["num_rollouts"] == 4
+
+
+def test_runtime_doctor_writes_selected_contract(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_package_versions",
+        lambda names: {
+            name: {"available": True, "version": "1.0"} for name in names
+        },
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_cuda_metadata",
+        lambda: {
+            "torch_imported": True,
+            "available": True,
+            "device_count": 1,
+            "devices": [
+                {
+                    "device_index": 0,
+                    "name": "fixture gpu",
+                    "memory_query_ok": True,
+                    "free_bytes": 90,
+                    "total_bytes": 100,
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_model_metadata",
+        lambda model: {
+            "path": model,
+            "is_local_path": True,
+            "is_dir": True,
+            "expected_files": {
+                "config.json": True,
+                "generation_config.json": True,
+                "tokenizer.json": True,
+                "tokenizer_config.json": True,
+            },
+            "num_safetensors": 2,
+        },
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_hf_cache_metadata",
+        lambda: {
+            "hf_home": ".cache/huggingface",
+            "hf_home_exists": True,
+            "hf_hub_cache": ".cache/huggingface/hub",
+            "hf_hub_cache_exists": True,
+        },
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_executable_metadata",
+        lambda names: {
+            name: {"available": True, "path": f"/usr/bin/{name}"} for name in names
+        },
+    )
+    parser = build_parser()
+    output = tmp_path / "doctor.json"
+    args = parser.parse_args(
+        [
+            "doctor-runtime-contract",
+            "--output",
+            str(output),
+            "--run-id",
+            "doctor-fixture",
+            "--model",
+            "assets/hf/Qwen3-1.7B",
+            "--required-executable",
+            "python",
+            "--gpu-memory-utilization",
+            "0.5",
+        ]
+    )
+    args.func(args)
+
+    payload = json.loads(output.read_text())
+    assert payload["kind"] == "scaffold_to_policy_runtime_contract_doctor"
+    assert payload["selected"]
+    assert payload["summary"]["failed"] == []
+    assert {clause["name"] for clause in payload["clauses"]} == {
+        "rootfs_active",
+        "required_python_packages",
+        "model_assets",
+        "cuda_visible",
+        "cuda_memory_query",
+        "vllm_gpu_memory_headroom",
+        "hf_cache_root",
+        "required_executables",
+    }
+
+
+def test_runtime_doctor_fails_when_required_rootfs_missing(tmp_path, monkeypatch):
+    monkeypatch.delenv("TORCHTITAN_IN_ROOTFS", raising=False)
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_package_versions",
+        lambda names: {
+            name: {"available": True, "version": "1.0"} for name in names
+        },
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_cuda_metadata",
+        lambda: {"available": False, "device_count": 0, "devices": []},
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_model_metadata",
+        lambda model: {"path": model, "is_local_path": False},
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_hf_cache_metadata",
+        lambda: {
+            "hf_home": ".cache/huggingface",
+            "hf_home_exists": False,
+            "hf_hub_cache": ".cache/huggingface/hub",
+            "hf_hub_cache_exists": False,
+        },
+    )
+    monkeypatch.setattr(
+        scaffold_cli,
+        "_runtime_executable_metadata",
+        lambda names: {name: {"available": False, "path": None} for name in names},
+    )
+    parser = build_parser()
+    output = tmp_path / "doctor.json"
+    args = parser.parse_args(
+        [
+            "doctor-runtime-contract",
+            "--output",
+            str(output),
+            "--run-id",
+            "doctor-fixture",
+            "--model",
+            "missing-model",
+            "--no-require-cuda",
+            "--no-require-vllm-memory",
+            "--no-require-model-assets",
+            "--no-require-selected",
+        ]
+    )
+    args.func(args)
+
+    payload = json.loads(output.read_text())
+    assert not payload["selected"]
+    assert "rootfs_active" in payload["summary"]["failed"]
+    rootfs_clause = [
+        clause for clause in payload["clauses"] if clause["name"] == "rootfs_active"
+    ][0]
+    assert not rootfs_clause["selected"]
 
 
 def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):

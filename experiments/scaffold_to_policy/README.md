@@ -782,6 +782,53 @@ GPU-memory preflight failures. A blocker report sets scaffold budget `0`,
 records `benchmark_execution_completed=false`, hashes the blocker artifacts,
 and explicitly states that no model score was produced.
 
+## Runtime Contract And Doctor
+
+Real setup, generation, training, evaluation, and external harness work must
+satisfy the same runtime contract before it can produce a benchmark artifact:
+
+- `TORCHTITAN_IN_ROOTFS=1`, entered through `scripts/rootfs/enter_rootfs.sh`;
+- repo root on `PYTHONPATH`, with `HF_HOME` and `HF_HUB_CACHE` rooted in the
+  repo-visible cache path;
+- required Python packages import inside the rootfs: `torch`, `vllm`,
+  `datasets`, `transformers`, and `spmd_types`;
+- local model assets exist and include config/tokenizer files plus safetensors
+  shards;
+- CUDA is visible, memory queries succeed, and the selected GPU has enough free
+  memory for the configured `GPU_MEMORY_UTILIZATION`;
+- required external harness executables, when requested, are discoverable on
+  `PATH`;
+- the command writes a JSON artifact with `selected=true` before expensive work
+  begins.
+
+Run the rootfs-managed doctor before GPU-heavy or external-harness work:
+
+```bash
+RUN_ID=20260813T-runtime-doctor \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/runtime_doctor \
+GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_runtime_doctor.sh
+```
+
+For a harness-specific check, add executable requirements:
+
+```bash
+REQUIRED_EXECUTABLES=harbor,tb,tau2 \
+experiments/scaffold_to_policy/run_runtime_doctor.sh
+```
+
+The doctor writes:
+
+```text
+experiments/scaffold_to_policy/results/runtime_doctor/manifests/runtime_doctor_<run_id>.json
+```
+
+The JSON contains one clause per contract item, a top-level `selected` flag, and
+`summary.failed` for cheap triage. With the default `--require-selected`, the
+command exits nonzero if any required clause fails. Use `--no-require-cuda` or
+`--no-require-vllm-memory` only for CPU-only documentation or parser checks, not
+for real model execution.
+
 Those hard-lane runners also source `run_common.sh`, which re-enters the bwrap
 rootfs, sets the repo-local Python/Hugging Face/vLLM environment, and writes a
 run-scoped JSONL command-stage manifest at
