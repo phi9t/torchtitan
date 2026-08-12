@@ -514,6 +514,21 @@ reasoning benchmarks.
   `num_errors=1`, and `num_trial_exceptions=1`. Full Terminal-Bench/Harbor
   execution remains blocked on the Harbor verifier bind-mount setup, not on
   Docker or Compose visibility inside rootfs.
+- 2026-08-12: Fixed the Harbor verifier bind-mount blocker for the
+  Terminal-Bench oracle probe. The Docker daemon resolves bind source paths on
+  the host, but the previous rootfs run gave Harbor `/workspace/torchtitan/...`
+  paths that exist only inside bwrap. When
+  `TORCHTITAN_ROOTFS_BIND_DOCKER=1` is enabled, `enter_rootfs.sh` now also binds
+  the checkout at its real host path and exports
+  `TORCHTITAN_ROOTFS_HOST_REPO_ROOT`; `run_terminal_bench_oracle_probe.sh` uses
+  that host-visible path as Harbor's working directory. The rerun
+  `20260812T190000Z-terminal-bench-harbor-hostpath` completed one
+  `headless-terminal` oracle trial with `n_trials=1`, `n_errors=0`, mean metric
+  1.0, verifier reward 1.0, and `task_execution_probes_succeeded=true`. This
+  clears Harbor/Docker/Compose/verifier-mount infrastructure for the oracle
+  probe, but it is not a Terminal-Bench model or agent capability result. The
+  report is
+  `experiments/scaffold_to_policy/reports/20260812T190000Z-terminal-bench-harbor-hostpath.md`.
 - 2026-08-12: Added and ran the ARC-AGI-2 exact-grid reasoning smoke. The new
   `arc_grid` module imports upstream ARC task JSON files, prompts with released
   train examples plus one test input, requires an exact `FINAL: <json-grid>`

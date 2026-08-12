@@ -23,6 +23,8 @@ Environment:
                   Bind the host Docker CLI and socket into the rootfs. This is
                   intended only for external harness probes that explicitly
                   require Docker, such as Harbor/Terminal-Bench.
+                  Also binds this checkout at its host path so Docker daemon
+                  bind mounts see the same paths as processes inside rootfs.
 EOF
 }
 
@@ -102,6 +104,7 @@ if [[ "${TORCHTITAN_ROOTFS_BIND_DOCKER:-0}" == "1" ]]; then
     --ro-bind /usr/bin/docker /usr/bin/docker
     --dir /run
     --bind /var/run/docker.sock /run/docker.sock
+    --bind "$REPO_ROOT" "$REPO_ROOT"
   )
   if [[ -d /usr/libexec/docker/cli-plugins ]]; then
     bwrap_args+=(--ro-bind /usr/libexec/docker/cli-plugins /usr/libexec/docker/cli-plugins)
@@ -122,6 +125,7 @@ if [[ "${CUDA_VISIBLE_DEVICES+set}" == set ]]; then
 fi
 if [[ "${TORCHTITAN_ROOTFS_BIND_DOCKER:-0}" == "1" ]]; then
   bwrap_args+=(--setenv TORCHTITAN_ROOTFS_BIND_DOCKER 1)
+  bwrap_args+=(--setenv TORCHTITAN_ROOTFS_HOST_REPO_ROOT "$REPO_ROOT")
 fi
 bwrap_args+=(--setenv NVIDIA_VISIBLE_DEVICES "${NVIDIA_VISIBLE_DEVICES:-all}")
 

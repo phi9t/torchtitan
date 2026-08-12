@@ -14,6 +14,7 @@ fi
 cd "${REPO_ROOT}"
 export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 
+DOCKER_REPO_ROOT="${TORCHTITAN_ROOTFS_HOST_REPO_ROOT:-${REPO_ROOT}}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-terminal-bench-oracle-probe}"
 RESULTS_ROOT="${RESULTS_ROOT:-experiments/scaffold_to_policy/results/terminal_bench_oracle_probe}"
 VENV_DIR="${VENV_DIR:-${RESULTS_ROOT}/.venv-harbor-terminal-probe}"
@@ -59,7 +60,7 @@ git -C "${TERMINAL_BENCH_REPO_DIR}" checkout --quiet "${TERMINAL_BENCH_REVISION}
 "${VENV_DIR}/bin/python" -m torchtitan.experiments.scaffold_to_policy.cli write-terminal-bench-execution-probe \
   --run-id "${RUN_ID}" \
   --task-id "${TASK_ID}" \
-  --cwd "${REPO_ROOT}" \
+  --cwd "${DOCKER_REPO_ROOT}" \
   --harbor-result-json "${RESULTS_ROOT}/runs/${RUN_ID}/result.json" \
   --timeout-seconds "${TIMEOUT_SECONDS}" \
   --output "${RESULTS_ROOT}/raw/terminal_bench_execution_probe.json" \

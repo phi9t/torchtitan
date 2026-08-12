@@ -111,16 +111,15 @@ post-generation scoring surprises.
      HF token and record the exact dataset revision and provenance.
 
 2. Terminal-Bench/Harbor:
-   - Progress: the bwrap rootfs now has an explicit opt-in host Docker and
-     Compose passthrough. Rootfs checks showed Docker client/server `26.1.4`
-     and Docker Compose `v2.27.1`.
-   - Current blocker: Harbor reaches Docker Compose container creation, but the
-     latest probe records one RuntimeError, zero evaluated trials, and a missing
-     verifier bind source path under the trial directory.
-   - Required next step: diagnose Harbor's verifier-mount lifecycle for the
-     pinned Terminal-Bench 2.1 `task.toml` corpus, then rerun
-     `harbor run --path <taskdir> ... --env docker --agent oracle` and require
-     Harbor `result.json` to show nonzero trials with zero errors.
+   - Progress: the bwrap rootfs now has explicit opt-in host Docker and Compose
+     passthrough plus a host-path repo alias for Docker bind mounts.
+   - Latest result: `20260812T190000Z-terminal-bench-harbor-hostpath` completed
+     one pinned `headless-terminal` oracle trial with Harbor `n_trials=1`,
+     `n_errors=0`, mean metric `1.0`, verifier reward `1.0`, and
+     `task_execution_probes_succeeded=true`.
+   - Required next step: replace the oracle with a bounded model or
+     deterministic baseline agent while preserving Harbor's released task
+     execution and verifier semantics.
 
 3. tau2-bench:
    - Blocker: the first upstream `tau2 run` execution probe recorded

@@ -648,9 +648,10 @@ passthrough (`TORCHTITAN_ROOTFS_BIND_DOCKER=1`) for `/usr/bin/docker`,
 ingestion path parses Harbor's own `result.json` and trial `exception_info`
 instead of trusting the Harbor process return code.
 
-The latest corrected probe reached Docker Compose container creation but did
-not evaluate a Terminal-Bench trial. Harbor returned process code 0, while its
-result artifacts recorded `n_errors=1`, `n_trials=0`, and a `RuntimeError`:
+The Docker/Compose-visible probe initially reached Docker Compose container
+creation but did not evaluate a Terminal-Bench trial. Harbor returned process
+code 0, while its result artifacts recorded `n_errors=1`, `n_trials=0`, and a
+`RuntimeError`:
 
 ```text
 Error response from daemon: invalid mount config for type "bind": bind source
@@ -668,6 +669,18 @@ corpus. The earlier report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T084500Z-terminal-bench-harbor-probe.md
+```
+
+The latest probe fixes the bwrap/Docker path mismatch by binding the checkout at
+its real host path when Docker passthrough is enabled and running Harbor from
+that host-visible path. Harbor then completed one `headless-terminal` oracle
+trial with `n_trials=1`, `n_errors=0`, mean metric `1.0`, and verifier reward
+`1.0`. This clears the Harbor/Docker/Compose/verifier-mount infrastructure
+smoke, but it is still an oracle probe rather than a model or agent capability
+result. The current report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T190000Z-terminal-bench-harbor-hostpath.md
 ```
 
 ## Registry Shape
