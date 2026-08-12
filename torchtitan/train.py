@@ -34,15 +34,15 @@ def main() -> None:
         role="trainer",
         actor_id="core",
     ):
-        # NOTE: internal meta tooling relies on source="training".
-        sl.init_structured_logger(
-            source="training",
-            # pyrefly: ignore [missing-attribute]
-            output_dir=config.dump_folder,
-            # pyrefly: ignore [missing-attribute]
-            enable=config.debug.enable_structured_logging,
-        )
         try:
+            # NOTE: internal meta tooling relies on source="training".
+            sl.init_structured_logger(
+                source="training",
+                # pyrefly: ignore [missing-attribute]
+                output_dir=config.dump_folder,
+                # pyrefly: ignore [missing-attribute]
+                enable=config.debug.enable_structured_logging,
+            )
             sl.log_trace_instant("structured_logger_started")
             trainer: Trainer | None = None
 

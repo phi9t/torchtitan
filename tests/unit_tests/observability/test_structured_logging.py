@@ -118,6 +118,24 @@ def read_only_structured_row(tmp_path):
     return rows[0]
 
 
+def read_structured_rows(tmp_path):
+    path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+    return [json.loads(line) for line in path.read_text().splitlines() if line]
+
+
+def read_artifact_rows(tmp_path, identity):
+    index = next(
+        (
+            tmp_path
+            / "run_evidence"
+            / identity["run_id"]
+            / identity["attempt_id"]
+            / "indexes"
+        ).glob("artifacts.*.jsonl")
+    )
+    return [json.loads(line) for line in index.read_text().splitlines()]
+
+
 # ---------------------------------------------------------------------------
 # Step context tests (hybrid ContextVar)
 # ---------------------------------------------------------------------------
@@ -1133,6 +1151,201 @@ class TestRunEvidenceCorrelation:
             ArtifactState.DECLARED.value,
             ArtifactState.COMPLETE.value,
         ]
+
+    def test_close_attempts_every_handler_and_allows_reinitialization_after_error(
+        self, tmp_path, structured_logger_fixture
+    ):
+        import torchtitan.observability.structured_logger.structured_logging as sl_mod
+
+        class FailingCloseHandler(logging.Handler):
+            def emit(self, record):
+                pass
+
+            def close(self):
+                super().close()
+                raise OSError("first handler close failed")
+
+        class LaterCloseHandler(logging.Handler):
+            def __init__(self):
+                super().__init__()
+                self.was_closed = False
+
+            def emit(self, record):
+                pass
+
+            def close(self):
+                self.was_closed = True
+                super().close()
+
+        later_handler = LaterCloseHandler()
+        _structured_logger.addHandler(FailingCloseHandler())
+        _structured_logger.addHandler(later_handler)
+        sl_mod._is_initialized = True
+        sl_mod._disabled = True
+
+        with pytest.raises(OSError, match="first handler close failed"):
+            close_structured_logger()
+
+        assert later_handler.was_closed is True
+        assert _structured_logger.handlers == []
+        assert sl_mod._is_initialized is False
+        assert sl_mod._disabled is False
+
+        init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+        assert len(_structured_logger.handlers) == 1
+        close_structured_logger()
+
+    def test_native_close_failure_keeps_jsonl_artifact_declared(
+        self, tmp_path, launcher_identity
+    ):
+        handler = None
+        with build_evidence(tmp_path):
+            handler = TraceJsonlHandler(
+                rank=0, source="training", output_dir=str(tmp_path)
+            )
+            with mock.patch.object(
+                logging.FileHandler,
+                "close",
+                side_effect=OSError("native file close failed"),
+            ):
+                with pytest.raises(OSError, match="native file close failed"):
+                    handler.close()
+
+            assert [
+                row["state"] for row in read_artifact_rows(tmp_path, launcher_identity)
+            ] == [ArtifactState.DECLARED.value]
+
+        assert handler is not None
+        handler.close()
+
+    def test_start_emission_failure_restores_evidence_phase(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        class FailingStartHandler(logging.Handler):
+            def emit(self, record):
+                raise RuntimeError("start emission failed")
+
+        failing_handler = FailingStartHandler()
+        span = log_trace_span("failing_start")
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            _structured_logger.addHandler(failing_handler)
+            try:
+                with pytest.raises(RuntimeError, match="start emission failed"):
+                    span.__enter__()
+                _structured_logger.removeHandler(failing_handler)
+                log_trace_instant("after_start_emission_failure")
+                after_failure = next(
+                    row
+                    for row in read_structured_rows(tmp_path)
+                    if row["log_type_name"] == "after_start_emission_failure"
+                )
+                assert "phase" not in after_failure
+            finally:
+                _structured_logger.removeHandler(failing_handler)
+                if span._phase_context is not None:
+                    span._phase_context.__exit__(None, None, None)
+                    span._phase_context = None
+                close_structured_logger()
+
+    def test_span_exit_restores_phase_when_disabled_after_entry(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        import torchtitan.observability.structured_logger.structured_logging as sl_mod
+
+        span = log_trace_span("disabled_span")
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            try:
+                span.__enter__()
+                sl_mod._disabled = True
+                span.__exit__(None, None, None)
+                sl_mod._disabled = False
+                log_trace_instant("after_disabled_span")
+                after_span = next(
+                    row
+                    for row in read_structured_rows(tmp_path)
+                    if row["log_type_name"] == "after_disabled_span"
+                )
+                assert "phase" not in after_span
+            finally:
+                sl_mod._disabled = False
+                if span._phase_context is not None:
+                    span._phase_context.__exit__(None, None, None)
+                    span._phase_context = None
+                close_structured_logger()
+
+    def test_span_exit_restores_phase_when_compiling_after_entry(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        span = log_trace_span("compiling_span")
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            try:
+                span.__enter__()
+                with mock.patch.object(
+                    torch.compiler, "is_compiling", return_value=True
+                ):
+                    span.__exit__(None, None, None)
+                log_trace_instant("after_compiling_span")
+                after_span = next(
+                    row
+                    for row in read_structured_rows(tmp_path)
+                    if row["log_type_name"] == "after_compiling_span"
+                )
+                assert "phase" not in after_span
+            finally:
+                if span._phase_context is not None:
+                    span._phase_context.__exit__(None, None, None)
+                    span._phase_context = None
+                close_structured_logger()
+
+    def test_nested_async_spans_restore_evidence_phase_after_disabled_inner_span(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        import torchtitan.observability.structured_logger.structured_logging as sl_mod
+
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            outer_span = log_trace_span("outer")
+            inner_span = log_trace_span("inner")
+
+            async def inner():
+                with inner_span:
+                    log_trace_instant("inside_inner")
+                    sl_mod._disabled = True
+
+            async def outer():
+                with outer_span:
+                    log_trace_instant("inside_outer_before")
+                    await inner()
+                    sl_mod._disabled = False
+                    log_trace_instant("inside_outer_after")
+
+            try:
+                asyncio.run(outer())
+                log_trace_instant("after_outer")
+            finally:
+                sl_mod._disabled = False
+                close_structured_logger()
+
+        phases = {
+            row["log_type_name"]: row.get("phase")
+            for row in read_structured_rows(tmp_path)
+            if row["log_type_name"]
+            in {
+                "inside_outer_before",
+                "inside_inner",
+                "inside_outer_after",
+                "after_outer",
+            }
+        }
+        assert phases == {
+            "inside_outer_before": "outer",
+            "inside_inner": "outer/inner",
+            "inside_outer_after": "outer",
+            "after_outer": None,
+        }
 
 
 # ---------------------------------------------------------------------------

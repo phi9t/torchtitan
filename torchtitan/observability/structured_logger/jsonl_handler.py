@@ -195,16 +195,17 @@ class TraceJsonlHandler(logging.FileHandler):
         self.addFilter(TraceEventsOnlyFilter())
 
     def close(self) -> None:
+        super().close()
         if self._artifact_id is not None and not self._artifact_closed:
-            record_artifact(
+            completed_artifact_id = record_artifact(
                 producer="structured_logger",
                 kind="torchtitan.structured_events",
                 path=self.baseFilename,
                 state=ArtifactState.COMPLETE,
                 artifact_id=self._artifact_id,
             )
-            self._artifact_closed = True
-        super().close()
+            if completed_artifact_id is not None:
+                self._artifact_closed = True
 
 
 def register_jsonl_handler(
