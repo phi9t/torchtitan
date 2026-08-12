@@ -13,6 +13,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from torchtitan.experiments.scaffold_to_policy import report_artifacts
+
 
 FINAL_RE = re.compile(r"^\s*FINAL:\s*(-?\d+)\s*$")
 
@@ -385,56 +387,41 @@ def build_report_input(
     summary_paths: dict[str, Path],
     evaluation_paths: dict[str, Path] | None = None,
 ) -> dict[str, object]:
-    summaries = {
-        split: json.loads(path.read_text()) for split, path in summary_paths.items()
-    }
     registry = json.loads(split_registry.read_text())
     registry_splits = registry["splits"]
-    checks = {
-        "split_registry_selected": bool(registry.get("selected", False)),
-        "summaries_present": all(path.is_file() for path in summary_paths.values()),
-        "summary_split_counts_match": all(
-            summaries[summary_name]["num_problems"]
-            == registry_splits[_registry_split_name(summary_name, registry_splits)][
-                "num_problems"
-            ]
-            for summary_name in summary_paths
-        ),
-    }
     analysis = None
     if evaluation_paths is not None:
         analysis = build_transfer_analysis(
             evaluation_paths=evaluation_paths,
             registry_splits=registry_splits,
         )
-    return {
-        "schema_version": 1,
-        "run": {
-            "run_id": run_id,
-            "task": "modular_sequences",
-            "lane": "reasoning",
-            "scaffold": {"type": "fixture_or_best_of_n", "budget": 32},
+    return report_artifacts.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id=run_id,
+        task="modular_sequences",
+        lane="reasoning",
+        scaffold={"type": "fixture_or_best_of_n", "budget": 32},
+        split_registry=split_registry,
+        summary_paths=summary_paths,
+        summary_to_registry_split={
+            summary_name: _registry_split_name(summary_name, registry_splits)
+            for summary_name in summary_paths
         },
-        "artifacts": {
-            "data_root": str(data_root),
-            "results_root": str(results_root),
-            "split_registry": str(split_registry),
-            "summaries": {split: str(path) for split, path in summary_paths.items()},
+        verifier={
+            "kind": "exact",
+            "name": "strict_final_modular_integer_v1",
+            "output_contract": "A line exactly matching FINAL: <integer>.",
+        },
+        extra_artifacts={
             "evaluations": (
                 None
                 if evaluation_paths is None
                 else {split: str(path) for split, path in evaluation_paths.items()}
             ),
         },
-        "verifier": {
-            "kind": "exact",
-            "name": "strict_final_modular_integer_v1",
-            "output_contract": "A line exactly matching FINAL: <integer>.",
-        },
-        "checks": checks,
-        "metrics": {"splits": summaries},
-        "analysis": analysis,
-    }
+        extra_sections={"analysis": analysis},
+    )
 
 
 def build_transfer_analysis(

@@ -39,16 +39,16 @@ Not complete:
   agent has been run.
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
-- The registry/reporting surface still needs broader latest-row selection,
-  broader shared-registry factoring, and more offline dataset-loader hardening.
-  Fresh/reused artifact surfacing is now present for the hard public
-  reasoning/coding report inputs.
+- The registry/reporting surface still needs broader latest-row selection and
+  more offline dataset-loader hardening. Shared report-input factoring and
+  fresh/reused artifact surfacing now cover the main exact-verifier scaffold
+  lanes.
 
 ## User Story Audit
 
 | Spec stories | Status | Evidence | Remaining gap |
 | --- | --- | --- | --- |
-| 1-8 run identity, manifests, provenance, environment | Partial | Countdown report inputs, scaffold smoke report inputs, rootfs shell entrypoints, external harness metadata, hard public report artifact details | Manifest stage freshness is stronger in Countdown than in the general scaffold lane; canonical latest-row selection is still not generalized. |
+| 1-8 run identity, manifests, provenance, environment | Partial | Countdown report inputs, shared scaffold report inputs, rootfs shell entrypoints, external harness metadata, report artifact details | Manifest stage freshness is stronger in Countdown than in the general scaffold lane; canonical latest-row selection is still not generalized. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
@@ -127,9 +127,13 @@ reasoning/coding report inputs:
 
 - `report_artifacts.describe_artifact` records path, existence, size, sha256,
   mtime, and run binding for report inputs.
-- `math_style`, `multiple_choice`, `arc_grid`, and `coding_style` report inputs
-  now include `artifacts.details`, `artifacts.freshness`, and
-  `artifact_provenance_labeled`.
+- `report_artifacts.build_report_input` now owns the common report shell:
+  split-registry validation, summary count matching, optional preflight count
+  checks, artifact details, freshness summaries, and the
+  `artifact_provenance_labeled` check.
+- `arithmetic_words`, `gsm_style`, `math_style`, `multiple_choice`,
+  `arc_grid`, `coding_style`, and `modular_sequences` now use that shared
+  builder while retaining task-owned verifier metadata and analysis sections.
 - Freshness is conservative: artifacts are labeled `fresh` only when the run ID
   appears in the artifact path or JSON payload; otherwise they are labeled
   `reused_or_unscoped` rather than failed.
@@ -175,12 +179,15 @@ reasoning/coding report inputs:
      and evaluator semantics.
 
 4. Registry/reporting:
-   - Blocker: scaffold lanes still have per-task report builders rather than a
-     single general registry.
-   - Progress: hard public reasoning/coding report inputs now label artifact
-     freshness and hashes, reducing stale-result overclaim risk.
-   - Required next step: factor the common split/report/preflight checks into a
-     shared registry module after the current task-specific behaviors stabilize.
+   - Progress: the main exact-verifier scaffold lanes now share report-input
+     split checks, optional preflight checks, artifact hashes, and freshness
+     labels through `report_artifacts.build_report_input`.
+   - Remaining gap: canonical latest-row selection is still not generalized,
+     and external-harness report inputs are separate because their semantics are
+     not split-summary based.
+   - Required next step: add latest-run row selection and decide whether the
+     external-harness report shape should reuse only artifact provenance helpers
+     or a separate harness-specific shared builder.
 
 ## Promotion Guidance
 

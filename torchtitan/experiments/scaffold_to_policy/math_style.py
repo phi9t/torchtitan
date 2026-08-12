@@ -430,53 +430,19 @@ def build_report_input(
     summary_paths: dict[str, Path],
     scaffold_budget: int,
 ) -> dict[str, object]:
-    summaries = {
-        split: json.loads(path.read_text()) for split, path in summary_paths.items()
-    }
-    registry = json.loads(split_registry.read_text())
-    artifact_details = {
-        "split_registry": report_artifacts.describe_artifact(
-            split_registry,
-            run_id=run_id,
-            payload=registry,
-        ),
-        "summaries": report_artifacts.describe_artifacts(
-            summary_paths,
-            run_id=run_id,
-            payloads=summaries,
-        ),
-    }
-    freshness = report_artifacts.summarize_artifact_freshness(artifact_details)
-    checks = {
-        "split_registry_selected": bool(registry.get("selected", False)),
-        "summaries_present": all(path.is_file() for path in summary_paths.values()),
-        "summary_split_counts_match": all(
-            summaries[split]["num_problems"]
-            == registry["splits"][split]["num_problems"]
-            for split in summary_paths
-        ),
-        "artifact_provenance_labeled": bool(freshness["all_labeled"]),
-    }
-    return {
-        "schema_version": 1,
-        "run": {
-            "run_id": run_id,
-            "task": "math_style",
-            "lane": "reasoning",
-            "scaffold": {
-                "type": "fixture_or_no_tool_sampling",
-                "budget": scaffold_budget,
-            },
+    return report_artifacts.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id=run_id,
+        task="math_style",
+        lane="reasoning",
+        scaffold={
+            "type": "fixture_or_no_tool_sampling",
+            "budget": scaffold_budget,
         },
-        "artifacts": {
-            "data_root": str(data_root),
-            "results_root": str(results_root),
-            "split_registry": str(split_registry),
-            "summaries": {split: str(path) for split, path in summary_paths.items()},
-            "details": artifact_details,
-            "freshness": freshness,
-        },
-        "verifier": {
+        split_registry=split_registry,
+        summary_paths=summary_paths,
+        verifier={
             "kind": "exact",
             "name": "math_style_normalized_final_v1",
             "output_contract": "A line exactly matching FINAL: <answer>.",
@@ -490,9 +456,7 @@ def build_report_input(
                 "no interval, set, matrix, or multi-answer semantic matching",
             ],
         },
-        "checks": checks,
-        "metrics": {"splits": summaries},
-    }
+    )
 
 
 def write_json(path: Path, value: object) -> None:

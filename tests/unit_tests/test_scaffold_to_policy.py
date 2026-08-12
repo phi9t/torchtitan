@@ -26,6 +26,7 @@ from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
 from torchtitan.experiments.scaffold_to_policy import multiple_choice
+from torchtitan.experiments.scaffold_to_policy import report_artifacts
 
 
 def test_arithmetic_words_generation_is_deterministic():
@@ -131,7 +132,40 @@ def test_arithmetic_words_report_input_validates_summary_counts(tmp_path):
     assert all(report_input["checks"].values())
     assert report_input["run"]["lane"] == "reasoning"
     assert report_input["verifier"]["kind"] == "exact"
+    assert report_input["checks"]["artifact_provenance_labeled"]
+    assert report_input["artifacts"]["freshness"]["num_artifacts"] == 2
     assert json.loads(summary.read_text())["num_problems"] == 2
+
+
+def test_shared_report_input_maps_adapter_summary_names(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    split_registry = data_root / "split_registry.json"
+    summary = results_root / "adapter_raw_dev_summary.json"
+    write_json(
+        split_registry,
+        {
+            "selected": True,
+            "splits": {"dev": {"num_problems": 2}},
+        },
+    )
+    write_json(summary, {"num_problems": 2})
+
+    report_input = report_artifacts.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="20260812T010101Z-shared",
+        task="fixture_task",
+        lane="reasoning",
+        scaffold={"type": "fixture", "budget": 1},
+        split_registry=split_registry,
+        summary_paths={"adapter_raw_dev": summary},
+        verifier={"kind": "exact", "name": "fixture"},
+    )
+
+    assert all(report_input["checks"].values())
+    assert "adapter_raw_dev" in report_input["metrics"]["splits"]
+    assert report_input["artifacts"]["freshness"]["num_artifacts"] == 2
 
 
 def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():
@@ -237,6 +271,8 @@ def test_gsm_style_report_input_validates_summary_counts(tmp_path):
     assert report_input["run"]["task"] == "gsm_style"
     assert report_input["run"]["scaffold"]["budget"] == 1
     assert report_input["verifier"]["kind"] == "exact"
+    assert report_input["checks"]["artifact_provenance_labeled"]
+    assert report_input["artifacts"]["freshness"]["num_artifacts"] == 2
 
 
 def test_gsm_style_import_public_rows_records_revision_source(tmp_path):

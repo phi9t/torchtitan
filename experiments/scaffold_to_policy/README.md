@@ -517,11 +517,13 @@ The current completion audit and blocker map is:
 experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md
 ```
 
-Hard public reasoning/coding report inputs now include artifact provenance
-details. `math_style`, `multiple_choice`, `arc_grid`, and `coding_style`
-reports record per-artifact hashes, mtimes, and whether each artifact is
-run-scoped (`fresh`) or only `reused_or_unscoped`. Reused artifacts are not
-treated as failed checks, but the status is machine-readable for audit reports.
+Exact-verifier scaffold report inputs share the common
+`report_artifacts.build_report_input` shell. `arithmetic_words`, `gsm_style`,
+`math_style`, `multiple_choice`, `arc_grid`, `coding_style`, and
+`modular_sequences` use it for split-registry checks, summary count checks,
+optional preflight checks, artifact hashes, mtimes, and conservative
+fresh-vs-reused labeling. Reused artifacts are not treated as failed checks, but
+the status is machine-readable for audit reports.
 
 The BigCodeBench-Hard `contract_chat` condition has one completed small rerun
 and one partial expanded rerun:

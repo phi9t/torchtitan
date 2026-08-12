@@ -751,3 +751,12 @@ reasoning benchmarks.
   versus 21.4 GiB requested at `GPU_MEMORY_UTILIZATION=0.12`. This leaves the
   completed small contract-chat result and a partial expanded dev result, not a
   completed expanded BigCodeBench-Hard result.
+- 2026-08-12: Factored the common exact-verifier report-input shell into
+  `report_artifacts.build_report_input`. Arithmetic words, GSM-style, MATH /
+  AIME style, GPQA-style multiple choice, ARC-AGI-2 grid, executable coding,
+  and modular-sequence transfer reports now share split-registry validation,
+  summary count matching, optional preflight count checks, artifact hashing,
+  and fresh-vs-reused artifact labeling. Task modules still own their verifier
+  metadata, scaffold labels, task-specific preflight names, and transfer
+  analysis. This materially advances the shared registry/reporting seam without
+  changing benchmark semantics or treating reused artifacts as failures.

@@ -13,6 +13,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from torchtitan.experiments.scaffold_to_policy import report_artifacts
+
 
 FINAL_RE = re.compile(r"^\s*FINAL:\s*(-?\d+)\s*$")
 
@@ -324,41 +326,21 @@ def build_report_input(
     split_registry: Path,
     summary_paths: dict[str, Path],
 ) -> dict[str, object]:
-    summaries = {
-        split: json.loads(path.read_text()) for split, path in summary_paths.items()
-    }
-    registry = json.loads(split_registry.read_text())
-    checks = {
-        "split_registry_selected": bool(registry.get("selected", False)),
-        "summaries_present": all(path.is_file() for path in summary_paths.values()),
-        "summary_split_counts_match": all(
-            summaries[split]["num_problems"]
-            == registry["splits"][split]["num_problems"]
-            for split in summary_paths
-        ),
-    }
-    return {
-        "schema_version": 1,
-        "run": {
-            "run_id": run_id,
-            "task": "arithmetic_words",
-            "lane": "reasoning",
-            "scaffold": {"type": "fixture_or_best_of_n", "budget": 32},
-        },
-        "artifacts": {
-            "data_root": str(data_root),
-            "results_root": str(results_root),
-            "split_registry": str(split_registry),
-            "summaries": {split: str(path) for split, path in summary_paths.items()},
-        },
-        "verifier": {
+    return report_artifacts.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id=run_id,
+        task="arithmetic_words",
+        lane="reasoning",
+        scaffold={"type": "fixture_or_best_of_n", "budget": 32},
+        split_registry=split_registry,
+        summary_paths=summary_paths,
+        verifier={
             "kind": "exact",
             "name": "strict_final_integer_v1",
             "output_contract": "A line exactly matching FINAL: <integer>.",
         },
-        "checks": checks,
-        "metrics": {"splits": summaries},
-    }
+    )
 
 
 def write_json(path: Path, value: object) -> None:

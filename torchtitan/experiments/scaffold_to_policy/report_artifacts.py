@@ -6,8 +6,116 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
+
+
+def build_report_input(
+    *,
+    data_root: Path,
+    results_root: Path,
+    run_id: str,
+    task: str,
+    lane: str,
+    scaffold: dict[str, object],
+    split_registry: Path,
+    summary_paths: dict[str, Path],
+    verifier: dict[str, object],
+    preflight_paths: dict[str, Path] | None = None,
+    preflight_check_name: str | None = None,
+    summary_to_registry_split: dict[str, str] | None = None,
+    extra_artifacts: dict[str, object] | None = None,
+    extra_checks: dict[str, bool] | None = None,
+    extra_sections: dict[str, object] | None = None,
+) -> dict[str, object]:
+    summaries = load_json_files(summary_paths)
+    preflights = load_json_files(preflight_paths or {})
+    registry = load_json(split_registry)
+    registry_splits = registry["splits"]
+    artifact_details = {
+        "split_registry": describe_artifact(
+            split_registry,
+            run_id=run_id,
+            payload=registry,
+        ),
+        "summaries": describe_artifacts(
+            summary_paths,
+            run_id=run_id,
+            payloads=summaries,
+        ),
+        "preflights": describe_artifacts(
+            preflight_paths or {},
+            run_id=run_id,
+            payloads=preflights,
+        ),
+    }
+    freshness = summarize_artifact_freshness(artifact_details)
+    checks = {
+        "split_registry_selected": bool(registry.get("selected", False)),
+        "summaries_present": all(path.is_file() for path in summary_paths.values()),
+        "summary_split_counts_match": all(
+            summaries[summary_name]["num_problems"]
+            == registry_splits[
+                _registry_split_name(
+                    summary_name,
+                    registry_splits,
+                    summary_to_registry_split or {},
+                )
+            ]["num_problems"]
+            for summary_name in summary_paths
+        ),
+        "preflights_present": all(
+            path.is_file() for path in (preflight_paths or {}).values()
+        ),
+        "preflight_split_counts_match": all(
+            preflights[split]["num_problems"] == registry_splits[split]["num_problems"]
+            for split in preflights
+        ),
+        "artifact_provenance_labeled": bool(freshness["all_labeled"]),
+    }
+    if preflight_check_name is not None:
+        checks[preflight_check_name] = all(
+            bool(preflight.get("selected", False)) for preflight in preflights.values()
+        )
+    checks.update(extra_checks or {})
+
+    report = {
+        "schema_version": 1,
+        "run": {
+            "run_id": run_id,
+            "task": task,
+            "lane": lane,
+            "scaffold": scaffold,
+        },
+        "artifacts": {
+            "data_root": str(data_root),
+            "results_root": str(results_root),
+            "split_registry": str(split_registry),
+            "summaries": {split: str(path) for split, path in summary_paths.items()},
+            "preflights": {
+                split: str(path) for split, path in (preflight_paths or {}).items()
+            },
+            "details": artifact_details,
+            "freshness": freshness,
+            **(extra_artifacts or {}),
+        },
+        "verifier": verifier,
+        "checks": checks,
+        "metrics": {"splits": summaries},
+    }
+    if preflights:
+        report["preflight"] = {"splits": preflights}
+    report.update(extra_sections or {})
+    return report
+
+
+def load_json(path: Path) -> object:
+    return json.loads(path.read_text())
+
+
+def load_json_files(paths: dict[str, Path]) -> dict[str, object]:
+    return {name: load_json(path) for name, path in paths.items()}
 
 
 def describe_artifact(
@@ -109,3 +217,18 @@ def _iter_artifact_records(value: object):
             return
         for child in value.values():
             yield from _iter_artifact_records(child)
+
+
+def _registry_split_name(
+    summary_name: str,
+    registry_splits: dict[str, object],
+    summary_to_registry_split: dict[str, str],
+) -> str:
+    if summary_name in summary_to_registry_split:
+        return summary_to_registry_split[summary_name]
+    if summary_name in registry_splits:
+        return summary_name
+    for split in registry_splits:
+        if summary_name.endswith(f"_{split}"):
+            return split
+    raise KeyError(f"summary {summary_name!r} does not match a registry split")

@@ -477,76 +477,21 @@ def build_report_input(
     scaffold_budget: int,
     preflight_paths: dict[str, Path] | None = None,
 ) -> dict[str, object]:
-    summaries = {
-        split: json.loads(path.read_text()) for split, path in summary_paths.items()
-    }
-    preflights = {
-        split: json.loads(path.read_text())
-        for split, path in (preflight_paths or {}).items()
-    }
-    registry = json.loads(split_registry.read_text())
-    artifact_details = {
-        "split_registry": report_artifacts.describe_artifact(
-            split_registry,
-            run_id=run_id,
-            payload=registry,
-        ),
-        "summaries": report_artifacts.describe_artifacts(
-            summary_paths,
-            run_id=run_id,
-            payloads=summaries,
-        ),
-        "preflights": report_artifacts.describe_artifacts(
-            preflight_paths or {},
-            run_id=run_id,
-            payloads=preflights,
-        ),
-    }
-    freshness = report_artifacts.summarize_artifact_freshness(artifact_details)
-    checks = {
-        "split_registry_selected": bool(registry.get("selected", False)),
-        "summaries_present": all(path.is_file() for path in summary_paths.values()),
-        "summary_split_counts_match": all(
-            summaries[split]["num_problems"]
-            == registry["splits"][split]["num_problems"]
-            for split in summary_paths
-        ),
-        "preflights_present": all(
-            path.is_file() for path in (preflight_paths or {}).values()
-        ),
-        "preflight_split_counts_match": all(
-            preflights[split]["num_problems"]
-            == registry["splits"][split]["num_problems"]
-            for split in preflights
-        ),
-        "preflight_canonical_solutions_pass": all(
-            bool(preflight.get("selected", False)) for preflight in preflights.values()
-        ),
-        "artifact_provenance_labeled": bool(freshness["all_labeled"]),
-    }
-    return {
-        "schema_version": 1,
-        "run": {
-            "run_id": run_id,
-            "task": "coding_style",
-            "lane": "coding",
-            "scaffold": {
-                "type": "fixture_or_no_tool_sampling",
-                "budget": scaffold_budget,
-            },
+    return report_artifacts.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id=run_id,
+        task="coding_style",
+        lane="coding",
+        scaffold={
+            "type": "fixture_or_no_tool_sampling",
+            "budget": scaffold_budget,
         },
-        "artifacts": {
-            "data_root": str(data_root),
-            "results_root": str(results_root),
-            "split_registry": str(split_registry),
-            "summaries": {split: str(path) for split, path in summary_paths.items()},
-            "preflights": {
-                split: str(path) for split, path in (preflight_paths or {}).items()
-            },
-            "details": artifact_details,
-            "freshness": freshness,
-        },
-        "verifier": {
+        split_registry=split_registry,
+        summary_paths=summary_paths,
+        preflight_paths=preflight_paths,
+        preflight_check_name="preflight_canonical_solutions_pass",
+        verifier={
             "kind": "executable",
             "name": "python_executable_tests_v1",
             "output_contract": "Python function code that satisfies public tests.",
@@ -561,10 +506,7 @@ def build_report_input(
                 "HumanEval smoke only; not a LiveCodeBench or Terminal-Bench claim",
             ],
         },
-        "checks": checks,
-        "preflight": {"splits": preflights},
-        "metrics": {"splits": summaries},
-    }
+    )
 
 
 def write_json(path: Path, value: object) -> None:
