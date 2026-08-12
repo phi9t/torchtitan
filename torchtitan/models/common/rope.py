@@ -72,9 +72,10 @@ def _yarn_inv_freq(
         low = math.floor(low)
         high = math.ceil(high)
     low, high = max(low, 0), min(high, dim - 1)
-    assert (
-        0 < low < high < dim - 1
-    ), f"Invalid YaRN params: 0 < {low} < {high} < {dim - 1}"
+    if low > high:
+        raise ValueError(f"reversed YaRN correction range: {low=} must be <= {high=}")
+    if low == high:
+        high += 0.001
 
     ramp = ((torch.arange(dim // 2, dtype=torch.float32) - low) / (high - low)).clamp(
         0, 1
