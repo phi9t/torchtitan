@@ -23,7 +23,7 @@ Completed or materially advanced:
 - Public executable coding smokes exist for HumanEval, MBPP, and
   BigCodeBench-Hard.
 - External harness dry-run, package preflight, tau2 scorer-ingestion, a
-  successful deterministic tau2 upstream execution probe, and
+  successful deterministic tau2 upstream execution probe, tau2 noop baseline, and
   Terminal-Bench/Harbor Docker-boundary plus non-oracle `nop` baseline probes
   exist.
 
@@ -34,9 +34,9 @@ Not complete:
   work through the bwrap rootfs with explicit host Docker passthrough and
   host-path repo binding, but no model or scaffold-policy agent has been run.
 - tau2-bench full model or learned-policy execution is incomplete; package,
-  loader, fixture scorer ingestion, and deterministic upstream `tau2 run`
-  execution have cleared, but the successful path is still an oracle-style
-  deterministic harness probe rather than a model capability result.
+  loader, fixture scorer ingestion, deterministic oracle-style execution, and
+  noop baseline execution have cleared, but no Qwen3 or scaffold-policy tau2
+  agent has been run.
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
 - The registry/reporting surface still needs broader latest-row selection,
@@ -53,7 +53,7 @@ Not complete:
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
 | 21-22 local generated reasoning tasks | Complete for initial lane | `arithmetic_words`, `modular_sequences`, and modular transfer reports | Larger modular transfer replication is still needed before adapter-science claims. |
 | 23-25 public no-tool reasoning semantics | Mostly complete | GSM8K, MATH, AIME, ARC-AGI-2 scripts and reports | GPQA Diamond is blocked by auth; all public runs are too small for public benchmark claims. |
-| 26-29 external harness boundaries and labels | Partial | `external_harness` module, dry-run/preflight/tau2/Terminal-Bench reports, tau2 execution-probe ingestion | Terminal-Bench/Harbor `nop` baseline and tau2 deterministic execution are green; model or learned-policy execution remains incomplete. |
+| 26-29 external harness boundaries and labels | Partial | `external_harness` module, dry-run/preflight/tau2/Terminal-Bench reports, tau2 execution-probe ingestion | Terminal-Bench/Harbor `nop` baseline and tau2 noop baseline execution are green; model or learned-policy execution remains incomplete. |
 | 30 generated artifact hygiene | Complete for checked tree | Generated results/data roots are ignored; current tracked edits are code/docs/tests only | Continue to avoid committing runtime results. |
 | 31-36 future-agent spec, gates, caveats, examples, exact verifiers, upstream metrics | Mostly complete | `spec.md`, README, reports with examples, exact verifiers, external harness notes | Need a shared registry abstraction for all scaffold lanes rather than per-lane report builders. |
 
@@ -142,11 +142,16 @@ post-generation scoring surprises.
      upstream `tau2.cli.main`; tau2 writes an official `results.json` with
      `num_evaluated=1`, `num_infra_errors=0`, and scaffold report
      `task_execution_probes_succeeded=true`.
-   - Current blocker: this is still deterministic oracle behavior for one mock
-     task, not Qwen3, an adapter, or a learned scaffold policy.
-   - Required next step: replace the oracle behavior with a bounded model or
-     policy agent while preserving tau2's released task state, runner, and
-     evaluator semantics.
+   - Baseline result: `20260812T113000Z-tau2-noop-baseline` runs
+     `torchtitan_noop_agent` through the same upstream tau2 runner and evaluator
+     and records `num_evaluated=1`, `num_infra_errors=0`, average reward `0.0`,
+     `task_execution_probes_completed=true`, and
+     `task_execution_probes_succeeded=false`.
+   - Current blocker: neither path is Qwen3, an adapter, or a learned scaffold
+     policy.
+   - Required next step: replace the noop or oracle behavior with a bounded
+     model or policy agent while preserving tau2's released task state, runner,
+     and evaluator semantics.
 
 4. Registry/reporting:
    - Blocker: scaffold lanes still have per-task report builders rather than a

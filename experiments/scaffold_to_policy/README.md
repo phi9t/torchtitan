@@ -669,6 +669,27 @@ tau2 step is replacing the deterministic oracle behavior with a bounded model
 or policy agent while preserving tau2's released task state, runner, and
 evaluator semantics.
 
+Run a non-oracle tau2 baseline by selecting the registered noop agent:
+
+```bash
+TAU2_AGENT=torchtitan_noop_agent \
+TAU2_USER=torchtitan_static_user \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/tau2_noop_baseline \
+experiments/scaffold_to_policy/run_tau2_execution_probe.sh
+```
+
+The completed baseline `20260812T113000Z-tau2-noop-baseline` ran one upstream
+`create_task_1` simulation with `num_evaluated=1`, `num_infra_errors=0`,
+`average_reward=0.0`, and `termination_reasons={"agent_stop": 1}`. The scaffold
+report input records `task_execution_probes_completed=true` and
+`task_execution_probes_succeeded=false`, separating clean tau2 execution from a
+solved task. The official reward breakdown was DB `0.0` and COMMUNICATE `1.0`.
+The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T113000Z-tau2-noop-baseline.md
+```
+
 Run the Terminal-Bench / Harbor oracle execution probe through the rootfs:
 
 ```bash

@@ -718,3 +718,14 @@ reasoning benchmarks.
   0.0, `task_execution_probes_completed=true`, and
   `task_execution_probes_succeeded=false`. This is a valid bounded baseline and
   verifier-path check, not a policy capability success.
+- 2026-08-12: Added the matching tau2 non-oracle baseline. The tau2 probe
+  registration module now includes `torchtitan_noop_agent`, a half-duplex agent
+  that stops without tool calls, while the execution-ingestion layer reports
+  tau2's official average reward separately from completed execution. Run
+  `20260812T113000Z-tau2-noop-baseline` completed one upstream tau2
+  `create_task_1` simulation with return code 0, `num_evaluated=1`,
+  `num_infra_errors=0`, `average_reward=0.0`,
+  `task_execution_probes_completed=true`, and
+  `task_execution_probes_succeeded=false`. The official reward breakdown was
+  DB 0.0 and COMMUNICATE 1.0. This is a bounded baseline and evaluator-path
+  check, not a learned policy result.

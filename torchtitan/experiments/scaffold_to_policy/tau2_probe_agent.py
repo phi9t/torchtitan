@@ -10,6 +10,7 @@ from typing import Any
 
 
 AGENT_NAME = "torchtitan_mock_oracle_agent"
+NOOP_AGENT_NAME = "torchtitan_noop_agent"
 USER_NAME = "torchtitan_static_user"
 
 
@@ -38,6 +39,7 @@ def register_tau2_probe_agent() -> None:
         agent_registered = True
     else:
         agent_registered = False
+    noop_agent_registered = NOOP_AGENT_NAME in registry.get_agents()
 
     class TorchTitanMockOracleAgent(HalfDuplexAgent[_ProbeAgentState]):
         STOP_FUNCTION_NAME = LLMSoloAgent.STOP_FUNCTION_NAME
@@ -92,6 +94,32 @@ def register_tau2_probe_agent() -> None:
             state.done_sent = True
             return AssistantMessage.text(content=self.STOP_TOKEN), state
 
+    class TorchTitanNoopAgent(HalfDuplexAgent[_ProbeAgentState]):
+        STOP_TOKEN = LLMSoloAgent.STOP_TOKEN
+
+        def __init__(
+            self,
+            tools: list[Tool],
+            domain_policy: str,
+            **_: Any,
+        ) -> None:
+            super().__init__(tools=tools, domain_policy=domain_policy)
+
+        def get_init_state(self, message_history=None) -> _ProbeAgentState:
+            return _ProbeAgentState(done_sent=True)
+
+        @classmethod
+        def is_stop(cls, message: AssistantMessage) -> bool:
+            return message.content is not None and cls.STOP_TOKEN in message.content
+
+        def generate_next_message(
+            self,
+            message,
+            state: _ProbeAgentState,
+        ) -> tuple[AssistantMessage, _ProbeAgentState]:
+            state.done_sent = True
+            return AssistantMessage.text(content=self.STOP_TOKEN), state
+
     class TorchTitanStaticUser(HalfDuplexUser[_StaticUserState]):
         def __init__(
             self,
@@ -129,11 +157,27 @@ def register_tau2_probe_agent() -> None:
             task=kwargs["task"],
         )
 
+    def create_torchtitan_noop_agent(
+        tools,
+        domain_policy,
+        **kwargs,
+    ) -> TorchTitanNoopAgent:
+        return TorchTitanNoopAgent(
+            tools=tools,
+            domain_policy=domain_policy,
+        )
+
     if not agent_registered:
         registry.register_agent_factory(
             create_torchtitan_mock_oracle_agent,
             AGENT_NAME,
             task_filter=TorchTitanMockOracleAgent.check_valid_task,
+            metadata={"solo_mode": False},
+        )
+    if not noop_agent_registered:
+        registry.register_agent_factory(
+            create_torchtitan_noop_agent,
+            NOOP_AGENT_NAME,
             metadata={"solo_mode": False},
         )
     if USER_NAME not in registry.get_users():

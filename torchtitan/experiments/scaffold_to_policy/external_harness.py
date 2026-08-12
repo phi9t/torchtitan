@@ -537,6 +537,7 @@ def write_tau2_execution_probe(
     evaluated = int(parsed_results.get("num_evaluated", 0))
     infra_errors = int(parsed_results.get("num_infra_errors", 0))
     success = returncode == 0 and not timed_out and evaluated > 0 and infra_errors == 0
+    benchmark_score = float(parsed_results.get("average_reward", 0.0))
     record = {
         "schema_version": 1,
         "run_id": run_id,
@@ -557,7 +558,7 @@ def write_tau2_execution_probe(
         "pins": [pin.to_json() for pin in default_tau2_pins()],
         "raw_result": {
             "metric_name": "tau2_execution_probe",
-            "score": 1.0 if success else 0.0,
+            "score": benchmark_score if success else 0.0,
             "num_tasks": evaluated,
             "score_source": "tau2 run upstream results.json",
             "task_metadata": {

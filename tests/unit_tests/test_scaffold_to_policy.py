@@ -1617,9 +1617,62 @@ def test_tau2_execution_probe_summarizes_upstream_results(tmp_path, monkeypatch)
     assert metadata["num_simulations"] == 1
     assert metadata["num_evaluated"] == 0
     assert metadata["num_infra_errors"] == 1
+    assert not metadata["execution_completed"]
     assert metadata["errors"][0]["error_type"] == "TypeError"
     assert ingested["checks"]["task_execution_probe_labeled"]
     assert not report_input["checks"]["task_execution_probes_succeeded"]
+    assert not report_input["checks"]["task_execution_probes_completed"]
+
+
+def test_tau2_execution_probe_accepts_completed_zero_reward_baseline(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    tau2_results = results_root / "simulations" / "probe" / "results.json"
+    raw = results_root / "raw" / "tau2_probe.json"
+    ingested_path = results_root / "ingested" / "tau2_probe.json"
+    external_harness.write_json(
+        tau2_results,
+        {
+            "simulations": [
+                {
+                    "task_id": "create_task_1",
+                    "termination_reason": "agent_stop",
+                    "reward_info": {"reward": 0.0},
+                    "info": {},
+                }
+            ]
+        },
+    )
+
+    raw_record = external_harness.write_tau2_execution_probe(
+        output=raw,
+        run_id="fixture",
+        task_id="create_task_1",
+        command=["python", "-c", "print('probe')"],
+        cwd=tmp_path,
+        timeout_seconds=5.0,
+        results_json=tau2_results,
+    )
+    external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id="fixture",
+        ingested_paths={"tau2": ingested_path},
+    )
+
+    metadata = raw_record["raw_result"]["task_metadata"]
+    assert raw_record["raw_result"]["score"] == 0.0
+    assert raw_record["raw_result"]["num_tasks"] == 1
+    assert metadata["execution_completed"]
+    assert metadata["average_reward"] == 0.0
+    assert not report_input["checks"]["task_execution_probes_succeeded"]
+    assert report_input["checks"]["task_execution_probes_completed"]
 
 
 def test_terminal_bench_execution_probe_rejects_harbor_runtime_error(
