@@ -31,13 +31,13 @@ The objective is complete only if all of the following are true:
 | Requirement | Evidence inspected | Status |
 | --- | --- | --- |
 | Use bwrap rootfs for real Python, GPU generation/evaluation, and external harness work | `run_common.sh` rootfs re-entry is used by hard-lane shell runners; fresh GPQA stage manifest records `rootfs_active=true`; MMLU-Pro and BigCodeBench-Hard reports record vLLM inside rootfs; Harbor/tau2 report inputs record `all_rootfs_selected=true` | Covered for current executed lanes |
-| Run-scoped manifests and report inputs | Fresh GPQA manifest `experiments/scaffold_to_policy/results/gpqa_public_vllm_auth_refresh/manifests/20260812T210000Z-gpqa-auth-refresh.jsonl`; MMLU-Pro and BigCodeBench-Hard report inputs under their run-scoped result roots | Covered for hard lanes |
+| Run-scoped manifests and report inputs | Fresh GPQA manifest `experiments/scaffold_to_policy/results/gpqa_public_vllm_workstatus/manifests/20260812T212000Z-gpqa-auth-workstatus.jsonl` records stage command, rootfs state, timing, return code, roots, and `work_status=executed`; MMLU-Pro and BigCodeBench-Hard report inputs under their run-scoped result roots | Covered for hard lanes |
 | Split registries and no-overlap checks | `experiments/scaffold_to_policy/data/mmlu_pro_public_vllm_16x16_rollouts4_ood32/split_registry.json` has 16 dev, 16 OOD, `selected=true`, and no overlaps; BigCodeBench-Hard free-GPU split registry has 8 dev, 8 OOD, `selected=true`, and no overlaps | Covered for latest reasoning/coding lanes |
 | Artifact provenance and blocker reporting | Latest report inputs have `artifact_provenance_labeled=true`; GPQA blocker report has `blocker_artifacts_present=true` and `benchmark_execution_completed=false` | Covered |
 | Countdown champion, formatting arm, replication, and rank/size sweep | `spec.md` lists the Countdown reports: clean split final, formatting arm, base-elicitable examples, replication/rank-size sweep, and formatting replication | Covered for checkpoint |
 | Local exact-verifier reasoning before public benchmarks | Reports exist for arithmetic words, modular sequences, modular transfer, GSM-style local fixtures, and vLLM smokes under `experiments/scaffold_to_policy/reports/` | Covered |
 | Public no-tool reasoning expansion | GSM8K, MATH, AIME, ARC-AGI-2, MMLU-Pro reports exist; latest MMLU-Pro run `20260812T203000Z-mmlu-pro-16x16-rollouts4-ood32` preserved exact final-letter scoring | Covered as calibration, not leaderboard claims |
-| GPQA Diamond lane | Fresh rootfs run `20260812T210000Z-gpqa-auth-refresh` failed at `datasets.exceptions.DatasetNotFoundError` for gated dataset `Idavidrein/gpqa`; report input records no task execution or score | Blocked by missing HF auth or authorized raw cache |
+| GPQA Diamond lane | Fresh rootfs run `20260812T212000Z-gpqa-auth-workstatus` failed at `datasets.exceptions.DatasetNotFoundError` for gated dataset `Idavidrein/gpqa`; report input records no task execution or score | Blocked by missing HF auth or authorized raw cache |
 | Public coding expansion | HumanEval, MBPP, LiveCodeBench, and BigCodeBench-Hard reports exist; latest BigCodeBench-Hard free-GPU run passed canonical preflight and completed model evaluation | Covered as executable/public-test smokes and hard negatives |
 | Terminal-Bench/Harbor harness smoke | `experiments/scaffold_to_policy/results/terminal_bench_harbor_qwen_headless_official_verifier/manifests/report_input_20260812Tqwen-headless-terminal-official-verifier.json` records installed preflight, rootfs selection, one completed official verifier trial, and unsuccessful task reward | Covered as model-policy execution plumbing, not solved task |
 | tau2-bench harness smoke | `experiments/scaffold_to_policy/results/tau2_qwen_model_policy/manifests/report_input_20260812Ttau2-qwen-model-policy.json` records installed preflight, rootfs selection, one completed upstream mock-domain simulation, and unsuccessful task reward | Covered as model-policy execution plumbing, not solved task |
@@ -64,9 +64,9 @@ not satisfy the benchmark-preserving GPQA lane.
 Fresh command:
 
 ```bash
-RUN_ID=20260812T210000Z-gpqa-auth-refresh \
-DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_public_vllm_auth_refresh \
-RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_public_vllm_auth_refresh \
+RUN_ID=20260812T212000Z-gpqa-auth-workstatus \
+DATA_ROOT=experiments/scaffold_to_policy/data/gpqa_public_vllm_workstatus \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/gpqa_public_vllm_workstatus \
 DEV_PROBLEMS=1 OOD_PROBLEMS=1 GPU_MEMORY_UTILIZATION=0.05 \
 experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
 ```
@@ -81,7 +81,7 @@ dataset on the Hub. You must be authenticated to access it.
 The runner exited cleanly after writing:
 
 ```text
-experiments/scaffold_to_policy/results/gpqa_public_vllm_auth_refresh/manifests/report_input_20260812T210000Z-gpqa-auth-refresh.json
+experiments/scaffold_to_policy/results/gpqa_public_vllm_workstatus/manifests/report_input_20260812T212000Z-gpqa-auth-workstatus.json
 ```
 
 The report input records:
@@ -102,6 +102,26 @@ The report input records:
     "task": "multiple_choice"
   }
 }
+```
+
+The command-stage manifest also records the new explicit stage work-status
+field:
+
+```json
+[
+  {
+    "stage": "import_dev",
+    "return_code": 1,
+    "rootfs_active": true,
+    "work_status": "executed"
+  },
+  {
+    "stage": "write_import_blocker_report_input",
+    "return_code": 0,
+    "rootfs_active": true,
+    "work_status": "executed"
+  }
+]
 ```
 
 ## Latest Hard-Lane Evidence

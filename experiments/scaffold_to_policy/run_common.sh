@@ -80,6 +80,7 @@ row = {
     "stage": os.environ["STAGE"],
     "run_id": os.environ["RUN_ID"],
     "rootfs_active": os.environ["ROOTFS_ACTIVE"] == "1",
+    "work_status": "executed",
     "start_time": os.environ["START_ISO"],
     "end_time": os.environ["END_ISO"],
     "duration_seconds": int(os.environ["DURATION_SECONDS"]),
@@ -90,7 +91,10 @@ row = {
 }
 stage_status_path = os.environ["STAGE_STATUS_PATH"]
 if stage_status_path and Path(stage_status_path).is_file():
-    row["stage_status"] = json.loads(Path(stage_status_path).read_text())
+    stage_status = json.loads(Path(stage_status_path).read_text())
+    row["stage_status"] = stage_status
+    if isinstance(stage_status, dict) and isinstance(stage_status.get("work_status"), str):
+        row["work_status"] = stage_status["work_status"]
 manifest = Path(os.environ["MANIFEST"])
 manifest.parent.mkdir(parents=True, exist_ok=True)
 with manifest.open("a") as f:
