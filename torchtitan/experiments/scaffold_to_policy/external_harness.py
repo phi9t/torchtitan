@@ -339,6 +339,157 @@ def write_tau2_mock_score_smoke(
     return record
 
 
+def write_terminal_bench_result_smoke(
+    *,
+    output: Path,
+    run_id: str,
+    task_id: str,
+) -> dict[str, object]:
+    from terminal_bench.agents.failure_mode import FailureMode
+    from terminal_bench.harness.models import BenchmarkResults, TrialResults
+
+    results = BenchmarkResults(
+        results=[
+            TrialResults(
+                trial_name=f"{task_id}.1-of-1.{run_id}",
+                task_id=task_id,
+                instruction="Fixture Terminal-Bench task result.",
+                is_resolved=True,
+                failure_mode=FailureMode.NONE,
+                parser_results={},
+                total_input_tokens=0,
+                total_output_tokens=0,
+            )
+        ]
+    )
+    record = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "harness_family": "harbor_terminal",
+        "mode": "task_score_smoke",
+        "task_subset": task_id,
+        "rootfs": {
+            "in_rootfs": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+            "python": sys.executable,
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        },
+        "tools": {
+            "git": _tool_version("git"),
+            "docker": _tool_version("docker"),
+            "bwrap": _tool_version("bwrap"),
+        },
+        "pins": [pin.to_json() for pin in default_harbor_terminal_pins()],
+        "raw_result": {
+            "metric_name": "terminal_bench_accuracy",
+            "score": results.accuracy,
+            "num_tasks": len(results.results),
+            "score_source": "terminal_bench.harness.models.BenchmarkResults",
+            "task_metadata": {
+                "task_id": task_id,
+                "n_resolved": results.n_resolved,
+                "n_unresolved": results.n_unresolved,
+                "pass_at_k": results.pass_at_k,
+            },
+            "trajectory": [
+                {
+                    "step": 0,
+                    "actor": "terminal_bench_result_model",
+                    "event": "construct_resolved_trial",
+                },
+                {
+                    "step": 1,
+                    "actor": "terminal_bench_result_model",
+                    "event": "compute_accuracy",
+                },
+            ],
+        },
+        "terminal_bench_results": results.model_dump(mode="json"),
+    }
+    write_json(output, record)
+    return record
+
+
+def write_terminal_bench_execution_probe(
+    *,
+    output: Path,
+    run_id: str,
+    task_id: str,
+    command: Sequence[str],
+    cwd: Path,
+    timeout_seconds: float,
+) -> dict[str, object]:
+    try:
+        completed = subprocess.run(
+            list(command),
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        timed_out = False
+        returncode = completed.returncode
+        stdout = completed.stdout
+        stderr = completed.stderr
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        returncode = None
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+    success = returncode == 0 and not timed_out
+    record = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "harness_family": "harbor_terminal",
+        "mode": "task_execution_probe",
+        "task_subset": task_id,
+        "rootfs": {
+            "in_rootfs": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+            "python": sys.executable,
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        },
+        "tools": {
+            "git": _tool_version("git"),
+            "docker": _tool_version("docker"),
+            "bwrap": _tool_version("bwrap"),
+        },
+        "pins": [pin.to_json() for pin in default_harbor_terminal_pins()],
+        "raw_result": {
+            "metric_name": "terminal_bench_execution_probe",
+            "score": 1.0 if success else 0.0,
+            "num_tasks": 1 if success else 0,
+            "score_source": "terminal-bench CLI oracle task execution",
+            "task_metadata": {
+                "task_id": task_id,
+                "command": list(command),
+                "cwd": str(cwd),
+                "returncode": returncode,
+                "timed_out": timed_out,
+                "stdout_tail": stdout[-4000:],
+                "stderr_tail": stderr[-4000:],
+            },
+            "trajectory": [
+                {
+                    "step": 0,
+                    "actor": "torchtitan",
+                    "event": "launch_terminal_bench_cli",
+                },
+                {
+                    "step": 1,
+                    "actor": "terminal_bench",
+                    "event": "oracle_task_execution"
+                    if success
+                    else "execution_blocked_or_failed",
+                },
+            ],
+        },
+    }
+    write_json(output, record)
+    return record
+
+
 def ingest_harness_smoke(
     *,
     raw_result: Path,
@@ -353,6 +504,7 @@ def ingest_harness_smoke(
         "dry_run_labeled": raw.get("mode") == "dry_run",
         "installed_preflight_labeled": raw.get("mode") == "installed_preflight",
         "task_score_labeled": raw.get("mode") == "task_score_smoke",
+        "task_execution_probe_labeled": raw.get("mode") == "task_execution_probe",
         "all_imports_available": all(
             bool(pin.get("installed")) for pin in raw.get("pins", [])
         ),
@@ -410,6 +562,11 @@ def build_report_input(
     task_score_values = [
         value for value in ingested.values() if value["checks"]["task_score_labeled"]
     ]
+    task_execution_probe_values = [
+        value
+        for value in ingested.values()
+        if value["checks"]["task_execution_probe_labeled"]
+    ]
     checks = {
         "ingested_present": all(path.is_file() for path in ingested_paths.values()),
         "all_rootfs_selected": all(
@@ -419,6 +576,7 @@ def build_report_input(
             value["checks"]["dry_run_labeled"]
             or value["checks"]["installed_preflight_labeled"]
             or value["checks"]["task_score_labeled"]
+            or value["checks"]["task_execution_probe_labeled"]
             for value in ingested.values()
         ),
         "all_pins_present": all(
@@ -435,6 +593,10 @@ def build_report_input(
             value["metric"]["num_tasks"] > 0 and value["metric"]["score"] >= 1.0
             for value in task_score_values
         ),
+        "task_execution_probes_succeeded": all(
+            value["metric"]["num_tasks"] > 0 and value["metric"]["score"] >= 1.0
+            for value in task_execution_probe_values
+        ),
     }
     mode_counts: dict[str, int] = {}
     for value in ingested.values():
@@ -445,6 +607,8 @@ def build_report_input(
         if mode_counts.get("installed_preflight", 0) == len(ingested)
         else "task_score_smoke"
         if mode_counts.get("task_score_smoke", 0) == len(ingested)
+        else "task_execution_probe"
+        if mode_counts.get("task_execution_probe", 0)
         else "dry_run_ingestion"
     )
     limitations = [
@@ -453,6 +617,10 @@ def build_report_input(
     ]
     if scaffold_type == "task_score_smoke":
         limitations.append("fixture trajectory only; external benchmark agent was not run")
+    elif mode_counts.get("task_execution_probe", 0):
+        limitations.append(
+            "Terminal-Bench task execution probe may be blocker evidence if score is 0"
+        )
     else:
         limitations.append("no external benchmark task execution")
     return {
@@ -565,6 +733,12 @@ def _cli_probe(name: str) -> dict[str, object]:
 
 
 def _limitations_for_mode(mode: object) -> list[str]:
+    if mode == "task_execution_probe":
+        return [
+            "rootfs-managed Terminal-Bench CLI execution probe",
+            "score 0 means the upstream task did not complete successfully",
+            "oracle/task execution evidence only; not a model capability score",
+        ]
     if mode == "task_score_smoke":
         return [
             "fixture trajectory scored by upstream harness evaluator",

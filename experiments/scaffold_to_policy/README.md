@@ -290,6 +290,34 @@ semantics, matrices, or multi-answer semantics. The report is:
 experiments/scaffold_to_policy/reports/20260812T091500Z-math-public-vllm-smoke.md
 ```
 
+Run the first public AIME no-tool smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_aime_public_vllm_smoke.sh
+```
+
+This imports small slices from `HuggingFaceH4/aime_2024`, evaluates Qwen3-1.7B
+with vLLM, and scores exact final integer answers with the MATH-style verifier.
+The first completed smoke used 2 dev and 2 OOD examples with 2 rollouts per
+problem. It reached pass@1/pass@2 `0.000` on both splits, with failures split
+between missing final answers and wrong final values. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T083500Z-aime-public-vllm-smoke.md
+```
+
+Run the GPQA Diamond gate through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
+```
+
+GPQA Diamond is gated on Hugging Face. In an unauthenticated rootfs, this script
+writes a blocker report input instead of substituting a different dataset or
+claiming a score. With `HF_TOKEN` configured and access granted, the same
+entrypoint imports `Idavidrein/gpqa` `gpqa_diamond`, evaluates no-tool
+multiple-choice prompts, and verifies exact `FINAL: <A|B|C|D>` outputs.
+
 ## Initial Coding Benchmarks
 
 The first coding lane uses `coding_style`, a repo-owned executable-test harness
@@ -320,6 +348,23 @@ corrected prompt-preamble extraction rule. The report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T101500Z-humaneval-public-vllm-smoke.md
+```
+
+Run the first pinned public MBPP no-tool smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_mbpp_public_vllm_smoke.sh
+```
+
+This imports `google-research-datasets/mbpp` `sanitized`, infers each task's
+entry point from released assert tests, evaluates Qwen3-1.7B with vLLM, and
+scores candidates with the same executable Python subprocess verifier. The
+first completed smoke used 2 dev and 2 OOD examples with 2 rollouts per
+problem. It reached dev pass@1 `1.000`, dev pass@2 `1.000`, OOD pass@1
+`0.500`, and OOD pass@2 `0.500`. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T084000Z-mbpp-public-vllm-smoke.md
 ```
 
 ## Agentic Benchmarks
@@ -415,6 +460,30 @@ equal to `1.0`. The report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T121500Z-tau2-mock-score-smoke.md
+```
+
+Run the Terminal-Bench / Harbor oracle execution probe through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_terminal_bench_oracle_probe.sh
+```
+
+This creates an isolated Harbor/Terminal-Bench virtualenv, clones the pinned
+Terminal-Bench 2.1 task repo, ingests a Terminal-Bench result-model smoke, and
+attempts to run the `headless-terminal` task through Harbor's current CLI. The
+first corrected probe reached Harbor's environment boundary and failed with:
+
+```text
+Docker is not installed or not on PATH. Please install Docker and try again.
+```
+
+It also established that the pinned Terminal-Bench 2.1 task repo uses Harbor's
+newer `task.toml` layout, while `terminal-bench==0.2.18` expects the older
+`task.yaml`/`docker-compose.yaml` layout. Use `harbor run`, not direct
+`tb runs create`, for this pinned task corpus. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T084500Z-terminal-bench-harbor-probe.md
 ```
 
 ## Registry Shape

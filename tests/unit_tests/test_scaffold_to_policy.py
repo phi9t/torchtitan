@@ -23,6 +23,7 @@ from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
+from torchtitan.experiments.scaffold_to_policy import multiple_choice
 
 
 def test_arithmetic_words_generation_is_deterministic():
@@ -540,6 +541,102 @@ def test_math_style_parsers_default_to_pinned_public_algebra_and_chat_prompt():
     assert evaluated.max_new_tokens == 512
 
 
+def test_math_style_imports_aime_rows_with_integer_answers():
+    rows = [
+        {
+            "id": 1,
+            "problem": "Find 20 + 4.",
+            "solution": r"\boxed{024}",
+            "answer": "24",
+        }
+    ]
+
+    problems = math_style.import_aime_rows(
+        rows,
+        source="HuggingFaceH4/aime_2024:main:train",
+    )
+
+    assert problems[0].problem_id == "AIME/1"
+    assert problems[0].answer == "024"
+    assert problems[0].normalized_answer == "24"
+    assert math_style.verify_answer(problems[0], "work\nFINAL: 024").success
+
+
+def test_multiple_choice_verifier_requires_final_letter():
+    problem = multiple_choice.MultipleChoiceProblem(
+        problem_id="gpqa-fixture",
+        source="fixture",
+        question="Which option is correct?",
+        choices=("correct", "wrong b", "wrong c", "wrong d"),
+        answer="A",
+    )
+
+    missing = multiple_choice.verify_answer(problem, "The answer is A.")
+    wrong = multiple_choice.verify_answer(problem, "FINAL: B")
+    correct = multiple_choice.verify_answer(problem, "trace\nFINAL: A")
+
+    assert not missing.success
+    assert missing.error == "missing final answer"
+    assert not wrong.success
+    assert wrong.strict_final
+    assert correct.success
+
+
+def test_multiple_choice_imports_gpqa_rows_and_reports(tmp_path):
+    rows = [
+        {
+            "Question": "Which physical statement is correct?",
+            "Correct Answer": "A specialist fact.",
+            "Incorrect Answer 1": "Distractor one.",
+            "Incorrect Answer 2": "Distractor two.",
+            "Incorrect Answer 3": "Distractor three.",
+            "Explanation": "Because of the governing equation.",
+        }
+    ]
+
+    problems = multiple_choice.import_gpqa_rows(
+        rows,
+        source="Idavidrein/gpqa:gpqa_diamond:main:train",
+    )
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    multiple_choice.write_jsonl(dev, [problem.to_json() for problem in problems])
+    split_registry = data_root / "split_registry.json"
+    multiple_choice.write_json(
+        split_registry,
+        multiple_choice.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    multiple_choice.write_json(
+        summary,
+        multiple_choice.summarize_evaluations(
+            [
+                multiple_choice.evaluate_fixture_rollouts(
+                    problems[0],
+                    ["FINAL: C", "FINAL: A"],
+                )
+            ],
+            ks=(1, 2),
+        ),
+    )
+
+    report_input = multiple_choice.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        scaffold_budget=2,
+    )
+
+    assert problems[0].answer == "A"
+    assert problems[0].choices[0] == "A specialist fact."
+    assert json.loads(summary.read_text())["pass_at_k"] == {"1": 0.0, "2": 1.0}
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["task"] == "multiple_choice"
+
+
 def test_coding_style_verifier_runs_python_tests():
     problem = coding_style.CodingStyleProblem(
         problem_id="HumanEval/fixture",
@@ -615,6 +712,42 @@ def test_coding_style_import_public_rows_records_revision_source(tmp_path):
     assert problems[0].entry_point == "separate_paren_groups"
     assert provenance["revision"] == "abc123"
     assert provenance["num_problems"] == 1
+
+
+def test_coding_style_imports_mbpp_rows_as_executable_checks():
+    rows = [
+        {
+            "task_id": 11,
+            "prompt": (
+                "Write a python function to remove first and last occurrence of "
+                "a given character from the string."
+            ),
+            "code": "def remove_Occ(s, ch):\n    return s",
+            "test_imports": [],
+            "test_list": [
+                'assert remove_Occ("hello","l") == "heo"',
+                'assert remove_Occ("abcda","a") == "bcd"',
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+    verified = coding_style.verify_solution(
+        problems[0],
+        "def remove_Occ(s, ch):\n"
+        "    first = s.find(ch)\n"
+        "    last = s.rfind(ch)\n"
+        "    return ''.join(c for i, c in enumerate(s) if i not in {first, last})",
+    )
+
+    assert problems[0].problem_id == "MBPP/11"
+    assert problems[0].entry_point == "remove_Occ"
+    assert "def remove_Occ(arg1, arg2):" in problems[0].prompt
+    assert "def check(candidate):" in problems[0].test
+    assert verified.success
 
 
 def test_coding_style_report_input_validates_summary_counts(tmp_path):
@@ -701,6 +834,63 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
     assert evaluated.prompt_variant == "chat"
     assert evaluated.num_rollouts == 4
     assert evaluated.max_new_tokens == 512
+
+
+def test_harder_reasoning_and_coding_parsers_accept_public_commands():
+    parser = build_parser()
+
+    aime = parser.parse_args(
+        [
+            "import-aime-split",
+            "--output",
+            "dev.jsonl",
+            "--revision",
+            "main",
+            "--limit",
+            "4",
+        ]
+    )
+    gpqa = parser.parse_args(
+        [
+            "import-gpqa-split",
+            "--output",
+            "dev.jsonl",
+            "--revision",
+            "main",
+            "--limit",
+            "4",
+        ]
+    )
+    mbpp = parser.parse_args(
+        [
+            "import-mbpp-split",
+            "--output",
+            "dev.jsonl",
+            "--revision",
+            "main",
+            "--limit",
+            "4",
+        ]
+    )
+    multiple = parser.parse_args(
+        [
+            "evaluate-multiple-choice-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+
+    assert aime.dataset == "HuggingFaceH4/aime_2024"
+    assert gpqa.subset == "gpqa_diamond"
+    assert mbpp.dataset == "google-research-datasets/mbpp"
+    assert multiple.prompt_variant == "chat"
+    assert multiple.num_rollouts == 4
 
 
 def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):
@@ -838,6 +1028,56 @@ def test_external_harness_task_score_report_accepts_success(tmp_path, monkeypatc
     assert report_input["run"]["scaffold"]["type"] == "task_score_smoke"
 
 
+def test_external_harness_execution_probe_report_accepts_blocker(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    raw = results_root / "raw" / "terminal_probe.json"
+    ingested_path = results_root / "ingested" / "terminal_probe.json"
+
+    external_harness.write_json(
+        raw,
+        {
+            "schema_version": 1,
+            "run_id": "fixture",
+            "harness_family": "harbor_terminal",
+            "mode": "task_execution_probe",
+            "task_subset": "headless-terminal",
+            "rootfs": {"in_rootfs": True},
+            "tools": {},
+            "pins": [
+                {
+                    "name": "terminal-bench-2-1",
+                    "installed": True,
+                    "installed_version": "0.2.18",
+                    "package_version": "0.2.18",
+                }
+            ],
+            "raw_result": {
+                "metric_name": "terminal_bench_execution_probe",
+                "score": 0.0,
+                "num_tasks": 0,
+                "score_source": "terminal-bench CLI oracle task execution",
+                "task_metadata": {"task_id": "headless-terminal"},
+                "trajectory": [],
+            },
+        },
+    )
+    ingested = external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id="fixture",
+        ingested_paths={"terminal": ingested_path},
+    )
+
+    assert ingested["checks"]["task_execution_probe_labeled"]
+    assert not report_input["checks"]["task_execution_probes_succeeded"]
+    assert report_input["run"]["scaffold"]["type"] == "task_execution_probe"
+
+
 def test_external_harness_parser_accepts_dry_run_commands():
     parser = build_parser()
 
@@ -915,6 +1155,41 @@ def test_external_harness_parser_accepts_tau2_score_command():
 
     assert args.task_id == "create_task_1"
     assert args.evaluation_type == "all_ignore_basis"
+
+
+def test_external_harness_parser_accepts_terminal_bench_commands():
+    parser = build_parser()
+
+    result = parser.parse_args(
+        [
+            "write-terminal-bench-result-smoke",
+            "--run-id",
+            "fixture",
+            "--task-id",
+            "headless-terminal",
+            "--output",
+            "raw.json",
+        ]
+    )
+    probe = parser.parse_args(
+        [
+            "write-terminal-bench-execution-probe",
+            "--run-id",
+            "fixture",
+            "--task-id",
+            "headless-terminal",
+            "--cwd",
+            ".",
+            "--output",
+            "raw.json",
+            "tb",
+            "runs",
+            "create",
+        ]
+    )
+
+    assert result.task_id == "headless-terminal"
+    assert probe.command == ["tb", "runs", "create"]
 
 
 def test_modular_sequences_generation_is_deterministic():

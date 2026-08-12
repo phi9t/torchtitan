@@ -17,6 +17,11 @@ from pathlib import Path
 
 
 FENCED_CODE_RE = re.compile(r"```(?:python|py)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
+ASSERT_CALL_RE = re.compile(r"assert\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+ASSERT_CALL_ARGS_RE = re.compile(
+    r"assert\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*?)\)\s*(?:==|!=|is|in|<=|>=|<|>)",
+    re.DOTALL,
+)
 
 
 @dataclass(frozen=True)
@@ -310,6 +315,42 @@ def import_public_rows(
     return problems
 
 
+def import_mbpp_rows(
+    rows: Iterable[dict[str, object]],
+    *,
+    source: str,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[CodingStyleProblem]:
+    problems = []
+    for row_index, row in enumerate(rows):
+        if row_index < offset:
+            continue
+        if limit is not None and len(problems) >= limit:
+            break
+        prompt = str(row["prompt"]).strip()
+        test_imports = [str(value) for value in row.get("test_imports", [])]
+        test_list = [str(value) for value in row["test_list"]]
+        if not test_list:
+            raise ValueError("MBPP row has no tests")
+        entry_point = _entry_point_from_asserts(test_list)
+        test = _mbpp_check_source(test_imports, test_list, entry_point)
+        task_id = f"MBPP/{row['task_id']}"
+        canonical = None if row.get("code") is None else str(row.get("code"))
+        signature = _signature_from_first_assert(test_list[0], entry_point)
+        problems.append(
+            CodingStyleProblem(
+                problem_id=task_id,
+                source=source,
+                prompt=_mbpp_prompt(prompt, entry_point, signature),
+                test=test,
+                entry_point=entry_point,
+                canonical_solution=canonical,
+            )
+        )
+    return problems
+
+
 def build_public_provenance(
     *,
     dataset: str,
@@ -498,6 +539,86 @@ def _classify_failure(stderr: str) -> str:
     if stderr.strip():
         return stderr.strip().splitlines()[-1][:160]
     return "nonzero exit"
+
+
+def _entry_point_from_asserts(test_list: Sequence[str]) -> str:
+    names = []
+    for test in test_list:
+        match = ASSERT_CALL_RE.search(test)
+        if match is None:
+            raise ValueError(f"could not infer MBPP entry point from test: {test}")
+        names.append(match.group(1))
+    if len(set(names)) != 1:
+        raise ValueError(f"MBPP tests reference multiple entry points: {sorted(set(names))}")
+    return names[0]
+
+
+def _signature_from_first_assert(test: str, entry_point: str) -> str:
+    match = ASSERT_CALL_ARGS_RE.search(test)
+    if match is None or match.group(1) != entry_point:
+        return "*args, **kwargs"
+    args = match.group(2).strip()
+    if not args:
+        return ""
+    return ", ".join(f"arg{index}" for index, _ in enumerate(_split_call_args(args), start=1))
+
+
+def _split_call_args(args: str) -> list[str]:
+    parts = []
+    depth = 0
+    in_string: str | None = None
+    escaped = False
+    start = 0
+    for index, char in enumerate(args):
+        if in_string is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+            continue
+        if char in {"'", '"'}:
+            in_string = char
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            parts.append(args[start:index].strip())
+            start = index + 1
+    parts.append(args[start:].strip())
+    return [part for part in parts if part]
+
+
+def _mbpp_prompt(prompt: str, entry_point: str, signature: str) -> str:
+    return "\n".join(
+        [
+            f"# {prompt}",
+            f"def {entry_point}({signature}):",
+            "    ",
+        ]
+    )
+
+
+def _mbpp_check_source(
+    test_imports: Sequence[str],
+    test_list: Sequence[str],
+    entry_point: str,
+) -> str:
+    rewritten_tests = [
+        ASSERT_CALL_RE.sub("assert candidate(", test, count=1) for test in test_list
+    ]
+    body = "\n    ".join(rewritten_tests)
+    imports = "\n".join(test_imports)
+    return "\n".join(
+        line
+        for line in [
+            imports,
+            f"def check(candidate):\n    {body}",
+        ]
+        if line
+    )
 
 
 def _problem_id(source: str, prompt: str, entry_point: str) -> str:

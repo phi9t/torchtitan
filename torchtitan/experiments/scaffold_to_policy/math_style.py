@@ -349,6 +349,43 @@ def import_public_rows(
     return problems
 
 
+def import_aime_rows(
+    rows: Iterable[dict[str, object]],
+    *,
+    source: str,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[MathStyleProblem]:
+    problems = []
+    for row_index, row in enumerate(rows):
+        if row_index < offset:
+            continue
+        if limit is not None and len(problems) >= limit:
+            break
+        problem = str(row.get("problem") or row.get("Problem"))
+        answer = str(row.get("answer") or row.get("Answer")).zfill(3)
+        normalized_answer = normalize_answer(answer)
+        if normalized_answer is None:
+            raise ValueError(f"could not normalize AIME answer {answer!r}")
+        solution_value = row.get("solution") or row.get("Solution")
+        problem_id = str(row.get("id") or row.get("ID") or _problem_id(source, problem, answer))
+        if not problem_id.startswith("AIME/"):
+            problem_id = f"AIME/{problem_id}"
+        problems.append(
+            MathStyleProblem(
+                problem_id=problem_id,
+                source=source,
+                problem=problem,
+                answer=answer,
+                normalized_answer=normalized_answer,
+                solution=None if solution_value is None else str(solution_value),
+                level="AIME",
+                category="contest_math",
+            )
+        )
+    return problems
+
+
 def extract_answer_from_solution(solution: str) -> str:
     boxed = _extract_last_command_arg(solution, r"\boxed")
     if boxed is None:

@@ -30,6 +30,7 @@ from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
 from torchtitan.experiments.scaffold_to_policy import modular_sequences
+from torchtitan.experiments.scaffold_to_policy import multiple_choice
 
 
 def generate_arithmetic_words(args: argparse.Namespace) -> None:
@@ -134,6 +135,107 @@ def import_math_split(args: argparse.Namespace) -> None:
         math_style.write_json(args.provenance, provenance)
 
 
+def import_aime_split(args: argparse.Namespace) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "datasets is required for import-aime-split. Run through the "
+            "TorchTitan rootfs."
+        ) from exc
+
+    if args.subset:
+        dataset = load_dataset(
+            args.dataset,
+            args.subset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    else:
+        dataset = load_dataset(
+            args.dataset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    source = math_style._public_source(
+        args.dataset,
+        args.subset or "default",
+        args.revision,
+        args.source_split,
+    )
+    problems = math_style.import_aime_rows(
+        dataset,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    math_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    if args.provenance is not None:
+        provenance = math_style.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset or "default",
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        math_style.write_json(args.provenance, provenance)
+
+
+def import_gpqa_split(args: argparse.Namespace) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "datasets is required for import-gpqa-split. Run through the "
+            "TorchTitan rootfs."
+        ) from exc
+
+    if args.subset:
+        dataset = load_dataset(
+            args.dataset,
+            args.subset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    else:
+        dataset = load_dataset(
+            args.dataset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    source = multiple_choice._public_source(
+        args.dataset,
+        args.subset,
+        args.revision,
+        args.source_split,
+    )
+    problems = multiple_choice.import_gpqa_rows(
+        dataset,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    multiple_choice.write_jsonl(
+        args.output,
+        [problem.to_json() for problem in problems],
+    )
+    if args.provenance is not None:
+        provenance = multiple_choice.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        multiple_choice.write_json(args.provenance, provenance)
+
+
 def import_humaneval_split(args: argparse.Namespace) -> None:
     try:
         from datasets import load_dataset
@@ -163,6 +265,55 @@ def import_humaneval_split(args: argparse.Namespace) -> None:
         args.source_split,
     )
     problems = coding_style.import_public_rows(
+        dataset,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    coding_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    if args.provenance is not None:
+        provenance = coding_style.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        coding_style.write_json(args.provenance, provenance)
+
+
+def import_mbpp_split(args: argparse.Namespace) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "datasets is required for import-mbpp-split. Run through the "
+            "TorchTitan rootfs."
+        ) from exc
+
+    if args.subset:
+        dataset = load_dataset(
+            args.dataset,
+            args.subset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    else:
+        dataset = load_dataset(
+            args.dataset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    source = coding_style._public_source(
+        args.dataset,
+        args.subset,
+        args.revision,
+        args.source_split,
+    )
+    problems = coding_style.import_mbpp_rows(
         dataset,
         source=source,
         limit=args.limit,
@@ -221,6 +372,14 @@ def validate_coding_style_splits(args: argparse.Namespace) -> None:
     coding_style.write_json(args.output, registry)
     if not registry["selected"]:
         raise SystemExit("coding-style split validation failed")
+
+
+def validate_multiple_choice_splits(args: argparse.Namespace) -> None:
+    split_paths = _parse_split_paths(args.split)
+    registry = multiple_choice.build_split_registry(split_paths)
+    multiple_choice.write_json(args.output, registry)
+    if not registry["selected"]:
+        raise SystemExit("multiple-choice split validation failed")
 
 
 def evaluate_arithmetic_fixture(args: argparse.Namespace) -> None:
@@ -330,6 +489,29 @@ def evaluate_coding_style_fixture(args: argparse.Namespace) -> None:
     coding_style.write_json(
         args.summary,
         coding_style.summarize_evaluations(evaluations),
+    )
+
+
+def evaluate_multiple_choice_fixture(args: argparse.Namespace) -> None:
+    problems = multiple_choice.load_problems(args.problems)
+    fixture = _load_fixture(args.rollouts)
+    evaluations = []
+    for problem in problems:
+        if problem.problem_id not in fixture:
+            raise ValueError(f"missing rollouts for {problem.problem_id}")
+        evaluations.append(
+            multiple_choice.evaluate_fixture_rollouts(
+                problem,
+                fixture[problem.problem_id][: args.max_rollouts],
+            )
+        )
+    multiple_choice.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    multiple_choice.write_json(
+        args.summary,
+        multiple_choice.summarize_evaluations(evaluations),
     )
 
 
@@ -588,6 +770,54 @@ def evaluate_coding_style_vllm(args: argparse.Namespace) -> None:
     )
 
 
+def evaluate_multiple_choice_vllm(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-multiple-choice-vllm. Run through "
+            "the TorchTitan rootfs or use evaluate-multiple-choice-fixture."
+        ) from exc
+
+    problems = multiple_choice.load_problems(args.problems)
+    prompts = _build_multiple_choice_vllm_prompts(problems, args)
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(prompts, sampling_params)
+    evaluations = []
+    for problem, output in zip(problems, outputs):
+        evaluations.append(
+            multiple_choice.evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+            )
+        )
+    multiple_choice.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    multiple_choice.write_json(
+        args.summary,
+        multiple_choice.summarize_evaluations(evaluations),
+    )
+
+
 def build_arithmetic_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
     report_input = build_report_input(
@@ -680,6 +910,24 @@ def build_coding_style_report_input(args: argparse.Namespace) -> None:
         raise SystemExit(f"coding-style report input failed: {', '.join(failed)}")
 
 
+def build_multiple_choice_report_input(args: argparse.Namespace) -> None:
+    summary_paths = _parse_split_paths(args.summary)
+    report_input = multiple_choice.build_report_input(
+        data_root=args.data_root,
+        results_root=args.results_root,
+        run_id=args.run_id,
+        split_registry=args.split_registry,
+        summary_paths=summary_paths,
+        scaffold_budget=args.scaffold_budget,
+    )
+    multiple_choice.write_json(args.output, report_input)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(f"multiple-choice report input failed: {', '.join(failed)}")
+
+
 def write_external_harness_smoke(args: argparse.Namespace) -> None:
     if args.harness_family == "harbor_terminal":
         pins = external_harness.default_harbor_terminal_pins()
@@ -720,6 +968,25 @@ def write_tau2_mock_score_smoke(args: argparse.Namespace) -> None:
         run_id=args.run_id,
         task_id=args.task_id,
         evaluation_type=args.evaluation_type,
+    )
+
+
+def write_terminal_bench_result_smoke(args: argparse.Namespace) -> None:
+    external_harness.write_terminal_bench_result_smoke(
+        output=args.output,
+        run_id=args.run_id,
+        task_id=args.task_id,
+    )
+
+
+def write_terminal_bench_execution_probe(args: argparse.Namespace) -> None:
+    external_harness.write_terminal_bench_execution_probe(
+        output=args.output,
+        run_id=args.run_id,
+        task_id=args.task_id,
+        command=args.command,
+        cwd=args.cwd,
+        timeout_seconds=args.timeout_seconds,
     )
 
 
@@ -1007,6 +1274,41 @@ def _build_coding_style_vllm_prompts(
     ]
 
 
+def _build_multiple_choice_vllm_prompts(
+    problems: list[multiple_choice.MultipleChoiceProblem],
+    args: argparse.Namespace,
+) -> list[str]:
+    if args.prompt_variant == "plain":
+        return [multiple_choice.prompt_for_problem(problem) for problem in problems]
+    if args.prompt_variant != "chat":
+        raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return [
+        tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You answer difficult multiple-choice reasoning questions. "
+                        "Return a short reasoning trace and end with exactly "
+                        "FINAL: <A|B|C|D>."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": multiple_choice.prompt_for_problem(problem),
+                },
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        for problem in problems
+    ]
+
+
 def _concise_modular_prompt(problem: ModularSequenceProblem) -> str:
     return (
         f"x0={problem.start}; for i=1..{problem.steps}, "
@@ -1089,6 +1391,28 @@ def build_parser() -> argparse.ArgumentParser:
     math_import_parser.add_argument("--offset", type=int, default=0)
     math_import_parser.set_defaults(func=import_math_split)
 
+    aime_import_parser = subparsers.add_parser("import-aime-split")
+    aime_import_parser.add_argument("--output", type=Path, required=True)
+    aime_import_parser.add_argument("--provenance", type=Path)
+    aime_import_parser.add_argument("--dataset", default="HuggingFaceH4/aime_2024")
+    aime_import_parser.add_argument("--subset")
+    aime_import_parser.add_argument("--source-split", default="train")
+    aime_import_parser.add_argument("--revision", required=True)
+    aime_import_parser.add_argument("--limit", type=int, required=True)
+    aime_import_parser.add_argument("--offset", type=int, default=0)
+    aime_import_parser.set_defaults(func=import_aime_split)
+
+    gpqa_import_parser = subparsers.add_parser("import-gpqa-split")
+    gpqa_import_parser.add_argument("--output", type=Path, required=True)
+    gpqa_import_parser.add_argument("--provenance", type=Path)
+    gpqa_import_parser.add_argument("--dataset", default="Idavidrein/gpqa")
+    gpqa_import_parser.add_argument("--subset", default="gpqa_diamond")
+    gpqa_import_parser.add_argument("--source-split", default="train")
+    gpqa_import_parser.add_argument("--revision", required=True)
+    gpqa_import_parser.add_argument("--limit", type=int, required=True)
+    gpqa_import_parser.add_argument("--offset", type=int, default=0)
+    gpqa_import_parser.set_defaults(func=import_gpqa_split)
+
     humaneval_import_parser = subparsers.add_parser("import-humaneval-split")
     humaneval_import_parser.add_argument("--output", type=Path, required=True)
     humaneval_import_parser.add_argument("--provenance", type=Path)
@@ -1099,6 +1423,20 @@ def build_parser() -> argparse.ArgumentParser:
     humaneval_import_parser.add_argument("--limit", type=int, required=True)
     humaneval_import_parser.add_argument("--offset", type=int, default=0)
     humaneval_import_parser.set_defaults(func=import_humaneval_split)
+
+    mbpp_import_parser = subparsers.add_parser("import-mbpp-split")
+    mbpp_import_parser.add_argument("--output", type=Path, required=True)
+    mbpp_import_parser.add_argument("--provenance", type=Path)
+    mbpp_import_parser.add_argument(
+        "--dataset",
+        default="google-research-datasets/mbpp",
+    )
+    mbpp_import_parser.add_argument("--subset", default="sanitized")
+    mbpp_import_parser.add_argument("--source-split", default="test")
+    mbpp_import_parser.add_argument("--revision", required=True)
+    mbpp_import_parser.add_argument("--limit", type=int, required=True)
+    mbpp_import_parser.add_argument("--offset", type=int, default=0)
+    mbpp_import_parser.set_defaults(func=import_mbpp_split)
 
     fixture_writer = subparsers.add_parser("write-arithmetic-fixture")
     fixture_writer.add_argument("--problems", type=Path, required=True)
@@ -1155,6 +1493,16 @@ def build_parser() -> argparse.ArgumentParser:
     coding_eval_parser.add_argument("--max-rollouts", type=int, default=32)
     coding_eval_parser.add_argument("--timeout-seconds", type=float, default=5.0)
     coding_eval_parser.set_defaults(func=evaluate_coding_style_fixture)
+
+    multiple_choice_eval_parser = subparsers.add_parser(
+        "evaluate-multiple-choice-fixture"
+    )
+    multiple_choice_eval_parser.add_argument("--problems", type=Path, required=True)
+    multiple_choice_eval_parser.add_argument("--rollouts", type=Path, required=True)
+    multiple_choice_eval_parser.add_argument("--output", type=Path, required=True)
+    multiple_choice_eval_parser.add_argument("--summary", type=Path, required=True)
+    multiple_choice_eval_parser.add_argument("--max-rollouts", type=int, default=32)
+    multiple_choice_eval_parser.set_defaults(func=evaluate_multiple_choice_fixture)
 
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)
@@ -1346,6 +1694,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
     coding_vllm_parser.set_defaults(func=evaluate_coding_style_vllm)
 
+    multiple_choice_vllm_parser = subparsers.add_parser("evaluate-multiple-choice-vllm")
+    multiple_choice_vllm_parser.add_argument("--problems", type=Path, required=True)
+    multiple_choice_vllm_parser.add_argument("--model", required=True)
+    multiple_choice_vllm_parser.add_argument("--output", type=Path, required=True)
+    multiple_choice_vllm_parser.add_argument("--summary", type=Path, required=True)
+    multiple_choice_vllm_parser.add_argument("--num-rollouts", type=int, default=4)
+    multiple_choice_vllm_parser.add_argument("--temperature", type=float, default=0.2)
+    multiple_choice_vllm_parser.add_argument("--top-p", type=float, default=0.95)
+    multiple_choice_vllm_parser.add_argument("--max-new-tokens", type=int, default=512)
+    multiple_choice_vllm_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    multiple_choice_vllm_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "2048")),
+    )
+    multiple_choice_vllm_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    multiple_choice_vllm_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    multiple_choice_vllm_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    multiple_choice_vllm_parser.set_defaults(func=evaluate_multiple_choice_vllm)
+
     split_parser = subparsers.add_parser("validate-arithmetic-splits")
     split_parser.add_argument("--split", nargs="+", required=True)
     split_parser.add_argument("--output", type=Path, required=True)
@@ -1370,6 +1755,13 @@ def build_parser() -> argparse.ArgumentParser:
     coding_split_parser.add_argument("--split", nargs="+", required=True)
     coding_split_parser.add_argument("--output", type=Path, required=True)
     coding_split_parser.set_defaults(func=validate_coding_style_splits)
+
+    multiple_choice_split_parser = subparsers.add_parser(
+        "validate-multiple-choice-splits"
+    )
+    multiple_choice_split_parser.add_argument("--split", nargs="+", required=True)
+    multiple_choice_split_parser.add_argument("--output", type=Path, required=True)
+    multiple_choice_split_parser.set_defaults(func=validate_multiple_choice_splits)
 
     report_parser = subparsers.add_parser("build-arithmetic-report-input")
     report_parser.add_argument("--data-root", type=Path, required=True)
@@ -1445,6 +1837,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     coding_report_parser.set_defaults(func=build_coding_style_report_input)
 
+    multiple_choice_report_parser = subparsers.add_parser(
+        "build-multiple-choice-report-input"
+    )
+    multiple_choice_report_parser.add_argument("--data-root", type=Path, required=True)
+    multiple_choice_report_parser.add_argument("--results-root", type=Path, required=True)
+    multiple_choice_report_parser.add_argument("--run-id", required=True)
+    multiple_choice_report_parser.add_argument(
+        "--split-registry",
+        type=Path,
+        required=True,
+    )
+    multiple_choice_report_parser.add_argument("--summary", nargs="+", required=True)
+    multiple_choice_report_parser.add_argument("--output", type=Path, required=True)
+    multiple_choice_report_parser.add_argument("--scaffold-budget", type=int, default=4)
+    multiple_choice_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    multiple_choice_report_parser.set_defaults(
+        func=build_multiple_choice_report_input
+    )
+
     math_rescore_parser = subparsers.add_parser("rescore-math-style-evaluations")
     math_rescore_parser.add_argument("--evaluations", type=Path, required=True)
     math_rescore_parser.add_argument("--output", type=Path, required=True)
@@ -1503,6 +1918,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     tau2_score_parser.add_argument("--output", type=Path, required=True)
     tau2_score_parser.set_defaults(func=write_tau2_mock_score_smoke)
+
+    terminal_result_parser = subparsers.add_parser(
+        "write-terminal-bench-result-smoke"
+    )
+    terminal_result_parser.add_argument("--run-id", required=True)
+    terminal_result_parser.add_argument("--task-id", default="headless-terminal")
+    terminal_result_parser.add_argument("--output", type=Path, required=True)
+    terminal_result_parser.set_defaults(func=write_terminal_bench_result_smoke)
+
+    terminal_probe_parser = subparsers.add_parser(
+        "write-terminal-bench-execution-probe"
+    )
+    terminal_probe_parser.add_argument("--run-id", required=True)
+    terminal_probe_parser.add_argument("--task-id", required=True)
+    terminal_probe_parser.add_argument("--cwd", type=Path, required=True)
+    terminal_probe_parser.add_argument("--timeout-seconds", type=float, default=120.0)
+    terminal_probe_parser.add_argument("--output", type=Path, required=True)
+    terminal_probe_parser.add_argument("command", nargs=argparse.REMAINDER)
+    terminal_probe_parser.set_defaults(func=write_terminal_bench_execution_probe)
 
     external_ingest_parser = subparsers.add_parser("ingest-external-harness-smoke")
     external_ingest_parser.add_argument("--raw-result", type=Path, required=True)

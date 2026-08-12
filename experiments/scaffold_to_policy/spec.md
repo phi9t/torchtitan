@@ -463,3 +463,38 @@ reasoning benchmarks.
   trajectory. It still does not clear full tau2 agent execution because no
   external benchmark agent, user simulator, local model provider, or non-fixture
   trajectory was run.
+- 2026-08-12: Added harder public reasoning gates for AIME and GPQA-style
+  multiple choice. The new `import-aime-split` command ingests public AIME rows
+  into the conservative MATH-style exact-answer verifier, while the new
+  `multiple_choice` module supports exact `FINAL: <A|B|C|D>` scoring for
+  GPQA-style rows. The first AIME rootfs/vLLM smoke used
+  `HuggingFaceH4/aime_2024`, 2 dev and 2 OOD examples, and 2 rollouts per
+  problem. It reached pass@1/pass@2 0.000 on both splits, with failures split
+  between missing final answers and wrong final values. This clears the
+  hard-reasoning plumbing gate and provides a useful hard-negative calibration
+  point, not a benchmark claim. The GPQA Diamond gate is implemented but, in the
+  unauthenticated rootfs, writes a blocker report because `Idavidrein/gpqa` is a
+  gated Hugging Face dataset requiring access credentials.
+- 2026-08-12: Added and ran the next coding-lane public smoke for MBPP. The new
+  `import-mbpp-split` command ingests `google-research-datasets/mbpp`
+  `sanitized`, infers each entry point from the released assert tests, wraps
+  those asserts into the shared executable `check(candidate)` verifier, and
+  records provenance and split hashes. The completed rootfs/vLLM smoke used 2
+  dev and 2 OOD examples with 2 rollouts per problem. Dev reached pass@1/pass@2
+  1.000; OOD reached pass@1/pass@2 0.500, with remaining failures classified as
+  type errors from wrong emitted function shape. This clears the MBPP coding
+  smoke gate but remains too small for a public benchmark claim.
+- 2026-08-12: Added and ran the Terminal-Bench / Harbor execution probe. The
+  rootfs-managed entrypoint installs `harbor==0.21.0` and
+  `terminal-bench==0.2.18` in an isolated venv, clones the pinned
+  Terminal-Bench 2.1 task repo at revision
+  `7131e4375048a0e408a8fb404b5f499d726b695b`, ingests a Terminal-Bench
+  result-model smoke, and attempts a one-task Harbor oracle run for
+  `headless-terminal`. The corrected execution path is Harbor's `harbor run`
+  because the pinned task repo uses the newer `task.toml` layout, while direct
+  `tb runs create` expects legacy `task.yaml` paths. The execution probe reached
+  the environment boundary and failed with `Docker is not installed or not on
+  PATH` inside the bwrap rootfs. This clears the package/task-layout diagnosis
+  and result-ingestion gate, but full Terminal-Bench/Harbor execution remains
+  blocked until Docker or an equivalent Harbor backend is available inside the
+  hermetic rootfs.
