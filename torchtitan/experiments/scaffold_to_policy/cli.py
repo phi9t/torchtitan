@@ -25,6 +25,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
 from torchtitan.experiments.scaffold_to_policy.modular_sequences import (
     ModularSequenceProblem,
 )
+from torchtitan.experiments.scaffold_to_policy import arc_grid
 from torchtitan.experiments.scaffold_to_policy import coding_style
 from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
@@ -236,6 +237,33 @@ def import_gpqa_split(args: argparse.Namespace) -> None:
         multiple_choice.write_json(args.provenance, provenance)
 
 
+def import_arc_grid_split(args: argparse.Namespace) -> None:
+    task_dir = args.task_dir / args.source_split
+    task_paths = sorted(task_dir.glob("*.json"))
+    if not task_paths:
+        raise ValueError(f"no ARC task JSON files found in {task_dir}")
+    source = f"{args.repo_url}:{args.revision}:{args.source_split}"
+    problems = arc_grid.import_arc_tasks(
+        task_paths,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    arc_grid.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    if args.provenance is not None:
+        provenance = arc_grid.build_public_provenance(
+            repo_url=args.repo_url,
+            revision=args.revision,
+            source_split=args.source_split,
+            task_dir=task_dir,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        arc_grid.write_json(args.provenance, provenance)
+
+
 def import_humaneval_split(args: argparse.Namespace) -> None:
     try:
         from datasets import load_dataset
@@ -334,6 +362,55 @@ def import_mbpp_split(args: argparse.Namespace) -> None:
         coding_style.write_json(args.provenance, provenance)
 
 
+def import_bigcodebench_split(args: argparse.Namespace) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "datasets is required for import-bigcodebench-split. Run through "
+            "the TorchTitan rootfs."
+        ) from exc
+
+    if args.subset:
+        dataset = load_dataset(
+            args.dataset,
+            args.subset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    else:
+        dataset = load_dataset(
+            args.dataset,
+            split=args.source_split,
+            revision=args.revision,
+        )
+    source = coding_style._public_source(
+        args.dataset,
+        args.subset,
+        args.revision,
+        args.source_split,
+    )
+    problems = coding_style.import_bigcodebench_rows(
+        dataset,
+        source=source,
+        limit=args.limit,
+        offset=args.offset,
+    )
+    coding_style.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    if args.provenance is not None:
+        provenance = coding_style.build_public_provenance(
+            dataset=args.dataset,
+            subset=args.subset,
+            revision=args.revision,
+            source_split=args.source_split,
+            output=args.output,
+            limit=args.limit,
+            offset=args.offset,
+            problems=problems,
+        )
+        coding_style.write_json(args.provenance, provenance)
+
+
 def validate_arithmetic_splits(args: argparse.Namespace) -> None:
     split_paths = _parse_split_paths(args.split)
     registry = build_split_registry(split_paths)
@@ -380,6 +457,14 @@ def validate_multiple_choice_splits(args: argparse.Namespace) -> None:
     multiple_choice.write_json(args.output, registry)
     if not registry["selected"]:
         raise SystemExit("multiple-choice split validation failed")
+
+
+def validate_arc_grid_splits(args: argparse.Namespace) -> None:
+    split_paths = _parse_split_paths(args.split)
+    registry = arc_grid.build_split_registry(split_paths)
+    arc_grid.write_json(args.output, registry)
+    if not registry["selected"]:
+        raise SystemExit("arc-grid split validation failed")
 
 
 def evaluate_arithmetic_fixture(args: argparse.Namespace) -> None:
@@ -512,6 +597,29 @@ def evaluate_multiple_choice_fixture(args: argparse.Namespace) -> None:
     multiple_choice.write_json(
         args.summary,
         multiple_choice.summarize_evaluations(evaluations),
+    )
+
+
+def evaluate_arc_grid_fixture(args: argparse.Namespace) -> None:
+    problems = arc_grid.load_problems(args.problems)
+    fixture = _load_fixture(args.rollouts)
+    evaluations = []
+    for problem in problems:
+        if problem.problem_id not in fixture:
+            raise ValueError(f"missing rollouts for {problem.problem_id}")
+        evaluations.append(
+            arc_grid.evaluate_fixture_rollouts(
+                problem,
+                fixture[problem.problem_id][: args.max_rollouts],
+            )
+        )
+    arc_grid.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    arc_grid.write_json(
+        args.summary,
+        arc_grid.summarize_evaluations(evaluations),
     )
 
 
@@ -818,6 +926,54 @@ def evaluate_multiple_choice_vllm(args: argparse.Namespace) -> None:
     )
 
 
+def evaluate_arc_grid_vllm(args: argparse.Namespace) -> None:
+    os.environ.setdefault(
+        "VLLM_USE_FLASHINFER_SAMPLER",
+        args.use_flashinfer_sampler,
+    )
+    try:
+        from vllm import LLM, SamplingParams
+    except ImportError as exc:
+        raise RuntimeError(
+            "vLLM is required for evaluate-arc-grid-vllm. Run through "
+            "the TorchTitan rootfs or use evaluate-arc-grid-fixture."
+        ) from exc
+
+    problems = arc_grid.load_problems(args.problems)
+    prompts = _build_arc_grid_vllm_prompts(problems, args)
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_new_tokens,
+        n=args.num_rollouts,
+    )
+    llm_kwargs = {
+        "model": args.model,
+        "attention_backend": args.attention_backend,
+        "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
+    }
+    if args.max_model_len is not None:
+        llm_kwargs["max_model_len"] = args.max_model_len
+    llm = LLM(**llm_kwargs)
+    outputs = llm.generate(prompts, sampling_params)
+    evaluations = []
+    for problem, output in zip(problems, outputs):
+        evaluations.append(
+            arc_grid.evaluate_fixture_rollouts(
+                problem,
+                [candidate.text for candidate in output.outputs],
+            )
+        )
+    arc_grid.write_jsonl(
+        args.output,
+        [evaluation.to_json() for evaluation in evaluations],
+    )
+    arc_grid.write_json(
+        args.summary,
+        arc_grid.summarize_evaluations(evaluations),
+    )
+
+
 def build_arithmetic_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
     report_input = build_report_input(
@@ -926,6 +1082,24 @@ def build_multiple_choice_report_input(args: argparse.Namespace) -> None:
             name for name, passed in report_input["checks"].items() if not passed
         ]
         raise SystemExit(f"multiple-choice report input failed: {', '.join(failed)}")
+
+
+def build_arc_grid_report_input(args: argparse.Namespace) -> None:
+    summary_paths = _parse_split_paths(args.summary)
+    report_input = arc_grid.build_report_input(
+        data_root=args.data_root,
+        results_root=args.results_root,
+        run_id=args.run_id,
+        split_registry=args.split_registry,
+        summary_paths=summary_paths,
+        scaffold_budget=args.scaffold_budget,
+    )
+    arc_grid.write_json(args.output, report_input)
+    if args.require_selected and not all(report_input["checks"].values()):
+        failed = [
+            name for name, passed in report_input["checks"].items() if not passed
+        ]
+        raise SystemExit(f"arc-grid report input failed: {', '.join(failed)}")
 
 
 def write_external_harness_smoke(args: argparse.Namespace) -> None:
@@ -1309,6 +1483,41 @@ def _build_multiple_choice_vllm_prompts(
     ]
 
 
+def _build_arc_grid_vllm_prompts(
+    problems: list[arc_grid.ARCGridProblem],
+    args: argparse.Namespace,
+) -> list[str]:
+    if args.prompt_variant == "plain":
+        return [arc_grid.prompt_for_problem(problem) for problem in problems]
+    if args.prompt_variant != "chat":
+        raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return [
+        tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You solve ARC grid transformation tasks. Infer the "
+                        "rule from examples and end with exactly "
+                        "FINAL: <json-grid>."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": arc_grid.prompt_for_problem(problem),
+                },
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        for problem in problems
+    ]
+
+
 def _concise_modular_prompt(problem: ModularSequenceProblem) -> str:
     return (
         f"x0={problem.start}; for i=1..{problem.steps}, "
@@ -1413,6 +1622,20 @@ def build_parser() -> argparse.ArgumentParser:
     gpqa_import_parser.add_argument("--offset", type=int, default=0)
     gpqa_import_parser.set_defaults(func=import_gpqa_split)
 
+    arc_import_parser = subparsers.add_parser("import-arc-grid-split")
+    arc_import_parser.add_argument("--task-dir", type=Path, required=True)
+    arc_import_parser.add_argument("--output", type=Path, required=True)
+    arc_import_parser.add_argument("--provenance", type=Path)
+    arc_import_parser.add_argument(
+        "--repo-url",
+        default="https://github.com/arcprize/ARC-AGI-2.git",
+    )
+    arc_import_parser.add_argument("--source-split", default="training")
+    arc_import_parser.add_argument("--revision", required=True)
+    arc_import_parser.add_argument("--limit", type=int, required=True)
+    arc_import_parser.add_argument("--offset", type=int, default=0)
+    arc_import_parser.set_defaults(func=import_arc_grid_split)
+
     humaneval_import_parser = subparsers.add_parser("import-humaneval-split")
     humaneval_import_parser.add_argument("--output", type=Path, required=True)
     humaneval_import_parser.add_argument("--provenance", type=Path)
@@ -1437,6 +1660,22 @@ def build_parser() -> argparse.ArgumentParser:
     mbpp_import_parser.add_argument("--limit", type=int, required=True)
     mbpp_import_parser.add_argument("--offset", type=int, default=0)
     mbpp_import_parser.set_defaults(func=import_mbpp_split)
+
+    bigcodebench_import_parser = subparsers.add_parser(
+        "import-bigcodebench-split"
+    )
+    bigcodebench_import_parser.add_argument("--output", type=Path, required=True)
+    bigcodebench_import_parser.add_argument("--provenance", type=Path)
+    bigcodebench_import_parser.add_argument(
+        "--dataset",
+        default="bigcode/bigcodebench-hard",
+    )
+    bigcodebench_import_parser.add_argument("--subset")
+    bigcodebench_import_parser.add_argument("--source-split", default="v0.1.4")
+    bigcodebench_import_parser.add_argument("--revision", required=True)
+    bigcodebench_import_parser.add_argument("--limit", type=int, required=True)
+    bigcodebench_import_parser.add_argument("--offset", type=int, default=0)
+    bigcodebench_import_parser.set_defaults(func=import_bigcodebench_split)
 
     fixture_writer = subparsers.add_parser("write-arithmetic-fixture")
     fixture_writer.add_argument("--problems", type=Path, required=True)
@@ -1503,6 +1742,14 @@ def build_parser() -> argparse.ArgumentParser:
     multiple_choice_eval_parser.add_argument("--summary", type=Path, required=True)
     multiple_choice_eval_parser.add_argument("--max-rollouts", type=int, default=32)
     multiple_choice_eval_parser.set_defaults(func=evaluate_multiple_choice_fixture)
+
+    arc_eval_parser = subparsers.add_parser("evaluate-arc-grid-fixture")
+    arc_eval_parser.add_argument("--problems", type=Path, required=True)
+    arc_eval_parser.add_argument("--rollouts", type=Path, required=True)
+    arc_eval_parser.add_argument("--output", type=Path, required=True)
+    arc_eval_parser.add_argument("--summary", type=Path, required=True)
+    arc_eval_parser.add_argument("--max-rollouts", type=int, default=32)
+    arc_eval_parser.set_defaults(func=evaluate_arc_grid_fixture)
 
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)
@@ -1731,6 +1978,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
     multiple_choice_vllm_parser.set_defaults(func=evaluate_multiple_choice_vllm)
 
+    arc_vllm_parser = subparsers.add_parser("evaluate-arc-grid-vllm")
+    arc_vllm_parser.add_argument("--problems", type=Path, required=True)
+    arc_vllm_parser.add_argument("--model", required=True)
+    arc_vllm_parser.add_argument("--output", type=Path, required=True)
+    arc_vllm_parser.add_argument("--summary", type=Path, required=True)
+    arc_vllm_parser.add_argument("--num-rollouts", type=int, default=2)
+    arc_vllm_parser.add_argument("--temperature", type=float, default=0.2)
+    arc_vllm_parser.add_argument("--top-p", type=float, default=0.95)
+    arc_vllm_parser.add_argument("--max-new-tokens", type=int, default=768)
+    arc_vllm_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    arc_vllm_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "4096")),
+    )
+    arc_vllm_parser.add_argument(
+        "--attention-backend",
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    arc_vllm_parser.add_argument(
+        "--enable-flashinfer-autotune",
+        action=argparse.BooleanOptionalAction,
+        default=bool(
+            int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_FLASHINFER_AUTOTUNE", "0"))
+        ),
+    )
+    arc_vllm_parser.add_argument(
+        "--use-flashinfer-sampler",
+        choices=["0", "1"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
+    )
+    arc_vllm_parser.set_defaults(func=evaluate_arc_grid_vllm)
+
     split_parser = subparsers.add_parser("validate-arithmetic-splits")
     split_parser.add_argument("--split", nargs="+", required=True)
     split_parser.add_argument("--output", type=Path, required=True)
@@ -1762,6 +2046,11 @@ def build_parser() -> argparse.ArgumentParser:
     multiple_choice_split_parser.add_argument("--split", nargs="+", required=True)
     multiple_choice_split_parser.add_argument("--output", type=Path, required=True)
     multiple_choice_split_parser.set_defaults(func=validate_multiple_choice_splits)
+
+    arc_split_parser = subparsers.add_parser("validate-arc-grid-splits")
+    arc_split_parser.add_argument("--split", nargs="+", required=True)
+    arc_split_parser.add_argument("--output", type=Path, required=True)
+    arc_split_parser.set_defaults(func=validate_arc_grid_splits)
 
     report_parser = subparsers.add_parser("build-arithmetic-report-input")
     report_parser.add_argument("--data-root", type=Path, required=True)
@@ -1859,6 +2148,21 @@ def build_parser() -> argparse.ArgumentParser:
     multiple_choice_report_parser.set_defaults(
         func=build_multiple_choice_report_input
     )
+
+    arc_report_parser = subparsers.add_parser("build-arc-grid-report-input")
+    arc_report_parser.add_argument("--data-root", type=Path, required=True)
+    arc_report_parser.add_argument("--results-root", type=Path, required=True)
+    arc_report_parser.add_argument("--run-id", required=True)
+    arc_report_parser.add_argument("--split-registry", type=Path, required=True)
+    arc_report_parser.add_argument("--summary", nargs="+", required=True)
+    arc_report_parser.add_argument("--output", type=Path, required=True)
+    arc_report_parser.add_argument("--scaffold-budget", type=int, default=2)
+    arc_report_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    arc_report_parser.set_defaults(func=build_arc_grid_report_input)
 
     math_rescore_parser = subparsers.add_parser("rescore-math-style-evaluations")
     math_rescore_parser.add_argument("--evaluations", type=Path, required=True)

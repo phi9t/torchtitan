@@ -318,6 +318,25 @@ claiming a score. With `HF_TOKEN` configured and access granted, the same
 entrypoint imports `Idavidrein/gpqa` `gpqa_diamond`, evaluates no-tool
 multiple-choice prompts, and verifies exact `FINAL: <A|B|C|D>` outputs.
 
+Run the first ARC-AGI-2 no-tool smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_arc_agi2_public_vllm_smoke.sh
+```
+
+This clones `https://github.com/arcprize/ARC-AGI-2.git` at revision
+`f3283f727488ad98fe575ea6a5ac981e4a188e49`, imports small task slices from the
+released JSON files, evaluates Qwen3-1.7B with vLLM, and scores exact JSON grid
+outputs with `FINAL: <json-grid>`. The first completed smoke used 2 dev and 2
+OOD examples with 2 rollouts per problem. Dev reached pass@1 `0.000` and
+pass@2 `0.500`; OOD reached pass@1/pass@2 `0.000`. The dominant failure mode
+was format-contract failure where the model emitted `FINAL: <json-grid>`
+literally or emitted an incorrect grid. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T092000Z-arc-bigcodebench-hard-smokes.md
+```
+
 ## Initial Coding Benchmarks
 
 The first coding lane uses `coding_style`, a repo-owned executable-test harness
@@ -365,6 +384,25 @@ problem. It reached dev pass@1 `1.000`, dev pass@2 `1.000`, OOD pass@1
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T084000Z-mbpp-public-vllm-smoke.md
+```
+
+Run the first pinned BigCodeBench-Hard no-tool smoke through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
+```
+
+This imports `bigcode/bigcodebench-hard` split `v0.1.4`, wraps each released
+`unittest` suite into the shared executable `check(candidate)` verifier,
+evaluates Qwen3-1.7B with vLLM, and executes candidates in an isolated Python
+subprocess. The first attempted smoke exposed a missing rootfs `matplotlib`
+dependency on one OOD task; after installing `matplotlib` inside the bwrap
+rootfs, the repaired run used 2 dev and 2 OOD examples with 2 rollouts per
+problem. Both splits reached pass@1/pass@2 `0.000`, with all final failures
+classified as assertion failures from the benchmark tests. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T092000Z-arc-bigcodebench-hard-smokes.md
 ```
 
 ## Agentic Benchmarks

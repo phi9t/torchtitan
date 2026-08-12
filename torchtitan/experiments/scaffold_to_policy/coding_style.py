@@ -351,6 +351,39 @@ def import_mbpp_rows(
     return problems
 
 
+def import_bigcodebench_rows(
+    rows: Iterable[dict[str, object]],
+    *,
+    source: str,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[CodingStyleProblem]:
+    problems = []
+    for row_index, row in enumerate(rows):
+        if row_index < offset:
+            continue
+        if limit is not None and len(problems) >= limit:
+            break
+        task_id = str(row["task_id"])
+        entry_point = str(row["entry_point"])
+        test = _bigcodebench_check_source(str(row["test"]), entry_point)
+        problems.append(
+            CodingStyleProblem(
+                problem_id=task_id,
+                source=source,
+                prompt=str(row["code_prompt"]),
+                test=test,
+                entry_point=entry_point,
+                canonical_solution=(
+                    None
+                    if row.get("canonical_solution") is None
+                    else str(row.get("canonical_solution"))
+                ),
+            )
+        )
+    return problems
+
+
 def build_public_provenance(
     *,
     dataset: str,
@@ -618,6 +651,20 @@ def _mbpp_check_source(
             f"def check(candidate):\n    {body}",
         ]
         if line
+    )
+
+
+def _bigcodebench_check_source(test: str, entry_point: str) -> str:
+    return "\n".join(
+        [
+            test.rstrip(),
+            "",
+            "def check(candidate):",
+            f"    globals()[{entry_point!r}] = candidate",
+            "    suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestCases)",
+            "    result = unittest.TextTestRunner(verbosity=0).run(suite)",
+            "    assert result.wasSuccessful()",
+        ]
     )
 
 

@@ -498,3 +498,28 @@ reasoning benchmarks.
   and result-ingestion gate, but full Terminal-Bench/Harbor execution remains
   blocked until Docker or an equivalent Harbor backend is available inside the
   hermetic rootfs.
+- 2026-08-12: Added and ran the ARC-AGI-2 exact-grid reasoning smoke. The new
+  `arc_grid` module imports upstream ARC task JSON files, prompts with released
+  train examples plus one test input, requires an exact `FINAL: <json-grid>`
+  line, and scores by exact grid equality with no partial credit or LLM judge.
+  The rootfs-managed entrypoint clones `https://github.com/arcprize/ARC-AGI-2.git`
+  at revision `f3283f727488ad98fe575ea6a5ac981e4a188e49`. The completed
+  rootfs/vLLM smoke `20260812T090000Z-arc-agi2-public-vllm-smoke` used 2 dev
+  and 2 OOD training-split tasks with 2 rollouts per problem. Dev reached
+  pass@1 0.000 and pass@2 0.500; OOD reached pass@1/pass@2 0.000. Failures
+  split between incorrect grids and format-contract misses where the model
+  emitted `FINAL: <json-grid>` literally before a grid. This clears a harder
+  exact-grid reasoning smoke only; it is not an ARC-AGI benchmark claim.
+- 2026-08-12: Added and ran the BigCodeBench-Hard executable coding smoke. The
+  new `import-bigcodebench-split` command imports `bigcode/bigcodebench-hard`
+  split `v0.1.4`, preserves the released `code_prompt`, `entry_point`, and
+  `unittest` suite, and wraps the suite into the shared executable
+  `check(candidate)` verifier. The first run
+  `20260812T090500Z-bigcodebench-hard-public-vllm-smoke` exposed a missing
+  rootfs `matplotlib` dependency on an OOD task. After installing `matplotlib`
+  inside the bwrap rootfs, the repaired run
+  `20260812T091500Z-bigcodebench-hard-public-vllm-smoke` used 2 dev and 2 OOD
+  examples with 2 rollouts per problem. Dev and OOD both reached
+  pass@1/pass@2 0.000, and all final failures were benchmark-test assertion
+  failures. This clears the BigCodeBench-Hard executable harness smoke and
+  rootfs dependency repair, but remains too small for a public benchmark claim.

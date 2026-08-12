@@ -18,6 +18,7 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     write_jsonl,
 )
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
+from torchtitan.experiments.scaffold_to_policy import arc_grid
 from torchtitan.experiments.scaffold_to_policy import coding_style
 from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
@@ -637,6 +638,101 @@ def test_multiple_choice_imports_gpqa_rows_and_reports(tmp_path):
     assert report_input["run"]["task"] == "multiple_choice"
 
 
+def test_arc_grid_verifier_requires_exact_final_json_grid():
+    problem = arc_grid.ARCGridProblem(
+        problem_id="ARC-AGI-2/fixture/0",
+        source="fixture",
+        train_examples=(
+            arc_grid.ARCExample(
+                input_grid=((1, 0), (0, 1)),
+                output_grid=((0, 1), (1, 0)),
+            ),
+        ),
+        test_input=((2, 0), (0, 2)),
+        test_output=((0, 2), (2, 0)),
+    )
+
+    missing = arc_grid.verify_answer(problem, "[[0,2],[2,0]]")
+    malformed = arc_grid.verify_answer(problem, "FINAL: not json")
+    wrong = arc_grid.verify_answer(problem, "FINAL: [[2,0],[0,2]]")
+    correct = arc_grid.verify_answer(problem, "trace\nFINAL: [[0,2],[2,0]]")
+
+    assert not missing.success
+    assert missing.error == "missing final grid"
+    assert not malformed.success
+    assert malformed.strict_final
+    assert not wrong.success
+    assert wrong.error == "final grid does not match answer"
+    assert correct.success
+
+
+def test_arc_grid_imports_tasks_and_reports(tmp_path):
+    task_dir = tmp_path / "arc" / "training"
+    task_dir.mkdir(parents=True)
+    task_path = task_dir / "abc12345.json"
+    task_path.write_text(
+        json.dumps(
+            {
+                "train": [
+                    {
+                        "input": [[1, 0], [0, 1]],
+                        "output": [[0, 1], [1, 0]],
+                    }
+                ],
+                "test": [
+                    {
+                        "input": [[2, 0], [0, 2]],
+                        "output": [[0, 2], [2, 0]],
+                    }
+                ],
+            }
+        )
+    )
+
+    problems = arc_grid.import_arc_tasks(
+        [task_path],
+        source="https://github.com/arcprize/ARC-AGI-2.git:abc:training",
+    )
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    arc_grid.write_jsonl(dev, [problem.to_json() for problem in problems])
+    split_registry = data_root / "split_registry.json"
+    arc_grid.write_json(
+        split_registry,
+        arc_grid.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    arc_grid.write_json(
+        summary,
+        arc_grid.summarize_evaluations(
+            [
+                arc_grid.evaluate_fixture_rollouts(
+                    problems[0],
+                    ["FINAL: [[9]]", "FINAL: [[0,2],[2,0]]"],
+                )
+            ],
+            ks=(1, 2),
+        ),
+    )
+
+    report_input = arc_grid.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        scaffold_budget=2,
+    )
+
+    assert problems[0].problem_id == "ARC-AGI-2/abc12345/0"
+    assert "FINAL: <json-grid>" in arc_grid.prompt_for_problem(problems[0])
+    assert json.loads(summary.read_text())["pass_at_k"] == {"1": 0.0, "2": 1.0}
+    assert all(report_input["checks"].values())
+    assert report_input["run"]["task"] == "arc_grid"
+    assert report_input["verifier"]["name"] == "arc_grid_exact_json_v1"
+
+
 def test_coding_style_verifier_runs_python_tests():
     problem = coding_style.CodingStyleProblem(
         problem_id="HumanEval/fixture",
@@ -748,6 +844,36 @@ def test_coding_style_imports_mbpp_rows_as_executable_checks():
     assert "def remove_Occ(arg1, arg2):" in problems[0].prompt
     assert "def check(candidate):" in problems[0].test
     assert verified.success
+
+
+def test_coding_style_imports_bigcodebench_rows_as_unittest_checks():
+    rows = [
+        {
+            "task_id": "BigCodeBench/fixture",
+            "code_prompt": "def task_func(x):\n    ",
+            "canonical_solution": "    return x + 1",
+            "test": (
+                "import unittest\n"
+                "class TestCases(unittest.TestCase):\n"
+                "    def test_increment(self):\n"
+                "        self.assertEqual(task_func(1), 2)\n"
+            ),
+            "entry_point": "task_func",
+        }
+    ]
+
+    problems = coding_style.import_bigcodebench_rows(
+        rows,
+        source="bigcode/bigcodebench-hard:v0.1.4",
+    )
+    correct = coding_style.verify_solution(problems[0], "return x + 1")
+    wrong = coding_style.verify_solution(problems[0], "return x + 2")
+
+    assert problems[0].problem_id == "BigCodeBench/fixture"
+    assert "unittest.defaultTestLoader" in problems[0].test
+    assert correct.success
+    assert not wrong.success
+    assert wrong.error == "assertion failure"
 
 
 def test_coding_style_report_input_validates_summary_counts(tmp_path):
@@ -872,9 +998,46 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "4",
         ]
     )
+    bigcodebench = parser.parse_args(
+        [
+            "import-bigcodebench-split",
+            "--output",
+            "dev.jsonl",
+            "--revision",
+            "main",
+            "--limit",
+            "4",
+        ]
+    )
+    arc = parser.parse_args(
+        [
+            "import-arc-grid-split",
+            "--task-dir",
+            "src/ARC-AGI-2/data",
+            "--output",
+            "dev.jsonl",
+            "--revision",
+            "main",
+            "--limit",
+            "4",
+        ]
+    )
     multiple = parser.parse_args(
         [
             "evaluate-multiple-choice-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+        ]
+    )
+    arc_eval = parser.parse_args(
+        [
+            "evaluate-arc-grid-vllm",
             "--problems",
             "problems.jsonl",
             "--model",
@@ -889,8 +1052,13 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert aime.dataset == "HuggingFaceH4/aime_2024"
     assert gpqa.subset == "gpqa_diamond"
     assert mbpp.dataset == "google-research-datasets/mbpp"
+    assert bigcodebench.dataset == "bigcode/bigcodebench-hard"
+    assert bigcodebench.source_split == "v0.1.4"
+    assert arc.source_split == "training"
     assert multiple.prompt_variant == "chat"
     assert multiple.num_rollouts == 4
+    assert arc_eval.prompt_variant == "chat"
+    assert arc_eval.max_model_len == 4096
 
 
 def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monkeypatch):
