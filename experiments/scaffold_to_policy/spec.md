@@ -566,6 +566,19 @@ reasoning benchmarks.
   preflight-blocked slice because two released canonical solutions failed under
   current rootfs library versions. The report is
   `experiments/scaffold_to_policy/reports/20260812T173000Z-bigcodebench-hard-expanded-calibration.md`.
+- 2026-08-12: Added the BigCodeBench-Hard `contract_chat` prompt condition and
+  a GPU-memory preflight to the BigCodeBench runner. `contract_chat` keeps the
+  no-tool executable-test condition but makes the system prompt explicit about
+  preserving the requested function signature and matching side effects,
+  returns, error behavior, and library calls. It does not expose tests or
+  verifier feedback. The attempted same-slice rerun
+  `20260812T183000Z-bigcodebench-hard-contract-chat-blocked` passed canonical
+  preflight 8/8 on dev and 8/8 on OOD, then stopped before vLLM generation
+  because `preflight-vllm-gpu-memory` found only 4.729 GiB free on cuda:0 versus
+  160.516 GiB required at `gpu_memory_utilization=0.9`. At inspection time all
+  eight B200s were occupied by unrelated `sglang::scheduler` processes. This is
+  a blocked prompt-condition attempt, not a model result. The report is
+  `experiments/scaffold_to_policy/reports/20260812T183000Z-bigcodebench-contract-chat-blocked.md`.
 - 2026-08-12: Ran the larger ARC-AGI-2 exact-grid calibration requested by the
   completion audit. The run
   `20260812T131000Z-arc-agi2-public-vllm-calibration` used 8 dev and 8 OOD

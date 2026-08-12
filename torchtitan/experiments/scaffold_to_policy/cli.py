@@ -1545,20 +1545,30 @@ def _build_coding_style_vllm_prompts(
 ) -> list[str]:
     if args.prompt_variant == "plain":
         return [coding_style.prompt_for_problem(problem) for problem in problems]
-    if args.prompt_variant != "chat":
+    if args.prompt_variant not in {"chat", "contract_chat"}:
         raise ValueError(f"unknown prompt variant: {args.prompt_variant}")
     from transformers import AutoTokenizer
 
+    if args.prompt_variant == "contract_chat":
+        system_content = (
+            "You solve Python programming tasks. Return only Python code, with "
+            "no Markdown. Preserve the requested function name and signature. "
+            "Use the imports and globals from the prompt. Implement the exact "
+            "side effects, return types, error behavior, and library calls that "
+            "the task description requires."
+        )
+    else:
+        system_content = (
+            "You solve Python programming tasks. Return only Python "
+            "code for the requested function, with no Markdown."
+        )
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     return [
         tokenizer.apply_chat_template(
             [
                 {
                     "role": "system",
-                    "content": (
-                        "You solve Python programming tasks. Return only Python "
-                        "code for the requested function, with no Markdown."
-                    ),
+                    "content": system_content,
                 },
                 {"role": "user", "content": coding_style.prompt_for_problem(problem)},
             ],
@@ -2115,7 +2125,7 @@ def build_parser() -> argparse.ArgumentParser:
     coding_vllm_parser.add_argument("--timeout-seconds", type=float, default=5.0)
     coding_vllm_parser.add_argument(
         "--prompt-variant",
-        choices=["plain", "chat"],
+        choices=["plain", "chat", "contract_chat"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
     )
     coding_vllm_parser.add_argument(

@@ -36,6 +36,7 @@ TEMPERATURE="${TEMPERATURE:-0.2}"
 TOP_P="${TOP_P:-0.95}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-10}"
 INSTALL_BIGCODEBENCH_DEPS="${INSTALL_BIGCODEBENCH_DEPS:-1}"
+GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
 
@@ -87,6 +88,10 @@ for split in dev ood_test; do
     --output "${RESULTS_ROOT}/eval/${split}_canonical_preflight.json" \
     --timeout-seconds "${TIMEOUT_SECONDS}"
 done
+
+python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
+  --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
 
 for split in dev ood_test; do
   python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-coding-style-vllm \

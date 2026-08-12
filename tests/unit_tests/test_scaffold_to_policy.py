@@ -1183,6 +1183,24 @@ def test_coding_style_parsers_default_to_pinned_public_humaneval_and_chat_prompt
     assert evaluated.num_rollouts == 4
     assert evaluated.max_new_tokens == 512
 
+    contract = parser.parse_args(
+        [
+            "evaluate-coding-style-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+            "--prompt-variant",
+            "contract_chat",
+        ]
+    )
+
+    assert contract.prompt_variant == "contract_chat"
+
 
 def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     parser = build_parser()

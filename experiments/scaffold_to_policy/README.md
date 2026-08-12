@@ -480,6 +480,27 @@ assertion failures. The expanded report is:
 experiments/scaffold_to_policy/reports/20260812T173000Z-bigcodebench-hard-expanded-calibration.md
 ```
 
+A follow-up `contract_chat` prompt condition is implemented but currently
+blocked by GPU memory contention, not by the coding harness:
+
+```bash
+RUN_ID=20260812T183000Z-bigcodebench-hard-contract-chat-blocked \
+DATA_ROOT=experiments/scaffold_to_policy/data/bigcodebench_hard_public_vllm_expanded_clean \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_blocked \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 DEV_OFFSET=0 OOD_OFFSET=72 \
+NUM_ROLLOUTS=4 MAX_NEW_TOKENS=1024 TIMEOUT_SECONDS=60 \
+PROMPT_VARIANT=contract_chat \
+experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
+```
+
+The same dev/OOD canonical preflight passed 8/8, then the new
+`preflight-vllm-gpu-memory` gate stopped before vLLM generation because cuda:0
+had only 4.729 GiB free versus 160.516 GiB required. The blocked report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T183000Z-bigcodebench-contract-chat-blocked.md
+```
+
 The current completion audit and blocker map is:
 
 ```text
