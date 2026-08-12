@@ -561,3 +561,15 @@ reasoning benchmarks.
   `ARC-AGI-2/009d5c81/0` and `ARC-AGI-2/00d62c1b/0` exceeding context. The
   8192-context preflight selected all dev and OOD problems; OOD max total tokens
   were 7497.
+- 2026-08-12: Added and ran a rootfs-managed tau2 upstream execution probe. The
+  new `run_tau2_execution_probe.sh` entrypoint installs Sierra tau2-bench from
+  revision `668d3bcd135c02aa3438f987ef45735b7c163ee3`, clones the pinned repo
+  for its `data/` directory, runs `tau2 check-data`, launches a bounded
+  `tau2 run` for mock-domain task `create_task_1`, and ingests tau2's saved
+  `results.json`. The completed probe
+  `20260812T132500Z-tau2-execution-probe` reached tau2's batch runner and
+  results writer, but tau2 recorded `termination_reason: infrastructure_error`,
+  zero evaluated tasks, and
+  `DummyUser.__init__() got an unexpected keyword argument 'tools'`. This
+  improves blocker evidence for the tau2 lane, but it is not a successful tau2
+  benchmark result and does not clear the full agent-execution gate.

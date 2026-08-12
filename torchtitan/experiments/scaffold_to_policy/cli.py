@@ -1218,6 +1218,18 @@ def write_terminal_bench_execution_probe(args: argparse.Namespace) -> None:
     )
 
 
+def write_tau2_execution_probe(args: argparse.Namespace) -> None:
+    external_harness.write_tau2_execution_probe(
+        output=args.output,
+        run_id=args.run_id,
+        task_id=args.task_id,
+        command=args.command,
+        cwd=args.cwd,
+        timeout_seconds=args.timeout_seconds,
+        results_json=args.results_json,
+    )
+
+
 def ingest_external_harness_smoke(args: argparse.Namespace) -> None:
     external_harness.ingest_harness_smoke(
         raw_result=args.raw_result,
@@ -2341,6 +2353,16 @@ def build_parser() -> argparse.ArgumentParser:
     terminal_probe_parser.add_argument("--output", type=Path, required=True)
     terminal_probe_parser.add_argument("command", nargs=argparse.REMAINDER)
     terminal_probe_parser.set_defaults(func=write_terminal_bench_execution_probe)
+
+    tau2_probe_parser = subparsers.add_parser("write-tau2-execution-probe")
+    tau2_probe_parser.add_argument("--run-id", required=True)
+    tau2_probe_parser.add_argument("--task-id", required=True)
+    tau2_probe_parser.add_argument("--cwd", type=Path, required=True)
+    tau2_probe_parser.add_argument("--results-json", type=Path, required=True)
+    tau2_probe_parser.add_argument("--timeout-seconds", type=float, default=120.0)
+    tau2_probe_parser.add_argument("--output", type=Path, required=True)
+    tau2_probe_parser.add_argument("command", nargs=argparse.REMAINDER)
+    tau2_probe_parser.set_defaults(func=write_tau2_execution_probe)
 
     external_ingest_parser = subparsers.add_parser("ingest-external-harness-smoke")
     external_ingest_parser.add_argument("--raw-result", type=Path, required=True)

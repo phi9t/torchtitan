@@ -522,6 +522,37 @@ equal to `1.0`. The report is:
 experiments/scaffold_to_policy/reports/20260812T121500Z-tau2-mock-score-smoke.md
 ```
 
+Run the tau2 upstream execution probe through the rootfs:
+
+```bash
+experiments/scaffold_to_policy/run_tau2_execution_probe.sh
+```
+
+This creates an isolated tau2 virtualenv, clones the pinned tau2-bench repo for
+its `data/` directory, verifies `tau2 check-data`, launches one bounded
+mock-domain task through upstream `tau2 run`, parses tau2's saved
+`results.json`, and ingests the execution artifact. It is not a successful tau2
+benchmark result unless `task_execution_probes_succeeded=true` in the report
+input. The first completed probe reached tau2's batch runner and results writer
+for `create_task_1`, but tau2 recorded one infrastructure error and zero
+evaluated tasks:
+
+```text
+DummyUser.__init__() got an unexpected keyword argument 'tools'
+```
+
+The generated artifacts live under:
+
+```text
+experiments/scaffold_to_policy/results/tau2_execution_probe_20260812T132500Z/
+```
+
+The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T132500Z-tau2-execution-probe.md
+```
+
 Run the Terminal-Bench / Harbor oracle execution probe through the rootfs:
 
 ```bash

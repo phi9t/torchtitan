@@ -490,6 +490,93 @@ def write_terminal_bench_execution_probe(
     return record
 
 
+def write_tau2_execution_probe(
+    *,
+    output: Path,
+    run_id: str,
+    task_id: str,
+    command: Sequence[str],
+    cwd: Path,
+    timeout_seconds: float,
+    results_json: Path,
+) -> dict[str, object]:
+    try:
+        completed = subprocess.run(
+            list(command),
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        timed_out = False
+        returncode = completed.returncode
+        stdout = completed.stdout
+        stderr = completed.stderr
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        returncode = None
+        stdout = _normalize_output_text(exc.stdout)
+        stderr = _normalize_output_text(exc.stderr)
+
+    parsed_results = _summarize_tau2_results(results_json)
+    evaluated = int(parsed_results.get("num_evaluated", 0))
+    infra_errors = int(parsed_results.get("num_infra_errors", 0))
+    success = returncode == 0 and not timed_out and evaluated > 0 and infra_errors == 0
+    record = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "harness_family": "tau2",
+        "mode": "task_execution_probe",
+        "task_subset": task_id,
+        "rootfs": {
+            "in_rootfs": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+            "python": sys.executable,
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        },
+        "tools": {
+            "git": _tool_version("git"),
+            "docker": _tool_version("docker"),
+            "bwrap": _tool_version("bwrap"),
+        },
+        "pins": [pin.to_json() for pin in default_tau2_pins()],
+        "raw_result": {
+            "metric_name": "tau2_execution_probe",
+            "score": 1.0 if success else 0.0,
+            "num_tasks": evaluated,
+            "score_source": "tau2 run upstream results.json",
+            "task_metadata": {
+                "task_id": task_id,
+                "command": list(command),
+                "cwd": str(cwd),
+                "returncode": returncode,
+                "timed_out": timed_out,
+                "results_json": str(results_json),
+                "stdout_tail": stdout[-4000:],
+                "stderr_tail": stderr[-4000:],
+                **parsed_results,
+            },
+            "trajectory": [
+                {
+                    "step": 0,
+                    "actor": "torchtitan",
+                    "event": "launch_tau2_cli",
+                },
+                {
+                    "step": 1,
+                    "actor": "tau2",
+                    "event": "upstream_task_execution"
+                    if success
+                    else "execution_blocked_or_failed",
+                },
+            ],
+        },
+    }
+    write_json(output, record)
+    return record
+
+
 def ingest_harness_smoke(
     *,
     raw_result: Path,
@@ -618,9 +705,7 @@ def build_report_input(
     if scaffold_type == "task_score_smoke":
         limitations.append("fixture trajectory only; external benchmark agent was not run")
     elif mode_counts.get("task_execution_probe", 0):
-        limitations.append(
-            "Terminal-Bench task execution probe may be blocker evidence if score is 0"
-        )
+        limitations.append("task execution probe may be blocker evidence if score is 0")
     else:
         limitations.append("no external benchmark task execution")
     return {
@@ -702,6 +787,57 @@ def _tool_version(name: str) -> str | None:
     return first_line[0]
 
 
+def _normalize_output_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return str(value)
+
+
+def _summarize_tau2_results(results_json: Path) -> dict[str, object]:
+    if not results_json.is_file():
+        return {
+            "results_present": False,
+            "num_simulations": 0,
+            "num_evaluated": 0,
+            "num_infra_errors": 0,
+            "termination_reasons": {},
+            "errors": [],
+        }
+
+    results = json.loads(results_json.read_text())
+    simulations = results.get("simulations", [])
+    termination_reasons: dict[str, int] = {}
+    errors: list[dict[str, object]] = []
+    rewards: list[float] = []
+    for simulation in simulations:
+        reason = str(simulation.get("termination_reason"))
+        termination_reasons[reason] = termination_reasons.get(reason, 0) + 1
+        reward_info = simulation.get("reward_info")
+        if reward_info is not None:
+            rewards.append(float(reward_info.get("reward", 0.0)))
+        info = simulation.get("info") or {}
+        if info.get("error") is not None:
+            errors.append(
+                {
+                    "task_id": simulation.get("task_id"),
+                    "error_type": info.get("error_type"),
+                    "error": info.get("error"),
+                    "failed_after_attempts": info.get("failed_after_attempts"),
+                }
+            )
+    return {
+        "results_present": True,
+        "num_simulations": len(simulations),
+        "num_evaluated": len(rewards),
+        "num_infra_errors": termination_reasons.get("infrastructure_error", 0),
+        "termination_reasons": termination_reasons,
+        "average_reward": sum(rewards) / len(rewards) if rewards else 0.0,
+        "errors": errors[:5],
+    }
+
+
 def _cli_probe(name: str) -> dict[str, object]:
     path = shutil.which(
         name,
@@ -735,7 +871,7 @@ def _cli_probe(name: str) -> dict[str, object]:
 def _limitations_for_mode(mode: object) -> list[str]:
     if mode == "task_execution_probe":
         return [
-            "rootfs-managed Terminal-Bench CLI execution probe",
+            "rootfs-managed external harness CLI execution probe",
             "score 0 means the upstream task did not complete successfully",
             "oracle/task execution evidence only; not a model capability score",
         ]

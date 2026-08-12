@@ -3,6 +3,7 @@
 
 import importlib.metadata
 import json
+from pathlib import Path
 
 import pytest
 
@@ -1466,6 +1467,62 @@ def test_external_harness_execution_probe_report_accepts_blocker(tmp_path, monke
     assert report_input["run"]["scaffold"]["type"] == "task_execution_probe"
 
 
+def test_tau2_execution_probe_summarizes_upstream_results(tmp_path, monkeypatch):
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    results_root = tmp_path / "results"
+    tau2_results = results_root / "simulations" / "probe" / "results.json"
+    raw = results_root / "raw" / "tau2_probe.json"
+    ingested_path = results_root / "ingested" / "tau2_probe.json"
+    external_harness.write_json(
+        tau2_results,
+        {
+            "simulations": [
+                {
+                    "task_id": "create_task_1",
+                    "termination_reason": "infrastructure_error",
+                    "reward_info": None,
+                    "info": {
+                        "error_type": "TypeError",
+                        "error": "DummyUser.__init__() got an unexpected keyword argument 'tools'",
+                        "failed_after_attempts": 1,
+                    },
+                }
+            ]
+        },
+    )
+
+    raw_record = external_harness.write_tau2_execution_probe(
+        output=raw,
+        run_id="fixture",
+        task_id="create_task_1",
+        command=["python", "-c", "print('probe')"],
+        cwd=tmp_path,
+        timeout_seconds=5.0,
+        results_json=tau2_results,
+    )
+    ingested = external_harness.ingest_harness_smoke(
+        raw_result=raw,
+        output=ingested_path,
+        results_root=results_root,
+    )
+    report_input = external_harness.build_report_input(
+        results_root=results_root,
+        run_id="fixture",
+        ingested_paths={"tau2": ingested_path},
+    )
+
+    metadata = raw_record["raw_result"]["task_metadata"]
+    assert raw_record["mode"] == "task_execution_probe"
+    assert raw_record["raw_result"]["score"] == 0.0
+    assert metadata["results_present"]
+    assert metadata["num_simulations"] == 1
+    assert metadata["num_evaluated"] == 0
+    assert metadata["num_infra_errors"] == 1
+    assert metadata["errors"][0]["error_type"] == "TypeError"
+    assert ingested["checks"]["task_execution_probe_labeled"]
+    assert not report_input["checks"]["task_execution_probes_succeeded"]
+
+
 def test_external_harness_parser_accepts_dry_run_commands():
     parser = build_parser()
 
@@ -1578,6 +1635,32 @@ def test_external_harness_parser_accepts_terminal_bench_commands():
 
     assert result.task_id == "headless-terminal"
     assert probe.command == ["tb", "runs", "create"]
+
+
+def test_external_harness_parser_accepts_tau2_execution_probe_command():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "write-tau2-execution-probe",
+            "--run-id",
+            "fixture",
+            "--task-id",
+            "create_task_1",
+            "--cwd",
+            ".",
+            "--results-json",
+            "results.json",
+            "--output",
+            "raw.json",
+            "tau2",
+            "run",
+        ]
+    )
+
+    assert args.task_id == "create_task_1"
+    assert args.results_json == Path("results.json")
+    assert args.command == ["tau2", "run"]
 
 
 def test_modular_sequences_generation_is_deterministic():
