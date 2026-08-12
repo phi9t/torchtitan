@@ -36,6 +36,28 @@ class TestYaRNInvFreq(unittest.TestCase):
         )
         torch.testing.assert_close(selected, expected, rtol=0, atol=0)
 
+    def test_upper_clamped_cutoff_matches_reference_values(self):
+        actual = _yarn_inv_freq(
+            dim=128,
+            base=10_000.0,
+            rope_factor=40.0,
+            beta_fast=32.0,
+            beta_slow=1.0,
+            original_seq_len=1_000_000_000,
+            truncate=True,
+        )
+
+        selected = actual[torch.tensor([0, 1, 32, 63])]
+        expected = torch.tensor(
+            [
+                1.0,
+                0.8659643530845642,
+                0.009999999776482582,
+                0.00011547819303814322,
+            ]
+        )
+        torch.testing.assert_close(selected, expected, rtol=0, atol=0)
+
     def test_collapsed_cutoff_produces_finite_frequencies(self):
         actual = _yarn_inv_freq(
             dim=128,

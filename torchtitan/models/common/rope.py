@@ -75,6 +75,7 @@ def _yarn_inv_freq(
     if low > high:
         raise ValueError(f"reversed YaRN correction range: {low=} must be <= {high=}")
     if low == high:
+        # Match the reference YaRN guard when both correction cutoffs collapse.
         high += 0.001
 
     ramp = ((torch.arange(dim // 2, dtype=torch.float32) - low) / (high - low)).clamp(
