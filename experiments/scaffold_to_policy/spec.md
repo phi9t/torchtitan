@@ -1005,3 +1005,21 @@ reasoning benchmarks.
   authenticated GPQA access or an authorized raw cache, not complete. The audit
   report is
   `experiments/scaffold_to_policy/reports/20260812T142500Z-final-completion-audit.md`.
+- 2026-08-12: Added and exercised explicit rootfs runtime metadata for hard
+  reasoning and coding report inputs. `capture-runtime-metadata` records rootfs
+  state, Python/platform details, package availability and versions, CUDA
+  device metadata, local model asset presence, vLLM backend settings, and
+  sampling settings. The shared report builder and blocker report path now
+  include this metadata as both a top-level `runtime` section and a hashed
+  artifact. Fresh rootfs reruns reproduced the latest MMLU-Pro 16 dev / 16 OOD
+  calibration (`20260812T230000Z-mmlu-pro-16x16-runtime`) and BigCodeBench-Hard
+  8 dev / 8 OOD `contract_chat` hard-negative result
+  (`20260812T231500Z-bigcodebench-hard-8x8-runtime`) with
+  `runtime_metadata_present=true`. A fresh GPQA blocker refresh
+  (`20260812T223000Z-gpqa-runtime-metadata`) also records runtime metadata and
+  still stops at the Hugging Face gated-dataset boundary because no `HF_TOKEN`,
+  rootfs token file, or authorized raw GPQA rows are available. The current
+  report is
+  `experiments/scaffold_to_policy/reports/20260812T232000Z-hard-runtime-metadata-refresh.md`;
+  the completion audit refresh remains blocked on GPQA access in
+  `experiments/scaffold_to_policy/reports/20260812T211000Z-completion-audit-refresh.md`.

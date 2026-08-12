@@ -372,6 +372,26 @@ answer pass@k. The report is:
 experiments/scaffold_to_policy/reports/20260812T204500Z-hard-reasoning-coding-freegpu.md
 ```
 
+The current metadata-backed MMLU-Pro refresh used the same 16/16 slice and
+four-rollout no-tool condition, and writes rootfs, CUDA, package, model, and
+vLLM settings directly into the report input:
+
+```bash
+RUN_ID=20260812T230000Z-mmlu-pro-16x16-runtime \
+DATA_ROOT=experiments/scaffold_to_policy/data/mmlu_pro_public_vllm_16x16_runtime \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/mmlu_pro_public_vllm_16x16_runtime \
+DEV_PROBLEMS=16 OOD_PROBLEMS=16 DEV_OFFSET=0 OOD_OFFSET=32 \
+NUM_ROLLOUTS=4 GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_mmlu_pro_public_vllm_smoke.sh
+```
+
+It reproduced the same metrics and records `runtime_metadata_present=true` in:
+
+```text
+experiments/scaffold_to_policy/results/mmlu_pro_public_vllm_16x16_runtime/manifests/report_input_20260812T230000Z-mmlu-pro-16x16-runtime.json
+experiments/scaffold_to_policy/reports/20260812T232000Z-hard-runtime-metadata-refresh.md
+```
+
 Run the GPQA Diamond gate through the rootfs:
 
 ```bash
@@ -666,9 +686,10 @@ experiments/scaffold_to_policy/reports/20260812T142500Z-final-completion-audit.m
 experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md
 ```
 
-The newer audit includes the completed MMLU-Pro and LiveCodeBench lanes plus a
-fresh GPQA blocker refresh. It marks the checkpoint blocked on authenticated
-GPQA access or an authorized raw GPQA cache, not complete.
+The newer audits include the completed MMLU-Pro and LiveCodeBench lanes,
+metadata-backed MMLU-Pro and BigCodeBench-Hard refreshes, plus a fresh GPQA
+blocker refresh. They mark the checkpoint blocked on authenticated GPQA access
+or an authorized raw GPQA cache, not complete.
 
 Exact-verifier scaffold report inputs share the common
 `report_artifacts.build_report_input` shell. `arithmetic_words`, `gsm_style`,
@@ -1124,6 +1145,29 @@ combined hard reasoning/coding report is:
 
 ```text
 experiments/scaffold_to_policy/reports/20260812T204500Z-hard-reasoning-coding-freegpu.md
+```
+
+The current metadata-backed BigCodeBench-Hard refresh used the same 8/8
+`contract_chat` slice, eight rollouts per problem, and released canonical
+preflight gate, but writes rootfs, CUDA, package, model, and vLLM settings
+directly into the report input:
+
+```bash
+RUN_ID=20260812T231500Z-bigcodebench-hard-8x8-runtime \
+DATA_ROOT=experiments/scaffold_to_policy/data/bigcodebench_hard_contract_chat_8x8_runtime \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_8x8_runtime \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 DEV_OFFSET=0 OOD_OFFSET=32 \
+NUM_ROLLOUTS=8 PROMPT_VARIANT=contract_chat MAX_NEW_TOKENS=768 \
+TIMEOUT_SECONDS=30 GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
+```
+
+It remained a hard negative, with dev/OOD pass@1/pass@8/pass@32 `0.0`, and
+records `runtime_metadata_present=true` in:
+
+```text
+experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_8x8_runtime/manifests/report_input_20260812T231500Z-bigcodebench-hard-8x8-runtime.json
+experiments/scaffold_to_policy/reports/20260812T232000Z-hard-runtime-metadata-refresh.md
 ```
 
 The current AIME low-memory hard-reasoning rerun used:
