@@ -770,3 +770,11 @@ reasoning benchmarks.
   `20260812T235500Z-bigcodebench-hard-contract-chat-rerun` with a fresh
   run-bound report artifact and passing checks. This avoids mutable-only
   `current` pointers while preserving auditable candidate history.
+- 2026-08-12: Extended artifact provenance to external-harness report inputs
+  without forcing them into the split-summary report builder. The
+  `external_harness.build_report_input` path now records artifact hashes,
+  mtimes, fresh-vs-reused labels, and an `artifact_provenance_labeled` check
+  for ingested Harbor/Terminal-Bench and tau2 artifacts while preserving
+  harness-specific completion and reward semantics. This closes the remaining
+  provenance-surface gap for external harness smokes; model or learned-policy
+  agent execution remains a separate incomplete requirement.

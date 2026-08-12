@@ -40,16 +40,15 @@ Not complete:
 - Public benchmark smokes are small calibration runs and are not leaderboard
   claims.
 - The registry/reporting surface still needs more offline dataset-loader
-  hardening and a decision on how much external-harness reporting should share
-  with split-summary report inputs. Shared report-input factoring,
-  fresh/reused artifact surfacing, and latest-report indexing now cover the
-  main exact-verifier scaffold lanes.
+  hardening. Shared report-input factoring, fresh/reused artifact surfacing,
+  latest-report indexing, and external-harness artifact provenance now cover
+  the main scaffold lanes.
 
 ## User Story Audit
 
 | Spec stories | Status | Evidence | Remaining gap |
 | --- | --- | --- | --- |
-| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details | External harness reporting is still separate because its semantics are not split-summary based. |
+| 1-8 run identity, manifests, provenance, environment | Mostly complete | Countdown report inputs, shared scaffold report inputs, latest-report index, rootfs shell entrypoints, external harness metadata, report artifact details | Offline dataset-loader hardening remains separate from report-input provenance. |
 | 9-14 strict format, failure modes, pass@k, buckets | Mostly complete | Countdown reports; arithmetic, modular, GSM, MATH, ARC, and coding summaries | Coding tasks do not have strict final-format metrics because their output contract is executable code rather than `FINAL:` answers. |
 | 15-18 Countdown champion, formatting arm, replication, sweeps | Complete for current checkpoint | Clean-arm rank/size sweep and formatting replication reports under `experiments/countdown_search_distill/reports/` | Further promotion should use repeated seeds and larger target tasks, not this audit alone. |
 | 19-20 bwrap rootfs and entrypoints | Mostly complete | All current real Python/GPU benchmark scripts re-exec through `scripts/rootfs/enter_rootfs.sh`; Harbor can run through opt-in host Docker passthrough | Harbor still depends on host Docker passthrough rather than a fully rootfs-contained backend. |
@@ -146,6 +145,10 @@ reasoning/coding report inputs:
   `write-latest-report-index --manifests-dir experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_rerun/manifests --task coding_style`
   selected `20260812T235500Z-bigcodebench-hard-contract-chat-rerun` with a
   fresh report artifact and passing checks.
+- `external_harness.build_report_input` now uses the same artifact provenance
+  helpers for ingested Harbor/Terminal-Bench and tau2 artifacts while keeping
+  harness-specific completion, reward, and mode checks separate from the
+  split-summary report builder.
 
 ## Blocker Backlog
 
@@ -191,12 +194,14 @@ reasoning/coding report inputs:
    - Progress: the main exact-verifier scaffold lanes now share report-input
      split checks, optional preflight checks, artifact hashes, and freshness
      labels through `report_artifacts.build_report_input`; latest report-input
-     selection is available through `write-latest-report-index`.
-   - Remaining gap: external-harness report inputs are separate because their
-     semantics are not split-summary based.
-   - Required next step: decide whether the external-harness report shape should
-     reuse only artifact provenance helpers or a separate harness-specific
-     shared builder.
+     selection is available through `write-latest-report-index`. External
+     harness report inputs now reuse the artifact provenance helpers while
+     preserving harness-specific semantics.
+   - Remaining gap: offline dataset-loader hardening and model/policy
+     execution blockers remain outside the report-input builder itself.
+   - Required next step: continue blocker-first execution for GPQA auth,
+     volatile GPU-backed hard runs, and model/policy agents for Harbor and
+     tau2.
 
 ## Promotion Guidance
 

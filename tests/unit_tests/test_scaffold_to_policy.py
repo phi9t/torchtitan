@@ -1579,6 +1579,8 @@ def test_external_harness_smoke_ingestion_records_pins_and_rootfs(tmp_path, monk
     assert ingested["metric"]["name"] == "dry_run_compatibility"
     assert all(report_input["checks"].values())
     assert report_input["harnesses"]["harbor_terminal"]["mode"] == "dry_run"
+    assert report_input["checks"]["artifact_provenance_labeled"]
+    assert report_input["artifacts"]["freshness"]["num_artifacts"] == 1
 
 
 def test_external_harness_installed_preflight_records_versions(tmp_path, monkeypatch):
@@ -1835,6 +1837,8 @@ def test_tau2_execution_probe_accepts_completed_zero_reward_baseline(
     assert metadata["average_reward"] == 0.0
     assert not report_input["checks"]["task_execution_probes_succeeded"]
     assert report_input["checks"]["task_execution_probes_completed"]
+    assert report_input["checks"]["artifact_provenance_labeled"]
+    assert report_input["artifacts"]["details"]["ingested"]["tau2"]["sha256"]
 
 
 def test_terminal_bench_execution_probe_rejects_harbor_runtime_error(

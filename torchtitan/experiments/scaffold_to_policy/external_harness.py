@@ -18,6 +18,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from torchtitan.experiments.scaffold_to_policy import report_artifacts
+
 
 @dataclass(frozen=True)
 class HarnessPin:
@@ -657,6 +659,14 @@ def build_report_input(
     ingested = {
         name: json.loads(path.read_text()) for name, path in ingested_paths.items()
     }
+    artifact_details = {
+        "ingested": report_artifacts.describe_artifacts(
+            ingested_paths,
+            run_id=run_id,
+            payloads=ingested,
+        ),
+    }
+    freshness = report_artifacts.summarize_artifact_freshness(artifact_details)
     installed_preflight_values = [
         value
         for value in ingested.values()
@@ -709,6 +719,7 @@ def build_report_input(
             )
             for value in task_execution_probe_values
         ),
+        "artifact_provenance_labeled": bool(freshness["all_labeled"]),
     }
     mode_counts: dict[str, int] = {}
     for value in ingested.values():
@@ -747,6 +758,8 @@ def build_report_input(
         "artifacts": {
             "results_root": str(results_root),
             "ingested": {name: str(path) for name, path in ingested_paths.items()},
+            "details": artifact_details,
+            "freshness": freshness,
         },
         "harnesses": ingested,
         "mode_counts": mode_counts,

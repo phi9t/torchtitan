@@ -525,6 +525,10 @@ optional preflight checks, artifact hashes, mtimes, and conservative
 fresh-vs-reused labeling. Reused artifacts are not treated as failed checks, but
 the status is machine-readable for audit reports.
 
+External-harness report inputs keep their own task-execution and reward
+semantics, but reuse the same artifact provenance helpers for ingested Harbor,
+Terminal-Bench, and tau2 artifacts.
+
 To select the latest run-scoped report input without relying on a mutable
 `current` pointer, write a latest-report index from any manifests directory:
 
