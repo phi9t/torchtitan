@@ -337,3 +337,18 @@ reasoning benchmarks.
   easy 4, elicitable 1, unreached 3. Harder settings were mostly unreached, so
   the next step is a small scaffold-to-policy transfer run using this calibrated
   band before public reasoning benchmarks.
+- 2026-08-12: Implemented and ran the first `modular_sequences`
+  scaffold-to-policy transfer smoke. The new rootfs-managed entrypoint collects
+  base train rollouts, builds SFT examples only from verifier-successful
+  rollouts, evaluates base dev/OOD, trains a TorchTitan Qwen3-1.7B LoRA adapter,
+  exports it to PEFT/vLLM format, evaluates the exported adapter through vLLM
+  LoRA loading, and writes a run-scoped report input. The minimal completed run
+  used 16 train, 4 dev, 4 OOD, 8 train rollouts, 4 eval rollouts, and 2 training
+  steps. It produced the expected checkpoint, adapter export, base summaries,
+  adapter summaries, stage manifest, and report input under
+  `experiments/scaffold_to_policy/results/modular_sequences_transfer_smoke_min/`.
+  This clears the modular transfer plumbing gate, but not the scientific
+  transfer gate: dev pass@1 improved from 0.250 to 0.500, while OOD pass@k
+  regressed from 0.500 to 0.250 on the four-problem smoke. The next step is a
+  larger modular transfer run with enough dev/OOD examples to evaluate
+  base-elicitable movement and OOD retention before public reasoning benchmarks.

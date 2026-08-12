@@ -3,6 +3,8 @@
 
 import json
 
+import pytest
+
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     build_report_input,
     build_split_registry,
@@ -194,8 +196,40 @@ def test_modular_sequences_summary_reports_pass_curves():
     assert summary["failure_breakdown"]["success"] == 1
 
 
+def test_modular_sequences_training_examples_use_verified_rollouts():
+    problem = modular_sequences.generate_split(seed=502, num_problems=1)[0]
+    evaluation = modular_sequences.evaluate_fixture_rollouts(
+        problem,
+        [
+            "no final",
+            f"FINAL: {problem.answer}",
+        ],
+    )
+
+    examples = modular_sequences.build_training_examples([evaluation])
+
+    assert len(examples) == 1
+    assert examples[0].question == modular_sequences.prompt_for_problem(problem)
+    assert examples[0].answer == f"FINAL: {problem.answer}"
+    assert examples[0].problem_id == problem.problem_id
+    assert examples[0].source_rollout_ids == (f"{problem.problem_id}:1",)
+
+
+def test_modular_sequences_training_examples_skip_unreached_problems():
+    problem = modular_sequences.generate_split(seed=503, num_problems=1)[0]
+    evaluation = modular_sequences.evaluate_fixture_rollouts(
+        problem,
+        [
+            "no final",
+            f"FINAL: {problem.answer + 1}",
+        ],
+    )
+
+    assert modular_sequences.build_training_examples([evaluation]) == []
+
+
 def test_modular_sequences_split_registry_rejects_overlap(tmp_path):
-    problems = modular_sequences.generate_split(seed=503, num_problems=2)
+    problems = modular_sequences.generate_split(seed=504, num_problems=2)
     train = tmp_path / "train.jsonl"
     dev = tmp_path / "dev.jsonl"
     modular_sequences.write_jsonl(train, [problem.to_json() for problem in problems])
@@ -217,7 +251,7 @@ def test_modular_sequences_report_input_validates_summary_counts(tmp_path):
     data_root = tmp_path / "data"
     results_root = tmp_path / "results"
     dev = data_root / "dev.jsonl"
-    problems = modular_sequences.generate_split(seed=504, num_problems=2)
+    problems = modular_sequences.generate_split(seed=505, num_problems=2)
     modular_sequences.write_jsonl(dev, [problem.to_json() for problem in problems])
     split_registry = data_root / "split_registry.json"
     modular_sequences.write_json(
@@ -249,6 +283,43 @@ def test_modular_sequences_report_input_validates_summary_counts(tmp_path):
     assert all(report_input["checks"].values())
     assert report_input["run"]["task"] == "modular_sequences"
     assert report_input["verifier"]["kind"] == "exact"
+
+
+def test_modular_sequences_report_input_accepts_adapter_summary_names(tmp_path):
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    problems = modular_sequences.generate_split(seed=506, num_problems=2)
+    modular_sequences.write_jsonl(dev, [problem.to_json() for problem in problems])
+    split_registry = data_root / "split_registry.json"
+    modular_sequences.write_json(
+        split_registry,
+        modular_sequences.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "adapter_raw_dev_summary.json"
+    modular_sequences.write_json(
+        summary,
+        modular_sequences.summarize_evaluations(
+            [
+                modular_sequences.evaluate_fixture_rollouts(
+                    problem,
+                    [f"FINAL: {problem.answer}"],
+                )
+                for problem in problems
+            ]
+        ),
+    )
+
+    report_input = modular_sequences.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"adapter_raw_dev": summary},
+    )
+
+    assert all(report_input["checks"].values())
+    assert "adapter_raw_dev" in report_input["metrics"]["splits"]
 
 
 def test_modular_sequences_vllm_parser_defaults_to_chat_prompt():
@@ -293,3 +364,56 @@ def test_modular_sequences_vllm_parser_accepts_concise_chat_prompt():
     )
 
     assert args.prompt_variant == "concise_chat"
+
+
+def test_modular_sequences_vllm_parser_accepts_lora_adapter():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "evaluate-modular-vllm",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "evaluations.jsonl",
+            "--summary",
+            "summary.json",
+            "--lora-adapter",
+            "adapter",
+            "--lora-name",
+            "raw",
+            "--max-lora-rank",
+            "16",
+        ]
+    )
+
+    assert str(args.lora_adapter) == "adapter"
+    assert args.lora_name == "raw"
+    assert args.max_lora_rank == 16
+
+
+def test_qwen3_modular_sequences_config_uses_scaffold_data_root(monkeypatch, tmp_path):
+    pytest.importorskip("spmd_types")
+
+    from torchtitan.hf_datasets.text_datasets import ChatDataLoader
+    from torchtitan.models.qwen3.config_registry import (
+        qwen3_1_7b_modular_sequences_lora_raw,
+    )
+
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    monkeypatch.setenv("TORCHTITAN_SCAFFOLD_TO_POLICY_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TORCHTITAN_SCAFFOLD_TO_POLICY_RESULTS_ROOT", str(results_root))
+    monkeypatch.setenv("TORCHTITAN_SCAFFOLD_TO_POLICY_STEPS", "7")
+    monkeypatch.setenv("TORCHTITAN_SCAFFOLD_TO_POLICY_LORA_RANK", "8")
+
+    config = qwen3_1_7b_modular_sequences_lora_raw()
+
+    assert isinstance(config.dataloader, ChatDataLoader.Config)
+    assert config.training.steps == 7
+    assert config.dataloader.load_dataset_kwargs["data_files"] == str(
+        data_root / "train" / "modular_sequences_raw.jsonl"
+    )
+    assert config.dump_folder == str(results_root / "train" / "modular_sequences_raw")

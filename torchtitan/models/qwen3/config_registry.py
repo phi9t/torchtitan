@@ -39,6 +39,13 @@ def _countdown_sft_process_sample(sample):
     ]
 
 
+def _scaffold_to_policy_sft_process_sample(sample):
+    return [
+        {"role": "user", "content": sample["question"]},
+        {"role": "assistant", "content": sample["answer"]},
+    ]
+
+
 def _qwen3_countdown_lora_sft(
     *,
     data_file: str,
@@ -132,6 +139,96 @@ def _qwen3_countdown_lora_arm(arm: str) -> Trainer.Config:
         lora_rank=_countdown_lora_rank(),
         lora_alpha=_countdown_lora_alpha(),
     )
+
+
+def _qwen3_scaffold_to_policy_lora_sft(
+    *,
+    data_file: str,
+    dump_folder: str,
+    steps: int,
+    lora_rank: int,
+    lora_alpha: float,
+    model_flavor: str = "1.7B",
+    hf_assets_path: str = "./assets/hf/Qwen3-1.7B",
+    initial_load_in_hf: bool = True,
+) -> Trainer.Config:
+    from torchtitan.components.lora import LoRAConverter
+
+    model_spec = model_registry(
+        model_flavor,
+        attn_backend="varlen",
+        converters=[LoRAConverter.Config(rank=lora_rank, alpha=lora_alpha)],
+    )
+    return Trainer.Config(
+        dump_folder=dump_folder,
+        loss=ChunkedLossWrapper.Config(
+            loss_fn=CrossEntropyLoss.Config(
+                global_vocab_size=decoder_vocab_size(model_spec),
+            ),
+        ),
+        hf_assets_path=hf_assets_path,
+        metrics=MetricsProcessor.Config(log_freq=1),
+        model_spec=model_spec,
+        optimizer=default_adamw(lr=1e-4),
+        lr_scheduler=LRSchedulersContainer.Config(
+            warmup_steps=max(1, steps // 20),
+            decay_ratio=0.9,
+            decay_type="cosine",
+            min_lr_factor=0.1,
+        ),
+        training=TrainingConfig(
+            global_batch_size=64,
+            local_batch_size=1,
+            seq_len=512,
+            steps=steps,
+            dtype="bfloat16",
+        ),
+        dataloader=ChatDataLoader.Config(
+            dataset_path="json",
+            load_dataset_kwargs={"data_files": data_file, "split": "train"},
+            sample_processor=_scaffold_to_policy_sft_process_sample,
+        ),
+        checkpoint=CheckpointManager.Config(
+            enable=True,
+            interval=max(1, steps // 3),
+            initial_load_in_hf=initial_load_in_hf,
+            last_save_model_only=False,
+            export_dtype="bfloat16",
+        ),
+        activation_checkpoint=SelectiveAC.Config(),
+    )
+
+
+def _scaffold_to_policy_data_file(name: str) -> str:
+    data_root = Path(
+        os.environ.get(
+            "TORCHTITAN_SCAFFOLD_TO_POLICY_DATA_ROOT",
+            "./experiments/scaffold_to_policy/data",
+        )
+    )
+    return str(data_root / "train" / f"{name}.jsonl")
+
+
+def _scaffold_to_policy_dump_folder(name: str) -> str:
+    results_root = Path(
+        os.environ.get(
+            "TORCHTITAN_SCAFFOLD_TO_POLICY_RESULTS_ROOT",
+            "./experiments/scaffold_to_policy/results",
+        )
+    )
+    return str(results_root / "train" / name)
+
+
+def _scaffold_to_policy_lora_rank() -> int:
+    return int(os.environ.get("TORCHTITAN_SCAFFOLD_TO_POLICY_LORA_RANK", "16"))
+
+
+def _scaffold_to_policy_lora_alpha() -> float:
+    return float(os.environ.get("TORCHTITAN_SCAFFOLD_TO_POLICY_LORA_ALPHA", "32.0"))
+
+
+def _scaffold_to_policy_steps() -> int:
+    return int(os.environ.get("TORCHTITAN_SCAFFOLD_TO_POLICY_STEPS", "24"))
 
 
 def qwen3_debugmodel() -> Trainer.Config:
@@ -375,6 +472,29 @@ def qwen3_debugmodel_countdown_lora_smoke() -> Trainer.Config:
         lora_rank=_countdown_lora_rank(),
         lora_alpha=_countdown_lora_alpha(),
         steps=2,
+        model_flavor="debugmodel",
+        hf_assets_path="./tests/assets/tokenizer",
+        initial_load_in_hf=False,
+    )
+
+
+def qwen3_1_7b_modular_sequences_lora_raw() -> Trainer.Config:
+    return _qwen3_scaffold_to_policy_lora_sft(
+        data_file=_scaffold_to_policy_data_file("modular_sequences_raw"),
+        dump_folder=_scaffold_to_policy_dump_folder("modular_sequences_raw"),
+        steps=_scaffold_to_policy_steps(),
+        lora_rank=_scaffold_to_policy_lora_rank(),
+        lora_alpha=_scaffold_to_policy_lora_alpha(),
+    )
+
+
+def qwen3_debugmodel_modular_sequences_lora_smoke() -> Trainer.Config:
+    return _qwen3_scaffold_to_policy_lora_sft(
+        data_file=_scaffold_to_policy_data_file("modular_sequences_raw"),
+        dump_folder=_scaffold_to_policy_dump_folder("modular_sequences_debug_smoke"),
+        steps=2,
+        lora_rank=_scaffold_to_policy_lora_rank(),
+        lora_alpha=_scaffold_to_policy_lora_alpha(),
         model_flavor="debugmodel",
         hf_assets_path="./tests/assets/tokenizer",
         initial_load_in_hf=False,

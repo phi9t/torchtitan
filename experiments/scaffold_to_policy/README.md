@@ -132,6 +132,33 @@ The report is:
 experiments/scaffold_to_policy/reports/20260812T064500Z-modular-sequences-calibration.md
 ```
 
+Run the first modular scaffold-to-policy transfer smoke through the same rootfs
+boundary:
+
+```bash
+experiments/scaffold_to_policy/run_modular_sequences_transfer_smoke.sh
+```
+
+The smoke generates calibrated modular splits, collects base train rollouts,
+builds SFT examples from verified rollouts, evaluates base dev/OOD, trains a
+Qwen3-1.7B LoRA adapter with TorchTitan, exports it to PEFT/vLLM format, and
+evaluates the exported adapter with vLLM LoRA loading. A minimal completed run
+used 16 train, 4 dev, 4 OOD, 8 train rollouts, 4 eval rollouts, and 2 training
+steps. It wrote artifacts under:
+
+```text
+experiments/scaffold_to_policy/data/modular_sequences_transfer_smoke_min/
+experiments/scaffold_to_policy/results/modular_sequences_transfer_smoke_min/
+```
+
+The minimal run is plumbing evidence, not a scientific transfer claim: dev
+pass@1 moved from `0.250` to `0.500`, while OOD pass@k regressed from `0.500`
+to `0.250`. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T071500Z-modular-transfer-smoke.md
+```
+
 ## Agentic Benchmarks
 
 tau2-bench and Terminal-Bench/Harbor are in scope, but they enter after the

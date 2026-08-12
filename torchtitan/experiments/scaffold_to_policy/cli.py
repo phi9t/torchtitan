@@ -155,6 +155,19 @@ def evaluate_modular_vllm(args: argparse.Namespace) -> None:
             "vLLM is required for evaluate-modular-vllm. Run through the "
             "TorchTitan rootfs or use evaluate-modular-fixture."
         ) from exc
+    lora_request = None
+    if args.lora_adapter is not None:
+        try:
+            from vllm.lora.request import LoRARequest
+        except ImportError as exc:
+            raise RuntimeError(
+                "vLLM LoRA support is required when --lora-adapter is set."
+            ) from exc
+        lora_request = LoRARequest(
+            lora_name=args.lora_name,
+            lora_int_id=args.lora_id,
+            lora_path=str(args.lora_adapter),
+        )
 
     problems = modular_sequences.load_problems(args.problems)
     prompts = _build_modular_vllm_prompts(problems, args)
@@ -166,13 +179,20 @@ def evaluate_modular_vllm(args: argparse.Namespace) -> None:
     )
     llm_kwargs = {
         "model": args.model,
+        "enable_lora": args.lora_adapter is not None,
         "attention_backend": args.attention_backend,
         "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
     }
+    if args.lora_adapter is not None:
+        llm_kwargs["max_lora_rank"] = args.max_lora_rank
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
     llm = LLM(**llm_kwargs)
-    outputs = llm.generate(prompts, sampling_params)
+    outputs = llm.generate(
+        prompts,
+        sampling_params,
+        lora_request=lora_request,
+    )
     evaluations = []
     for problem, output in zip(problems, outputs):
         evaluations.append(
@@ -223,6 +243,23 @@ def build_modular_report_input(args: argparse.Namespace) -> None:
             name for name, passed in report_input["checks"].items() if not passed
         ]
         raise SystemExit(f"modular report input failed: {', '.join(failed)}")
+
+
+def build_modular_dataset(args: argparse.Namespace) -> None:
+    evaluations = modular_sequences.load_evaluations(args.evaluations)
+    examples = modular_sequences.build_training_examples(
+        evaluations,
+        condition=args.condition,
+    )
+    if len(examples) < args.min_examples:
+        raise SystemExit(
+            f"only {len(examples)} modular training examples, "
+            f"need at least {args.min_examples}"
+        )
+    modular_sequences.write_jsonl(
+        args.output,
+        [example.to_json() for example in examples],
+    )
 
 
 def write_arithmetic_fixture(args: argparse.Namespace) -> None:
@@ -486,6 +523,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["0", "1"],
         default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER", "0"),
     )
+    modular_vllm_parser.add_argument("--lora-adapter", type=Path)
+    modular_vllm_parser.add_argument("--lora-name", default="modular_adapter")
+    modular_vllm_parser.add_argument("--lora-id", type=int, default=1)
+    modular_vllm_parser.add_argument("--max-lora-rank", type=int, default=32)
     modular_vllm_parser.set_defaults(func=evaluate_modular_vllm)
 
     split_parser = subparsers.add_parser("validate-arithmetic-splits")
@@ -525,6 +566,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     modular_report_parser.set_defaults(func=build_modular_report_input)
+
+    modular_dataset_parser = subparsers.add_parser("build-modular-dataset")
+    modular_dataset_parser.add_argument("--evaluations", type=Path, required=True)
+    modular_dataset_parser.add_argument("--output", type=Path, required=True)
+    modular_dataset_parser.add_argument("--condition", default="raw")
+    modular_dataset_parser.add_argument("--min-examples", type=int, default=1)
+    modular_dataset_parser.set_defaults(func=build_modular_dataset)
 
     return parser
 

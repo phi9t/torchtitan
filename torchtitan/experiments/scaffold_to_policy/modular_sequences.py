@@ -111,6 +111,24 @@ class ModularProblemEvaluation:
         }
 
 
+@dataclass(frozen=True)
+class ModularTrainingExample:
+    question: str
+    answer: str
+    condition: str
+    problem_id: str
+    source_rollout_ids: tuple[str, ...]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "question": self.question,
+            "answer": self.answer,
+            "condition": self.condition,
+            "problem_id": self.problem_id,
+            "source_rollout_ids": list(self.source_rollout_ids),
+        }
+
+
 def generate_problem(
     seed: int,
     *,
@@ -302,6 +320,30 @@ def summarize_evaluations(
     }
 
 
+def build_training_examples(
+    evaluations: Sequence[ModularProblemEvaluation],
+    *,
+    condition: str = "raw",
+) -> list[ModularTrainingExample]:
+    examples = []
+    for evaluation in evaluations:
+        success = _first_success(evaluation)
+        if success is None:
+            continue
+        examples.append(
+            ModularTrainingExample(
+                question=prompt_for_problem(evaluation.problem),
+                answer=success.text.strip(),
+                condition=condition,
+                problem_id=evaluation.problem.problem_id,
+                source_rollout_ids=(
+                    f"{evaluation.problem.problem_id}:{success.sample_index}",
+                ),
+            )
+        )
+    return examples
+
+
 def build_split_registry(split_paths: dict[str, Path]) -> dict[str, object]:
     seen: dict[str, str] = {}
     overlaps = []
@@ -346,13 +388,16 @@ def build_report_input(
         split: json.loads(path.read_text()) for split, path in summary_paths.items()
     }
     registry = json.loads(split_registry.read_text())
+    registry_splits = registry["splits"]
     checks = {
         "split_registry_selected": bool(registry.get("selected", False)),
         "summaries_present": all(path.is_file() for path in summary_paths.values()),
         "summary_split_counts_match": all(
-            summaries[split]["num_problems"]
-            == registry["splits"][split]["num_problems"]
-            for split in summary_paths
+            summaries[summary_name]["num_problems"]
+            == registry_splits[_registry_split_name(summary_name, registry_splits)][
+                "num_problems"
+            ]
+            for summary_name in summary_paths
         ),
     }
     return {
@@ -417,6 +462,53 @@ def load_problems(path: Path) -> list[ModularSequenceProblem]:
     return problems
 
 
+def load_evaluations(path: Path) -> list[ModularProblemEvaluation]:
+    evaluations = []
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+            problem_row = row["problem"]
+            problem = ModularSequenceProblem(
+                problem_id=str(problem_row["problem_id"]),
+                seed=int(problem_row["seed"]),
+                start=int(problem_row["start"]),
+                multiplier=int(problem_row["multiplier"]),
+                step_coeff=int(problem_row["step_coeff"]),
+                offset=int(problem_row["offset"]),
+                modulus=int(problem_row["modulus"]),
+                steps=int(problem_row["steps"]),
+                answer=int(problem_row["answer"]),
+                rationale=tuple(str(step) for step in problem_row["rationale"]),
+            )
+            rollouts = []
+            for rollout_row in row["rollouts"]:
+                error = rollout_row.get("error")
+                rollouts.append(
+                    ModularRollout(
+                        sample_index=int(rollout_row["sample_index"]),
+                        text=str(rollout_row["text"]),
+                        verification=ModularVerification(
+                            success=bool(rollout_row["success"]),
+                            final_value=(
+                                None
+                                if rollout_row["final_value"] is None
+                                else int(rollout_row["final_value"])
+                            ),
+                            strict_final=bool(rollout_row["strict_final"]),
+                            error=None if error is None else str(error),
+                        ),
+                    )
+                )
+            evaluations.append(
+                ModularProblemEvaluation(problem=problem, rollouts=tuple(rollouts))
+            )
+        except Exception as exc:
+            raise ValueError(f"invalid evaluation at {path}:{line_number}: {exc}") from exc
+    return evaluations
+
+
 def _problem_id(
     seed: int,
     start: int,
@@ -434,6 +526,25 @@ def _problem_id(
         ).encode()
     ).hexdigest()
     return f"ms-{digest[:16]}"
+
+
+def _first_success(evaluation: ModularProblemEvaluation) -> ModularRollout | None:
+    for rollout in evaluation.rollouts:
+        if rollout.verification.success:
+            return rollout
+    return None
+
+
+def _registry_split_name(
+    summary_name: str,
+    registry_splits: dict[str, object],
+) -> str:
+    if summary_name in registry_splits:
+        return summary_name
+    for split in sorted(registry_splits, key=len, reverse=True):
+        if summary_name.endswith(f"_{split}"):
+            return split
+    raise ValueError(f"summary {summary_name} does not match a registered split")
 
 
 def _hash_lines(values: Sequence[str]) -> str:
