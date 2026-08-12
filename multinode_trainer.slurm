@@ -57,13 +57,23 @@ export FI_EFA_SET_CUDA_SYNC_MEMOPS=0
 MODULE=${MODULE:-"llama3"}
 CONFIG=${CONFIG:-"llama3_debugmodel"}
 
-TORCHTITAN_RUN_ID=${TORCHTITAN_RUN_ID:-"$(python3 -c 'import uuid; print(uuid.uuid4())')"}
+if [ -z "${TORCHTITAN_RUN_ID:-}" ]; then
+    if ! TORCHTITAN_RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"; then
+        echo "multinode_trainer.slurm: failed to generate TORCHTITAN_RUN_ID" >&2
+        exit 1
+    fi
+fi
 if [ -z "${TORCHTITAN_RUN_ID}" ]; then
     echo "multinode_trainer.slurm: TORCHTITAN_RUN_ID must be nonempty" >&2
     exit 1
 fi
 
-TORCHTITAN_ATTEMPT_ID=${TORCHTITAN_ATTEMPT_ID:-"$(python3 -c 'import uuid; print(uuid.uuid4())')"}
+if [ -z "${TORCHTITAN_ATTEMPT_ID:-}" ]; then
+    if ! TORCHTITAN_ATTEMPT_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"; then
+        echo "multinode_trainer.slurm: failed to generate TORCHTITAN_ATTEMPT_ID" >&2
+        exit 1
+    fi
+fi
 if [ -z "${TORCHTITAN_ATTEMPT_ID}" ]; then
     echo "multinode_trainer.slurm: TORCHTITAN_ATTEMPT_ID must be nonempty" >&2
     exit 1

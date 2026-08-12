@@ -54,6 +54,10 @@ def launcher_stubs(tmp_path: Path) -> tuple[Path, Path, Path]:
             printf '%s\n' "$count" > "$counter_file"
             case "${{STUB_PYTHON_GENERATION_MODE:-success}}" in
                 fail) exit 93 ;;
+                nonempty_fail)
+                    printf '%s\n' "nonempty-generator-output"
+                    exit 94
+                    ;;
                 empty) exit 0 ;;
             esac
             case "$count" in
@@ -353,7 +357,7 @@ def test_direct_communication_modes_receive_identity_without_torchrun(
         ("TORCHTITAN_ATTEMPT_ID", {"TORCHTITAN_RUN_ID": "platform-run"}),
     ),
 )
-@pytest.mark.parametrize("generation_mode", ("fail", "empty"))
+@pytest.mark.parametrize("generation_mode", ("fail", "nonempty_fail", "empty"))
 def test_multinode_launcher_aborts_before_workers_for_invalid_generated_identity(
     launcher_stubs: tuple[Path, Path, Path],
     missing_name: str,
