@@ -352,6 +352,26 @@ missing-final failures. The report is:
 experiments/scaffold_to_policy/reports/20260812Tmmlu-pro-8x8-rollouts4.md
 ```
 
+The larger MMLU-Pro calibration used 16 dev and 16 OOD validation examples,
+4 rollouts per problem, and the same exact final-letter verifier:
+
+```bash
+RUN_ID=20260812T203000Z-mmlu-pro-16x16-rollouts4-ood32 \
+DATA_ROOT=experiments/scaffold_to_policy/data/mmlu_pro_public_vllm_16x16_rollouts4_ood32 \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/mmlu_pro_public_vllm_16x16_rollouts4_ood32 \
+DEV_PROBLEMS=16 OOD_PROBLEMS=16 DEV_OFFSET=0 OOD_OFFSET=32 \
+NUM_ROLLOUTS=4 MAX_NEW_TOKENS=1024 GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_mmlu_pro_public_vllm_smoke.sh
+```
+
+It reached dev pass@1/pass@4/pass@32 `0.500` and OOD pass@1 `0.5625`,
+pass@2 `0.625`, and pass@4/pass@32 `0.6875`. Strict-format pass@k matched
+answer pass@k. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T204500Z-hard-reasoning-coding-freegpu.md
+```
+
 Run the GPQA Diamond gate through the rootfs:
 
 ```bash
@@ -382,6 +402,19 @@ The offline-cache path was smoke-tested with synthetic GPQA-shaped rows in run
 passed, and the run stopped at an intentionally impossible GPU-memory preflight
 without launching vLLM. Authorized real GPQA rows are still required for a
 benchmark-preserving GPQA result.
+
+To walk through either access path interactively, use the rootfs-aware setup
+wizard:
+
+```bash
+experiments/scaffold_to_policy/setup_gpqa_access_wizard.sh
+```
+
+The wizard stores a live Hugging Face token in ignored
+`.cache/huggingface/token` or records authorized raw-cache paths in `.env`,
+then verifies import through `run_gpqa_public_vllm_smoke.sh` with
+`GPU_MEMORY_UTILIZATION=999` so the check stops after import and split
+validation rather than launching vLLM.
 
 Run the first ARC-AGI-2 no-tool smoke through the rootfs:
 
@@ -1067,6 +1100,28 @@ experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
 The run passed canonical preflights and completed shared-engine vLLM model
 execution for both splits. The model score was a hard negative: dev and OOD
 pass@1/pass@8/pass@32 were all `0.0`, with all 16 problems unreached.
+
+After GPUs were free, the same hard coding condition was rerun with a fresh
+rootfs stage manifest and 8 rollouts per problem:
+
+```bash
+RUN_ID=20260812T200000Z-bigcodebench-hard-contract-chat-8x8-freegpu \
+DATA_ROOT=experiments/scaffold_to_policy/data/bigcodebench_hard_contract_chat_8x8_freegpu \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_8x8_freegpu \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 DEV_OFFSET=0 OOD_OFFSET=32 \
+NUM_ROLLOUTS=8 PROMPT_VARIANT=contract_chat \
+GPU_MEMORY_UTILIZATION=0.05 TIMEOUT_SECONDS=30 MAX_NEW_TOKENS=1024 \
+experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
+```
+
+The rerun again passed canonical preflight on all 16 selected tasks and reached
+dev/OOD pass@1/pass@8/pass@32 `0.0`. Dev failures were 64/64 assertion
+failures; OOD failures were 63 assertion failures and one syntax error. The
+combined hard reasoning/coding report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T204500Z-hard-reasoning-coding-freegpu.md
+```
 
 The current AIME low-memory hard-reasoning rerun used:
 

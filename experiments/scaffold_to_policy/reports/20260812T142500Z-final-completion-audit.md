@@ -94,10 +94,10 @@ No GPQA task execution or model score was produced.
 | Modular sequences | Expanded transfer report with dev/OOD pass@1 lift | Local exact-verifier transfer gate cleared |
 | GSM8K / MATH / AIME | Rootfs no-tool vLLM reports | Public reasoning smokes/calibrations completed |
 | ARC-AGI-2 | Chat, strict-chat, packed-chat reports | Context and final-format blockers characterized; exact-grid solve not achieved |
-| MMLU-Pro | `20260812Tmmlu-pro-8x8-rollouts4-promptfix` | Ten-choice multiple-choice lane works; small calibration only |
+| MMLU-Pro | `20260812T203000Z-mmlu-pro-16x16-rollouts4-ood32` | Ten-choice multiple-choice lane works; 16/16 calibration reached dev pass@1 0.500 and OOD pass@1 0.5625 |
 | GPQA Diamond | `20260812T143000Z-gpqa-auth-stage-manifest` blocker | Not runnable without HF auth or authorized raw cache |
 | HumanEval / MBPP | Executable-code smoke reports | Coding harness path validated on small slices |
-| BigCodeBench-Hard | `20260812Tbigcode-hard-contract-chat-8x8-timeout30-rerun` | Hard-negative 8x8 coding result with released tests |
+| BigCodeBench-Hard | `20260812T200000Z-bigcodebench-hard-contract-chat-8x8-freegpu` | Hard-negative 8x8 coding result with released tests and completed free-GPU rerun |
 | LiveCodeBench | `20260812Tlivecodebench-public-vllm-smoke` | Public-test-only contest-code smoke, not official score |
 | Terminal-Bench / Harbor | `20260812Tqwen-headless-terminal-official-verifier` | Official verifier reached; Qwen task reward 0.0 |
 | tau2-bench | `20260812Ttau2-qwen-model-policy` | Official tau2 runner reached; Qwen task reward 0.0 |
