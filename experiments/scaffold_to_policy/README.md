@@ -457,6 +457,29 @@ failures from the benchmark tests. The report is:
 experiments/scaffold_to_policy/reports/20260812T092000Z-arc-bigcodebench-hard-smokes.md
 ```
 
+The expanded calibration run uses the same verifier and prompt condition on an
+8-task dev and 8-task OOD slice, with 4 rollouts per problem:
+
+```bash
+RUN_ID=20260812T173000Z-bigcodebench-hard-public-vllm-expanded \
+DATA_ROOT=experiments/scaffold_to_policy/data/bigcodebench_hard_public_vllm_expanded_clean \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/bigcodebench_hard_public_vllm_expanded_clean \
+DEV_PROBLEMS=8 OOD_PROBLEMS=8 DEV_OFFSET=0 OOD_OFFSET=72 \
+NUM_ROLLOUTS=4 MAX_NEW_TOKENS=1024 TIMEOUT_SECONDS=60 \
+experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
+```
+
+The runner now installs the explicit packages exposed by canonical preflight
+for this slice (`flask`, `flask-login`, `flask-wtf`, `pycryptodome`, `rsa`,
+`seaborn`, and `wordcloud`) inside rootfs before preflight. The selected dev
+and OOD canonical solutions pass 8/8. Qwen3-1.7B reached pass@1/pass@4 `0.000`
+on both splits; all 64 sampled candidates failed released unit tests with
+assertion failures. The expanded report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812T173000Z-bigcodebench-hard-expanded-calibration.md
+```
+
 The current completion audit and blocker map is:
 
 ```text

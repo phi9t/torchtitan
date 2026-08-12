@@ -35,8 +35,20 @@ PROMPT_VARIANT="${PROMPT_VARIANT:-chat}"
 TEMPERATURE="${TEMPERATURE:-0.2}"
 TOP_P="${TOP_P:-0.95}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-10}"
+INSTALL_BIGCODEBENCH_DEPS="${INSTALL_BIGCODEBENCH_DEPS:-1}"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
+
+if [[ "${INSTALL_BIGCODEBENCH_DEPS}" == "1" ]]; then
+  python -m pip install --break-system-packages -q \
+    "flask==3.1.3" \
+    "flask-login==0.6.3" \
+    "flask-wtf==1.3.0" \
+    "pycryptodome==3.23.0" \
+    "rsa==4.9.1" \
+    "seaborn==0.13.2" \
+    "wordcloud==1.9.6"
+fi
 
 subset_args=()
 if [[ -n "${DATASET_SUBSET}" ]]; then

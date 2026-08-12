@@ -551,6 +551,21 @@ reasoning benchmarks.
   now performs that preflight for dev and OOD before spending GPU time, so
   missing rootfs packages are surfaced as early infrastructure failures instead
   of late scoring failures.
+- 2026-08-12: Ran the expanded BigCodeBench-Hard calibration requested by the
+  completion audit. The run
+  `20260812T173000Z-bigcodebench-hard-public-vllm-expanded` used 8 dev tasks
+  from offset 0, 8 OOD tasks from offset 72, 4 rollouts per problem, the pinned
+  `bigcode/bigcodebench-hard` split `v0.1.4`, and the same no-tool vLLM coding
+  prompt/verifier path. To make this slice reproducible from the rootfs
+  entrypoint, `run_bigcodebench_hard_public_vllm_smoke.sh` now installs the
+  explicit packages exposed by canonical preflight: `flask`, `flask-login`,
+  `flask-wtf`, `pycryptodome`, `rsa`, `seaborn`, and `wordcloud`. Both final
+  selected splits passed canonical preflight 8/8. Qwen3-1.7B reached dev and
+  OOD pass@1/pass@4 0.000, with all 64 sampled candidates failing released unit
+  tests as assertion failures. Rejected OOD offset 64 remains documented as a
+  preflight-blocked slice because two released canonical solutions failed under
+  current rootfs library versions. The report is
+  `experiments/scaffold_to_policy/reports/20260812T173000Z-bigcodebench-hard-expanded-calibration.md`.
 - 2026-08-12: Ran the larger ARC-AGI-2 exact-grid calibration requested by the
   completion audit. The run
   `20260812T131000Z-arc-agi2-public-vllm-calibration` used 8 dev and 8 OOD

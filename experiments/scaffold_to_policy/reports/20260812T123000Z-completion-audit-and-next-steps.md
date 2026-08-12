@@ -78,6 +78,11 @@ BigCodeBench-Hard executable smoke:
 - Main failure after repair: benchmark-test assertion failures
 - Infra finding: the first run exposed missing rootfs `matplotlib`; that was an
   environment failure discovered too late, during rollout scoring.
+- Follow-up completed: `20260812T173000Z-bigcodebench-hard-public-vllm-expanded`
+  expanded to 8 dev and 8 OOD tasks with 4 rollouts per problem. Both selected
+  splits passed canonical preflight 8/8 after rootfs dependency repair, and the
+  model reached dev/OOD pass@1/pass@4 `0.000`. All 64 sampled candidates failed
+  released unit tests as assertion failures.
 
 ## New Hardening Landed From This Audit
 
@@ -135,8 +140,8 @@ post-generation scoring surprises.
 
 The next benchmark expansion should remain reasoning-first:
 
-1. Re-run BigCodeBench-Hard with the new canonical preflight enabled and record
-   the preflight artifact in the report.
+1. Improve BigCodeBench-Hard prompting or add a repair pass, then rerun the same
+   preflight-clean 16-task slice before expanding further.
 2. Expand ARC-AGI-2 from smoke to a larger calibration slice once the final-grid
    prompt/parser failure is characterized.
 3. Add GPQA Diamond only after HF auth is available, preserving no-tool multiple
