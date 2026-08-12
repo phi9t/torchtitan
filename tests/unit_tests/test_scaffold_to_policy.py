@@ -733,6 +733,61 @@ def test_arc_grid_imports_tasks_and_reports(tmp_path):
     assert report_input["verifier"]["name"] == "arc_grid_exact_json_v1"
 
 
+def test_arc_grid_prompt_preflight_and_report_input(tmp_path):
+    problem = arc_grid.ARCGridProblem(
+        problem_id="ARC-AGI-2/fixture/0",
+        source="fixture",
+        train_examples=(
+            arc_grid.ARCExample(
+                input_grid=((1, 0), (0, 1)),
+                output_grid=((0, 1), (1, 0)),
+            ),
+        ),
+        test_input=((2, 0), (0, 2)),
+        test_output=((0, 2), (2, 0)),
+    )
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    arc_grid.write_jsonl(dev, [problem.to_json()])
+    split_registry = data_root / "split_registry.json"
+    arc_grid.write_json(
+        split_registry,
+        arc_grid.build_split_registry({"dev": dev}),
+    )
+    summary = results_root / "dev_summary.json"
+    arc_grid.write_json(
+        summary,
+        arc_grid.summarize_evaluations(
+            [arc_grid.evaluate_fixture_rollouts(problem, ["FINAL: [[0,2],[2,0]]"])]
+        ),
+    )
+    preflight = results_root / "dev_prompt_preflight.json"
+    arc_grid.write_json(
+        preflight,
+        arc_grid.build_prompt_preflight(
+            problems=[problem],
+            token_counts={problem.problem_id: 20},
+            max_model_len=64,
+            max_new_tokens=8,
+        ),
+    )
+
+    report_input = arc_grid.build_report_input(
+        data_root=data_root,
+        results_root=results_root,
+        run_id="fixture",
+        split_registry=split_registry,
+        summary_paths={"dev": summary},
+        scaffold_budget=1,
+        preflight_paths={"dev": preflight},
+    )
+
+    assert all(report_input["checks"].values())
+    assert report_input["preflight"]["splits"]["dev"]["selected"]
+    assert report_input["preflight"]["splits"]["dev"]["max_total_tokens"] == 28
+
+
 def test_coding_style_verifier_runs_python_tests():
     problem = coding_style.CodingStyleProblem(
         problem_id="HumanEval/fixture",
@@ -1157,6 +1212,17 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
             "4",
         ]
     )
+    arc_preflight = parser.parse_args(
+        [
+            "preflight-arc-grid-prompts",
+            "--problems",
+            "problems.jsonl",
+            "--model",
+            "./assets/hf/Qwen3-1.7B",
+            "--output",
+            "preflight.json",
+        ]
+    )
     multiple = parser.parse_args(
         [
             "evaluate-multiple-choice-vllm",
@@ -1206,6 +1272,7 @@ def test_harder_reasoning_and_coding_parsers_accept_public_commands():
     assert bigcodebench.source_split == "v0.1.4"
     assert coding_preflight.timeout_seconds == 5.0
     assert arc.source_split == "training"
+    assert arc_preflight.max_model_len == 4096
     assert multiple.prompt_variant == "chat"
     assert multiple.num_rollouts == 4
     assert arc_eval.prompt_variant == "chat"

@@ -22,6 +22,20 @@ generation when vLLM tried to reserve 92% of GPU memory. A second attempt with
 failed because one selected ARC prompt exceeded 4096 tokens. The completed run
 therefore used 8192 context length with the same exact-grid verifier.
 
+After the completed run, the ARC entrypoint was hardened with a prompt-length
+preflight that uses the same tokenizer and prompt variant as vLLM generation.
+The preflight reproduced the 4096-token blocker and then selected the completed
+8192-token configuration:
+
+| Split/config | Problems selected | Max prompt tokens | Max total tokens |
+| --- | ---: | ---: | ---: |
+| dev, 4096 context | 6/8 | 4,473 | 5,241 |
+| dev, 8192 context | 8/8 | 4,473 | 5,241 |
+| OOD, 8192 context | 8/8 | 6,729 | 7,497 |
+
+The two dev tasks that do not fit the 4096-token configuration are
+`ARC-AGI-2/009d5c81/0` and `ARC-AGI-2/00d62c1b/0`.
+
 ## Results
 
 | Split | Problems | Rollouts/problem | pass@1 | pass@4 | Buckets |
@@ -42,6 +56,9 @@ The report-input checks all passed:
 split_registry_selected=true
 summaries_present=true
 summary_split_counts_match=true
+preflights_present=true
+preflight_split_counts_match=true
+preflight_prompts_fit_context=true
 ```
 
 Report input:

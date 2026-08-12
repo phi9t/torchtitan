@@ -30,6 +30,7 @@ DEV_OFFSET="${DEV_OFFSET:-0}"
 OOD_OFFSET="${OOD_OFFSET:-64}"
 NUM_ROLLOUTS="${NUM_ROLLOUTS:-2}"
 MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-768}"
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-${SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN:-4096}}"
 PROMPT_VARIANT="${PROMPT_VARIANT:-chat}"
 TEMPERATURE="${TEMPERATURE:-0.2}"
 TOP_P="${TOP_P:-0.95}"
@@ -76,6 +77,16 @@ python -m torchtitan.experiments.scaffold_to_policy.cli validate-arc-grid-splits
   --output "${DATA_ROOT}/split_registry.json"
 
 for split in dev ood_test; do
+  python -m torchtitan.experiments.scaffold_to_policy.cli preflight-arc-grid-prompts \
+    --problems "${DATA_ROOT}/${split}.jsonl" \
+    --model "${MODEL}" \
+    --output "${RESULTS_ROOT}/eval/${split}_prompt_preflight.json" \
+    --max-new-tokens "${MAX_NEW_TOKENS}" \
+    --max-model-len "${MAX_MODEL_LEN}" \
+    --prompt-variant "${PROMPT_VARIANT}"
+done
+
+for split in dev ood_test; do
   python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-arc-grid-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
@@ -83,6 +94,7 @@ for split in dev ood_test; do
     --summary "${RESULTS_ROOT}/eval/${split}_summary.json" \
     --num-rollouts "${NUM_ROLLOUTS}" \
     --max-new-tokens "${MAX_NEW_TOKENS}" \
+    --max-model-len "${MAX_MODEL_LEN}" \
     --prompt-variant "${PROMPT_VARIANT}" \
     --temperature "${TEMPERATURE}" \
     --top-p "${TOP_P}" \
@@ -97,6 +109,9 @@ python -m torchtitan.experiments.scaffold_to_policy.cli build-arc-grid-report-in
   --summary \
     "dev=${RESULTS_ROOT}/eval/dev_summary.json" \
     "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
+  --preflight \
+    "dev=${RESULTS_ROOT}/eval/dev_prompt_preflight.json" \
+    "ood_test=${RESULTS_ROOT}/eval/ood_test_prompt_preflight.json" \
   --scaffold-budget "${NUM_ROLLOUTS}" \
   --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
 

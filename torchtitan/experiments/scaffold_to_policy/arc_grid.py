@@ -239,6 +239,46 @@ def summarize_evaluations(
     }
 
 
+def build_prompt_preflight(
+    *,
+    problems: Sequence[ARCGridProblem],
+    token_counts: dict[str, int],
+    max_model_len: int,
+    max_new_tokens: int,
+) -> dict[str, object]:
+    records = []
+    for problem in problems:
+        token_count = token_counts[problem.problem_id]
+        total_tokens = token_count + max_new_tokens
+        records.append(
+            {
+                "problem_id": problem.problem_id,
+                "prompt_tokens": token_count,
+                "max_new_tokens": max_new_tokens,
+                "total_tokens": total_tokens,
+                "max_model_len": max_model_len,
+                "selected": total_tokens <= max_model_len,
+            }
+        )
+    num_selected = sum(1 for record in records if record["selected"])
+    return {
+        "schema_version": 1,
+        "kind": "arc_grid_prompt_preflight",
+        "num_problems": len(records),
+        "num_selected": num_selected,
+        "selected": num_selected == len(records),
+        "max_prompt_tokens": max(
+            (record["prompt_tokens"] for record in records),
+            default=0,
+        ),
+        "max_total_tokens": max(
+            (record["total_tokens"] for record in records),
+            default=0,
+        ),
+        "records": records,
+    }
+
+
 def import_arc_tasks(
     task_paths: Sequence[Path],
     *,
@@ -324,9 +364,14 @@ def build_report_input(
     split_registry: Path,
     summary_paths: dict[str, Path],
     scaffold_budget: int,
+    preflight_paths: dict[str, Path] | None = None,
 ) -> dict[str, object]:
     summaries = {
         split: json.loads(path.read_text()) for split, path in summary_paths.items()
+    }
+    preflights = {
+        split: json.loads(path.read_text())
+        for split, path in (preflight_paths or {}).items()
     }
     registry = json.loads(split_registry.read_text())
     checks = {
@@ -336,6 +381,17 @@ def build_report_input(
             summaries[split]["num_problems"]
             == registry["splits"][split]["num_problems"]
             for split in summary_paths
+        ),
+        "preflights_present": all(
+            path.is_file() for path in (preflight_paths or {}).values()
+        ),
+        "preflight_split_counts_match": all(
+            preflights[split]["num_problems"]
+            == registry["splits"][split]["num_problems"]
+            for split in preflights
+        ),
+        "preflight_prompts_fit_context": all(
+            bool(preflight.get("selected", False)) for preflight in preflights.values()
         ),
     }
     return {
@@ -354,6 +410,9 @@ def build_report_input(
             "results_root": str(results_root),
             "split_registry": str(split_registry),
             "summaries": {split: str(path) for split, path in summary_paths.items()},
+            "preflights": {
+                split: str(path) for split, path in (preflight_paths or {}).items()
+            },
         },
         "verifier": {
             "kind": "exact",
@@ -366,6 +425,7 @@ def build_report_input(
             ],
         },
         "checks": checks,
+        "preflight": {"splits": preflights},
         "metrics": {"splits": summaries},
     }
 

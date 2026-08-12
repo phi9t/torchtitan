@@ -326,8 +326,9 @@ experiments/scaffold_to_policy/run_arc_agi2_public_vllm_smoke.sh
 
 This clones `https://github.com/arcprize/ARC-AGI-2.git` at revision
 `f3283f727488ad98fe575ea6a5ac981e4a188e49`, imports small task slices from the
-released JSON files, evaluates Qwen3-1.7B with vLLM, and scores exact JSON grid
-outputs with `FINAL: <json-grid>`. The first completed smoke used 2 dev and 2
+released JSON files, preflights tokenizer/context fit, evaluates Qwen3-1.7B
+with vLLM, and scores exact JSON grid outputs with `FINAL: <json-grid>`. The
+first completed smoke used 2 dev and 2
 OOD examples with 2 rollouts per problem. Dev reached pass@1 `0.000` and
 pass@2 `0.500`; OOD reached pass@1/pass@2 `0.000`. The dominant failure mode
 was format-contract failure where the model emitted `FINAL: <json-grid>`

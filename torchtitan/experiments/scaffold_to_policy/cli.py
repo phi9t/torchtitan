@@ -641,6 +641,32 @@ def evaluate_arc_grid_fixture(args: argparse.Namespace) -> None:
     )
 
 
+def preflight_arc_grid_prompts(args: argparse.Namespace) -> None:
+    problems = arc_grid.load_problems(args.problems)
+    prompts = _build_arc_grid_vllm_prompts(problems, args)
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    token_counts = {
+        problem.problem_id: len(tokenizer(prompt, add_special_tokens=False).input_ids)
+        for problem, prompt in zip(problems, prompts)
+    }
+    preflight = arc_grid.build_prompt_preflight(
+        problems=problems,
+        token_counts=token_counts,
+        max_model_len=args.max_model_len,
+        max_new_tokens=args.max_new_tokens,
+    )
+    arc_grid.write_json(args.output, preflight)
+    if args.require_selected and not preflight["selected"]:
+        failed = [
+            record["problem_id"]
+            for record in preflight["records"]
+            if not record["selected"]
+        ]
+        raise SystemExit("arc-grid prompt preflight failed: " + ", ".join(failed))
+
+
 def evaluate_arithmetic_vllm(args: argparse.Namespace) -> None:
     os.environ.setdefault(
         "VLLM_USE_FLASHINFER_SAMPLER",
@@ -1110,6 +1136,9 @@ def build_multiple_choice_report_input(args: argparse.Namespace) -> None:
 
 def build_arc_grid_report_input(args: argparse.Namespace) -> None:
     summary_paths = _parse_split_paths(args.summary)
+    preflight_paths = None
+    if args.preflight:
+        preflight_paths = _parse_split_paths(args.preflight)
     report_input = arc_grid.build_report_input(
         data_root=args.data_root,
         results_root=args.results_root,
@@ -1117,6 +1146,7 @@ def build_arc_grid_report_input(args: argparse.Namespace) -> None:
         split_registry=args.split_registry,
         summary_paths=summary_paths,
         scaffold_budget=args.scaffold_budget,
+        preflight_paths=preflight_paths,
     )
     arc_grid.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
@@ -1788,6 +1818,28 @@ def build_parser() -> argparse.ArgumentParser:
     arc_eval_parser.add_argument("--max-rollouts", type=int, default=32)
     arc_eval_parser.set_defaults(func=evaluate_arc_grid_fixture)
 
+    arc_preflight_parser = subparsers.add_parser("preflight-arc-grid-prompts")
+    arc_preflight_parser.add_argument("--problems", type=Path, required=True)
+    arc_preflight_parser.add_argument("--model", required=True)
+    arc_preflight_parser.add_argument("--output", type=Path, required=True)
+    arc_preflight_parser.add_argument("--max-new-tokens", type=int, default=768)
+    arc_preflight_parser.add_argument(
+        "--prompt-variant",
+        choices=["plain", "chat"],
+        default=os.environ.get("SCAFFOLD_TO_POLICY_PROMPT_VARIANT", "chat"),
+    )
+    arc_preflight_parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=int(os.environ.get("SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN", "4096")),
+    )
+    arc_preflight_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    arc_preflight_parser.set_defaults(func=preflight_arc_grid_prompts)
+
     vllm_parser = subparsers.add_parser("evaluate-arithmetic-vllm")
     vllm_parser.add_argument("--problems", type=Path, required=True)
     vllm_parser.add_argument("--model", required=True)
@@ -2202,6 +2254,7 @@ def build_parser() -> argparse.ArgumentParser:
     arc_report_parser.add_argument("--run-id", required=True)
     arc_report_parser.add_argument("--split-registry", type=Path, required=True)
     arc_report_parser.add_argument("--summary", nargs="+", required=True)
+    arc_report_parser.add_argument("--preflight", nargs="*")
     arc_report_parser.add_argument("--output", type=Path, required=True)
     arc_report_parser.add_argument("--scaffold-budget", type=int, default=2)
     arc_report_parser.add_argument(

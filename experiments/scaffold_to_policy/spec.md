@@ -550,3 +550,14 @@ reasoning benchmarks.
   around the strict final-grid contract, not rootfs or scorer failures. The
   report is
   `experiments/scaffold_to_policy/reports/20260812T131000Z-arc-agi2-calibration.md`.
+- 2026-08-12: Hardened ARC-AGI-2 prompt/context validation. The new
+  `preflight-arc-grid-prompts` command tokenizes ARC prompts with the same
+  tokenizer and prompt variant used by vLLM, records per-problem prompt and
+  total token counts, and lets ARC report inputs require prompt preflight
+  artifacts. `run_arc_agi2_public_vllm_smoke.sh` now runs this preflight before
+  generation and passes the same `MAX_MODEL_LEN` to preflight and vLLM. On the
+  completed calibration slice, the preflight reproduced the 4096-context
+  blocker: only 6 of 8 dev problems fit when reserving 768 output tokens, with
+  `ARC-AGI-2/009d5c81/0` and `ARC-AGI-2/00d62c1b/0` exceeding context. The
+  8192-context preflight selected all dev and OOD problems; OOD max total tokens
+  were 7497.
