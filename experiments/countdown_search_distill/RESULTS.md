@@ -1,5 +1,39 @@
 # Countdown Search-Distill Results
 
+## 2026-08-12 Clean-Arm Replication And Rank-Size Sweep
+
+The clean-arm replication and rank-size sweep completed under the bwrap rootfs.
+The sweep used isolated data/results roots under
+`experiments/countdown_search_distill/sweeps/replication/` and covered seed 43
+with train sizes 1000 and 2000 and LoRA ranks 32 and 16.
+
+All four cells produced TorchTitan checkpoints, PEFT/vLLM adapter exports,
+dev/IID/OOD adapter matrices, and report inputs. Validation passed for every
+cell. The detailed report is:
+
+```text
+experiments/countdown_search_distill/reports/20260812T043000Z-replication-rank-size-sweep.md
+```
+
+Aggregate clean-adapter results:
+
+| Label | Dev pass@1 | Dev pass@32 | IID pass@1 | IID pass@32 | OOD pass@1 | OOD pass@32 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `seed43_train1000_rank32` | 0.168 | 0.894 | 0.179 | 0.885 | 0.280 | 0.902 |
+| `seed43_train1000_rank16` | 0.186 | 0.880 | 0.157 | 0.876 | 0.316 | 0.906 |
+| `seed43_train2000_rank32` | 0.174 | 0.900 | 0.205 | 0.887 | 0.276 | 0.890 |
+| `seed43_train2000_rank16` | 0.192 | 0.918 | 0.163 | 0.905 | 0.264 | 0.914 |
+
+Best sweep cell: `seed43_train2000_rank16`. It is strongest on dev pass@1,
+dev pass@32, IID pass@32, OOD pass@32, and OOD base-elicitable pass@1. On its
+OOD base-elicitable subset, `clean` reaches 0.351 pass@1 and 1.000 pass@32 over
+279 problems.
+
+Decision: the clean scaffold-to-policy effect has replicated under a fresh
+seed/split draw. The next Countdown-specific step is to replicate and sweep the
+`formatting` champion because it remains the strongest strict-output arm from
+the original clean full split.
+
 ## 2026-08-12 Formatting Arm Completion
 
 The full clean-split matrix now includes the `formatting` arm. Training,

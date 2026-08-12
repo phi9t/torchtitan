@@ -2,7 +2,7 @@
 title: Scaffold-To-Policy Experiment Registry And Reasoning Expansion
 labels:
   - ready-for-agent
-status: ready
+status: executed-checkpoint
 ---
 
 # Scaffold-To-Policy Experiment Registry And Reasoning Expansion
@@ -235,26 +235,30 @@ artifact layout.
 
 ## Further Notes
 
-The current landed commit is `457991949 Add Countdown scaffold-to-policy
-experiment`. The key final report is the clean-split final results and
-infrastructure report under the Countdown experiment reports directory.
+The current Countdown implementation has moved from the original pilot to an
+executed replication checkpoint. The key reports are:
+
+- `experiments/countdown_search_distill/reports/20260811T222454Z-clean-split-final-results-and-infra-report.md`
+- `experiments/countdown_search_distill/reports/20260812T001300Z-formatting-arm-results-and-audit.md`
+- `experiments/countdown_search_distill/reports/20260812T002500Z-base-elicitable-and-examples.md`
+- `experiments/countdown_search_distill/reports/20260812T043000Z-replication-rank-size-sweep.md`
 
 The most important immediate caveats to preserve are:
 
-- clean-split evaluations are fresh, but full checkpoints and exported adapters
-  were reused from an earlier full run;
-- the current verifier can accept arithmetic traces when the final text is not
-  strictly `FINAL: <target>`;
-- run manifests need immutable run IDs and artifact hashes before broader
-  benchmark claims;
+- the original clean-split full report reused full checkpoints and exported
+  adapters from an earlier full run, while later formatting and replication
+  cells produced fresh scoped artifacts;
+- arithmetic pass@k and strict `FINAL: <target>` pass@k must remain separate;
+- run manifests and report inputs now exist, but broader benchmark claims still
+  need canonical latest-row selection, stronger fresh/reused stage surfacing,
+  and offline dataset-loader hardening;
 - reasoning benchmarks should precede agentic benchmarks;
 - Terminal-Bench/Harbor and tau2-bench should enter as harness smokes before
   scientific adapter evaluations.
 
-Suggested first ticket after this spec: implement the provenance-aware
-experiment registry for Countdown, including run-scoped manifests, artifact
-hashes, fresh/reused stage status, runtime metadata, and report input
-generation.
+Suggested first ticket after this checkpoint: replicate the `formatting`
+champion under the same isolated sweep layout, then add one local exact-verifier
+reasoning task to prove transfer before public reasoning benchmarks.
 
 ## Implementation Progress
 
@@ -285,3 +289,13 @@ generation.
   This implements the entrypoint needed to run the required second seed or
   split draw and training-size/LoRA-rank sweeps without overwriting completed
   pilot artifacts.
+- 2026-08-12: Executed the clean-arm replication and rank-size sweep under the
+  bwrap rootfs. The completed sweep covered seed 43, train sizes 1000 and
+  2000, LoRA ranks 32 and 16, and dev/IID/OOD adapter evaluation at 32 rollouts
+  per problem. All four cells produced checkpoints, PEFT/vLLM adapters, adapter
+  matrices, and report inputs under isolated sweep roots. The strongest cell
+  was `seed43_train2000_rank16`, with dev pass@1 0.192, dev pass@32 0.918, IID
+  pass@32 0.905, and OOD pass@32 0.914. On its OOD base-elicitable subset,
+  `clean` reached 0.351 pass@1 and 1.000 pass@32 over 279 problems. This clears
+  the clean-arm replication gate and shifts the next Countdown work to
+  formatting-champion replication plus reasoning-task transfer.
