@@ -857,6 +857,63 @@ from a solved benchmark task. The report is:
 experiments/scaffold_to_policy/reports/20260812T111500Z-terminal-bench-harbor-nop-baseline.md
 ```
 
+Run the bounded task-specific Harbor scripted agent:
+
+```bash
+RUN_ID=20260812Tscripted-headless-terminal-smoke \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/terminal_bench_harbor_scripted_headless \
+HARBOR_AGENT=torchtitan.experiments.scaffold_to_policy.harbor_headless_terminal_agent:HeadlessTerminalScriptAgent \
+TIMEOUT_SECONDS=900 \
+experiments/scaffold_to_policy/run_terminal_bench_oracle_probe.sh
+```
+
+This uses Harbor's released Docker task and verifier for the pinned
+`headless-terminal` task, but the policy is a repo-local script specialized to
+that task. The completed run recorded one evaluated trial, zero Harbor errors,
+and metric `1.0`. Treat it as a custom-agent harness smoke, not as a Qwen3,
+learned-policy, or general Terminal-Bench capability result. The report is:
+
+```text
+experiments/scaffold_to_policy/reports/20260812Tscripted-headless-and-hard-reruns.md
+```
+
+The first completed larger BigCodeBench-Hard `contract_chat` rerun used:
+
+```bash
+RUN_ID=20260812Tbigcode-hard-contract-chat-8x8-timeout30-rerun \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/bigcodebench_hard_contract_chat_8x8_timeout30_rerun \
+DATA_ROOT=experiments/scaffold_to_policy/data/bigcodebench_hard_contract_chat_8x8_timeout30_rerun \
+DEV_PROBLEMS=8 \
+OOD_PROBLEMS=8 \
+DEV_OFFSET=0 \
+OOD_OFFSET=32 \
+NUM_ROLLOUTS=8 \
+PROMPT_VARIANT=contract_chat \
+GPU_MEMORY_UTILIZATION=0.05 \
+TIMEOUT_SECONDS=30 \
+experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
+```
+
+The run passed canonical preflights and completed shared-engine vLLM model
+execution for both splits. The model score was a hard negative: dev and OOD
+pass@1/pass@8/pass@32 were all `0.0`, with all 16 problems unreached.
+
+The current AIME low-memory hard-reasoning rerun used:
+
+```bash
+RUN_ID=20260812Taime-8x8-lowmem-rerun \
+RESULTS_ROOT=experiments/scaffold_to_policy/results/aime_public_vllm_8x8_lowmem_rerun \
+DATA_ROOT=experiments/scaffold_to_policy/data/aime_public_vllm_8x8_lowmem_rerun \
+DEV_PROBLEMS=8 \
+OOD_PROBLEMS=8 \
+NUM_ROLLOUTS=4 \
+GPU_MEMORY_UTILIZATION=0.05 \
+experiments/scaffold_to_policy/run_aime_public_vllm_smoke.sh
+```
+
+It completed both splits. Dev pass@1/pass@4/pass@32 was `0.125` with one easy
+problem; OOD pass@1/pass@4/pass@32 remained `0.0`.
+
 ## Registry Shape
 
 Each run family should be described by a machine-readable registry with:

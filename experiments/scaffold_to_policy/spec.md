@@ -884,3 +884,30 @@ reasoning benchmarks.
   preflight saw only 6.92 GiB free versus 8.92 GiB required. Host `nvidia-smi`
   showed all eight B200s occupied by unrelated SGLang scheduler processes. No
   larger 8x8 `contract_chat` model score was produced.
+- 2026-08-12: Used the next free-GPU window to complete harder reasoning and
+  coding retries through the bwrap rootfs. The BigCodeBench-Hard
+  `contract_chat` run
+  `20260812Tbigcode-hard-contract-chat-8x8-timeout30-rerun` used the same
+  8 dev / 8 OOD slice, `NUM_ROLLOUTS=8`, `GPU_MEMORY_UTILIZATION=0.05`, and a
+  30 second released-test timeout. Canonical preflights passed for both splits,
+  vLLM selected GPU 0 with 177.74 GiB free versus 8.92 GiB required, and the
+  shared-engine evaluator completed dev and OOD in one model lifecycle. The
+  result was a clean hard-negative coding score: dev pass@1/pass@8/pass@32
+  `0.0`, OOD pass@1/pass@8/pass@32 `0.0`, all 16 problems unreached, with
+  released-test assertion failures dominating and one OOD syntax error. The
+  AIME run `20260812Taime-8x8-lowmem-rerun` used 8 dev / 8 OOD problems,
+  4 rollouts, and the same low-memory vLLM setting. It completed both splits:
+  dev pass@1/pass@4/pass@32 `0.125` with one easy problem and seven unreached;
+  OOD pass@1/pass@4/pass@32 `0.0` with all eight unreached. GPQA Diamond
+  remains gated because no `HF_TOKEN` is configured inside the rootfs.
+- 2026-08-12: Advanced Terminal-Bench/Harbor beyond oracle and nop probes with
+  a repo-local Harbor custom agent
+  `torchtitan.experiments.scaffold_to_policy.harbor_headless_terminal_agent:HeadlessTerminalScriptAgent`.
+  The agent is task-specific to pinned `headless-terminal`: it writes a tmux
+  backed `/app/headless_terminal.py` inside the Harbor task container and lets
+  Harbor's released verifier score the result. Run
+  `20260812Tscripted-headless-terminal-smoke` completed one Docker-backed
+  Harbor trial with `n_completed_trials=1`, `n_errored_trials=0`,
+  `n_trials=1`, `n_errors=0`, and metric `1.0`. This is a bounded scripted
+  policy/harness smoke, not a Qwen3, learned-policy, or general Terminal-Bench
+  capability result.
