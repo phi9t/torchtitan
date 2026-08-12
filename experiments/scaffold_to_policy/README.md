@@ -12,6 +12,10 @@ See `followup_experiment_plan.md` for the concrete staged experiment program
 that follows from the Countdown pilot: split repair, Countdown ablations,
 reasoning transfer, harness feasibility, and later agentic pilots.
 
+See `runtime_preflight_roadmap.md` for the runtime-contract and preflight plan:
+doctor integration, lane profiles, benchmark-specific preflights, result
+manifest requirements, and failure taxonomy.
+
 See `spec.md` for the ready-for-agent spec that turns the current execution
 state into the next implementation program.
 
