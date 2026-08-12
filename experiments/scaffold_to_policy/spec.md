@@ -3,6 +3,8 @@ title: Scaffold-To-Policy Experiment Registry And Reasoning Expansion
 labels:
   - ready-for-agent
 status: executed-checkpoint
+blocked_on:
+  - gpqa_huggingface_auth
 ---
 
 # Scaffold-To-Policy Experiment Registry And Reasoning Expansion
@@ -988,3 +990,15 @@ reasoning benchmarks.
   selected problems were unreached, with failures split between indentation
   errors and wrong public-test outputs. The report is
   `experiments/scaffold_to_policy/reports/20260812Tlivecodebench-public-vllm-smoke.md`.
+- 2026-08-12: Ran the final prompt-to-artifact completion audit for this
+  checkpoint. The audit maps each explicit spec requirement to concrete
+  reports, manifests, or blocker artifacts and confirms that the remaining
+  unexecuted public reasoning lane is GPQA Diamond. A fresh rootfs run
+  `20260812T142500Z-gpqa-auth-final-audit` attempted
+  `run_gpqa_public_vllm_smoke.sh` with a one-problem slice and stopped at the
+  Hugging Face import gate because `Idavidrein/gpqa` is gated and no `HF_TOKEN`
+  is configured inside the bwrap rootfs. The runner wrote blocker report input
+  `experiments/scaffold_to_policy/results/gpqa_public_vllm_final_audit/manifests/report_input_20260812T142500Z-gpqa-auth-final-audit.json`.
+  The objective is therefore blocked on authenticated GPQA access or an
+  authorized raw cache, not complete. The audit report is
+  `experiments/scaffold_to_policy/reports/20260812T142500Z-final-completion-audit.md`.

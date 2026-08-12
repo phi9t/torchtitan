@@ -610,8 +610,13 @@ to a Python traceback.
 The current completion audit and blocker map is:
 
 ```text
+experiments/scaffold_to_policy/reports/20260812T142500Z-final-completion-audit.md
 experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md
 ```
+
+The newer audit includes the completed MMLU-Pro and LiveCodeBench lanes plus a
+fresh GPQA blocker refresh. It marks the checkpoint blocked on authenticated
+GPQA access or an authorized raw GPQA cache, not complete.
 
 Exact-verifier scaffold report inputs share the common
 `report_artifacts.build_report_input` shell. `arithmetic_words`, `gsm_style`,
