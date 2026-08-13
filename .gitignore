@@ -64,3 +64,9 @@ CLAUDE_CONTEXT/
 
 # Lychee (link checker) cache
 .lycheecache
+
+# roborev snapshots
+/.roborev/
+
+# TRAE CLI agent worktrees
+/.trae/
