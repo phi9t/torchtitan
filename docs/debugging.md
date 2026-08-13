@@ -86,29 +86,35 @@ NGPU=32 COMM_MODE="fake_backend" ./run_train.sh
 NGPU=128 COMM_MODE="fake_backend" MODULE=llama3 CONFIG=llama3_70b ./run_train.sh
 ```
 
-#### 2. `local_tensor` - Single-GPU Distributed Simulation
+#### 2. `local_tensor` - Bootstrap Validation Mode
 
-This mode simulates the full distributed training workflow on a single GPU by executing all communication and computation locally:
+This mode validates the direct core entrypoint and its pre-trainer bootstrap:
 
 ```bash
 NGPU=32 COMM_MODE="local_tensor" ./run_train.sh
 ```
 
 **What it does:**
-- Simulates multi-GPU behavior on a single shared GPU
-- Executes all collectives (all-reduce, all-gather, etc.) locally without network communication
-- Maintains the same code paths as distributed training for accurate debugging
-- Runs only one training step by default
+- Parses and validates the selected configuration
+- Installs the core [run-evidence bundle](run_evidence.md) and structured logger
+- Records the bootstrap structured event and a process outcome
+- Returns before `Trainer` construction, distributed initialization, model
+  construction, checkpointing, or any training step
 
 **When to use it:**
-- Debugging distributed training logic (FSDP, TP, PP, CP, EP) with data dependencies without multi-GPU setup. Note that local tensor doesn't support FSDP2 but should support SimpleFSDP.
-- Verifying correctness of parallelism strategies locally
-- Testing gradient synchronization and communication patterns
-- Reproducing distributed training bugs in a simplified environment
+- Checking config parsing and CLI overrides through the core entrypoint
+- Checking run/attempt identity propagation and evidence bootstrap without a
+  GPU training budget
+- Checking structured logger setup, close, and successful early-return outcome
+
+This mode does not exercise FSDP, TP, PP, CP, EP, collectives, gradient
+synchronization, model numerics, or training correctness. `NGPU` can still be
+used while validating the requested topology, but the launch remains one
+process and performs no distributed work.
 
 **Example use case:**
 ```bash
-# Debug 8-way TP + 2-way FSDP on a single GPU
+# Validate bootstrap for a requested 8-way TP + 2-way data-parallel config
 NGPU=16 COMM_MODE="local_tensor" ./run_train.sh \
   --parallelism.tensor_parallel_degree 8 \
   --parallelism.data_parallel_shard_degree 2
@@ -116,13 +122,25 @@ NGPU=16 COMM_MODE="local_tensor" ./run_train.sh \
 
 ### Limitations
 
-- **Performance testing**: Neither mode provides accurate performance metrics; use actual distributed runs for benchmarking
-- **Memory requirement**: Local tensor runs require more memory on a single GPU than the actual distributed runs
+- **Performance testing**: Neither mode provides performance evidence; use
+  matched distributed runs for benchmarking
+- **Training validation**: `local_tensor` currently proves bootstrap plumbing
+  only because it returns before `Trainer` construction
 
 ## Troubleshooting jobs that timeout
 
-If you encounter jobs that timeout, you'll need to debug them to identify the root cause. To help with this process, we've enabled Flight Recorder, a tool that continuously collects diagnostic information about your jobs.
-When a job times out, Flight Recorder automatically generates dump files on every rank containing valuable debugging data. You can find these dump files in the `dump_folder` directory.
+If you encounter jobs that timeout, Flight Recorder can retain a bounded
+history of distributed operations when its trace buffer is enabled. TorchTitan
+configures a native dump prefix under
+`dump_folder/<comm.save_traces_folder>/<comm.save_traces_file_prefix>` and asks
+PyTorch to dump on NCCL timeout.
+
+The run-evidence index records that prefix as a `declared`
+`pytorch.flight_recorder.dump` artifact with `path_semantics="prefix"`. The row
+does not assert that a timeout happened, that every rank wrote a file, or that a
+dump completed. Confirm native files at the prefix and account for the PyTorch,
+backend, timeout, and environment behavior of the actual run before analyzing
+them.
 To learn how to analyze and diagnose issues using these logs, follow our step-by-step tutorial [link](https://pytorch.org/tutorials/prototype/flight_recorder_tutorial.html).
 
 
