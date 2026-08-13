@@ -73,6 +73,19 @@ A best-effort classification of where a distributed failure appears to have
 originated, including the confidence of that classification.
 _Avoid_: Root cause, guilty rank
 
+**Typed Incident Record**:
+An append-only run-evidence row that carries the process event envelope plus a
+classified fault class, capture state, disposition policy, and best-effort
+first-fault attribution for one diagnosable failure or degraded-progress event.
+It records a diagnosis; it is not proof that recovery was attempted.
+_Avoid_: Error log entry, alert, exception record
+
+**Attempt Outcome Aggregate**:
+An immutable post-hoc reduction of every per-process outcome in one attempt into
+a single attempt-level result, where a missing process outcome or inconsistent
+world size is incomplete rather than success.
+_Avoid_: Job status, central collector, cluster health
+
 **Semantic Continuity**:
 The production recovery standard that a resumed run has not lost, duplicated,
 or silently changed training state, even when bitwise identity is not promised.

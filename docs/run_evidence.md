@@ -162,8 +162,60 @@ record. It includes `schema_version=1`, `evidence_schema_version=1`,
 and an `exception_message` truncated to 512 characters.
 
 An outcome uses elapsed monotonic time. It does not contain `wall_time_ns`, an
-absolute `monotonic_ns`, `event_seq`, or `artifact_seq`. There is no top-level
-multi-process outcome in v1; inspect every expected process outcome separately.
+absolute `monotonic_ns`, `event_seq`, or `artifact_seq`. Inspect every expected
+process outcome separately, or reduce them with the post-hoc aggregator below.
+
+### Incident records
+
+A row with `record_type="incident"` is an append-only record of a diagnosable
+training failure or degraded-progress event. It is written to the same
+`indexes/artifacts.<process_id>.jsonl` through the artifact append path, but it
+is not an artifact transition and carries no `artifact_id` or `artifact_seq`.
+
+Each incident row inherits the full structured-event envelope (`run_id`,
+`attempt_id`, process fields, `event_seq`, both clocks, distributed context when
+bound, and the current nested `phase`) and adds `schema_version=1`,
+`record_type="incident"`, and:
+
+- `incident_class`: one of the nine v1 fault-suite classes (`collective_hang`,
+  `rank_death`, `compute_straggler`, `dataloader_straggler`, `nonfinite_loss`,
+  `checkpoint_corruption`, `checkpoint_interruption`, `inconsistent_rank_config`,
+  `hardware_event`). V1 wires only the `nonfinite_loss` emitter; the other eight
+  are the classification enum only, not proven fault injections.
+- `capture_state`: `normal`, `suspected`, `capturing`, `continue`, or
+  `abort_and_preserve`.
+- `policy`: `capture_before_abort`, `continue_bounded_warning`, or `abort_fatal`.
+  These describe intended disposition only; v1 does not retry, recover, or
+  quarantine.
+- `summary` and always-present JSON `metadata`.
+
+Optional progress-envelope fields are recorded only when supplied:
+`detected_locus`, `attribution_confidence`, `step`, `last_operation`,
+`useful_work_preserved`, and `terminal_disposition`. An uncollected optional
+field is omitted, exactly like the optional `step`/`phase`. An
+unknown-but-observed value is present with an explicit sentinel
+(`detected_locus="unknown"`,
+`attribution_confidence="collective_timeout_insufficient_evidence"`), mirroring
+the `source.dirty=null` semantics. A recorded incident does not by itself prove
+that recovery was attempted or that the run continued.
+
+### Attempt outcome aggregation
+
+`python -m torchtitan.observability.aggregate_outcome <attempt_dir>` reduces all
+`processes/*/outcome.json` files into one immutable `aggregate_outcome.json`
+sibling to `manifest.json`. It runs post-hoc, off the training path, with no
+cross-rank barrier, so it preserves the no-central-collector contract.
+
+The record has `record_type="attempt_outcome_aggregate"`, `run_id`/`attempt_id`
+from the manifest, `expected_world_size`, `process_outcome_count`,
+`missing_process_count`, the per-process `outcomes`, `first_failure` (the lowest
+failed `global_rank`), `consistent_world_size`, and `reduced_wall_time_ns` (the
+longest observed elapsed time). `aggregate_outcome` is `failed` if any process
+failed, `interrupted` if none failed and any was interrupted, `succeeded` only
+when every expected process succeeded with a consistent positive world size, and
+`incomplete` otherwise. A missing process outcome or an inconsistent world size
+is `incomplete`, never success. A second write raises unless `--force` replaces
+it atomically.
 
 ## Artifact lifecycle and native kinds
 
@@ -234,7 +286,9 @@ indexed.
 The following remain later milestones and must not be inferred from a v1
 bundle:
 
-- top-level multi-process outcome aggregation and typed incident records;
+- fault-injection certification of the other eight incident classes, incident
+  emitters beyond the non-finite loss seam, and recovery, ETTR, or membership
+  and restore-equivalence evidence;
 - external tool or hardware ingestion, including DCGM, EUD, py-spy, NCCL RAS,
   `nccl-tests`, SuperBench, and Nsight;
 - anomaly triggers, capture tiers and policy, budgets, and retention
