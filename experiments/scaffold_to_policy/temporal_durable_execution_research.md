@@ -81,24 +81,28 @@ provider credentials use the opaque, invocation-scoped capability contract
 below; no credential becomes part of Workflow state.
 
 Rootfs construction must be a separate serialized preflight, not an implicit
-side effect of a retried GPU Activity. Today the entry script automatically
-builds a missing rootfs, while the build uses mutable image/package references
-such as a tagged base image and `uv:latest`. More urgently, the builder accepts
-an arbitrary `--dest`, later recursively removes it, and the entry script can
-forward a missing arbitrary `--rootfs` into that path.
-[Entry-time build](../../scripts/rootfs/enter_rootfs.sh#L64-L68),
-[rootfs build inputs](../../scripts/rootfs/build_rootfs.sh#L10-L13),
-[mutable build steps](../../scripts/rootfs/build_rootfs.sh#L75-L111),
-[destructive export path](../../scripts/rootfs/build_rootfs.sh#L113-L125)
+side effect of a retried GPU Activity. The destructive-destination and
+implicit-build risks are now closed: both commands route `--dest`/`--rootfs`
+through a shared fail-closed resolver that accepts only allowlisted managed
+store destinations and requires a valid ownership marker before replacing an
+existing rootfs, and a missing custom `--rootfs` fails rather than triggering a
+build. The remaining unresolved work is mutable build inputs -- the build still
+uses mutable image/package references such as a tagged base image and
+`uv:latest` -- so content-addressed activation and immutable build inputs stay
+on the F3b backlog.
+[Fail-closed dest resolver](../../scripts/rootfs/build_rootfs.sh#L76-L78),
+[ownership-gated replacement](../../scripts/rootfs/build_rootfs.sh#L132-L133),
+[missing-rootfs fail-closed entry](../../scripts/rootfs/enter_rootfs.sh#L74-L77),
+[mutable build inputs (still open)](../../scripts/rootfs/build_rootfs.sh#L75-L111)
 
-Before any automatic build remains enabled, both commands must use one
-fail-closed resolver: canonicalize the existing parent and basename; accept
-only exact managed destinations below a dedicated allowlisted store; use
+The landed resolver enforces this contract for both commands: it
+canonicalizes the existing parent and basename; accepts
+only exact managed destinations below a dedicated allowlisted store; uses
 `lstat`-equivalent checks to reject symlinked components, mount points,
 unexpected file types, and unrelated existing directories; and explicitly
-refuse empty paths, `/`, home, repository/workspace/store roots, and every
+refuses empty paths, `/`, home, repository/workspace/store roots, and every
 out-of-store path. Replacement requires a valid ownership marker and matching
-manifest. A missing custom rootfs must fail rather than trigger a build.
+manifest. A missing custom rootfs fails rather than triggering a build.
 
 Export into a uniquely owned staging directory under that store, validate the
 manifest and content digest, expected structure, executable `bin/bash`, and a
@@ -290,12 +294,14 @@ parent, canonical work status (`produced`, `reused`, `resumed`, `imported`, or
 and terminal outcome. Temporal Activity completion is then an index to that
 receipt, not the receipt itself.
 
-This is also why the current manifest setup cannot be reused unchanged:
-`scaffold_setup_run_manifest` truncates the run JSONL, although stage rows are
-subsequently appended. A Temporal redelivery could therefore erase earlier
-evidence unless run/attempt creation becomes immutable and append-only first.
-[Current truncation and append behavior](run_common.sh#L27-L34),
-[current stage append](run_common.sh#L98-L101)
+The manifest setup is now safe to build on: `scaffold_setup_run_manifest`
+opens the run JSONL append-only and records a distinct attempt marker, so a
+repeated setup under the same RUN_ID -- a nested doctor call, a retry, or a
+Temporal redelivery -- can no longer erase earlier evidence. Run/attempt
+creation is immutable and append-only, which is the property a durable
+Activity relies on.
+[Append-only manifest setup](run_common.sh#L33-L57),
+[stage append](run_common.sh#L98-L101)
 
 ## Long-running Activities, timeouts, heartbeats, and cancellation
 

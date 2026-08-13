@@ -537,8 +537,8 @@ Experiments:
   Freeze the calibrated band only if M2 reachability passes on IID; retain each
   locked OOD confirmation axis as an explicit guardrail even when development
   shows it is below the training-yield band.
-- [ ] **R-MOD-03: Matched arm screen.** On draw 1/seed 1, compare raw verified
-  transcripts, deterministic clean recurrence traces, and format-control
+- [ ] **R-MOD-03: Matched arm screen.** On draw 1/seed 42 (cell A), compare raw
+  verified transcripts, deterministic clean recurrence traces, and format-control
   examples. Match unique train problems and optimizer steps; run the
   target-token-matched secondary check for the selected arm.
 - [ ] **R-MOD-04: Crossed replication.** After R-MOD-03 freezes the champion,

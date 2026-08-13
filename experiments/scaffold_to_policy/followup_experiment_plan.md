@@ -364,8 +364,8 @@ P4 F0 truth repair and core evidence-schema adoption
   -> F1 lifecycle and evidence identity
      -> F2 composable doctor and semantic preflight
         -> F3 rootfs identity and capability hardening
-           -> F4 local Temporal adapter
-              -> F5 runner migration
+           -> F4 runner migration
+              -> F5 local Temporal adapter
                  -> F6 experiment views and operations
 
 M0 task contract -> M1 base calibration -> M2 scaffold reachability
@@ -393,8 +393,9 @@ The detailed design is in `runtime_preflight_roadmap.md`. The master ordering is
 
 Deliver:
 
-- fix nested doctor behavior so attaching to a run cannot initialize or
-  truncate an existing manifest;
+- (landed) nested doctor behavior is fixed so attaching to a run cannot
+  initialize or truncate an existing manifest; `scaffold_setup_run_manifest` is
+  append-only and records a distinct attempt marker;
 - distinguish score regression from absent/invalid measurement;
 - reconcile lane/profile names and all declared runner targets with real
   entrypoints;
@@ -437,24 +438,29 @@ official harness networking with recorded probes.
 Gate: the same declaration cannot be resumed under a different rootfs digest
 without an explicit new run or approved equivalence record.
 
-### F4: Temporal durability
+### F4: Runner migration
 
-Run a loopback-only, version-pinned local Temporal dev server with persistent
-SQLite, plus host workers and resource queues. Activities launch existing
-rootfs stages and validate local receipts.
+Reordered ahead of Temporal durability so a real runner exercises the typed
+lifecycle before any stage is wrapped in a durable Activity. See ADR
+0005-reorder-runner-migration-before-temporal. Migrate one host-testable
+reference runner (`run_arithmetic_words_smoke.sh`) end to end, then one CPU
+runner, one inference runner, one SFT runner, one external harness runner, then
+the remaining inventory. A migrated runner must preserve its task semantics and
+canonical report input.
+
+Gate: no runner can claim completion without terminal stage events and artifact
+receipts, and no serious runner writes the prototype manifest directly.
+
+### F5: Temporal durability
+
+Reordered after runner migration so durability wraps a lifecycle path already
+proven on a real runner. Run a loopback-only, version-pinned local Temporal dev
+server with persistent SQLite, plus host workers and resource queues. Activities
+launch existing rootfs stages and validate local receipts.
 
 Gate: server restart, worker restart, duplicate delivery, cancellation,
 ambiguous subprocess ownership, and verified SFT checkpoint resume all pass
 fault injection. RL retries remain disabled.
-
-### F5: Runner migration
-
-Migrate one CPU runner, one inference runner, one SFT runner, one external
-harness runner, then the remaining inventory. A migrated runner must preserve
-its task semantics and canonical report input.
-
-Gate: no runner can claim completion without terminal stage events and artifact
-receipts.
 
 ### F6: Experiment views and operations
 
@@ -758,7 +764,7 @@ cell.
 | --- | --- | --- | --- | --- |
 | `FOUNDATION-TRUTH` | Can the evidence lifecycle preserve truth under nesting, retries, and regressions? | unit plus host fault matrix | none | F0/F1 gates pass. |
 | `ROOTFS-REPRO` | Can identical stages prove environment identity and explicit capabilities? | CPU, 1-GPU, distributed, Monarch/vLLM, external harness probes | F1 | F2/F3 gates pass. |
-| `TEMPORAL-DURABILITY` | Can staged work recover without duplicate or ambiguous publication? | CPU stage, eval shard, SFT checkpoint resume; RL forced no-retry | F1-F3 | F4 fault matrix passes. |
+| `TEMPORAL-DURABILITY` | Can staged work recover without duplicate or ambiguous publication? | CPU stage, eval shard, SFT checkpoint resume; RL forced no-retry | F1-F4 | F5 fault matrix passes. |
 | `TRAIN-MOD-REP` | Does modular raw/selected SFT gain replicate? | Minimum conditional matrix: 2 fresh draws x 2 seeds x champion/anchor plus matched base; expand to the prospectively sized matrix for a recipe-general claim | M2 modular, F0-F4 | M4 gate in reasoning/training plans with claim scope recorded. |
 | `REASON-EXACT-TRANSFER` | Does the selected modular mechanism transfer to public exact reasoning? | base/scaffold/selected/anchor on GSM8K and MATH-exact; AIME locked transfer | modular M4 | public transfer primary endpoint passes. |
 | `REASON-MC-TRANSFER` | Does it transfer under choice permutation? | MMLU-Pro development, repaired GPQA post-hoc transfer, untouched confirmation set | both task contracts valid | permutation-safe direction plus untouched confirmation. |
@@ -821,8 +827,8 @@ Update this table only from validated reports; plans do not self-promote.
 | Program area | Current state | Next gate |
 | --- | --- | --- |
 | Execution foundation | Design approved; current runners expose manifest and doctor correctness gaps. | F0 truth-preserving fixes. |
-| Rootfs | Real bwrap/GPU path exists; build and mounts are mutable/broad. | F3 reproducibility and capability proof. |
-| Temporal | Primary-source design complete; no adapter implementation implied. | F4 prototype plus fault injection after F0-F3. |
+| Rootfs | Real bwrap/GPU path exists; F3a landed content-addressed identity, fail-closed dest resolver, and ownership-gated replacement; build inputs and mounts remain mutable/broad. | F3b read-only mounts, capability policy, and immutable build inputs. |
+| Temporal | Primary-source design complete; no adapter implementation implied. | F5 prototype plus fault injection after F0-F4. |
 | Countdown reasoning | Historical replicated anchor; principal runs are not a fully crossed new-ladder M4. | Lifecycle migration and stop-quality ablation; fill cross cells only if a new Countdown M4 claim is needed. |
 | Modular reasoning | M2 plus a one-draw exploratory SFT lead; historical `ood_test` is held-out IID. | `TRAIN-MOD-REP` with genuine OOD axes to reach or reject M4. |
 | GSM8K/MATH/AIME | M0/M1-style calibration and plumbing vary by task; no trained transfer claim. | Freeze exact task contracts and establish M2. |
@@ -853,12 +859,14 @@ Execute in this order unless a new review changes the dependency graph:
    preflights for reasoning, coding, Harbor, and tau2.
 6. Pin and identify rootfs construction; prove required networking and device
    paths; then enforce explicit capabilities and read-only defaults.
-7. Implement local resource leases and the Temporal CPU/reference workflow.
-8. Fault-test duplicate delivery, cancellation, worker/server restart, receipt
+7. Migrate one host-testable reference runner
+   (`run_arithmetic_words_smoke.sh`) end to end onto the lifecycle, then
+   representative CPU, inference, SFT, and external harness runners, then finish
+   the runner inventory. See ADR 0005-reorder-runner-migration-before-temporal.
+8. Implement local resource leases and the Temporal CPU/reference workflow.
+9. Fault-test duplicate delivery, cancellation, worker/server restart, receipt
    validation, and ambiguous subprocess ownership.
-9. Add verified SFT DCP resume to the Temporal path; keep RL retry disabled.
-10. Migrate representative CPU, inference, SFT, and external harness runners,
-    then finish the runner inventory.
+10. Add verified SFT DCP resume to the Temporal path; keep RL retry disabled.
 11. Freeze modular replication declarations and execute `TRAIN-MOD-REP`.
 12. Advance only if the M4 gate passes; otherwise diagnose draw/seed,
     formatting, and scaffold-reachability mechanisms before adding tasks.
