@@ -51,8 +51,9 @@ def main() -> None:
                 # init_states() and foreach_allgather. In local tensor mode, skip
                 # training/checkpointing as the # model is not fully initialized
                 if (
-                    config.comm.mode == "local_tensor"
-                ):  # pyrefly: ignore [missing-attribute]
+                    config.comm.mode  # pyrefly: ignore [missing-attribute]
+                    == "local_tensor"
+                ):
                     logger.info(
                         "Local tensor mode enabled - skipping training execution"
                     )
