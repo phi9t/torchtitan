@@ -4,12 +4,15 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
+import os
 import unittest
 from unittest.mock import MagicMock, patch
 
 import torch
 
 from torchtitan.components.loss import IGNORE_INDEX
+from torchtitan.observability.run_evidence import RunEvidence
 from torchtitan.trainer import Trainer
 
 
@@ -84,6 +87,84 @@ class TestInvalidLoss(unittest.TestCase):
         # Detection is gated on logging, so a non-log step must not raise even
         # when the loss is NaN.
         self._run_step(float("nan"), should_log=False)
+
+
+class TestInvalidLossEmitsIncident(unittest.TestCase):
+    """The non-finite loss seam emits a run-evidence incident before raising.
+
+    Recording the incident must never mask the original RuntimeError, and must
+    stay a no-op when no recorder is installed (the default for a bare Trainer).
+    """
+
+    def _run_step_with_recorder(self, tmp_dir, loss_value, should_log):
+        trainer = TestInvalidLoss()._make_trainer(loss_value, should_log)
+        env = {
+            "WORLD_SIZE": "1",
+            "RANK": "0",
+            "LOCAL_RANK": "0",
+            "TORCHTITAN_RUN_ID": "invalid-loss-run",
+            "TORCHTITAN_ATTEMPT_ID": "invalid-loss-attempt",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with RunEvidence(
+                RunEvidence.Config(),
+                dump_folder=tmp_dir,
+                job_config={"training": {"steps": 3}},
+                role="trainer",
+                actor_id="core",
+            ):
+                with patch("torchtitan.trainer.sl", MagicMock()), patch(
+                    "torchtitan.trainer.dist_utils.clip_grad_norm_",
+                    return_value=torch.tensor(1.0),
+                ):
+                    trainer.train_step(TestInvalidLoss()._data_iterator())
+
+    def _incident_rows(self, tmp_dir):
+        import glob
+
+        index = glob.glob(
+            os.path.join(
+                tmp_dir,
+                "run_evidence",
+                "invalid-loss-run",
+                "invalid-loss-attempt",
+                "indexes",
+                "artifacts.*.jsonl",
+            )
+        )[0]
+        with open(index) as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        return [row for row in rows if row["record_type"] == "incident"]
+
+    def test_nan_loss_emits_nonfinite_incident_before_raising(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_step_with_recorder(tmp_dir, float("nan"), should_log=True)
+            self.assertIn("not finite", str(ctx.exception))
+
+            incidents = self._incident_rows(tmp_dir)
+            self.assertEqual(len(incidents), 1)
+            incident = incidents[0]
+            self.assertEqual(incident["incident_class"], "nonfinite_loss")
+            self.assertEqual(incident["policy"], "abort_fatal")
+            self.assertEqual(incident["capture_state"], "abort_and_preserve")
+            self.assertEqual(incident["detected_locus"], "trainer_rank")
+            self.assertEqual(incident["step"], 1)
+
+    def test_finite_loss_does_not_emit_incident(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self._run_step_with_recorder(tmp_dir, 1.5, should_log=True)
+            self.assertEqual(self._incident_rows(tmp_dir), [])
+
+    def test_nan_loss_without_recorder_still_raises_and_is_a_noop(self):
+        # A bare Trainer installs no recorder, so the emitter is a no-op.
+        with self.assertRaises(RuntimeError) as ctx:
+            TestInvalidLoss()._run_step(float("nan"), should_log=True)
+        self.assertIn("not finite", str(ctx.exception))
 
 
 if __name__ == "__main__":

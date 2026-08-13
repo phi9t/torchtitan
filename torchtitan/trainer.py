@@ -49,7 +49,15 @@ from torchtitan.distributed.spmd_types import annotate_input_spmd_types
 from torchtitan.models.common.attention import FlexAttention, VarlenAttention
 from torchtitan.models.common.decoder import Decoder
 from torchtitan.observability import structured_logger as sl
-from torchtitan.observability.run_evidence import bind_distributed, RunEvidence
+from torchtitan.observability.run_evidence import (
+    bind_distributed,
+    FaultAttributionLocus,
+    IncidentCaptureState,
+    IncidentClass,
+    IncidentPolicy,
+    record_incident,
+    RunEvidence,
+)
 from torchtitan.protocols import BaseModel
 from torchtitan.protocols.model_spec import ModelSpec
 from torchtitan.tools import utils
@@ -921,6 +929,19 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
         # for logging, so it adds no extra sync.
         # TODO: make this step work even logging is off.
         if not math.isfinite(global_avg_loss):
+            # Record a typed incident on the active run-evidence recorder before
+            # aborting. This is a no-op when no recorder is installed, and the
+            # facade preserves this RuntimeError if recording itself fails.
+            record_incident(
+                incident_class=IncidentClass.NONFINITE_LOSS,
+                capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+                policy=IncidentPolicy.ABORT_FATAL,
+                summary=f"loss is not finite (global_avg_loss={global_avg_loss})",
+                detected_locus=FaultAttributionLocus.TRAINER_RANK,
+                step=self.step,
+                terminal_disposition="abort",
+                metadata={"global_avg_loss": repr(global_avg_loss)},
+            )
             raise RuntimeError(
                 f"Loss is not finite (global_avg_loss={global_avg_loss}) at "
                 f"step {self.step}. Stopping training."
