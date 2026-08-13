@@ -62,6 +62,77 @@ class ArtifactRelation(str, enum.Enum):
     OUTPUT = "output"
 
 
+class IncidentClass(str, enum.Enum):
+    """The nine v1 fault-suite classes an incident record can describe.
+
+    These are the classification enum only; v1 wires one real emitter
+    (nonfinite_loss). The other eight are schema-reserved, not proven fault
+    injections.
+    """
+
+    COLLECTIVE_HANG = "collective_hang"
+    RANK_DEATH = "rank_death"
+    COMPUTE_STRAGGLER = "compute_straggler"
+    DATALOADER_STRAGGLER = "dataloader_straggler"
+    NONFINITE_LOSS = "nonfinite_loss"
+    CHECKPOINT_CORRUPTION = "checkpoint_corruption"
+    CHECKPOINT_INTERRUPTION = "checkpoint_interruption"
+    INCONSISTENT_RANK_CONFIG = "inconsistent_rank_config"
+    HARDWARE_EVENT = "hardware_event"
+
+
+class IncidentCaptureState(str, enum.Enum):
+    """How the emitting seam observed and acted on the incident."""
+
+    NORMAL = "normal"
+    SUSPECTED = "suspected"
+    CAPTURING = "capturing"
+    CONTINUE = "continue"
+    ABORT_AND_PRESERVE = "abort_and_preserve"
+
+
+class IncidentPolicy(str, enum.Enum):
+    """The v1 disposition policy the emitting seam applied to the incident.
+
+    V1 diagnoses and preserves evidence only. These values describe the intended
+    disposition; they do not trigger automatic retry, recovery, or quarantine.
+    """
+
+    CAPTURE_BEFORE_ABORT = "capture_before_abort"
+    CONTINUE_BOUNDED_WARNING = "continue_bounded_warning"
+    ABORT_FATAL = "abort_fatal"
+
+
+class FaultAttributionLocus(str, enum.Enum):
+    """Best-effort observed locus of a distributed fault.
+
+    UNKNOWN is an explicit observed-but-unclassified sentinel, not an absent
+    field. Omit the field entirely when the locus was not collected.
+    """
+
+    TRAINER_RANK = "trainer_rank"
+    DATALOADER = "dataloader"
+    PIPELINE_STAGE = "pipeline_stage"
+    CHECKPOINT_PATH = "checkpoint_path"
+    UNKNOWN = "unknown"
+
+
+class FaultConfidence(str, enum.Enum):
+    """Best-effort confidence of a first-fault attribution.
+
+    COLLECTIVE_TIMEOUT_INSUFFICIENT_EVIDENCE is an explicit observed sentinel for
+    distributed ambiguity, not an absent field. Omit the field entirely when
+    confidence was not collected.
+    """
+
+    OBSERVED_LOCAL_FAULT = "observed_local_fault"
+    SUSPECTED_PEER_FAULT = "suspected_peer_fault"
+    COLLECTIVE_TIMEOUT_INSUFFICIENT_EVIDENCE = (
+        "collective_timeout_insufficient_evidence"
+    )
+    PLATFORM_CONFIRMED_HOST_FAULT = "platform_confirmed_host_fault"
+
+
 _IDENTIFIER_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _URI_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://")
 _ACTIVE_EVIDENCE: RunEvidence | None = None
@@ -401,6 +472,69 @@ class RunEvidence(Configurable):
             self._artifact_seq += 1
         return artifact_id
 
+    def _record_incident(
+        self,
+        *,
+        incident_class: IncidentClass,
+        capture_state: IncidentCaptureState,
+        policy: IncidentPolicy,
+        summary: str,
+        detected_locus: FaultAttributionLocus | None,
+        attribution_confidence: FaultConfidence | None,
+        step: int | None,
+        last_operation: str | None,
+        useful_work_preserved: bool | None,
+        terminal_disposition: str | None,
+        metadata: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        if not isinstance(incident_class, IncidentClass):
+            raise EvidenceContractError("incident_class must be an IncidentClass")
+        if not isinstance(capture_state, IncidentCaptureState):
+            raise EvidenceContractError("capture_state must be an IncidentCaptureState")
+        if not isinstance(policy, IncidentPolicy):
+            raise EvidenceContractError("policy must be an IncidentPolicy")
+        if detected_locus is not None and not isinstance(
+            detected_locus, FaultAttributionLocus
+        ):
+            raise EvidenceContractError(
+                "detected_locus must be a FaultAttributionLocus"
+            )
+        if attribution_confidence is not None and not isinstance(
+            attribution_confidence, FaultConfidence
+        ):
+            raise EvidenceContractError(
+                "attribution_confidence must be a FaultConfidence"
+            )
+        normalized_metadata = self._normalize_metadata(metadata)
+        row: dict[str, Any] = {
+            "schema_version": 1,
+            "record_type": "incident",
+            **self._event_context(),
+            "incident_class": incident_class.value,
+            "capture_state": capture_state.value,
+            "policy": policy.value,
+            "summary": summary,
+            "metadata": normalized_metadata,
+        }
+        # Uncollected optional fields are omitted, like the artifact row's
+        # optional step/phase. An unknown-but-observed value is passed as an
+        # explicit sentinel enum and is therefore present below.
+        if detected_locus is not None:
+            row["detected_locus"] = detected_locus.value
+        if attribution_confidence is not None:
+            row["attribution_confidence"] = attribution_confidence.value
+        if step is not None:
+            row["step"] = step
+        if last_operation is not None:
+            row["last_operation"] = last_operation
+        if useful_work_preserved is not None:
+            row["useful_work_preserved"] = useful_work_preserved
+        if terminal_disposition is not None:
+            row["terminal_disposition"] = terminal_disposition
+        with self._lock:
+            self._append_row(row)
+        return row
+
     def _normalize_path(
         self, path: str | os.PathLike[str]
     ) -> tuple[str, str, Path | None]:
@@ -606,6 +740,54 @@ def record_artifact(
         if handling_exception:
             _logger.exception(
                 "run evidence artifact append failed while handling another exception"
+            )
+            return None
+        raise
+
+
+def record_incident(
+    *,
+    incident_class: IncidentClass,
+    capture_state: IncidentCaptureState,
+    policy: IncidentPolicy,
+    summary: str,
+    detected_locus: FaultAttributionLocus | None = None,
+    attribution_confidence: FaultConfidence | None = None,
+    step: int | None = None,
+    last_operation: str | None = None,
+    useful_work_preserved: bool | None = None,
+    terminal_disposition: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Append a typed incident record to the active process index.
+
+    Mirrors record_artifact: a no-op returning None when no recorder is active,
+    and, when an incident is recorded during an already active exception, an
+    append EvidenceWriteError is logged rather than raised so the original
+    training exception stays primary.
+    """
+    evidence = _ACTIVE_EVIDENCE
+    if evidence is None:
+        return None
+    handling_exception = sys.exc_info()[0] is not None
+    try:
+        return evidence._record_incident(
+            incident_class=incident_class,
+            capture_state=capture_state,
+            policy=policy,
+            summary=summary,
+            detected_locus=detected_locus,
+            attribution_confidence=attribution_confidence,
+            step=step,
+            last_operation=last_operation,
+            useful_work_preserved=useful_work_preserved,
+            terminal_disposition=terminal_disposition,
+            metadata=metadata,
+        )
+    except EvidenceWriteError:
+        if handling_exception:
+            _logger.exception(
+                "run evidence incident append failed while handling another exception"
             )
             return None
         raise

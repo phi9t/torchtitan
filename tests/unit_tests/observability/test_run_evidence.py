@@ -27,7 +27,13 @@ from torchtitan.observability.run_evidence import (
     EvidenceCollisionError,
     EvidenceContractError,
     EvidenceWriteError,
+    FaultAttributionLocus,
+    FaultConfidence,
+    IncidentCaptureState,
+    IncidentClass,
+    IncidentPolicy,
     record_artifact,
+    record_incident,
     RunEvidence,
 )
 
@@ -908,3 +914,249 @@ def test_outcome_write_failure_preserves_active_training_exception(
             destination.parent.mkdir(parents=True)
             destination.write_text("existing outcome\n")
             raise RuntimeError("training failed")
+
+
+def read_incident_rows(tmp_path, identity):
+    return [
+        row
+        for row in read_artifact_rows(tmp_path, identity)
+        if row["record_type"] == "incident"
+    ]
+
+
+def test_incident_enums_expose_v1_fault_suite_and_progress_envelope_members():
+    assert {member.value for member in IncidentClass} == {
+        "collective_hang",
+        "rank_death",
+        "compute_straggler",
+        "dataloader_straggler",
+        "nonfinite_loss",
+        "checkpoint_corruption",
+        "checkpoint_interruption",
+        "inconsistent_rank_config",
+        "hardware_event",
+    }
+    assert len(IncidentClass) == 9
+    assert {member.value for member in IncidentCaptureState} == {
+        "normal",
+        "suspected",
+        "capturing",
+        "continue",
+        "abort_and_preserve",
+    }
+    assert {member.value for member in IncidentPolicy} == {
+        "capture_before_abort",
+        "continue_bounded_warning",
+        "abort_fatal",
+    }
+    assert {member.value for member in FaultAttributionLocus} == {
+        "trainer_rank",
+        "dataloader",
+        "pipeline_stage",
+        "checkpoint_path",
+        "unknown",
+    }
+    assert {member.value for member in FaultConfidence} == {
+        "observed_local_fault",
+        "suspected_peer_fault",
+        "collective_timeout_insufficient_evidence",
+        "platform_confirmed_host_fault",
+    }
+    # These enums are str-valued so canonical JSON serializes the value.
+    assert IncidentClass.NONFINITE_LOSS == "nonfinite_loss"
+    assert FaultAttributionLocus.UNKNOWN == "unknown"
+
+
+def test_record_incident_builds_a_row_on_the_event_envelope(
+    tmp_path, launcher_identity
+):
+    with build_evidence(tmp_path) as evidence:
+        evidence.bind_distributed(
+            SimpleNamespace(
+                dp_replicate=1, dp_shard=1, cp=1, tp=1, pp=1, ep=1, world_size=1
+            ),
+            torch.device("cpu"),
+        )
+        first = event_context()
+        with bind_phase("training"):
+            row = record_incident(
+                incident_class=IncidentClass.NONFINITE_LOSS,
+                capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+                policy=IncidentPolicy.ABORT_FATAL,
+                summary="loss became non-finite",
+            )
+
+    assert row is not None
+    incidents = read_incident_rows(tmp_path, launcher_identity)
+    assert len(incidents) == 1
+    recorded = incidents[0]
+    assert recorded == row
+    assert recorded["record_type"] == "incident"
+    assert recorded["evidence_schema_version"] == 1
+    assert recorded["schema_version"] == 1
+    assert recorded["incident_class"] == "nonfinite_loss"
+    assert recorded["capture_state"] == "abort_and_preserve"
+    assert recorded["policy"] == "abort_fatal"
+    assert recorded["summary"] == "loss became non-finite"
+    assert recorded["metadata"] == {}
+    # Inherits the full correlation envelope from _event_context().
+    assert recorded["run_id"] == launcher_identity.run_id
+    assert recorded["attempt_id"] == launcher_identity.attempt_id
+    assert recorded["process_id"] == "trainer.core.global_rank_000000"
+    assert recorded["global_rank"] == 0
+    assert recorded["world_size"] == 1
+    assert recorded["device_type"] == "cpu"
+    assert recorded["tp"] == 1
+    assert recorded["phase"] == "training"
+    # The envelope assigns a fresh event_seq under the recorder lock.
+    assert recorded["event_seq"] == first["event_seq"] + 1
+    assert recorded["wall_time_ns"] >= first["wall_time_ns"]
+    # An incident is not an artifact transition.
+    assert "artifact_id" not in recorded
+    assert "artifact_seq" not in recorded
+
+
+def test_record_incident_omits_uncollected_and_records_observed_sentinels(
+    tmp_path, launcher_identity
+):
+    with build_evidence(tmp_path):
+        uncollected = record_incident(
+            incident_class=IncidentClass.COLLECTIVE_HANG,
+            capture_state=IncidentCaptureState.SUSPECTED,
+            policy=IncidentPolicy.CAPTURE_BEFORE_ABORT,
+            summary="collective wait exceeded soft threshold",
+        )
+        observed = record_incident(
+            incident_class=IncidentClass.COLLECTIVE_HANG,
+            capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+            policy=IncidentPolicy.CAPTURE_BEFORE_ABORT,
+            summary="collective timed out",
+            detected_locus=FaultAttributionLocus.UNKNOWN,
+            attribution_confidence=(
+                FaultConfidence.COLLECTIVE_TIMEOUT_INSUFFICIENT_EVIDENCE
+            ),
+            step=42,
+            last_operation="all_reduce",
+            useful_work_preserved=True,
+            terminal_disposition="abort",
+            metadata={"timeout_s": 1800},
+        )
+
+    assert uncollected is not None
+    assert observed is not None
+    # Uncollected optional fields are omitted, matching optional step/phase.
+    for omitted in (
+        "detected_locus",
+        "attribution_confidence",
+        "step",
+        "last_operation",
+        "useful_work_preserved",
+        "terminal_disposition",
+    ):
+        assert omitted not in uncollected
+    # metadata is always present, like the artifact row.
+    assert uncollected["metadata"] == {}
+    # Unknown-but-observed values are present with explicit sentinels.
+    assert observed["detected_locus"] == "unknown"
+    assert (
+        observed["attribution_confidence"] == "collective_timeout_insufficient_evidence"
+    )
+    assert observed["step"] == 42
+    assert observed["last_operation"] == "all_reduce"
+    assert observed["useful_work_preserved"] is True
+    assert observed["terminal_disposition"] == "abort"
+    assert observed["metadata"] == {"timeout_s": 1800}
+
+
+def test_record_incident_facade_is_noop_without_an_installed_recorder(tmp_path):
+    assert (
+        record_incident(
+            incident_class=IncidentClass.NONFINITE_LOSS,
+            capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+            policy=IncidentPolicy.ABORT_FATAL,
+            summary="no recorder installed",
+        )
+        is None
+    )
+
+
+def test_record_incident_append_failure_is_fatal_without_an_active_exception(
+    tmp_path, launcher_identity
+):
+    class FailingIndex:
+        def write(self, value):
+            raise OSError("no space")
+
+        def flush(self):
+            pass
+
+        def close(self):
+            pass
+
+    with build_evidence(tmp_path) as evidence:
+        evidence._index_file.close()
+        evidence._index_file = FailingIndex()
+        with pytest.raises(EvidenceWriteError, match="append"):
+            record_incident(
+                incident_class=IncidentClass.NONFINITE_LOSS,
+                capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+                policy=IncidentPolicy.ABORT_FATAL,
+                summary="loss became non-finite",
+            )
+
+
+def test_record_incident_append_failure_preserves_active_exception(
+    tmp_path, launcher_identity
+):
+    class FailingIndex:
+        def write(self, value):
+            raise OSError("no space")
+
+        def flush(self):
+            pass
+
+        def close(self):
+            pass
+
+    with build_evidence(tmp_path) as evidence:
+        evidence._index_file.close()
+        evidence._index_file = FailingIndex()
+        with pytest.raises(RuntimeError, match="loss became non-finite"):
+            try:
+                raise RuntimeError("loss became non-finite")
+            except RuntimeError:
+                assert (
+                    record_incident(
+                        incident_class=IncidentClass.NONFINITE_LOSS,
+                        capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+                        policy=IncidentPolicy.ABORT_FATAL,
+                        summary="loss became non-finite",
+                    )
+                    is None
+                )
+                raise
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("incident_class", "nonfinite_loss"),
+        ("capture_state", "abort_and_preserve"),
+        ("policy", "abort_fatal"),
+        ("detected_locus", "unknown"),
+        ("attribution_confidence", "observed_local_fault"),
+    ),
+)
+def test_record_incident_rejects_non_enum_arguments(
+    tmp_path, launcher_identity, field, value
+):
+    kwargs = {
+        "incident_class": IncidentClass.NONFINITE_LOSS,
+        "capture_state": IncidentCaptureState.ABORT_AND_PRESERVE,
+        "policy": IncidentPolicy.ABORT_FATAL,
+        "summary": "loss became non-finite",
+    }
+    kwargs[field] = value
+    with build_evidence(tmp_path):
+        with pytest.raises(EvidenceContractError, match=field):
+            record_incident(**kwargs)
