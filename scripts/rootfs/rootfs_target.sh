@@ -124,3 +124,75 @@ rootfs_assert_removable() {
     rootfs_die "refusing to remove rootfs without ownership marker: ${dest}"
   fi
 }
+
+# F3 selection-record resolver (runtime_preflight_roadmap.md Section 8.2). The
+# launcher resolves a store root's selection record to a canonical content
+# directory before handing it to bwrap. Activation writes a small selected.json
+# naming a store_id; the resolved directory must be a real, non-symlink content
+# entry that carries the builder ownership marker. Any deviation fails closed so
+# a swapped or corrupted selection cannot be launched. This never deletes or
+# mutates anything; it only reads and validates.
+ROOTFS_STORE_CONTENT_DIRNAME="content"
+ROOTFS_STORE_SELECTION_FILENAME="selected.json"
+
+# Read the store_id from a selection record without a JSON dependency. The
+# record is written by the Python store as pretty-printed JSON with one
+# "store_id": "..." field; extract exactly that value.
+rootfs_selection_store_id() {
+  local selection="$1"
+  [[ -f "${selection}" ]] || rootfs_die "no selection record: ${selection}"
+  local store_id
+  store_id="$(sed -n 's/.*"store_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "${selection}" | head -n 1)"
+  if [[ -z "${store_id}" ]]; then
+    rootfs_die "selection record has no store_id: ${selection}"
+  fi
+  printf '%s\n' "${store_id}"
+}
+
+# Resolve a store root to the canonical selected content directory. Prints the
+# canonical real path on success; fails closed otherwise.
+rootfs_resolve_selected_dir() {
+  local store_root="$1"
+  if [[ -z "${store_root}" ]]; then
+    rootfs_die "empty store root is not allowed"
+  fi
+  if [[ -L "${store_root}" || ! -d "${store_root}" ]]; then
+    rootfs_die "store root is not a real directory: ${store_root}"
+  fi
+  local canonical_root
+  canonical_root="$(cd -P -- "${store_root}" && pwd)" \
+    || rootfs_die "cannot resolve store root: ${store_root}"
+
+  local selection="${canonical_root}/${ROOTFS_STORE_SELECTION_FILENAME}"
+  local store_id
+  store_id="$(rootfs_selection_store_id "${selection}")"
+  # A store_id must be a single path component: reject traversal or separators
+  # so it can only ever name an entry directly under content/.
+  case "${store_id}" in
+    */*|.|..|"")
+      rootfs_die "invalid store_id in selection record: ${store_id}"
+      ;;
+  esac
+
+  local entry="${canonical_root}/${ROOTFS_STORE_CONTENT_DIRNAME}/${store_id}"
+  if [[ -L "${entry}" || ! -d "${entry}" ]]; then
+    rootfs_die "selected store entry is missing or not a directory: ${store_id}"
+  fi
+  local canonical_entry
+  canonical_entry="$(cd -P -- "${entry}" && pwd)" \
+    || rootfs_die "cannot resolve selected store entry: ${store_id}"
+  # Confine the resolved entry under the store's content directory so a
+  # tampered record can never point the launcher outside the store.
+  local content_root="${canonical_root}/${ROOTFS_STORE_CONTENT_DIRNAME}"
+  case "${canonical_entry}/" in
+    "${content_root}/"*) ;;
+    *) rootfs_die "selected entry escapes the store content root: ${canonical_entry}" ;;
+  esac
+  local marker
+  marker="$(rootfs_ownership_marker_path "${canonical_entry}")"
+  if [[ ! -f "${marker}" ]]; then
+    rootfs_die "selected entry lacks an ownership marker: ${canonical_entry}"
+  fi
+  printf '%s\n' "${canonical_entry}"
+}
