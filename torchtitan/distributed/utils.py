@@ -12,6 +12,7 @@ import os
 from abc import abstractmethod
 from collections.abc import Iterable
 from datetime import timedelta
+from pathlib import Path
 from typing import Protocol, TYPE_CHECKING
 
 import torch
@@ -26,6 +27,7 @@ from torch.distributed.tensor import DTensor
 from torch.distributed.tensor.placement_types import Placement, Shard
 
 from torchtitan.config import CommConfig, DebugConfig
+from torchtitan.observability.run_evidence import ArtifactState, record_artifact
 from torchtitan.tools.logging import logger
 from torchtitan.tools.utils import device_module, device_type
 
@@ -34,6 +36,49 @@ if TYPE_CHECKING:
 
 
 _spmd_backend = "default"
+
+
+def _warn_overwrite_env(env: str, val: str) -> None:
+    if env in os.environ:
+        logger.warning(
+            f"ENV[{env}] = {os.environ[env]} will be overridden to {val} based on job config"
+        )
+    os.environ[env] = val
+
+
+def _configure_flight_recorder(comm_config: CommConfig, base_folder: str) -> None:
+    trace_buffer_size = "TORCH_FR_BUFFER_SIZE"
+    trace_file = "TORCH_FR_DUMP_TEMP_FILE"
+    dump_on_timeout = "TORCH_NCCL_DUMP_ON_TIMEOUT"
+    async_error_handling = "TORCH_NCCL_ASYNC_ERROR_HANDLING"
+
+    # FlightRecorder is incompatible with =1 mode where watchdog aborts work, must use =3 (skipcleanup)
+    # to get flight recorder dumps. See https://github.com/pytorch/pytorch/issues/121055
+    # This could be done only when flight recorder is enabled, but its nice to be consistent to avoid subtle
+    # behavior differences
+    _warn_overwrite_env(async_error_handling, "3")
+
+    # Enable torch NCCL flight recorder in the mode that dumps files on timeout.
+    _warn_overwrite_env(trace_buffer_size, str(comm_config.trace_buf_size))
+    if comm_config.trace_buf_size <= 0:
+        return
+
+    # Dump on timeout by default if trace buffer is enabled.
+    _warn_overwrite_env(dump_on_timeout, "1")
+    dump_dir = os.path.join(base_folder, comm_config.save_traces_folder)
+    native_prefix = f"{dump_dir}/{comm_config.save_traces_file_prefix}"
+    os.makedirs(dump_dir, exist_ok=True)
+    _warn_overwrite_env(trace_file, native_prefix)
+    record_artifact(
+        producer="pytorch_flight_recorder",
+        kind="pytorch.flight_recorder.dump",
+        path=str(Path(native_prefix).resolve()),
+        state=ArtifactState.DECLARED,
+        metadata={
+            "format": "pytorch_flight_recorder_dump",
+            "path_semantics": "prefix",
+        },
+    )
 
 
 def set_spmd_backend(spmd_backend: str) -> None:
@@ -459,13 +504,6 @@ def init_distributed(
         init_fake_mode(world_size, comm_config.mode)
         return world_size
 
-    def _warn_overwrite_env(env, val):
-        if env in os.environ:
-            logger.warning(
-                f"ENV[{env}] = {os.environ[env]} will be overridden to {val} based on job config"
-            )
-        os.environ[env] = val
-
     def _get_distributed_backend(enable_cpu_backend):
         backend = "nccl"
         if device_type in torch.distributed.Backend.default_device_backend_map:
@@ -476,27 +514,7 @@ def init_distributed(
             backend = f"{device_type}:{backend},cpu:gloo"
         return backend
 
-    TRACE_BUFFER_SIZE = "TORCH_FR_BUFFER_SIZE"
-    TRACE_FILE = "TORCH_FR_DUMP_TEMP_FILE"
-    DUMP_ON_TIMEOUT = "TORCH_NCCL_DUMP_ON_TIMEOUT"
-    ASYNC_ERROR_HANDLING = "TORCH_NCCL_ASYNC_ERROR_HANDLING"
-    SKIP_CLEANUP = "3"
-
-    # FlightRecorder is incompatible with =1 mode where watchdog aborts work, must use =3 (skipcleanup)
-    # to get flight recorder dumps. See https://github.com/pytorch/pytorch/issues/121055
-    # This could be done only when flight recorder is enabled, but its nice to be consistent to avoid subtle
-    # behavior differences
-    _warn_overwrite_env(ASYNC_ERROR_HANDLING, SKIP_CLEANUP)
-
-    # enable torch nccl flight recorder in the mode that would dump files if timeout is detected
-    _warn_overwrite_env(TRACE_BUFFER_SIZE, str(comm_config.trace_buf_size))
-    if comm_config.trace_buf_size > 0:
-        # dump on timeout by default if trace buffer is enabled
-        _warn_overwrite_env(DUMP_ON_TIMEOUT, "1")
-        dump_dir = os.path.join(base_folder, comm_config.save_traces_folder)
-        prefix = comm_config.save_traces_file_prefix
-        os.makedirs(dump_dir, exist_ok=True)
-        _warn_overwrite_env(TRACE_FILE, f"{dump_dir}/{prefix}")
+    _configure_flight_recorder(comm_config, base_folder)
 
     # disable autograd multithreading, to enable TLS DeviceMesh stack for spmd_types backend.
     # this is needed for AC functionality; multi-threaded autograd means BWD threads performing recompute,

@@ -4,12 +4,15 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
 import os
 import shutil
 import tempfile
 import time
 import unittest
 from concurrent.futures import Future
+from contextlib import contextmanager
+from pathlib import Path
 from unittest import mock
 
 import torch
@@ -17,6 +20,44 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from torchtitan.experiments.torchft.checkpoint import TorchFTCheckpointManager
+from torchtitan.observability.run_evidence import RunEvidence
+
+
+@contextmanager
+def torchft_checkpoint_evidence(dump_folder: str, test_name: str):
+    environment = {
+        "WORLD_SIZE": "1",
+        "RANK": "0",
+        "LOCAL_RANK": "0",
+        "TORCHTITAN_RUN_ID": f"torchft-checkpoint-{test_name}",
+        "TORCHTITAN_ATTEMPT_ID": "attempt-1",
+    }
+    with mock.patch.dict(os.environ, environment, clear=False):
+        with RunEvidence(
+            RunEvidence.Config(),
+            dump_folder=dump_folder,
+            job_config={"training": {"steps": 8}},
+            role="trainer",
+            actor_id="torchft",
+        ) as evidence:
+            yield evidence
+
+
+def torchft_checkpoint_artifact_rows(evidence: RunEvidence) -> list[dict]:
+    index_path = next(
+        (
+            Path(evidence.dump_folder)
+            / "run_evidence"
+            / evidence.run_id
+            / evidence.attempt_id
+            / "indexes"
+        ).glob("artifacts.*.jsonl")
+    )
+    return [
+        row
+        for row in (json.loads(line) for line in index_path.read_text().splitlines())
+        if row["kind"] == "torchtitan.checkpoint"
+    ]
 
 
 class FakeOptimizersContainer:
@@ -158,6 +199,58 @@ class TestFTCheckpointManager(unittest.TestCase):
         self.assertIsNotNone(manager.save_future)
         manager.save_future.result.assert_not_called()
 
+        manager.close()
+
+    @mock.patch("torchtitan.components.checkpoint.dcp.async_save")
+    def test_torchft_async_full_checkpoint_evidence_closes_before_next_save(
+        self, mock_async_save
+    ):
+        def async_save(*args, **kwargs):
+            checkpoint_id = kwargs["checkpoint_id"]
+            future = DummyFuture()
+            future.result.side_effect = lambda: os.makedirs(
+                checkpoint_id, exist_ok=True
+            )
+            return future
+
+        mock_async_save.side_effect = async_save
+        config = TorchFTCheckpointManager.Config(
+            enable=True,
+            async_mode="async",
+            folder=self.test_folder,
+            interval=1,
+            keep_latest_k=0,
+            last_save_model_only=False,
+            export_dtype="float32",
+            exclude_from_loading=[],
+            initial_load_path=None,
+            initial_load_model_only=False,
+            enable_ft_dataloader_checkpoints=False,
+        )
+        manager = TorchFTCheckpointManager(
+            config,
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            sd_adapter=None,
+            base_folder=self.test_folder,
+            ft_manager=self.ft_manager,
+        )
+
+        with torchft_checkpoint_evidence(
+            self.test_folder, self._testMethodName
+        ) as evidence:
+            manager.save(curr_step=5)
+            manager.save(curr_step=6)
+            manager.maybe_wait_for_saving()
+            rows = torchft_checkpoint_artifact_rows(evidence)
+
+        self.assertEqual(
+            [(row["step"], row["state"]) for row in rows],
+            [(5, "declared"), (5, "complete"), (6, "declared"), (6, "complete")],
+        )
         manager.close()
 
 

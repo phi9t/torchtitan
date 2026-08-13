@@ -14,6 +14,8 @@ import time
 from unittest import mock
 
 import pytest
+import torch
+from torchtitan.observability.run_evidence import ArtifactState, RunEvidence
 from torchtitan.observability.structured_logger import step_state
 from torchtitan.observability.structured_logger.gantt_generator import (
     generate_gantt_trace,
@@ -34,6 +36,7 @@ from torchtitan.observability.structured_logger.step_state import (
 )
 from torchtitan.observability.structured_logger.structured_logging import (
     _structured_logger,
+    close_structured_logger,
     event_extra,
     ExtraFields,
     init_structured_logger,
@@ -78,9 +81,59 @@ def structured_logger_fixture():
     # for each test (otherwise the second call short-circuits as "already
     # initialized").
     sl_mod._is_initialized = False
+    sl_mod._disabled = False
     yield tl
+    close_structured_logger()
     tl.handlers, tl.level, tl.propagate = orig
     sl_mod._is_initialized = False
+    sl_mod._disabled = False
+
+
+@pytest.fixture
+def launcher_identity(monkeypatch):
+    identity = {"run_id": "research-run", "attempt_id": "launch-17"}
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setenv("TORCHTITAN_RUN_ID", identity["run_id"])
+    monkeypatch.setenv("TORCHTITAN_ATTEMPT_ID", identity["attempt_id"])
+    monkeypatch.delenv("TORCHELASTIC_RESTART_COUNT", raising=False)
+    return identity
+
+
+def build_evidence(tmp_path):
+    return RunEvidence(
+        RunEvidence.Config(),
+        dump_folder=str(tmp_path),
+        job_config={"training": {"steps": 3}},
+        role="trainer",
+        actor_id="core",
+    )
+
+
+def read_only_structured_row(tmp_path):
+    path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+    assert len(rows) == 1
+    return rows[0]
+
+
+def read_structured_rows(tmp_path):
+    path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+    return [json.loads(line) for line in path.read_text().splitlines() if line]
+
+
+def read_artifact_rows(tmp_path, identity):
+    index = next(
+        (
+            tmp_path
+            / "run_evidence"
+            / identity["run_id"]
+            / identity["attempt_id"]
+            / "indexes"
+        ).glob("artifacts.*.jsonl")
+    )
+    return [json.loads(line) for line in index.read_text().splitlines()]
 
 
 # ---------------------------------------------------------------------------
@@ -985,6 +1038,347 @@ class TestLogTraceSpan:
             "inner_async_end",
             "outer_async_end",
         ]
+
+
+# ---------------------------------------------------------------------------
+# Run evidence correlation and structured logger lifecycle
+# ---------------------------------------------------------------------------
+
+
+class TestRunEvidenceCorrelation:
+    def test_formatter_adds_run_evidence_without_changing_legacy_fields(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            log_trace_instant("training_start")
+            row = read_only_structured_row(tmp_path)
+            close_structured_logger()
+
+        assert row["source"] == "training"
+        assert row["global_rank"] == 0
+        assert row["run_id"] == launcher_identity["run_id"]
+        assert row["attempt_id"] == launcher_identity["attempt_id"]
+        assert row["event_seq"] == 0
+        assert row["evidence_schema_version"] == 1
+        assert row["role"] == "trainer"
+        assert row["actor_id"] == "core"
+        assert isinstance(row["wall_time_ns"], int)
+        assert isinstance(row["monotonic_ns"], int)
+
+    def test_span_binds_its_phase_and_restores_the_prior_context(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            with log_trace_span("step"):
+                log_trace_instant("inside_step")
+            log_trace_instant("after_step")
+            close_structured_logger()
+
+        path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+        rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+        assert [row.get("phase") for row in rows] == ["step", "step", "step", None]
+
+    def test_distributed_context_appears_only_after_binding(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        class AxisMesh:
+            def size(self):
+                return 4
+
+            def get_local_rank(self):
+                return 2
+
+        class ParallelDims:
+            dp_replicate = 1
+            dp_shard = 1
+            cp = 1
+            tp = 4
+            pp = 1
+            ep = 1
+            world_size = 4
+
+            def get_all_one_dimensional_meshes(self):
+                return {"tp": AxisMesh()}
+
+        with build_evidence(tmp_path) as evidence:
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            log_trace_instant("before_mesh")
+            evidence.bind_distributed(ParallelDims(), torch.device("cpu"))
+            log_trace_instant("after_mesh")
+            close_structured_logger()
+
+        path = next((tmp_path / "structured_logs").glob("*.jsonl"))
+        rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+        assert "device_uuid" not in rows[0]
+        assert "mesh_axis_tp_rank" not in rows[0]
+        assert rows[1]["device_uuid"] is None
+        assert rows[1]["mesh_axis_tp_rank"] == 2
+        assert rows[1]["mesh_axis_tp_size"] == 4
+
+    def test_close_removes_handlers_and_allows_reinitialization(
+        self, tmp_path, structured_logger_fixture
+    ):
+        init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+        assert _structured_logger.handlers
+
+        close_structured_logger()
+        close_structured_logger()
+
+        assert _structured_logger.handlers == []
+        init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+        assert _structured_logger.handlers
+
+    def test_handler_artifact_reaches_complete_on_close(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            close_structured_logger()
+
+        index = next(
+            (
+                tmp_path
+                / "run_evidence"
+                / launcher_identity["run_id"]
+                / launcher_identity["attempt_id"]
+                / "indexes"
+            ).glob("artifacts.*.jsonl")
+        )
+        artifacts = [json.loads(line) for line in index.read_text().splitlines()]
+        assert [artifact["state"] for artifact in artifacts] == [
+            ArtifactState.DECLARED.value,
+            ArtifactState.COMPLETE.value,
+        ]
+
+    def test_relative_output_uses_one_normalized_artifact_path(
+        self, tmp_path, monkeypatch, structured_logger_fixture, launcher_identity
+    ):
+        monkeypatch.chdir(tmp_path)
+        relative_output_dir = os.path.join("outputs", "relative-smoke")
+        output_path = tmp_path / relative_output_dir
+
+        with RunEvidence(
+            RunEvidence.Config(),
+            dump_folder=relative_output_dir,
+            job_config={"training": {"steps": 1}},
+            role="trainer",
+            actor_id="core",
+        ):
+            init_structured_logger(
+                rank=0, source="training", output_dir=relative_output_dir
+            )
+            close_structured_logger()
+
+        native_paths = list((output_path / "structured_logs").glob("*.jsonl"))
+        assert len(native_paths) == 1
+        artifact_rows = read_artifact_rows(output_path, launcher_identity)
+        assert [row["state"] for row in artifact_rows] == [
+            ArtifactState.DECLARED.value,
+            ArtifactState.COMPLETE.value,
+        ]
+        assert artifact_rows[0]["artifact_id"] == artifact_rows[1]["artifact_id"]
+        expected_evidence_path = f"structured_logs/{native_paths[0].name}"
+        assert [row["path"] for row in artifact_rows] == [
+            expected_evidence_path,
+            expected_evidence_path,
+        ]
+
+    def test_close_attempts_every_handler_and_allows_reinitialization_after_error(
+        self, tmp_path, structured_logger_fixture
+    ):
+        import torchtitan.observability.structured_logger.structured_logging as sl_mod
+
+        class FailingCloseHandler(logging.Handler):
+            def emit(self, record):
+                pass
+
+            def close(self):
+                super().close()
+                raise OSError("first handler close failed")
+
+        class LaterCloseHandler(logging.Handler):
+            def __init__(self):
+                super().__init__()
+                self.was_closed = False
+
+            def emit(self, record):
+                pass
+
+            def close(self):
+                self.was_closed = True
+                super().close()
+
+        later_handler = LaterCloseHandler()
+        _structured_logger.addHandler(FailingCloseHandler())
+        _structured_logger.addHandler(later_handler)
+        sl_mod._is_initialized = True
+        sl_mod._disabled = True
+
+        with pytest.raises(OSError, match="first handler close failed"):
+            close_structured_logger()
+
+        assert later_handler.was_closed is True
+        assert _structured_logger.handlers == []
+        assert sl_mod._is_initialized is False
+        assert sl_mod._disabled is False
+
+        init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+        assert len(_structured_logger.handlers) == 1
+        close_structured_logger()
+
+    def test_native_close_failure_keeps_jsonl_artifact_declared(
+        self, tmp_path, launcher_identity
+    ):
+        handler = None
+        with build_evidence(tmp_path):
+            handler = TraceJsonlHandler(
+                rank=0, source="training", output_dir=str(tmp_path)
+            )
+            with mock.patch.object(
+                logging.FileHandler,
+                "close",
+                side_effect=OSError("native file close failed"),
+            ):
+                with pytest.raises(OSError, match="native file close failed"):
+                    handler.close()
+
+            assert [
+                row["state"] for row in read_artifact_rows(tmp_path, launcher_identity)
+            ] == [ArtifactState.DECLARED.value]
+
+        assert handler is not None
+        handler.close()
+
+    def test_start_emission_failure_restores_evidence_phase(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        class FailingStartHandler(logging.Handler):
+            def emit(self, record):
+                raise RuntimeError("start emission failed")
+
+        failing_handler = FailingStartHandler()
+        span = log_trace_span("failing_start")
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            _structured_logger.addHandler(failing_handler)
+            try:
+                with pytest.raises(RuntimeError, match="start emission failed"):
+                    span.__enter__()
+                _structured_logger.removeHandler(failing_handler)
+                log_trace_instant("after_start_emission_failure")
+                after_failure = next(
+                    row
+                    for row in read_structured_rows(tmp_path)
+                    if row["log_type_name"] == "after_start_emission_failure"
+                )
+                assert "phase" not in after_failure
+            finally:
+                _structured_logger.removeHandler(failing_handler)
+                if span._phase_context is not None:
+                    span._phase_context.__exit__(None, None, None)
+                    span._phase_context = None
+                close_structured_logger()
+
+    def test_span_exit_restores_phase_when_disabled_after_entry(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        import torchtitan.observability.structured_logger.structured_logging as sl_mod
+
+        span = log_trace_span("disabled_span")
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            try:
+                span.__enter__()
+                sl_mod._disabled = True
+                span.__exit__(None, None, None)
+                sl_mod._disabled = False
+                log_trace_instant("after_disabled_span")
+                after_span = next(
+                    row
+                    for row in read_structured_rows(tmp_path)
+                    if row["log_type_name"] == "after_disabled_span"
+                )
+                assert "phase" not in after_span
+            finally:
+                sl_mod._disabled = False
+                if span._phase_context is not None:
+                    span._phase_context.__exit__(None, None, None)
+                    span._phase_context = None
+                close_structured_logger()
+
+    def test_span_exit_restores_phase_when_compiling_after_entry(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        span = log_trace_span("compiling_span")
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            try:
+                span.__enter__()
+                with mock.patch.object(
+                    torch.compiler, "is_compiling", return_value=True
+                ):
+                    span.__exit__(None, None, None)
+                log_trace_instant("after_compiling_span")
+                after_span = next(
+                    row
+                    for row in read_structured_rows(tmp_path)
+                    if row["log_type_name"] == "after_compiling_span"
+                )
+                assert "phase" not in after_span
+            finally:
+                if span._phase_context is not None:
+                    span._phase_context.__exit__(None, None, None)
+                    span._phase_context = None
+                close_structured_logger()
+
+    def test_nested_async_spans_restore_evidence_phase_after_disabled_inner_span(
+        self, tmp_path, structured_logger_fixture, launcher_identity
+    ):
+        import torchtitan.observability.structured_logger.structured_logging as sl_mod
+
+        with build_evidence(tmp_path):
+            init_structured_logger(rank=0, source="training", output_dir=str(tmp_path))
+            outer_span = log_trace_span("outer")
+            inner_span = log_trace_span("inner")
+
+            async def inner():
+                with inner_span:
+                    log_trace_instant("inside_inner")
+                    sl_mod._disabled = True
+
+            async def outer():
+                with outer_span:
+                    log_trace_instant("inside_outer_before")
+                    await inner()
+                    sl_mod._disabled = False
+                    log_trace_instant("inside_outer_after")
+
+            try:
+                asyncio.run(outer())
+                log_trace_instant("after_outer")
+            finally:
+                sl_mod._disabled = False
+                close_structured_logger()
+
+        phases = {
+            row["log_type_name"]: row.get("phase")
+            for row in read_structured_rows(tmp_path)
+            if row["log_type_name"]
+            in {
+                "inside_outer_before",
+                "inside_inner",
+                "inside_outer_after",
+                "after_outer",
+            }
+        }
+        assert phases == {
+            "inside_outer_before": "outer",
+            "inside_inner": "outer/inner",
+            "inside_outer_after": "outer",
+            "after_outer": None,
+        }
 
 
 # ---------------------------------------------------------------------------

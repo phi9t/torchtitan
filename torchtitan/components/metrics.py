@@ -5,10 +5,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
+import sys
 import time
 from collections import namedtuple
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -16,6 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchtitan.components.optimizer import OptimizersContainer
 from torchtitan.config import Configurable
 from torchtitan.distributed import ParallelDims
+from torchtitan.observability.run_evidence import ArtifactState, record_artifact
 from torchtitan.tools import utils
 from torchtitan.tools.logging import logger
 from torchtitan.tools.utils import Color, device_module, device_type, NoColor
@@ -117,6 +120,15 @@ class TensorBoardLogger(BaseLogger):
     def __init__(self, log_dir: str, tag: str | None = None):
         self.tag = tag
         self.writer = SummaryWriter(log_dir, max_queue=1000)
+        self._evidence_path = str(Path(log_dir).resolve())
+        self._artifact_id = record_artifact(
+            producer="tensorboard",
+            kind="tensorboard.event_stream",
+            path=self._evidence_path,
+            state=ArtifactState.DECLARED,
+            metadata={"format": "event_directory"},
+        )
+        self._artifact_closed = False
         logger.info(f"TensorBoard logging enabled. Logs will be saved at {log_dir}")
 
     def log(self, metrics: dict[str, Any], step: int) -> None:
@@ -125,7 +137,51 @@ class TensorBoardLogger(BaseLogger):
             self.writer.add_scalar(tag, v, step)
 
     def close(self) -> None:
-        self.writer.close()
+        try:
+            self.writer.close()
+        except BaseException:
+            if self._artifact_id is not None and not self._artifact_closed:
+                try:
+                    record_artifact(
+                        producer="tensorboard",
+                        kind="tensorboard.event_stream",
+                        path=self._evidence_path,
+                        state=ArtifactState.FAILED,
+                        artifact_id=self._artifact_id,
+                        metadata={"format": "event_directory"},
+                    )
+                except BaseException:
+                    try:
+                        logger.exception(
+                            "failed to append run evidence while recording TensorBoard failure"
+                        )
+                    except BaseException:
+                        pass
+                self._artifact_closed = True
+            raise
+        if self._artifact_id is not None and not self._artifact_closed:
+            handling_exception = sys.exc_info()[0] is not None
+            try:
+                completed_artifact_id = record_artifact(
+                    producer="tensorboard",
+                    kind="tensorboard.event_stream",
+                    path=self._evidence_path,
+                    state=ArtifactState.COMPLETE,
+                    artifact_id=self._artifact_id,
+                    metadata={"format": "event_directory"},
+                )
+            except BaseException:
+                if handling_exception:
+                    try:
+                        logger.exception(
+                            "failed to append run evidence while handling another exception"
+                        )
+                    except BaseException:
+                        pass
+                    return
+                raise
+            if completed_artifact_id is not None:
+                self._artifact_closed = True
 
 
 class WandBLogger(BaseLogger):

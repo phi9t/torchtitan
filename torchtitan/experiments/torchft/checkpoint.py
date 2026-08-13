@@ -141,6 +141,7 @@ class TorchFTCheckpointManager(CheckpointManager):
                 self.pg = cast(dist.ProcessGroup, dist.new_group(backend="gloo"))
 
     @torch.no_grad()
+    # pyrefly: ignore [bad-override]
     def save(self, curr_step: int, last_step: bool = False) -> None:
         # FT dataloader checkpoint is saved every step (not gated by interval)
         # to minimize data replay on replica failure.
@@ -179,7 +180,7 @@ class TorchFTCheckpointManager(CheckpointManager):
         # class would incorrectly raise in that case, so we override to handle it.
         if self.save_future is None:
             return
-        self.save_future.result()
+        self._wait_for_save_future()
         # ASYNC_WITH_PINNED_MEM: the stager manages the future's lifecycle;
         # all other modes (ASYNC, DISABLED with FT) should clear the future.
         if self.async_mode != AsyncMode.ASYNC_WITH_PINNED_MEM:
@@ -200,7 +201,9 @@ class TorchFTCheckpointManager(CheckpointManager):
         begin = time.monotonic()
         self.maybe_wait_for_saving()
         checkpoint_id = self._create_checkpoint_id(step, folder=self._ft_folder())
-        self.save_future = self.dcp_save(
+        # dcp_save returns a Future for AsyncMode.ASYNC; save_future is typed as
+        # Future | None. pyrefly widens dcp_save to its full return union here.
+        self.save_future = self.dcp_save(  # pyrefly: ignore [bad-assignment]
             self.ft_states, checkpoint_id=checkpoint_id, async_mode=AsyncMode.ASYNC
         )
         logger.info(f"Staging torchft checkpoint took {time.monotonic() - begin} secs.")

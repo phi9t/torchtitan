@@ -57,8 +57,32 @@ export FI_EFA_SET_CUDA_SYNC_MEMOPS=0
 MODULE=${MODULE:-"llama3"}
 CONFIG=${CONFIG:-"llama3_debugmodel"}
 
+if [ -z "${TORCHTITAN_RUN_ID:-}" ]; then
+    if ! TORCHTITAN_RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"; then
+        echo "multinode_trainer.slurm: failed to generate TORCHTITAN_RUN_ID" >&2
+        exit 1
+    fi
+fi
+if [ -z "${TORCHTITAN_RUN_ID}" ]; then
+    echo "multinode_trainer.slurm: TORCHTITAN_RUN_ID must be nonempty" >&2
+    exit 1
+fi
+
+if [ -z "${TORCHTITAN_ATTEMPT_ID:-}" ]; then
+    if ! TORCHTITAN_ATTEMPT_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"; then
+        echo "multinode_trainer.slurm: failed to generate TORCHTITAN_ATTEMPT_ID" >&2
+        exit 1
+    fi
+fi
+if [ -z "${TORCHTITAN_ATTEMPT_ID}" ]; then
+    echo "multinode_trainer.slurm: TORCHTITAN_ATTEMPT_ID must be nonempty" >&2
+    exit 1
+fi
+
+export TORCHTITAN_RUN_ID TORCHTITAN_ATTEMPT_ID
+
 dcgmi profile --pause
 # adjust sbatch --ntasks and sbatch --nodes above and --nnodes below
 # to your specific node count, and update target launch file.
-srun torchrun --nnodes 4 --nproc_per_node 8 --rdzv_id 101 --rdzv_backend c10d --rdzv_endpoint "$head_node_ip:29500" -m torchtitan.train --module ${MODULE} --config ${CONFIG} "$@"
+srun torchrun --nnodes 4 --nproc_per_node 8 --rdzv_id "${TORCHTITAN_RUN_ID}" --rdzv_backend c10d --rdzv_endpoint "$head_node_ip:29500" -m torchtitan.train --module ${MODULE} --config ${CONFIG} "$@"
 dcgmi profile --resume

@@ -5,6 +5,21 @@ runs built with TorchTitan and the surrounding training platform.
 
 ## Language
 
+**Training Run**:
+A logical training experiment that can span one or more launch, restart, or
+recovery attempts while retaining one lineage identity.
+_Avoid_: Job, process, attempt
+
+**Run Attempt**:
+One launch or elastic restart of a training run, with its own immutable manifest
+and process outcomes plus append-only artifact indexes.
+_Avoid_: Run, retry folder
+
+**Evidence Artifact**:
+A native log, trace, snapshot, metric stream, checkpoint, or diagnostic result
+whose provenance is recorded in a run-attempt artifact index.
+_Avoid_: Copied output, attachment
+
 **Robust Training Run**:
 A training run that either continues from a verified-equivalent state after a
 failure or fails with enough evidence to attribute and contain the fault.

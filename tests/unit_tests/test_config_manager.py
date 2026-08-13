@@ -130,6 +130,33 @@ class TestConfigManager(unittest.TestCase):
         )
         assert config.dump_folder == "/tmp/test_tt/"
 
+    def test_run_evidence_defaults_and_cli_overrides(self):
+        """Core trainer evidence is enabled by default and remains configurable."""
+        config_manager = ConfigManager()
+        config = config_manager.parse_args(
+            ["--module", "llama3", "--config", "llama3_debugmodel"]
+        )
+
+        assert config.run_evidence.enable is True
+        assert config.run_evidence.folder == "run_evidence"
+        assert config.to_dict()["run_evidence"]["enable"] is True
+
+        config_manager = ConfigManager()
+        overridden = config_manager.parse_args(
+            [
+                "--module",
+                "llama3",
+                "--config",
+                "llama3_debugmodel",
+                "--run-evidence.no-enable",
+                "--run-evidence.folder",
+                "evidence_bundle",
+            ]
+        )
+
+        assert overridden.run_evidence.enable is False
+        assert overridden.run_evidence.folder == "evidence_bundle"
+
     def test_parse_module_fqns_per_model_part(self):
         """module_fqns_per_model_part defaults to None."""
         config_manager = ConfigManager()

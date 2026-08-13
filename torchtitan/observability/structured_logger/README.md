@@ -6,7 +6,7 @@ Design principles:
 - LLM friendly: Emit structured, per-rank data that can be queried during and after a run.
 - Handle both SPMD pretraining (one process group) and RL with multiple independent actors (no shared process group).
 - Stay invisible to users -- no metric dictionaries to pass around.
-- Never block training.
+- Keep emission in the caller: handlers run synchronously and may block on I/O.
 - Support pluggable backends via handler factories.
 
 ## Quickstart
@@ -50,21 +50,60 @@ for step in range(loaded_step + 1, num_steps + 1):
         "num_trainable_tokens": num_trainable_tokens,
          "batch_size": bsz
          })
+
+# Flush/close handlers and allow a later lifecycle to initialize again.
+sl.close_structured_logger()
 ```
 
 Call `init_logger()` and `sl.init_structured_logger()` once per process before any trace calls. Rank and source are baked into the formatter at init; every JSONL entry automatically includes `rank`, `source`, `caller` (file:line:function), `time_us`, `step`, `relative_step`, and (when tags are set) `step_tags`.
+
+Core `torchtitan.train` installs [run evidence](../../../docs/run_evidence.md)
+before initializing this logger. Its events then also carry the run, attempt,
+process, clock, and process-local `event_seq` fields described there. The
+recorder is not installed automatically by direct component construction,
+online RL, Forge, or offline research programs; in those surfaces the evidence
+context is empty until separately adopted. TorchFT runs through the core
+entrypoint and inherits its core evidence context.
 
 ## API reference
 
 See docstrings for full args:
 
 - `sl.init_structured_logger(source, output_dir, rank=None, enable=True)` -- wire up handlers; call once per process before any trace call. Pass ``enable=False`` (or set ``--debug.enable_structured_logging=False``) to make all trace calls no-ops.
+- `sl.close_structured_logger()` -- close and detach every handler, reset logger lifecycle state, and allow later reinitialization. The default JSONL handler records its run-evidence artifact as complete only after its native file handler closes successfully.
 - `sl.log_trace_span(event_type, description=None, *, stacklevel=2)` -- context manager / decorator; emits `_start` / `_end` / optional `_error` records.
 - `sl.log_trace_instant(event_type, *, stacklevel=2)` -- point-in-time marker (no duration).
 - `sl.log_trace_scalar(scalars, *, stacklevel=2)` -- emit `metric_value` records from a `{name: number}` dict.
 - `sl.set_step(step, *, relative_step=None)` -- stamp subsequent records with a step; clears previous step's tags.
 - `sl.add_step_tag(tag)` / `sl.clear_step_tags()` -- annotate the current step (e.g. `"gc"`, `"eval"`). `clear_step_tags` is called at `set_step`.
 - `TITAN_STRUCT_LOGGER_HANDLERS` -- Define handlers at the env level
+
+`close_structured_logger()` attempts every handler even if one close fails. On
+an ordinary close it re-raises the first cleanup error after attempting the
+rest. When cleanup runs while another exception is already active, it logs
+cleanup failures where possible and preserves the active exception. A failed
+native JSONL close leaves that artifact in `declared` state.
+
+## Run-evidence correlation
+
+When a run-evidence recorder is active, each formatted event adds
+`evidence_schema_version`, `run_id`, `attempt_id`, `process_id`, `role`,
+`actor_id`, host/PID/rank identity, `event_seq`, `wall_time_ns`, and
+`monotonic_ns`. Events emitted after `Trainer` binds its mesh also add available
+device, parallelism-degree, and mesh-axis coordinates. Earlier bootstrap events
+do not contain those later-bound fields.
+
+The formatter's `seq_id` and evidence `event_seq` are distinct process-local
+sequences. `seq_id` belongs to one formatter instance. `event_seq` is allocated
+once when the event is built, before handlers format it. Neither is a global
+cross-process sequence.
+
+Structured event rows do not contain an `artifact_id`. Join a JSONL stream to
+the process artifact index by `run_id`, `attempt_id`, and `process_id`, then
+select the `producer="structured_logger"`,
+`kind="torchtitan.structured_events"` row whose normalized `path` names that
+JSONL file. Artifact-index appends and standard logging-handler emission are
+synchronous; custom handler latency is caller latency.
 
 ## Flow of information
 
