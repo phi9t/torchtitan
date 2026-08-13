@@ -74,6 +74,7 @@ if [[ "${MODE:-full}" != "smoke" ]]; then
       --experiment-root "${TORCHTITAN_COUNTDOWN_ROOT}" \
       --mode "${MODE:-full}" \
       --run-id "${RUN_ID}" \
+      --attempt-id "${TORCHTITAN_COUNTDOWN_ATTEMPT_ID}" \
       --manifest "${TORCHTITAN_COUNTDOWN_MANIFEST}" \
       --arms "${ARMS[@]}" \
       --data-root "${TORCHTITAN_COUNTDOWN_DATA_ROOT}" \

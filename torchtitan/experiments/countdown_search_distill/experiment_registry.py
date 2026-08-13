@@ -27,6 +27,7 @@ def build_countdown_report_input(
     arms: list[str] | None = None,
     data_root: Path | None = None,
     results_root: Path | None = None,
+    attempt_id: str = "attempt-01",
     max_hash_bytes: int = DEFAULT_HASH_LIMIT_BYTES,
 ) -> dict[str, Any]:
     """Build a compact, auditable input object for reports and promotion gates."""
@@ -36,12 +37,26 @@ def build_countdown_report_input(
     data_root = data_root or experiment_root / "data"
     results_root = results_root or experiment_root / "results"
     adapter_eval_root = results_root / "eval" / "adapters" / mode
+    # Stage outcomes come from the typed lifecycle event stream when an attempt
+    # bundle exists, and fall back to the legacy JSONL manifest otherwise so a
+    # pre-migration run still reports. Both are normalized to the same
+    # {"stage", "return_code"} rows the checks consume.
+    stage_rows = _read_stage_outcomes(
+        results_root=results_root,
+        run_id=run_id,
+        attempt_id=attempt_id,
+        manifest=manifest,
+    )
 
     base_summaries = {
-        split: _read_json_if_exists(results_root / "eval" / split / "base" / "summary.json")
+        split: _read_json_if_exists(
+            results_root / "eval" / split / "base" / "summary.json"
+        )
         for split in splits
     }
-    adapter_matrix = _read_json_if_exists(adapter_eval_root / f"adapter_matrix_{mode}.json")
+    adapter_matrix = _read_json_if_exists(
+        adapter_eval_root / f"adapter_matrix_{mode}.json"
+    )
     analysis = _build_countdown_analysis(
         results_root=results_root,
         adapter_eval_root=adapter_eval_root,
@@ -62,7 +77,7 @@ def build_countdown_report_input(
         },
         "manifest": {
             "path": str(manifest),
-            "stages": _read_manifest(manifest),
+            "stages": stage_rows,
         },
         "artifacts": {
             "runtime_preflight": _artifact_metadata(
@@ -101,7 +116,9 @@ def build_countdown_report_input(
             },
         },
         "validations": {
-            "runtime_preflight": _read_json_if_exists(results_root / "runtime_preflight.json"),
+            "runtime_preflight": _read_json_if_exists(
+                results_root / "runtime_preflight.json"
+            ),
             "split_registry": _read_json_if_exists(data_root / "split_registry.json"),
             "adapter_matrix": adapter_matrix,
         },
@@ -118,7 +135,7 @@ def build_countdown_report_input(
             base_summaries=base_summaries,
             adapter_matrix=adapter_matrix,
             split_registry=_read_json_if_exists(data_root / "split_registry.json"),
-            manifest_stages=_read_manifest(manifest),
+            manifest_stages=stage_rows,
             arms=arms,
         ),
     }
@@ -190,10 +207,14 @@ def _read_evaluation_rows(path: Path) -> dict[str, dict[str, Any]]:
         except json.JSONDecodeError as exc:
             raise ValueError(f"invalid evaluation row at {path}:{line_number}") from exc
         if not isinstance(row, dict):
-            raise ValueError(f"evaluation row at {path}:{line_number} must be an object")
+            raise ValueError(
+                f"evaluation row at {path}:{line_number} must be an object"
+            )
         problem_id = row.get("problem_id")
         if not isinstance(problem_id, str):
-            raise ValueError(f"evaluation row at {path}:{line_number} missing problem_id")
+            raise ValueError(
+                f"evaluation row at {path}:{line_number} missing problem_id"
+            )
         rows[problem_id] = row
     return rows
 
@@ -322,7 +343,9 @@ def _is_regression(base_row: dict[str, Any], adapter_row: dict[str, Any]) -> boo
     return _solved_at(base_row) == 1 and _solved_at(adapter_row) != 1
 
 
-def _is_unchanged_failure(base_row: dict[str, Any], adapter_row: dict[str, Any]) -> bool:
+def _is_unchanged_failure(
+    base_row: dict[str, Any], adapter_row: dict[str, Any]
+) -> bool:
     return _solved_at(base_row) is None and _solved_at(adapter_row) is None
 
 
@@ -356,8 +379,7 @@ def _compact_problem(value: Any) -> dict[str, Any]:
     return {
         "numbers": value.get("numbers"),
         "target": value.get("target"),
-        "canonical_solution": value.get("canonical_solution")
-        or value.get("solution"),
+        "canonical_solution": value.get("canonical_solution") or value.get("solution"),
     }
 
 
@@ -439,6 +461,66 @@ def _text_excerpt(text: str, *, max_chars: int = 600) -> str:
     if len(normalized) <= max_chars:
         return normalized
     return normalized[: max_chars - 3].rstrip() + "..."
+
+
+def _read_stage_outcomes(
+    *,
+    results_root: Path,
+    run_id: str,
+    attempt_id: str,
+    manifest: Path,
+) -> list[dict[str, Any]]:
+    """Return normalized {"stage", "return_code"} rows for the run's stages.
+
+    Prefer the typed lifecycle event stream at
+    <results_root>/runs/<run_id>/<attempt_id>/processes/coordinator/events.jsonl,
+    reducing each stage's terminal event to a legacy-shaped row. Fall back to
+    the legacy JSONL manifest when no attempt bundle exists so a pre-migration
+    run still reports.
+    """
+
+    events_path = (
+        results_root
+        / "runs"
+        / run_id
+        / attempt_id
+        / "processes"
+        / "coordinator"
+        / "events.jsonl"
+    )
+    if events_path.is_file():
+        return _stage_outcomes_from_events(events_path)
+    return _read_manifest(manifest)
+
+
+def _stage_outcomes_from_events(path: Path) -> list[dict[str, Any]]:
+    """Reduce a coordinator event stream to one row per stage terminal event.
+
+    A stage may run more than once (a retried invocation); the last terminal
+    event for a stage_id wins, matching how the lifecycle records the latest
+    attempted outcome.
+    """
+
+    outcomes: dict[str, dict[str, Any]] = {}
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid event at {path}:{line_number}") from exc
+        if not isinstance(event, dict):
+            raise ValueError(f"event at {path}:{line_number} must be an object")
+        if event.get("kind") not in ("stage_succeeded", "stage_failed"):
+            continue
+        stage_id = event.get("stage_id")
+        if stage_id is None:
+            continue
+        outcomes[str(stage_id)] = {
+            "stage": str(stage_id),
+            "return_code": event.get("return_code"),
+        }
+    return list(outcomes.values())
 
 
 def _read_manifest(path: Path) -> list[dict[str, Any]]:
@@ -523,7 +605,9 @@ def _compact_summary(summary: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
-def _compact_adapter_rows(adapter_matrix: dict[str, Any] | None) -> list[dict[str, Any]]:
+def _compact_adapter_rows(
+    adapter_matrix: dict[str, Any] | None
+) -> list[dict[str, Any]]:
     if adapter_matrix is None:
         return []
     rows = adapter_matrix.get("rows", [])
@@ -585,9 +669,7 @@ def _report_checks(
     else:
         raise ValueError(f"unknown Countdown mode: {mode}")
     successful_stages = {
-        str(row.get("stage"))
-        for row in manifest_stages
-        if int(row.get("return_code", -1)) == 0
+        str(row.get("stage")) for row in manifest_stages if row.get("return_code") == 0
     }
     return {
         "required_manifest_stages_succeeded": required_stages <= successful_stages,
@@ -598,7 +680,9 @@ def _report_checks(
             split_registry
             and split_registry.get("checks", {}).get("no_problem_key_overlap", False)
         ),
-        "base_summaries_present": all(summary is not None for summary in base_summaries.values()),
+        "base_summaries_present": all(
+            summary is not None for summary in base_summaries.values()
+        ),
         "adapter_matrix_selected": mode == "smoke"
         or bool(adapter_matrix and adapter_matrix.get("selected", False)),
     }

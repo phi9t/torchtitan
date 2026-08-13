@@ -13,19 +13,19 @@ import pytest
 
 from torchtitan.experiments.countdown_search_distill.countdown import (
     CountdownProblem,
-    generate_problem_pool,
     generate_problem,
+    generate_problem_pool,
+    ProblemFilters,
     reachable_targets_by_subset,
     verify_solution,
-    ProblemFilters,
 )
 from torchtitan.experiments.countdown_search_distill.datasets import (
     build_training_examples,
     formatting_teacher_rewrite,
 )
 from torchtitan.experiments.countdown_search_distill.evaluate import (
-    bucket_counts,
     bootstrap_pass_at_k,
+    bucket_counts,
     compute_compression,
     evaluate_rollouts,
     format_breakdown,
@@ -37,9 +37,9 @@ from torchtitan.experiments.countdown_search_distill.experiment_registry import 
     build_countdown_report_input,
 )
 from torchtitan.experiments.countdown_search_distill.lora_export import (
-    Qwen3LoRAExportConfig,
     convert_torchtitan_lora_tensors,
     peft_adapter_config,
+    Qwen3LoRAExportConfig,
     split_qwen3_fused_qkv_lora_b,
 )
 
@@ -462,8 +462,7 @@ def test_build_datasets_cli_can_fallback_to_canonical_raw(tmp_path):
         sys.argv = old_argv
 
     raw_rows = [
-        json.loads(line)
-        for line in (output_dir / "raw.jsonl").read_text().splitlines()
+        json.loads(line) for line in (output_dir / "raw.jsonl").read_text().splitlines()
     ]
     assert raw_rows[0]["source_rollout_ids"] == ["p0:canonical"]
     assert raw_rows[0]["answer"] == "2 + 3 = 5\n5 * 4 = 20\nFINAL: 20"
@@ -1223,19 +1222,13 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     assert all(report_input["checks"].values())
     assert report_input["run"]["run_id"] == "run"
     assert report_input["metrics"]["base"]["dev"]["pass_at_1"] == 1.0
-    assert (
-        report_input["metrics"]["adapters"][0]["strict_format_pass_at_1"] == 1.0
-    )
+    assert report_input["metrics"]["adapters"][0]["strict_format_pass_at_1"] == 1.0
     subset_rows = report_input["analysis"]["base_elicitable_subsets"]
     dev_base_subset = [
-        row
-        for row in subset_rows
-        if row["split"] == "dev" and row["arm"] == "base"
+        row for row in subset_rows if row["split"] == "dev" and row["arm"] == "base"
     ][0]
     dev_raw_subset = [
-        row
-        for row in subset_rows
-        if row["split"] == "dev" and row["arm"] == "raw"
+        row for row in subset_rows if row["split"] == "dev" and row["arm"] == "raw"
     ][0]
     assert dev_base_subset["num_problems"] == 2
     assert dev_base_subset["pass_at_1"] == 0.0
@@ -1249,6 +1242,126 @@ def test_countdown_report_input_collects_provenance_and_checks(tmp_path):
     } == {"win", "regression", "unchanged_failure", "format_failure"}
     assert report_input["artifacts"]["split_registry"]["sha256"] is not None
     assert len(report_input["metrics"]["adapters"]) == 15
+
+
+def test_countdown_report_input_reads_stage_outcomes_from_event_stream(tmp_path):
+    # After the run_common lifecycle migration a runner no longer appends a
+    # legacy JSONL manifest; stage outcomes must be read from the typed attempt
+    # bundle's coordinator event stream instead.
+    root = tmp_path / "countdown"
+    data = root / "data"
+    results = root / "results"
+    data.mkdir(parents=True)
+    manifest = results / "manifests" / "run.jsonl"
+    (results / "manifests").mkdir(parents=True)
+    # Deliberately do not write the manifest file: the event stream is the only
+    # source of stage outcomes.
+
+    events_path = (
+        results
+        / "runs"
+        / "run"
+        / "attempt-01"
+        / "processes"
+        / "coordinator"
+        / "events.jsonl"
+    )
+    events_path.parent.mkdir(parents=True)
+    reduced_stages = [
+        "preflight",
+        "calibration_sweep",
+        "calibration",
+        "collect",
+        "validate_splits",
+        "train_raw",
+        "train_hindsight",
+        "train_curriculum",
+        "base_eval_dev",
+        "base_eval_iid_test",
+        "base_eval_ood_test",
+        "export_adapters",
+        "eval_adapters",
+    ]
+    lines = []
+    for stage in reduced_stages:
+        lines.append(
+            json.dumps(
+                {
+                    "kind": "stage_started",
+                    "stage_id": stage,
+                    "kind_of_stage": "generate",
+                }
+            )
+        )
+        lines.append(
+            json.dumps(
+                {
+                    "kind": "stage_succeeded",
+                    "stage_id": stage,
+                    "return_code": 0,
+                }
+            )
+        )
+    events_path.write_text("\n".join(lines) + "\n")
+
+    report_input = build_countdown_report_input(
+        experiment_root=root,
+        mode="reduced",
+        run_id="run",
+        manifest=manifest,
+        arms=["raw", "hindsight", "curriculum"],
+        data_root=data,
+        results_root=results,
+    )
+
+    assert report_input["checks"]["required_manifest_stages_succeeded"] is True
+    stage_names = {row["stage"] for row in report_input["manifest"]["stages"]}
+    assert stage_names == set(reduced_stages)
+
+
+def test_countdown_report_input_marks_failed_event_stage_unsucceeded(tmp_path):
+    # A stage that ends with a stage_failed event (nonzero return code) must not
+    # count toward required_manifest_stages_succeeded.
+    root = tmp_path / "countdown"
+    results = root / "results"
+    (root / "data").mkdir(parents=True)
+    manifest = results / "manifests" / "run.jsonl"
+    (results / "manifests").mkdir(parents=True)
+    events_path = (
+        results
+        / "runs"
+        / "run"
+        / "attempt-01"
+        / "processes"
+        / "coordinator"
+        / "events.jsonl"
+    )
+    events_path.parent.mkdir(parents=True)
+    events_path.write_text(
+        json.dumps(
+            {"kind": "stage_succeeded", "stage_id": "preflight", "return_code": 0}
+        )
+        + "\n"
+        + json.dumps({"kind": "stage_failed", "stage_id": "collect", "return_code": 1})
+        + "\n"
+    )
+
+    report_input = build_countdown_report_input(
+        experiment_root=root,
+        mode="reduced",
+        run_id="run",
+        manifest=manifest,
+        arms=["raw"],
+        data_root=root / "data",
+        results_root=results,
+    )
+
+    assert report_input["checks"]["required_manifest_stages_succeeded"] is False
+    stages = {
+        row["stage"]: row["return_code"] for row in report_input["manifest"]["stages"]
+    }
+    assert stages["collect"] == 1
+    assert stages["preflight"] == 0
 
 
 def test_countdown_report_input_supports_scoped_roots_and_arms(tmp_path):
@@ -1299,7 +1412,9 @@ def test_countdown_report_input_supports_scoped_roots_and_arms(tmp_path):
         base_summary = results / "eval" / split / "base" / "summary.json"
         base_summary.parent.mkdir(parents=True)
         base_summary.write_text(json.dumps(summary) + "\n")
-        clean_summary = results / "eval" / "adapters" / "full" / split / "clean" / "summary.json"
+        clean_summary = (
+            results / "eval" / "adapters" / "full" / split / "clean" / "summary.json"
+        )
         clean_summary.parent.mkdir(parents=True)
         clean_summary.write_text(json.dumps(summary) + "\n")
     matrix = results / "eval" / "adapters" / "full" / "adapter_matrix_full.json"
@@ -1536,4 +1651,3 @@ def test_peft_adapter_config_has_vllm_required_fields():
     assert config["bias"] == "none"
     assert config["peft_type"] == "LORA"
     assert set(config["target_modules"]) >= {"q_proj", "k_proj", "v_proj"}
-

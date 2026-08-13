@@ -18,11 +18,11 @@ from pathlib import Path
 
 from torchtitan.experiments.countdown_search_distill.countdown import (
     CountdownProblem,
+    generate_problem_pool,
     ParsedOperation,
+    problem_key,
     ProblemFilters,
     VerificationResult,
-    generate_problem_pool,
-    problem_key,
 )
 from torchtitan.experiments.countdown_search_distill.datasets import (
     build_canonical_raw_examples,
@@ -30,8 +30,8 @@ from torchtitan.experiments.countdown_search_distill.datasets import (
     write_training_sets,
 )
 from torchtitan.experiments.countdown_search_distill.evaluate import (
-    ProblemEvaluation,
     evaluate_rollouts,
+    ProblemEvaluation,
     stable_problem_id,
     write_annotations_jsonl,
     write_evaluations_jsonl,
@@ -45,8 +45,8 @@ from torchtitan.experiments.countdown_search_distill.experiment_registry import 
     write_countdown_report_input,
 )
 from torchtitan.experiments.countdown_search_distill.lora_export import (
-    Qwen3LoRAExportConfig,
     export_lora_adapter,
+    Qwen3LoRAExportConfig,
 )
 from torchtitan.experiments.countdown_search_distill.split_registry import (
     build_split_registry,
@@ -79,7 +79,9 @@ def _prompt_for_problem(problem: CountdownProblem, variant: str) -> str:
 
 def _build_vllm_prompts(problems: list[CountdownProblem], args: argparse.Namespace):
     if args.prompt_variant != "chat":
-        return [_prompt_for_problem(problem, args.prompt_variant) for problem in problems]
+        return [
+            _prompt_for_problem(problem, args.prompt_variant) for problem in problems
+        ]
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
@@ -173,7 +175,9 @@ def _load_evaluations(path: Path) -> list[ProblemEvaluation]:
                 )
             )
         except Exception as exc:
-            raise ValueError(f"invalid evaluation at {path}:{line_number}: {exc}") from exc
+            raise ValueError(
+                f"invalid evaluation at {path}:{line_number}: {exc}"
+            ) from exc
     return evaluations
 
 
@@ -202,7 +206,9 @@ def _rollout_evaluation_from_row(
         ),
         steps_consumed=int(row.get("steps_consumed", 0)),
         available_numbers=tuple(int(number) for number in available_numbers),
-        operations=tuple(_parsed_operation_from_row(operation) for operation in operations),
+        operations=tuple(
+            _parsed_operation_from_row(operation) for operation in operations
+        ),
         states=tuple(
             tuple(int(number) for number in state)
             for state in states
@@ -275,7 +281,9 @@ def _load_rollout_fixture(path: Path) -> dict[tuple[tuple[int, ...], int], list[
     return by_problem
 
 
-def _write_problem_jsonl(problems: Iterable[CountdownProblem], output_path: Path) -> None:
+def _write_problem_jsonl(
+    problems: Iterable[CountdownProblem], output_path: Path
+) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w") as f:
         for problem in problems:
@@ -457,12 +465,16 @@ def calibrate(args: argparse.Namespace) -> None:
 
 def select_sweep(args: argparse.Namespace) -> None:
     candidates = []
-    for line_number, line in enumerate(args.candidates.read_text().splitlines(), start=1):
+    for line_number, line in enumerate(
+        args.candidates.read_text().splitlines(), start=1
+    ):
         if not line.strip():
             continue
         row = json.loads(line)
         if not isinstance(row, dict):
-            raise ValueError(f"candidate at {args.candidates}:{line_number} must be an object")
+            raise ValueError(
+                f"candidate at {args.candidates}:{line_number} must be an object"
+            )
         summary_path = Path(str(row["summary"]))
         summary = json.loads(summary_path.read_text())
         pass_at_1 = float(summary["pass_at_k"].get("1", 0.0))
@@ -484,7 +496,9 @@ def select_sweep(args: argparse.Namespace) -> None:
     if not candidates:
         raise ValueError("no sweep candidates were provided")
 
-    selected_candidates = [candidate for candidate in candidates if candidate["selected"]]
+    selected_candidates = [
+        candidate for candidate in candidates if candidate["selected"]
+    ]
     target_pass_at_32 = (args.pass32_min + args.pass32_max) / 2.0
     target_pass_at_1 = (args.pass1_min + args.pass1_max) / 2.0
     selected_candidate = None
@@ -500,7 +514,9 @@ def select_sweep(args: argparse.Namespace) -> None:
 
     decision = {
         "selected": selected_candidate is not None,
-        "selected_name": None if selected_candidate is None else selected_candidate["name"],
+        "selected_name": None
+        if selected_candidate is None
+        else selected_candidate["name"],
         "target_pass_at_1": [args.pass1_min, args.pass1_max],
         "target_pass_at_32": [args.pass32_min, args.pass32_max],
         "candidates": candidates,
@@ -656,7 +672,9 @@ def validate_splits(args: argparse.Namespace) -> None:
     validation = build_split_registry(split_paths, load_problems=_load_problems)
     write_split_registry(validation, args.output)
     if not validation.selected:
-        raise SystemExit(f"split validation failed: {len(validation.overlaps)} overlaps")
+        raise SystemExit(
+            f"split validation failed: {len(validation.overlaps)} overlaps"
+        )
 
 
 def build_report_input(args: argparse.Namespace) -> None:
@@ -668,12 +686,11 @@ def build_report_input(args: argparse.Namespace) -> None:
         arms=args.arms,
         data_root=args.data_root,
         results_root=args.results_root,
+        attempt_id=args.attempt_id,
     )
     write_countdown_report_input(report_input, args.output)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"report input validation failed: {', '.join(failed)}")
 
 
@@ -709,8 +726,7 @@ def _check_gpu_runtime(
             "cuda_device_count_positive": not require_gpu,
             "cuda_memory_check_supported": (not require_gpu)
             or min_free_memory_gib <= 0,
-            "min_free_memory_per_device": (not require_gpu)
-            or min_free_memory_gib <= 0,
+            "min_free_memory_per_device": (not require_gpu) or min_free_memory_gib <= 0,
         }
         return checks, {
             "min_free_memory_gib": min_free_memory_gib,
@@ -891,7 +907,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
     )
     legacy_generate_parser.add_argument("--min-distinct-solutions", type=int, default=1)
-    legacy_generate_parser.add_argument("--max-duplicate-attempts", type=int, default=100)
+    legacy_generate_parser.add_argument(
+        "--max-duplicate-attempts", type=int, default=100
+    )
     legacy_generate_parser.add_argument(
         "--exclude-problems",
         nargs="*",
@@ -1086,9 +1104,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     report_input_parser = subparsers.add_parser("build-report-input")
     report_input_parser.add_argument("--experiment-root", type=Path, required=True)
-    report_input_parser.add_argument("--mode", choices=["smoke", "reduced", "full"], required=True)
+    report_input_parser.add_argument(
+        "--mode", choices=["smoke", "reduced", "full"], required=True
+    )
     report_input_parser.add_argument("--run-id", required=True)
     report_input_parser.add_argument("--manifest", type=Path, required=True)
+    report_input_parser.add_argument("--attempt-id", default="attempt-01")
     report_input_parser.add_argument("--arms", nargs="+")
     report_input_parser.add_argument("--data-root", type=Path)
     report_input_parser.add_argument("--results-root", type=Path)
@@ -1111,4 +1132,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
