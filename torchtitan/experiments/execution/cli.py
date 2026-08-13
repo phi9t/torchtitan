@@ -27,10 +27,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
-from torchtitan.experiments.execution import models
+from torchtitan.experiments.execution import models, store
 from torchtitan.experiments.execution.lifecycle import RunAttempt
+from torchtitan.experiments.execution.preflight import profiles, query
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -88,6 +90,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="path to a JSON object mapping condition key to status dimensions",
     )
     finish.set_defaults(handler=_handle_finish)
+
+    preflight = subparsers.add_parser(
+        "preflight", help="query readiness over composed profiles (no journal write)"
+    )
+    preflight.add_argument(
+        "--profile",
+        action="append",
+        required=True,
+        dest="profiles",
+        help="a profile name to compose; repeat for multiple profiles",
+    )
+    preflight.add_argument(
+        "--output",
+        default=None,
+        help="path to write the preflight artifact; stdout only when omitted",
+    )
+    preflight.add_argument(
+        "--require-ready",
+        action="store_true",
+        help="exit nonzero when the composed preflight is blocked",
+    )
+    preflight.set_defaults(handler=_handle_preflight)
 
     return parser
 
@@ -153,6 +177,24 @@ def _handle_finish(args: argparse.Namespace) -> int:
         evaluations=evaluations,
         attempt_outcome=args.attempt_outcome,
     )
+    return 0
+
+
+def _handle_preflight(args: argparse.Namespace) -> int:
+    env = profiles.probe_env()
+    result = query.run_preflight(profile_names=args.profiles, env=env)
+    if args.output:
+        store.write_terminal_json(Path(args.output), result)
+    else:
+        print(json.dumps(result, sort_keys=True, indent=2))
+    # A query never writes the attempt journal; it only reports readiness. The
+    # caller reacts to the exit code when --require-ready is set.
+    if args.require_ready and result["readiness"] != "ready":
+        print(
+            "preflight blocked: " + ", ".join(result["blocker_codes"]),
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
