@@ -4,10 +4,90 @@ labels:
   - ready-for-agent
 status: executed-checkpoint
 residual_caveats:
+  - gpqa_prior_scores_invalid_correct_answer_first
   - gpqa_huggingface_auth_for_live_hf_loader_only
+  - execution_lifecycle_and_rootfs_reproducibility_not_yet_implemented
 ---
 
 # Scaffold-To-Policy Experiment Registry And Reasoning Expansion
+
+## 2026-08-12 Planning Correction And Forward Authority
+
+This file preserves the executed checkpoint, user stories, implementation
+history, and evidence contracts accumulated during the first scaffold-to-policy
+program. It is not the authoritative forward schedule. The approved
+long-horizon program is
+[`followup_experiment_plan.md`](followup_experiment_plan.md), supported by the
+specialized
+[`runtime_preflight_roadmap.md`](runtime_preflight_roadmap.md),
+[`training_research_plan.md`](training_research_plan.md),
+[`reasoning_research_plan.md`](reasoning_research_plan.md), and
+[`coding_research_plan.md`](coding_research_plan.md).
+
+The following corrections supersede interpretations later in this historical
+record without deleting that record:
+
+1. Existing GPQA model scores are scientifically invalid. The current importer
+   always writes the correct choice first as answer `A`, so the result cannot
+   distinguish reasoning from answer-position bias. The access and execution
+   artifacts remain useful, but GPQA must be deterministically shuffled,
+   position-balanced, permutation-tested, rebuilt, and rerun from M0 before a
+   score can be used. The repaired Diamond result remains opened/post-hoc; it
+   cannot serve as a locked confirmation because its content and prior outcomes
+   were already inspected.
+2. The canonical task report input remains the single scientific summary. New
+   execution lifecycle data must enrich it by reference; it must not create a
+   second result manifest that can disagree about final status.
+3. `run_id` identifies an immutable scientific declaration. `attempt_id`
+   spans one top-level operational execution or retry. Each actual stage launch
+   has a `stage_invocation_id`; redelivery that only reconciles a receipt does
+   not create one. Work from an interrupted terminal attempt resumes in a new
+   linked attempt; the old bundle is never reopened. Temporal
+   workflow/activity IDs are only correlations; local attempt bundles,
+   artifact receipts, and checkpoints are authoritative.
+4. Execution (`completed`, `blocked`, `failed`, `interrupted`), measurement
+   (`real`, `fixture`, `smoke`, `invalid`, `not_run`), and promotion (`promote`,
+   `hold`, `reject`, `not_evaluated`) are independent. A completed real zero or
+   regression is a scientific result, normally `reject`, not a runtime blocker.
+   These statuses are per evaluation ID/cell/split; the enclosing attempt has a
+   separately derived outcome.
+5. All real stages continue through the bwrap rootfs, but the current mutable
+   build inputs, broad read-write mounts, and shared network are not yet a fully
+   reproducible capability boundary. The runtime roadmap defines the required
+   content identity, read-only defaults, declared writable binds, and explicit
+   capabilities.
+6. Local Temporal may durably orchestrate coarse repo-local stages from a host
+   worker. Workflow code remains deterministic, external work stays in
+   idempotent Activities, and repo-local artifacts remain truth. SFT may resume
+   only from a verified DCP; online RL retry remains disabled until joint
+   trainer/generator/controller recovery is implemented and fault-tested.
+7. Offline scaffold generation, core TorchTitan SFT, explicit DCP-to-PEFT or
+   full-policy export, and Monarch online RL are distinct ownership surfaces.
+   The program does not add an alternate mode to the core `Trainer` or wrap the
+   RL entrypoint in `torchrun`.
+8. The historical modular `ood_test` split changes only the generator draw, not
+   the recurrence parameter band. Treat it as held-out IID. Future modular OOD
+   evidence uses explicit length-shift and modulus-shift axes.
+9. A metric labeled pass@k is valid only when at least `k` candidates were
+   sampled. Preserve legacy clamped pass@16/pass@32 fields as history, but omit
+   them from scientific tables when the actual budget was smaller.
+10. Countdown cleared its historical replication gate, but its principal runs
+    couple split draw and training seed. Treat it as a valuable replicated
+    anchor, not a fully crossed `2 draws x 2 seeds` M4 result under the new
+    ladder unless the missing cross cells are executed.
+11. A fully crossed `2 draws x 2 seeds` matrix is minimum conditional
+    replication, not population-level uncertainty over data draws or training
+    seeds. Freeze problem and upper-level sample sizes through prospective
+    paired-discordance and run-variance simulation. Recipe-general claims need
+    the resulting larger design; underpowered nulls are `hold/inconclusive`,
+    not evidence of no effect.
+
+Validated repo-local run-attempt bundles and raw artifacts are canonical for
+what an individual run did. Timestamped reports are immutable compact
+interpretations; legacy reports are imported with their structured evidence and
+explicit provenance. A planning correction may lower a historical result's
+measurement status, as with GPQA, but may never upgrade a smoke or reused
+artifact into evidence.
 
 ## Problem Statement
 

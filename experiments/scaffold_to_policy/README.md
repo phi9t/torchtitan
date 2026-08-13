@@ -1,46 +1,79 @@
 # Scaffold-To-Policy Experiments
 
-This directory records the broader experiment family for compressing verified
-scaffold behavior into policy behavior. Countdown remains the first implemented
-task under `experiments/countdown_search_distill/`; this directory starts as the
-shared planning, registry, and evidence-contract home for the next lanes.
+This directory is the repo-local research program for compressing verified
+scaffold behavior into policy behavior. Countdown remains the first reference
+task under `experiments/countdown_search_distill/`; this directory owns the
+shared planning, reasoning and coding task adapters, rootfs runners, compact
+reports, and experiment evidence contracts.
 
-See `agentic_eval_benchmarks.md` for the benchmark landscape, complexity ladder,
-normalization rules, and adoption plan.
+## Start Here
 
-See `followup_experiment_plan.md` for the concrete staged experiment program
-that follows from the Countdown pilot: split repair, Countdown ablations,
-reasoning transfer, harness feasibility, and later agentic pilots.
+- [`followup_experiment_plan.md`](followup_experiment_plan.md) is the
+  authoritative master program and dependency order.
+- [`runtime_preflight_roadmap.md`](runtime_preflight_roadmap.md) defines the
+  bwrap rootfs, lifecycle, preflight, tracing, local Temporal, and failure model.
+- [`training_research_plan.md`](training_research_plan.md) defines TorchTitan
+  SFT, DCP recovery, policy export, deterministic RL, and async RL experiments.
+- [`reasoning_research_plan.md`](reasoning_research_plan.md) defines the
+  reasoning benchmark ladder and task-specific scientific gates.
+- [`coding_research_plan.md`](coding_research_plan.md) defines secure executable
+  coding, official harness boundaries, and coding transfer experiments.
+- [`temporal_durable_execution_research.md`](temporal_durable_execution_research.md)
+  records the primary-source design constraints for durable local orchestration.
+- [`spec.md`](spec.md) preserves executed history and non-negotiable evidence
+  contracts; it is not the forward schedule.
+- [`agentic_eval_benchmarks.md`](agentic_eval_benchmarks.md) is the earlier
+  benchmark survey. The task order and gates in the master plan supersede its
+  scheduling suggestions.
+- Timestamped files under [`reports/`](reports/) are immutable compact
+  interpretations of individual runs. The validated repo-local run-attempt
+  bundle and raw artifacts are canonical; a report never overrides them.
 
-See `runtime_preflight_roadmap.md` for the runtime-contract and preflight plan:
-doctor integration, lane profiles, benchmark-specific preflights, result
-manifest requirements, and failure taxonomy.
+## Current Scientific Status
 
-See `spec.md` for the ready-for-agent spec that turns the current execution
-state into the next implementation program.
+- Countdown is the replicated task-specific reference under its historical
+  clean-split gate. Its two principal runs couple split draw and training seed,
+  so it is not a fully crossed `2 draws x 2 seeds` M4 result under the new
+  ladder, and it does not establish transfer beyond Countdown.
+- The expanded modular-sequences raw-LoRA run is a useful one-draw pilot: dev
+  pass@1 moved from `0.531` to `0.625` and the historically named `ood_test`
+  pass@1 from `0.375` to `0.594`. That second split changes only the draw, not
+  the task parameter range, so it is held-out IID. The result must replicate
+  over at least two fresh draws and two seeds, with matched base evaluation and
+  real length- and modulus-shift OOD axes, before reaching minimum conditional
+  M4. A recipe-general claim additionally needs the prospectively sized
+  upper-level replication defined by the research plans.
+- Public reasoning, coding, and agentic lanes currently provide a mixture of
+  task contracts, smokes, base calibrations, hard negatives, and compatibility
+  probes. None yet establishes a replicated trained-policy transfer claim.
+- Existing GPQA scores are scientifically invalid because the current importer
+  always places the correct choice first as answer `A`. Preserve those reports
+  as execution history, but do not compare or promote their scores. Repair,
+  balance, permutation-test, rebuild, and rerun GPQA from its task contract.
+  The repaired Diamond set remains opened/post-hoc evidence because its content
+  and prior outcomes were inspected; it cannot become a locked confirmation by
+  shuffling choices.
+- Current generated-code execution is not a security sandbox. Do not execute
+  untrusted model code until the coding plan's isolation gate passes.
+- Local Temporal is approved as an optional host-side control plane for durable
+  coarse stages. Repo-local artifacts and checkpoints remain authoritative;
+  online RL retry remains disabled until joint controller recovery exists.
+- Historical `pass@16` or `pass@32` fields from runs with fewer samples are
+  compatibility fields, not valid pass@k claims. Scientific tables stop at the
+  actual rollout budget. Likewise, a path or split called `ood_test` is not
+  distribution-shift evidence by name alone.
 
-## Current Ladder
+Every scientific run must preserve disjoint stable problem identities, exact or
+task-specific verification, separate task and strict-format metrics, base and
+trained-policy comparisons, scaffold-subset and failure-mode evidence,
+representative examples, immutable run/attempt provenance, and draw/seed
+replication appropriate to the claim. Smoke runs prove plumbing only.
 
-1. **Countdown repair**: regenerate clean held-out same-regime splits, enforce
-   global problem-key de-duplication, and rerun base plus exported adapters.
-2. **Reasoning lane**: add small exact-verifier reasoning tasks before broader
-   benchmark claims.
-3. **Agentic task lane**: add tau2-bench and Terminal-Bench/Harbor after the
-   registry supports external harness boundaries and at least one reasoning
-   benchmark shows replicated held-out gain.
+## Implemented Command And Report Inventory
 
-## Evidence Contract
-
-Every serious run must record:
-
-- runtime preflight;
-- split registry and overlap validation;
-- base metrics;
-- adapter metrics;
-- scaffold subset metrics, such as base-elicitable subsets when applicable;
-- verifier failure-mode breakdown;
-- representative examples;
-- seed or split-draw replication before robust claims.
+The sections below document implemented commands and historical runs. They do
+not authorize the next compute tier and are not a substitute for the current
+master plan or a frozen campaign declaration.
 
 ## Initial Reasoning Benchmarks
 
@@ -324,8 +357,8 @@ PROMPT_VARIANT=chat \
 experiments/scaffold_to_policy/run_aime_public_vllm_smoke.sh
 ```
 
-It reached dev pass@1/pass@8/pass@32 `0.125` and OOD
-pass@1/pass@8/pass@32 `0.000`. The only solved dev problem was `AIME/67`,
+It reached dev pass@1/pass@8 `0.125` and OOD pass@1/pass@8 `0.000`. The only
+solved dev problem was `AIME/67`,
 solved in all eight rollouts; no OOD problem was elicitable at eight samples.
 The report is:
 
@@ -348,7 +381,7 @@ experiments/scaffold_to_policy/run_mmlu_pro_public_vllm_smoke.sh
 This imports `TIGER-Lab/MMLU-Pro` validation rows, preserves up to ten answer
 choices, evaluates Qwen3-1.7B with vLLM, and scores exact final letters with
 the multiple-choice verifier. The prompt-fixed run reached dev
-pass@1/pass@4/pass@32 `0.250` and OOD pass@1/pass@4/pass@32 `0.750`; strict
+pass@1/pass@4 `0.250` and OOD pass@1/pass@4 `0.750`; strict
 format pass@k matched answer pass@k because the repaired prompt eliminated
 missing-final failures. The report is:
 
@@ -368,8 +401,8 @@ NUM_ROLLOUTS=4 MAX_NEW_TOKENS=1024 GPU_MEMORY_UTILIZATION=0.05 \
 experiments/scaffold_to_policy/run_mmlu_pro_public_vllm_smoke.sh
 ```
 
-It reached dev pass@1/pass@4/pass@32 `0.500` and OOD pass@1 `0.5625`,
-pass@2 `0.625`, and pass@4/pass@32 `0.6875`. Strict-format pass@k matched
+It reached dev pass@1/pass@4 `0.500` and OOD pass@1 `0.5625`, pass@2 `0.625`,
+and pass@4 `0.6875`. Strict-format pass@k matched
 answer pass@k. The report is:
 
 ```text
@@ -401,6 +434,13 @@ Run the GPQA Diamond gate through the rootfs:
 ```bash
 experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh
 ```
+
+**Scientific correction:** the command currently imports every correct GPQA
+choice first and labels it `A`. The access, rootfs, and model-execution records
+below remain useful plumbing history, but all resulting model scores are
+`measurement=invalid`. Do not rerun this command for a scientific score until
+choice shuffling, answer-position balance, and permutation invariance are
+implemented and tested as specified in the master plan.
 
 GPQA Diamond is gated on Hugging Face. In an unauthenticated rootfs, the live
 Hugging Face path writes a blocker report input instead of substituting a
@@ -442,8 +482,9 @@ That run completed inside the bwrap rootfs using Qwen3-1.7B and wrote:
 experiments/scaffold_to_policy/results/gpqa_simple_evals_16x16_labeled/manifests/report_input_20260813T003000Z-gpqa-simple-evals-16x16-labeled.json
 ```
 
-It is a small public-cache hard-reasoning calibration, not an official GPQA
-leaderboard score.
+It was originally recorded as a small public-cache hard-reasoning calibration,
+not an official leaderboard score. Its score is now invalidated by the
+correct-first importer defect.
 
 If live Hugging Face access is not available and a different authorized GPQA row
 cache is required, provide raw row caches through repo-visible paths and run the
@@ -659,7 +700,7 @@ experiments/scaffold_to_policy/run_livecodebench_public_vllm_smoke.sh
 This uses the `contest_code` stdin/stdout verifier for
 `livecodebench/code_generation` rows. It executes released public tests only,
 so it is not an official LiveCodeBench score. The completed smoke reached
-dev/OOD pass@1/pass@2/pass@32 `0.000`; failures were indentation errors and
+dev/OOD pass@1/pass@2 `0.000`; failures were indentation errors and
 wrong public-test outputs. The report is:
 
 ```text
@@ -750,10 +791,10 @@ experiments/scaffold_to_policy/reports/20260812T142500Z-final-completion-audit.m
 experiments/scaffold_to_policy/reports/20260812T123000Z-completion-audit-and-next-steps.md
 ```
 
-The newer audits include the completed MMLU-Pro, LiveCodeBench, BigCodeBench-Hard,
-and public-cache GPQA Diamond lanes. They keep the live Hugging Face GPQA access
-blocker as a residual caveat, but the public simple-evals GPQA Diamond path has
-now executed through the bwrap rootfs.
+The newer audits include completed execution for MMLU-Pro, LiveCodeBench,
+BigCodeBench-Hard, and the public-cache GPQA Diamond path. The GPQA path did run
+through bwrap, but its score is scientifically invalid for the reason above;
+execution completion is not measurement validity.
 
 Exact-verifier scaffold report inputs share the common
 `report_artifacts.build_report_input` shell. `arithmetic_words`, `gsm_style`,
@@ -1234,7 +1275,7 @@ experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
 
 The run passed canonical preflights and completed shared-engine vLLM model
 execution for both splits. The model score was a hard negative: dev and OOD
-pass@1/pass@8/pass@32 were all `0.0`, with all 16 problems unreached.
+pass@1/pass@8 were both `0.0`, with all 16 problems unreached.
 
 After GPUs were free, the same hard coding condition was rerun with a fresh
 rootfs stage manifest and 8 rollouts per problem:
@@ -1250,7 +1291,7 @@ experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
 ```
 
 The rerun again passed canonical preflight on all 16 selected tasks and reached
-dev/OOD pass@1/pass@8/pass@32 `0.0`. Dev failures were 64/64 assertion
+dev/OOD pass@1/pass@8 `0.0`. Dev failures were 64/64 assertion
 failures; OOD failures were 63 assertion failures and one syntax error. The
 combined hard reasoning/coding report is:
 
@@ -1273,7 +1314,7 @@ TIMEOUT_SECONDS=30 GPU_MEMORY_UTILIZATION=0.05 \
 experiments/scaffold_to_policy/run_bigcodebench_hard_public_vllm_smoke.sh
 ```
 
-It remained a hard negative, with dev/OOD pass@1/pass@8/pass@32 `0.0`, and
+It remained a hard negative, with dev/OOD pass@1/pass@8 `0.0`, and
 records `runtime_metadata_present=true` in:
 
 ```text
@@ -1294,8 +1335,8 @@ GPU_MEMORY_UTILIZATION=0.05 \
 experiments/scaffold_to_policy/run_aime_public_vllm_smoke.sh
 ```
 
-It completed both splits. Dev pass@1/pass@4/pass@32 was `0.125` with one easy
-problem; OOD pass@1/pass@4/pass@32 remained `0.0`.
+It completed both splits. Dev pass@1/pass@4 was `0.125` with one easy problem;
+OOD pass@1/pass@4 remained `0.0`.
 
 ## Registry Shape
 
