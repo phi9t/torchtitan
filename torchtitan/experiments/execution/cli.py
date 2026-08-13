@@ -1,0 +1,169 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+"""begin/stage/finish CLI facade for the typed lifecycle (roadmap Section 4).
+
+run_common.sh and existing task runners sequence shell commands; this facade
+lets them drive the typed attempt bundle without becoming Python recipes. Each
+subcommand is a separate process:
+
+    python -m torchtitan.experiments.execution begin ...
+    python -m torchtitan.experiments.execution stage ... -- COMMAND...
+    python -m torchtitan.experiments.execution finish ...
+
+begin freezes the declaration and writes the manifest; stage reattaches to the
+bundle and runs one stage, returning the command's return code so a shell
+caller can react; finish reattaches, reconstructs stage invocation ids from the
+append-only event stream, and commits the immutable outcome and report input.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from torchtitan.experiments.execution import models
+from torchtitan.experiments.execution.lifecycle import RunAttempt
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    return args.handler(args)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="torchtitan.experiments.execution")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    begin = subparsers.add_parser("begin", help="freeze a declaration into an attempt")
+    _add_locator_args(begin)
+    begin.add_argument("--family", required=True)
+    begin.add_argument("--task", required=True)
+    begin.add_argument("--lane", required=True)
+    begin.add_argument("--parent-attempt-id", default=None)
+    begin.add_argument(
+        "--fields",
+        default=None,
+        help="path to a JSON file with the remaining normalized declaration",
+    )
+    begin.set_defaults(handler=_handle_begin)
+
+    stage = subparsers.add_parser("stage", help="run one stage of an existing attempt")
+    _add_locator_args(stage)
+    stage.add_argument("--stage-id", required=True)
+    stage.add_argument("--name", required=True)
+    stage.add_argument("--kind", required=True, choices=models.STAGE_KINDS)
+    stage.add_argument("--adapter", required=True, choices=models.EXECUTION_ADAPTERS)
+    stage.add_argument("--cwd", default=None)
+    stage.add_argument(
+        "command",
+        nargs=argparse.REMAINDER,
+        help="the stage argv, after a -- separator",
+    )
+    stage.set_defaults(handler=_handle_stage)
+
+    finish = subparsers.add_parser(
+        "finish", help="commit the immutable attempt outcome"
+    )
+    _add_locator_args(finish)
+    finish.add_argument(
+        "--attempt-outcome", required=True, choices=models.ATTEMPT_EXECUTION_OUTCOMES
+    )
+    finish.add_argument(
+        "--report-input",
+        required=True,
+        help="path to the canonical report input JSON",
+    )
+    finish.add_argument(
+        "--evaluations",
+        required=True,
+        help="path to a JSON object mapping condition key to status dimensions",
+    )
+    finish.set_defaults(handler=_handle_finish)
+
+    return parser
+
+
+def _add_locator_args(sub: argparse.ArgumentParser) -> None:
+    sub.add_argument("--results-root", required=True)
+    sub.add_argument("--run-id", required=True)
+    sub.add_argument("--attempt-id", required=True)
+
+
+def _handle_begin(args: argparse.Namespace) -> int:
+    fields = json.loads(Path(args.fields).read_text()) if args.fields else {}
+    declaration = models.RunDeclaration(
+        run_id=args.run_id,
+        family=args.family,
+        task=args.task,
+        lane=args.lane,
+        fields=fields,
+    )
+    RunAttempt.create(
+        declaration,
+        attempt_id=args.attempt_id,
+        results_root=Path(args.results_root),
+        parent_attempt_id=args.parent_attempt_id,
+    )
+    return 0
+
+
+def _handle_stage(args: argparse.Namespace) -> int:
+    argv = _stage_argv(args.command)
+    attempt = RunAttempt.attach(
+        run_id=args.run_id,
+        attempt_id=args.attempt_id,
+        results_root=Path(args.results_root),
+    )
+    spec = models.StageSpec(
+        stage_id=args.stage_id,
+        name=args.name,
+        kind=args.kind,
+        adapter=args.adapter,
+        argv=argv,
+        cwd=args.cwd,
+    )
+    event = attempt.run_stage(spec)
+    # Propagate the command's return code so a shell caller can react; a
+    # missing return code (blocked/interrupted) is a nonzero facade failure.
+    return event.return_code if event.return_code is not None else 1
+
+
+def _handle_finish(args: argparse.Namespace) -> int:
+    canonical_report_input = json.loads(Path(args.report_input).read_text())
+    raw_evaluations = json.loads(Path(args.evaluations).read_text())
+    evaluations = {
+        key: models.ConditionStatus(**status) for key, status in raw_evaluations.items()
+    }
+    attempt = RunAttempt.attach(
+        run_id=args.run_id,
+        attempt_id=args.attempt_id,
+        results_root=Path(args.results_root),
+    )
+    attempt.finish(
+        canonical_report_input=canonical_report_input,
+        evaluations=evaluations,
+        attempt_outcome=args.attempt_outcome,
+    )
+    return 0
+
+
+def _stage_argv(command: list[str]) -> list[str]:
+    # argparse.REMAINDER keeps the -- separator; drop a single leading one.
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        raise ValueError("stage requires a command after '--'")
+    return command
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
