@@ -1201,26 +1201,73 @@ immutable bundles.
 Done when optional package absence affects only its declaring profile and host
 unit tests remain ungated.
 
-### Wave F3: Rootfs identity and capability hardening
+### Wave F3a: Rootfs identity model (host-testable)
 
-- Pin build inputs and emit the build manifest.
-- Replace delete-and-move export with an allowlisted immutable
-  content-addressed store, staged structural/digest/smoke validation, atomic
-  selection, retained prior selection, and tested rollback.
-- Add read-only base/source modes and explicit writable mounts.
-- Add environment and capability policy.
-- Move the Section 8.5 mutation inventory into locked content-addressed
+Landed. The content-addressed identity and atomic-selection logic that the
+builder and launcher call, proven with host-only unit and shell tests (no
+Docker, bwrap, or GPU):
+
+- content-addressed build identity over the locked build inputs and the build
+  manifest a report references by digest;
+- an immutable content-addressed store with staged structural/marker/digest
+  validation, atomic selection, retained prior selection, tested rollback, and
+  quarantine of invalid staged trees;
+- a fail-closed selection-record resolver in `rootfs_target.sh`.
+
+Done when two builds from the same locked inputs compute the same store ID, any
+changed locked input changes it, a swapped or unmarked staged tree is rejected
+and quarantined, and a failed post-activation launch check restores the prior
+selection. This is complete.
+
+### Wave F3b: Rootfs capability hardening (on-device)
+
+Deferred to a rootfs/GPU integration session because it changes destructive
+filesystem paths and GPU/distributed defaults and cannot be proven with
+host-only tests:
+
+- pin the actual builder inputs and emit the F3a manifest from
+  `build_rootfs.sh`; wire the F3a store and selection resolver into
+  `enter_rootfs.sh`, replacing the delete-and-move export;
+- add read-only base/source modes and explicit writable mounts;
+- add environment and capability policy;
+- move the Section 8.5 mutation inventory into locked content-addressed
   environment/source/image acquisition and prohibit package-manager, VCS, and
-  shared-rootfs mutation in measured execution.
-- Prove GPU/distributed behavior before changing defaults.
+  shared-rootfs mutation in measured execution;
+- add garbage collection over unselected, unleased, owned store entries;
+- prove GPU/distributed behavior before changing defaults.
 
-Done when two builds from the same locked inputs have an explainable identity,
-unsafe destinations and interrupted activation cannot damage the prior rootfs,
-rollback and live-launch retention are proven, every listed runner consumes a
-read-only locked environment, runtime mutation is detected, and normal profiles
-cannot access Docker or undeclared host paths.
+Done when unsafe destinations and interrupted activation cannot damage the
+prior rootfs on the live path, rollback and live-launch retention are proven on
+device, every listed runner consumes a read-only locked environment, runtime
+mutation is detected, and normal profiles cannot access Docker or undeclared
+host paths.
 
-### Wave F4: Temporal durability
+### Wave F4: Runner migration
+
+Reordered ahead of Temporal durability. The typed lifecycle (F1) and profile
+doctor (F2) are built but no runner uses them yet, so one host-testable
+reference runner adopts the lifecycle first to prove the foundation end to end
+before any runner is wrapped in a durable Activity. See ADR
+0005-reorder-runner-migration-before-temporal.
+
+- Migrate one host-testable reference runner end to end
+  (`run_arithmetic_words_smoke.sh`): drive begin, host_static preflight, a
+  stage per generation/evaluation step, and finish, keeping the script a thin
+  compatibility entrypoint with unchanged scientific conditions and defaults.
+- Migrate one synthetic reasoning transfer end to end.
+- Migrate Countdown, after the reference runner proves compatibility.
+- Migrate public reasoning and coding runners.
+- Migrate SFT export/evaluation lineage.
+- Migrate deterministic then async RL.
+- Migrate Harbor and tau2.
+
+Done when no serious runner writes the prototype manifest directly and all
+canonical reports validate attempt lineage.
+
+### Wave F5: Temporal durability
+
+Reordered after runner migration so durability wraps a lifecycle path already
+proven on a real runner.
 
 - Add optional dependency and local server/worker commands.
 - Implement run and campaign workflows.
@@ -1237,18 +1284,6 @@ Done when server restart, worker restart, lost acknowledgement, cancellation,
 duplicate delivery, and a corrupt or interrupted backup/restore preserve one
 unambiguous local artifact outcome without overwriting the prior Temporal state
 or exposing secrets.
-
-### Wave F5: Runner migration
-
-- Migrate one synthetic reasoning transfer end to end.
-- Migrate Countdown.
-- Migrate public reasoning and coding runners.
-- Migrate SFT export/evaluation lineage.
-- Migrate deterministic then async RL.
-- Migrate Harbor and tau2.
-
-Done when no serious runner writes the prototype manifest directly and all
-canonical reports validate attempt lineage.
 
 ### Wave F6: Experiment views and operations
 
