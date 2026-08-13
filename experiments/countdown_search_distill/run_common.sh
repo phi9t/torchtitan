@@ -24,6 +24,7 @@ countdown_setup_env() {
   export TORCHTITAN_COUNTDOWN_DATA_ROOT="${TORCHTITAN_COUNTDOWN_DATA_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/data}"
   export TORCHTITAN_COUNTDOWN_RESULTS_ROOT="${TORCHTITAN_COUNTDOWN_RESULTS_ROOT:-${TORCHTITAN_COUNTDOWN_ROOT}/results}"
   export TORCHTITAN_COUNTDOWN_RUN_ID="${TORCHTITAN_COUNTDOWN_RUN_ID:-${RUN_ID:-current}}"
+  export TORCHTITAN_COUNTDOWN_ATTEMPT_ID="${TORCHTITAN_COUNTDOWN_ATTEMPT_ID:-attempt-01}"
   export TORCHTITAN_COUNTDOWN_MANIFEST="${TORCHTITAN_COUNTDOWN_MANIFEST:-${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}/manifests/current.jsonl}"
   mkdir -p \
     "${TORCHTITAN_COUNTDOWN_DATA_ROOT}" \
@@ -32,6 +33,55 @@ countdown_setup_env() {
     "${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}/manifests" \
     "${HF_HOME}"
 }
+
+# The typed lifecycle locator addresses one attempt bundle under
+# <results-root>/runs/<run-id>/<attempt-id>/. Every begin/stage/finish call
+# shares it.
+countdown_lifecycle_locator() {
+  printf '%s\n' \
+    --results-root "${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}" \
+    --run-id "${TORCHTITAN_COUNTDOWN_RUN_ID}" \
+    --attempt-id "${TORCHTITAN_COUNTDOWN_ATTEMPT_ID}"
+}
+
+# Freeze one Countdown run declaration into an attempt bundle. Idempotent for a
+# fixed (run_id, attempt_id): a re-begin over an existing manifest is a no-op so
+# a sub-runner invoked standalone can begin without clobbering a pilot attempt.
+countdown_begin_attempt() {
+  local mode="${1:-${MODE:-full}}"
+  local bundle_dir="${TORCHTITAN_COUNTDOWN_RESULTS_ROOT}/runs/${TORCHTITAN_COUNTDOWN_RUN_ID}/${TORCHTITAN_COUNTDOWN_ATTEMPT_ID}"
+  if [[ -f "${bundle_dir}/manifest.json" ]]; then
+    return 0
+  fi
+  local fields_file
+  fields_file="$(mktemp)"
+  MODE="${mode}" ARMS="${ARMS:-}" RUN_ID="${TORCHTITAN_COUNTDOWN_RUN_ID}" \
+    python - >"${fields_file}" <<'PY'
+import json
+import os
+
+print(
+    json.dumps(
+        {
+            "mode": os.environ.get("MODE") or None,
+            "arms": os.environ.get("ARMS") or None,
+            "run_id": os.environ["RUN_ID"],
+        },
+        sort_keys=True,
+    )
+)
+PY
+  local locator
+  mapfile -t locator < <(countdown_lifecycle_locator)
+  python -m torchtitan.experiments.execution begin \
+    "${locator[@]}" \
+    --family countdown \
+    --task search_distill \
+    --lane "${mode}" \
+    --fields "${fields_file}"
+  rm -f "${fields_file}"
+}
+
 
 countdown_run_stage() {
   local stage="$1"
@@ -44,55 +94,82 @@ countdown_run_stage() {
   else
     unset TORCHTITAN_COUNTDOWN_STAGE_STATUS
   fi
-  local start_epoch
-  local start_iso
-  local end_epoch
-  local end_iso
+
+  # An attempt must exist before any stage; a sub-runner invoked standalone
+  # begins its own idempotently. The typed stage records argv, timing, and the
+  # terminal outcome on the coordinator event stream, so the legacy manifest row
+  # content is preserved as stage-event extras rather than a parallel JSONL.
+  countdown_begin_attempt "${MODE:-full}"
+
+  local kind
+  local adapter
+  kind="$(countdown_stage_kind "${stage}")"
+  adapter="$(countdown_stage_adapter "${stage}")"
+
+  local locator
+  mapfile -t locator < <(countdown_lifecycle_locator)
+
+  local mode_json
+  if [[ -n "${MODE:-}" ]]; then
+    mode_json="\"${MODE}\""
+  else
+    mode_json="null"
+  fi
+  local rootfs_json
+  if [[ "${TORCHTITAN_IN_ROOTFS:-0}" == "1" ]]; then
+    rootfs_json="true"
+  else
+    rootfs_json="false"
+  fi
+  local extra_args=(
+    --stage-extra "mode=${mode_json}"
+    --stage-extra "rootfs_active=${rootfs_json}"
+  )
+  if [[ -n "${status_path}" ]]; then
+    extra_args+=(--stage-extra-file "stage_status=${status_path}")
+  fi
+
   local status
-  start_epoch="$(date -u +%s)"
-  start_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   set +e
-  "$@"
+  python -m torchtitan.experiments.execution stage \
+    "${locator[@]}" \
+    --stage-id "${stage}" \
+    --name "${stage}" \
+    --kind "${kind}" \
+    --adapter "${adapter}" \
+    "${extra_args[@]}" \
+    -- "$@"
   status=$?
   set -e
-  end_epoch="$(date -u +%s)"
-  end_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  STAGE="${stage}" \
-    START_ISO="${start_iso}" \
-    END_ISO="${end_iso}" \
-    DURATION_SECONDS="$((end_epoch - start_epoch))" \
-    STATUS="${status}" \
-    RUN_ID="${TORCHTITAN_COUNTDOWN_RUN_ID}" \
-    MODE="${MODE:-}" \
-    ROOTFS_ACTIVE="${TORCHTITAN_IN_ROOTFS:-0}" \
-    STAGE_STATUS_PATH="${status_path}" \
-    COMMAND_JSON="$(printf '%s\n' "$@" | python -c 'import json, sys; print(json.dumps([line.rstrip("\n") for line in sys.stdin]))')" \
-    MANIFEST="${TORCHTITAN_COUNTDOWN_MANIFEST}" \
-    python - <<'PY'
-import json
-import os
-from pathlib import Path
-
-row = {
-    "stage": os.environ["STAGE"],
-    "run_id": os.environ["RUN_ID"],
-    "mode": os.environ["MODE"] or None,
-    "rootfs_active": os.environ["ROOTFS_ACTIVE"] == "1",
-    "start_time": os.environ["START_ISO"],
-    "end_time": os.environ["END_ISO"],
-    "duration_seconds": int(os.environ["DURATION_SECONDS"]),
-    "return_code": int(os.environ["STATUS"]),
-    "command": json.loads(os.environ["COMMAND_JSON"]),
-}
-stage_status_path = os.environ["STAGE_STATUS_PATH"]
-if stage_status_path and Path(stage_status_path).is_file():
-    row["stage_status"] = json.loads(Path(stage_status_path).read_text())
-manifest = Path(os.environ["MANIFEST"])
-manifest.parent.mkdir(parents=True, exist_ok=True)
-with manifest.open("a") as f:
-    f.write(json.dumps(row, sort_keys=True) + "\n")
-PY
   if [[ "${status}" -ne 0 ]]; then
     return "${status}"
   fi
+}
+
+# Map a Countdown stage name onto a typed stage kind (models.STAGE_KINDS).
+countdown_stage_kind() {
+  case "$1" in
+    preflight) echo preflight ;;
+    calibration|calibration_sweep|collect) echo generate ;;
+    validate_splits) echo verify ;;
+    train_*) echo train ;;
+    base_eval_*|eval_adapters) echo evaluate ;;
+    export_adapters) echo export ;;
+    build_report_input) echo report ;;
+    *) echo generate ;;
+  esac
+}
+
+# Map a Countdown stage name onto a typed execution adapter
+# (models.EXECUTION_ADAPTERS). Generation and evaluation drive vLLM; training
+# drives torchrun SFT; gate, validation, and report stages need no model
+# forward and run on the rootfs CPU adapter.
+countdown_stage_adapter() {
+  case "$1" in
+    calibration|calibration_sweep|collect|base_eval_*|eval_adapters) echo rootfs_vllm ;;
+    train_*) echo rootfs_torchrun_sft ;;
+    export_adapters) echo rootfs_cpu ;;
+    preflight|validate_splits|build_report_input) echo rootfs_cpu ;;
+    *) echo rootfs_cpu ;;
+  esac
 }

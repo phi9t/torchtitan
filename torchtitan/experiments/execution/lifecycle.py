@@ -138,7 +138,13 @@ class RunAttempt:
         instance._replay_event_stream()
         return instance
 
-    def run_stage(self, spec: models.StageSpec) -> models.StageEvent:
+    def run_stage(
+        self,
+        spec: models.StageSpec,
+        *,
+        stage_extra: dict | None = None,
+        stage_extra_files: dict[str, str] | None = None,
+    ) -> models.StageEvent:
         stage_invocation_id = _new_stage_invocation_id(spec.stage_id)
         self._stage_invocations.append(stage_invocation_id)
         start_time = _now_iso()
@@ -165,14 +171,26 @@ class RunAttempt:
             stage_invocation_id=stage_invocation_id,
             return_code=result.return_code,
         )
-        self._append_event(
-            terminal,
-            extra={
-                "return_code": result.return_code,
-                "start_time": start_time,
-                "end_time": _now_iso(),
-            },
-        )
+        terminal_extra = {
+            "return_code": result.return_code,
+            "start_time": start_time,
+            "end_time": _now_iso(),
+        }
+        # A caller may attach opaque per-stage metadata (for example a runner's
+        # own status JSON) that the lifecycle records verbatim on the terminal
+        # event without interpreting it. Reserved keys are not overwritten.
+        if stage_extra:
+            for key, value in stage_extra.items():
+                terminal_extra.setdefault(key, value)
+        # File-backed extras are resolved after the command runs so a caller can
+        # attach a status file the command itself produced. A missing file is
+        # skipped rather than failing the stage.
+        if stage_extra_files:
+            for key, path in stage_extra_files.items():
+                status_path = Path(path)
+                if status_path.is_file():
+                    terminal_extra.setdefault(key, json.loads(status_path.read_text()))
+        self._append_event(terminal, extra=terminal_extra)
         self._terminal_events.append(terminal)
         return terminal
 

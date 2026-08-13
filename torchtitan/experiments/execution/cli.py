@@ -66,6 +66,24 @@ def _build_parser() -> argparse.ArgumentParser:
     stage.add_argument("--adapter", required=True, choices=models.EXECUTION_ADAPTERS)
     stage.add_argument("--cwd", default=None)
     stage.add_argument(
+        "--stage-extra",
+        action="append",
+        default=None,
+        dest="stage_extras",
+        metavar="KEY=JSON",
+        help="opaque per-stage metadata recorded verbatim on the terminal "
+        "event; repeat for multiple keys. VALUE is parsed as JSON.",
+    )
+    stage.add_argument(
+        "--stage-extra-file",
+        action="append",
+        default=None,
+        dest="stage_extra_files",
+        metavar="KEY=PATH",
+        help="opaque per-stage metadata read from a JSON file after the "
+        "command runs; a missing file is skipped. Repeat for multiple keys.",
+    )
+    stage.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="the stage argv, after a -- separator",
@@ -142,6 +160,8 @@ def _handle_begin(args: argparse.Namespace) -> int:
 
 def _handle_stage(args: argparse.Namespace) -> int:
     argv = _stage_argv(args.command)
+    stage_extra = _parse_stage_extras(args.stage_extras)
+    stage_extra_files = _parse_stage_extra_files(args.stage_extra_files)
     attempt = RunAttempt.attach(
         run_id=args.run_id,
         attempt_id=args.attempt_id,
@@ -155,7 +175,11 @@ def _handle_stage(args: argparse.Namespace) -> int:
         argv=argv,
         cwd=args.cwd,
     )
-    event = attempt.run_stage(spec)
+    event = attempt.run_stage(
+        spec,
+        stage_extra=stage_extra,
+        stage_extra_files=stage_extra_files,
+    )
     # Propagate the command's return code so a shell caller can react; a
     # missing return code (blocked/interrupted) is a nonzero facade failure.
     return event.return_code if event.return_code is not None else 1
@@ -205,6 +229,43 @@ def _stage_argv(command: list[str]) -> list[str]:
     if not command:
         raise ValueError("stage requires a command after '--'")
     return command
+
+
+def _parse_stage_extras(raw: list[str] | None) -> dict[str, object] | None:
+    """Parse repeated --stage-extra KEY=JSON options into a dict.
+
+    The value after the first '=' is parsed as JSON so a caller can attach
+    structured metadata (an object, list, number) and not only a string.
+    """
+
+    if not raw:
+        return None
+    extras: dict[str, object] = {}
+    for item in raw:
+        key, sep, value = item.partition("=")
+        if not sep or not key:
+            raise ValueError(f"--stage-extra must be KEY=JSON, got {item!r}")
+        extras[key] = json.loads(value)
+    return extras
+
+
+def _parse_stage_extra_files(raw: list[str] | None) -> dict[str, str] | None:
+    """Parse repeated --stage-extra-file KEY=PATH options into a dict.
+
+    The path is resolved after the stage command runs, so a caller can attach a
+    status file the command itself produces. A missing file is skipped rather
+    than failing the stage.
+    """
+
+    if not raw:
+        return None
+    mapping: dict[str, str] = {}
+    for item in raw:
+        key, sep, path = item.partition("=")
+        if not sep or not key or not path:
+            raise ValueError(f"--stage-extra-file must be KEY=PATH, got {item!r}")
+        mapping[key] = path
+    return mapping
 
 
 if __name__ == "__main__":
