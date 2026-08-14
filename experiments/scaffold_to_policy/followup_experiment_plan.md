@@ -765,7 +765,7 @@ cell.
 | `FOUNDATION-TRUTH` | Can the evidence lifecycle preserve truth under nesting, retries, and regressions? | unit plus host fault matrix | none | F0/F1 gates pass. |
 | `ROOTFS-REPRO` | Can identical stages prove environment identity and explicit capabilities? | CPU, 1-GPU, distributed, Monarch/vLLM, external harness probes | F1 | F2/F3 gates pass. |
 | `TEMPORAL-DURABILITY` | Can staged work recover without duplicate or ambiguous publication? | CPU stage, eval shard, SFT checkpoint resume; RL forced no-retry | F1-F4 | F5 fault matrix passes. |
-| `TRAIN-MOD-REP` | Does modular raw/selected SFT gain replicate? | Minimum conditional matrix: 2 fresh draws x 2 seeds x champion/anchor plus matched base; expand to the prospectively sized matrix for a recipe-general claim | M2 modular, F0-F4 | M4 gate in reasoning/training plans with claim scope recorded. |
+| `TRAIN-MOD-REP` | Does modular raw/selected SFT gain replicate? | Minimum conditional matrix: 2 fresh draws x 2 seeds x champion/anchor plus matched base; expand to the prospectively sized matrix for a recipe-general claim | M2 modular, F0-F5 | M4 gate in reasoning/training plans with claim scope recorded. |
 | `REASON-EXACT-TRANSFER` | Does the selected modular mechanism transfer to public exact reasoning? | base/scaffold/selected/anchor on GSM8K and MATH-exact; AIME locked transfer | modular M4 | public transfer primary endpoint passes. |
 | `REASON-MC-TRANSFER` | Does it transfer under choice permutation? | MMLU-Pro development, repaired GPQA post-hoc transfer, untouched confirmation set | both task contracts valid | permutation-safe direction plus untouched confirmation. |
 | `CODE-FUNCTION-TRANSFER` | Can verified MBPP traces improve policy and HumanEval transfer? | base/scaffold/selected/anchor MBPP; locked HumanEval | secure executor, both M1/M2 | replicated MBPP gain plus directional transfer. |
@@ -848,8 +848,9 @@ Update this table only from validated reports; plans do not self-promote.
 
 Execute in this order unless a new review changes the dependency graph:
 
-1. Add regression tests that reproduce nested manifest truncation,
-   score-regression misclassification, and GPQA correct-first behavior.
+1. (nested manifest truncation landed: `scaffold_setup_run_manifest` is
+   append-only with a regression test.) Add regression tests that reproduce
+   score-regression misclassification and GPQA correct-first behavior.
 2. Fix those truth-preservation failures and mark prior GPQA report inputs
    invalid without deleting historical reports.
 3. Freeze the canonical run declaration, attempt bundle, stage-event, artifact

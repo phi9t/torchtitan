@@ -81,28 +81,35 @@ provider credentials use the opaque, invocation-scoped capability contract
 below; no credential becomes part of Workflow state.
 
 Rootfs construction must be a separate serialized preflight, not an implicit
-side effect of a retried GPU Activity. The destructive-destination and
-implicit-build risks are now closed: both commands route `--dest`/`--rootfs`
-through a shared fail-closed resolver that accepts only allowlisted managed
-store destinations and requires a valid ownership marker before replacing an
-existing rootfs, and a missing custom `--rootfs` fails rather than triggering a
-build. The remaining unresolved work is mutable build inputs -- the build still
-uses mutable image/package references such as a tagged base image and
-`uv:latest` -- so content-addressed activation and immutable build inputs stay
-on the F3b backlog.
-[Fail-closed dest resolver](../../scripts/rootfs/build_rootfs.sh#L76-L78),
-[ownership-gated replacement](../../scripts/rootfs/build_rootfs.sh#L132-L133),
-[missing-rootfs fail-closed entry](../../scripts/rootfs/enter_rootfs.sh#L74-L77),
+side effect of a retried GPU Activity. The F0 slice closes the worst
+destructive-destination and implicit-build risks: the builder routes `--dest`
+through a shared fail-closed resolver that canonicalizes the parent without
+following symlinks, refuses symlinked components and non-directory targets, and
+accepts only the canonical real paths in an F0 allowlist, and replacement
+requires a builder ownership marker on the exact non-symlink path. A missing
+custom `--rootfs` fails closed in the entry script rather than triggering a
+build. Several protections remain F3b, not F0: the entry script does not route
+an existing custom `--rootfs` through the resolver; the allowlist holds the
+legacy canonical rootfs rather than a dedicated managed content store; and
+replacement validates the ownership marker but not mount points or a matching
+build manifest. Mutable build inputs -- a tagged base image and `uv:latest` --
+also stay open, so immutable build inputs and content-addressed activation
+remain F3b work.
+[F0 dest resolver](../../scripts/rootfs/build_rootfs.sh#L76-L78),
+[F0 allowlist](../../scripts/rootfs/rootfs_target.sh#L20-L21),
+[ownership-gated replacement](../../scripts/rootfs/rootfs_target.sh#L108-L125),
+[missing-rootfs fail-closed entry](../../scripts/rootfs/enter_rootfs.sh#L71-L78),
 [mutable build inputs (still open)](../../scripts/rootfs/build_rootfs.sh#L75-L111)
 
-The landed resolver enforces this contract for both commands: it
+The F3b target strengthens this into one resolver used by both commands: it
 canonicalizes the existing parent and basename; accepts
 only exact managed destinations below a dedicated allowlisted store; uses
 `lstat`-equivalent checks to reject symlinked components, mount points,
 unexpected file types, and unrelated existing directories; and explicitly
 refuses empty paths, `/`, home, repository/workspace/store roots, and every
-out-of-store path. Replacement requires a valid ownership marker and matching
-manifest. A missing custom rootfs fails rather than triggering a build.
+out-of-store path. Replacement then requires a valid ownership marker and
+matching manifest. A missing custom rootfs already fails rather than triggering
+a build.
 
 Export into a uniquely owned staging directory under that store, validate the
 manifest and content digest, expected structure, executable `bin/bash`, and a
@@ -294,12 +301,17 @@ parent, canonical work status (`produced`, `reused`, `resumed`, `imported`, or
 and terminal outcome. Temporal Activity completion is then an index to that
 receipt, not the receipt itself.
 
-The manifest setup is now safe to build on: `scaffold_setup_run_manifest`
+The manifest setup no longer truncates: `scaffold_setup_run_manifest`
 opens the run JSONL append-only and records a distinct attempt marker, so a
 repeated setup under the same RUN_ID -- a nested doctor call, a retry, or a
-Temporal redelivery -- can no longer erase earlier evidence. Run/attempt
-creation is immutable and append-only, which is the property a durable
-Activity relies on.
+Temporal redelivery -- can no longer erase earlier evidence. That closes the
+destructive failure, but it is not by itself a redelivery contract: the setup
+records no immutable declaration digest or attempt parentage and generates a
+fresh random marker on every invocation, so it cannot deterministically
+reattach or reconcile a redelivery. Temporal Activities must therefore obtain
+their declaration, attempt identity, and idempotency keys from the typed
+lifecycle (F1), not from this legacy manifest, and treat the append-only
+manifest only as tamper-resistant evidence storage.
 [Append-only manifest setup](run_common.sh#L33-L57),
 [stage append](run_common.sh#L98-L101)
 
