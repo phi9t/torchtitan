@@ -25,8 +25,6 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 
-from torchtitan.experiments.scaffold_to_policy.execution_status import ConditionStatus
-
 
 __all__ = [
     "ConditionStatus",
@@ -42,6 +40,9 @@ __all__ = [
     "STAGE_TERMINAL_EVENTS",
     "ARTIFACT_WORK_STATUSES",
     "ARTIFACT_FRESHNESS",
+    "EXECUTION_OUTCOMES",
+    "MEASUREMENTS",
+    "PROMOTIONS",
     "ATTEMPT_EXECUTION_OUTCOMES",
 ]
 
@@ -86,8 +87,46 @@ STAGE_EVENT_KINDS = (STAGE_EVENT_STARTED,) + STAGE_TERMINAL_EVENTS
 ARTIFACT_WORK_STATUSES = ("produced", "reused", "resumed", "imported", "external")
 ARTIFACT_FRESHNESS = ("verified_new", "verified_preexisting", "unknown")
 
-# An attempt outcome is a terminal execution summary, not a score.
-ATTEMPT_EXECUTION_OUTCOMES = ("completed", "blocked", "failed", "interrupted")
+# Status dimensions for evaluation conditions (roadmap Section 7.1).
+EXECUTION_OUTCOMES = ("completed", "blocked", "failed", "interrupted")
+MEASUREMENTS = ("real", "fixture", "smoke", "invalid", "not_run")
+PROMOTIONS = ("promote", "hold", "reject", "not_evaluated")
+
+# An attempt outcome is a terminal execution summary, not a score. It shares
+# the execution-outcome vocabulary used by per-condition status.
+ATTEMPT_EXECUTION_OUTCOMES = EXECUTION_OUTCOMES
+
+
+@dataclass(frozen=True)
+class ConditionStatus:
+    """The three independent status dimensions for one evaluation condition."""
+
+    execution_outcome: str
+    measurement: str
+    promotion: str
+
+    def __post_init__(self) -> None:
+        _require_member("execution_outcome", self.execution_outcome, EXECUTION_OUTCOMES)
+        _require_member("measurement", self.measurement, MEASUREMENTS)
+        _require_member("promotion", self.promotion, PROMOTIONS)
+
+    @property
+    def is_real_measurement(self) -> bool:
+        """A real measurement is a scientific number, including a valid zero."""
+
+        return self.measurement == "real"
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "execution_outcome": self.execution_outcome,
+            "measurement": self.measurement,
+            "promotion": self.promotion,
+        }
+
+
+def _require_member(field: str, value: str, allowed: tuple[str, ...]) -> None:
+    if value not in allowed:
+        raise ValueError(f"{field} must be one of {allowed}, got {value!r}")
 
 
 @dataclass(frozen=True)

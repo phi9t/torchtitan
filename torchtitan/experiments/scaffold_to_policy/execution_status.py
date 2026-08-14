@@ -26,39 +26,21 @@ task success or promotion.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from torchtitan.experiments.execution.models import (
+    ConditionStatus,
+    EXECUTION_OUTCOMES,
+    MEASUREMENTS,
+    PROMOTIONS,
+)
 
 
-EXECUTION_OUTCOMES = ("completed", "blocked", "failed", "interrupted")
-MEASUREMENTS = ("real", "fixture", "smoke", "invalid", "not_run")
-PROMOTIONS = ("promote", "hold", "reject", "not_evaluated")
-
-
-@dataclass(frozen=True)
-class ConditionStatus:
-    """The three independent status dimensions for one evaluation condition."""
-
-    execution_outcome: str
-    measurement: str
-    promotion: str
-
-    def __post_init__(self) -> None:
-        _require_member("execution_outcome", self.execution_outcome, EXECUTION_OUTCOMES)
-        _require_member("measurement", self.measurement, MEASUREMENTS)
-        _require_member("promotion", self.promotion, PROMOTIONS)
-
-    @property
-    def is_real_measurement(self) -> bool:
-        """A real measurement is a scientific number, including a valid zero."""
-
-        return self.measurement == "real"
-
-    def to_dict(self) -> dict[str, str]:
-        return {
-            "execution_outcome": self.execution_outcome,
-            "measurement": self.measurement,
-            "promotion": self.promotion,
-        }
+__all__ = [
+    "ConditionStatus",
+    "EXECUTION_OUTCOMES",
+    "MEASUREMENTS",
+    "PROMOTIONS",
+    "translate_legacy_work_status",
+]
 
 
 def translate_legacy_work_status(work_status: str) -> ConditionStatus:
@@ -86,8 +68,3 @@ def translate_legacy_work_status(work_status: str) -> ConditionStatus:
     if normalized in ("smoke", "debug_smoke"):
         return ConditionStatus("completed", "smoke", "not_evaluated")
     raise ValueError(f"unknown legacy work_status: {work_status!r}")
-
-
-def _require_member(field: str, value: str, allowed: tuple[str, ...]) -> None:
-    if value not in allowed:
-        raise ValueError(f"{field} must be one of {allowed}, got {value!r}")

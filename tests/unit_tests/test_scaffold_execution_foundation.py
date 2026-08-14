@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+from torchtitan.experiments.execution import models
 from torchtitan.experiments.scaffold_to_policy import execution_status, report_artifacts
 
 
@@ -138,22 +139,26 @@ scaffold_setup_run_manifest
 
 def test_condition_status_rejects_unknown_dimension_values():
     with pytest.raises(ValueError):
-        execution_status.ConditionStatus("done", "real", "promote")
+        models.ConditionStatus("done", "real", "promote")
     with pytest.raises(ValueError):
-        execution_status.ConditionStatus("completed", "guess", "promote")
+        models.ConditionStatus("completed", "guess", "promote")
     with pytest.raises(ValueError):
-        execution_status.ConditionStatus("completed", "real", "maybe")
+        models.ConditionStatus("completed", "real", "maybe")
 
 
 def test_real_zero_measurement_is_real_not_blocked():
     # A valid score of zero is measurement=real, per roadmap 7.1.
-    status = execution_status.ConditionStatus("completed", "real", "reject")
+    status = models.ConditionStatus("completed", "real", "reject")
     assert status.is_real_measurement is True
     assert status.to_dict() == {
         "execution_outcome": "completed",
         "measurement": "real",
         "promotion": "reject",
     }
+
+
+def test_legacy_execution_status_reexports_condition_status():
+    assert execution_status.ConditionStatus is models.ConditionStatus
 
 
 def test_blocker_translates_to_not_run_without_score():
