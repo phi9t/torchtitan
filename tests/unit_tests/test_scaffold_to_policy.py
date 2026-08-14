@@ -1795,6 +1795,29 @@ def test_coding_style_imports_no_code_mbpp_rows_with_expected_value_helper():
     assert problems[0].canonical_solution is None
 
 
+def test_coding_style_imports_no_code_mbpp_rows_with_helper_call_argument():
+    rows = [
+        {
+            "task_id": 20,
+            "prompt": "Write a python function to normalize a value.",
+            "test_imports": [],
+            "test_list": [
+                "assert normalize_value(abs(-3)) == 3",
+                "assert normalize_value(abs(5)) == 5",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "normalize_value"
+    assert "assert candidate(abs(-3)) == 3" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
 def test_coding_style_imports_builtin_named_code_with_nested_argument_call():
     rows = [
         {

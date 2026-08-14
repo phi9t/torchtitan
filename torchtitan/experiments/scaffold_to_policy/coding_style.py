@@ -683,19 +683,11 @@ def _entry_point_from_code(code: str, test_list: Sequence[str]) -> str:
 def _entry_point_calls_from_assert(test: str) -> list[str]:
     statement = _single_assert(test)
     result_expr = _assert_result_expression(statement.test)
-    nodes = [result_expr] if result_expr is not None else [statement.test]
-    names = []
-    for root in nodes:
-        for node in ast.walk(root):
-            if not isinstance(node, ast.Call):
-                continue
-            name = _called_function_name(node.func)
-            if name is None:
-                continue
-            if _is_wrapper_call(node):
-                continue
-            names.append(name)
-    return names
+    if not isinstance(result_expr, ast.Call):
+        return []
+    candidate = _peel_result_wrapper(result_expr)
+    name = _called_function_name(candidate.func)
+    return [] if name is None else [name]
 
 
 def _call_names_from_assert(test: str) -> list[str]:
@@ -737,6 +729,20 @@ def _is_wrapper_call(node: ast.Call) -> bool:
         for arg in node.args
         for descendant in ast.walk(arg)
     )
+
+
+def _peel_result_wrapper(node: ast.Call) -> ast.Call:
+    current = node
+    while _is_wrapper_call(current) and current.args:
+        nested_calls = [
+            descendant
+            for descendant in ast.walk(current.args[0])
+            if isinstance(descendant, ast.Call)
+        ]
+        if not nested_calls:
+            break
+        current = nested_calls[0]
+    return current
 
 
 def _called_function_name(node: ast.expr) -> str | None:
