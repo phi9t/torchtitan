@@ -69,14 +69,6 @@ run_stage() {
     -- "$@"
 }
 
-# Compose the dataset-import prerequisites (reasoning) with the vLLM eval
-# prerequisites (vllm_1gpu). A missing package in either blocks before any work.
-${LIFECYCLE} preflight \
-  --profile vllm_1gpu \
-  --profile reasoning \
-  --require-ready \
-  --output "${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json"
-
 # Freeze the declaration. --fields records the pinned dataset identity and the
 # scientific knobs so the declaration digest changes if any of them change.
 FIELDS_FILE="${RESULTS_ROOT}/manifests/fields_${RUN_ID}.json"
@@ -129,6 +121,91 @@ ${LIFECYCLE} begin "${LOCATOR[@]}" \
   --task gsm8k \
   --lane public_smoke \
   --fields "${FIELDS_FILE}"
+
+# Compose the dataset-import prerequisites (reasoning) with the vLLM eval
+# prerequisites (vllm_1gpu). A missing package in either blocks the run after
+# the attempt has begun so finish can preserve canonical blocked evidence.
+set +e
+${LIFECYCLE} preflight \
+  --profile vllm_1gpu \
+  --profile reasoning \
+  --require-ready \
+  --output "${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json"
+PREFLIGHT_STATUS=$?
+set -e
+if [[ "${PREFLIGHT_STATUS}" -ne 0 ]]; then
+  REPORT_INPUT="${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  EVALUATIONS_FILE="${RESULTS_ROOT}/manifests/evaluations_${RUN_ID}.json"
+  RUN_ID="${RUN_ID}" DATA_ROOT="${DATA_ROOT}" RESULTS_ROOT="${RESULTS_ROOT}" \
+    NUM_ROLLOUTS="${NUM_ROLLOUTS}" \
+    PREFLIGHT="${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json" \
+    OUTPUT="${REPORT_INPUT}" python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+from torchtitan.experiments.execution.preflight import report_attach
+
+preflight_path = Path(os.environ["PREFLIGHT"])
+preflight = json.loads(preflight_path.read_text())
+extra_checks, execution = report_attach.to_report_sections(preflight)
+report = {
+    "schema_version": 1,
+    "run": {
+        "run_id": os.environ["RUN_ID"],
+        "task": "gsm_style",
+        "lane": "reasoning",
+        "scaffold": {
+            "type": "fixture_or_no_tool_sampling",
+            "budget": int(os.environ["NUM_ROLLOUTS"]),
+        },
+    },
+    "artifacts": {
+        "data_root": os.environ["DATA_ROOT"],
+        "results_root": os.environ["RESULTS_ROOT"],
+        "execution_preflight": str(preflight_path),
+    },
+    "verifier": {
+        "kind": "exact",
+        "name": "gsm_style_normalized_final_v1",
+        "output_contract": "A line exactly matching FINAL: <answer>.",
+    },
+    "checks": {
+        "split_registry_selected": False,
+        "summaries_present": False,
+        **extra_checks,
+    },
+    "metrics": {"splits": {}},
+    "execution": execution,
+}
+output = Path(os.environ["OUTPUT"])
+output.parent.mkdir(parents=True, exist_ok=True)
+output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+PY
+  python - >"${EVALUATIONS_FILE}" <<'PY'
+import json
+
+print(
+    json.dumps(
+        {
+            key: {
+                "execution_outcome": "blocked",
+                "measurement": "not_run",
+                "promotion": "not_evaluated",
+            }
+            for key in ("dev", "ood_test")
+        },
+        sort_keys=True,
+    )
+)
+PY
+  ${LIFECYCLE} finish "${LOCATOR[@]}" \
+    --attempt-outcome blocked \
+    --report-input "${REPORT_INPUT}" \
+    --evaluations "${EVALUATIONS_FILE}"
+  echo "wrote blocked attempt bundle ${RESULTS_ROOT}/runs/${RUN_ID}/${ATTEMPT_ID}"
+  exit 0
+fi
 
 run_stage import-dev acquire rootfs_cpu \
   ${CLI} import-gsm8k-split \

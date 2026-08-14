@@ -153,7 +153,7 @@ def test_arithmetic_report_command_attaches_execution_preflight(tmp_path):
         {
             "kind": "execution_preflight",
             "readiness": "ready",
-            "execution_outcome": "pass",
+            "execution_outcome": "completed",
             "blocker_codes": [],
             "profiles": ["host_static"],
             "semantic_checks": [],
@@ -289,7 +289,7 @@ def test_multiple_choice_report_command_attaches_execution_preflight(tmp_path):
         {
             "kind": "execution_preflight",
             "readiness": "ready",
-            "execution_outcome": "pass",
+            "execution_outcome": "completed",
             "blocker_codes": [],
             "profiles": ["rootfs_cpu"],
             "semantic_checks": [],

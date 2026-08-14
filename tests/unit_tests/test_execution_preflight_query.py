@@ -15,6 +15,8 @@ execution section, without owning the scientific schema. Host-testable.
 
 from __future__ import annotations
 
+import pytest
+
 from torchtitan.experiments.execution.preflight import profiles, query, report_attach
 
 
@@ -83,4 +85,20 @@ def test_report_attach_marks_blocked_preflight_as_failing_check():
     extra_checks, execution_section = report_attach.to_report_sections(preflight)
     assert extra_checks["preflight_ready"] is False
     assert execution_section["blocker_codes"]
+
+
+def test_report_attach_rejects_invalid_ready_outcome():
+    preflight = query.run_preflight(profile_names=["host_static"], env=_ready_env())
+    preflight["execution_outcome"] = "pass"
+
+    with pytest.raises(ValueError, match="execution_outcome"):
+        report_attach.to_report_sections(preflight)
+
+
+def test_report_attach_rejects_blocked_without_blocker_codes():
+    preflight = query.run_preflight(profile_names=["rootfs_cpu"], env=_blocked_env())
+    preflight["blocker_codes"] = []
+
+    with pytest.raises(ValueError, match="blocked preflight"):
+        report_attach.to_report_sections(preflight)
 
