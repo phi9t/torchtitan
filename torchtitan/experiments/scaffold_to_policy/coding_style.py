@@ -669,9 +669,7 @@ def _entry_point_from_code(code: str, test_list: Sequence[str]) -> str:
         raise ValueError("could not parse MBPP canonical code") from exc
 
     function_names = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
-    tested_names = {
-        name for test in test_list for name in _entry_point_calls_from_assert(test)
-    }
+    tested_names = {name for test in test_list for name in _call_names_from_assert(test)}
     matching_names = sorted(function_names & tested_names)
     if len(matching_names) != 1:
         raise ValueError(
@@ -683,6 +681,36 @@ def _entry_point_from_code(code: str, test_list: Sequence[str]) -> str:
 
 
 def _entry_point_calls_from_assert(test: str) -> list[str]:
+    statement = _single_assert(test)
+    result_expr = _assert_result_expression(statement.test)
+    nodes = [result_expr] if result_expr is not None else [statement.test]
+    names = []
+    for root in nodes:
+        for node in ast.walk(root):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _called_function_name(node.func)
+            if name is None:
+                continue
+            if _is_wrapper_call(node):
+                continue
+            names.append(name)
+    return names
+
+
+def _call_names_from_assert(test: str) -> list[str]:
+    statement = _single_assert(test)
+    names = []
+    for node in ast.walk(statement.test):
+        if not isinstance(node, ast.Call):
+            continue
+        name = _called_function_name(node.func)
+        if name is not None:
+            names.append(name)
+    return names
+
+
+def _single_assert(test: str) -> ast.Assert:
     try:
         tree = ast.parse(test)
     except SyntaxError as exc:
@@ -691,18 +719,13 @@ def _entry_point_calls_from_assert(test: str) -> list[str]:
     statements = [node for node in tree.body if isinstance(node, ast.Assert)]
     if len(statements) != 1:
         raise ValueError(f"MBPP test must contain one assert: {test}")
+    return statements[0]
 
-    names = []
-    for node in ast.walk(statements[0].test):
-        if not isinstance(node, ast.Call):
-            continue
-        name = _called_function_name(node.func)
-        if name is None:
-            continue
-        if _is_wrapper_call(node):
-            continue
-        names.append(name)
-    return names
+
+def _assert_result_expression(node: ast.expr) -> ast.expr | None:
+    if isinstance(node, ast.Compare) and node.left is not None:
+        return node.left
+    return node
 
 
 def _is_wrapper_call(node: ast.Call) -> bool:

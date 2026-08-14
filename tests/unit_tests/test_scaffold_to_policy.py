@@ -1773,6 +1773,57 @@ def test_coding_style_imports_no_code_mbpp_rows_with_builtin_named_entry_point()
     assert problems[0].canonical_solution is None
 
 
+def test_coding_style_imports_no_code_mbpp_rows_with_expected_value_helper():
+    rows = [
+        {
+            "task_id": 18,
+            "prompt": "Write a python function to normalize a list.",
+            "test_imports": [],
+            "test_list": [
+                "assert normalize_values([3, 1, 2]) == sorted([1, 2, 3])",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "normalize_values"
+    assert "assert candidate([3, 1, 2]) == sorted([1, 2, 3])" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
+def test_coding_style_imports_builtin_named_code_with_nested_argument_call():
+    rows = [
+        {
+            "task_id": 19,
+            "prompt": "Write a python function to sum an absolute value and another number.",
+            "code": "def sum(first, second):\n    return first + second",
+            "test_imports": [],
+            "test_list": [
+                "assert sum(abs(-3), 4) == 7",
+                "assert sum(abs(2), 5) == 7",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+    verified = coding_style.verify_solution(
+        problems[0],
+        "def sum(first, second):\n"
+        "    return first + second",
+    )
+
+    assert problems[0].entry_point == "sum"
+    assert "assert candidate(abs(-3), 4) == 7" in problems[0].test
+    assert verified.success
+
+
 def test_coding_style_imports_bigcodebench_rows_as_unittest_checks():
     rows = [
         {
