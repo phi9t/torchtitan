@@ -2067,6 +2067,29 @@ def test_coding_style_rewrites_unicode_prefix_before_candidate_call():
     assert "normalize_label" not in problems[0].test
 
 
+def test_coding_style_ignores_nested_expected_side_helper_call():
+    rows = [
+        {
+            "task_id": 32,
+            "prompt": "Write a python function to normalize a value.",
+            "test_imports": [],
+            "test_list": [
+                "assert condition and normalize_value(3) == build_expected(3)",
+                "assert condition and normalize_value(4) == build_expected(4)",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "normalize_value"
+    assert "candidate(3) == build_expected(3)" in problems[0].test
+    assert "build_expected" in problems[0].test
+
+
 def test_coding_style_imports_builtin_named_code_with_nested_argument_call():
     rows = [
         {

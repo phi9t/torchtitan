@@ -770,7 +770,7 @@ def _result_bearing_children(node: ast.AST) -> list[ast.expr]:
     if isinstance(node, ast.IfExp):
         return [node.body, node.orelse]
     if isinstance(node, ast.Compare):
-        return [node.left] + list(node.comparators)
+        return [node.left]
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return list(node.elts)
     if isinstance(node, ast.Dict):
