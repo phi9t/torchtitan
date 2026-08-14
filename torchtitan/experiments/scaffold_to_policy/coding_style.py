@@ -414,7 +414,7 @@ def import_mbpp_rows(
             raise ValueError("MBPP row has no tests")
         canonical = None if row.get("code") is None else str(row.get("code"))
         entry_point = (
-            _entry_point_from_code(canonical)
+            _entry_point_from_code(canonical, test_list)
             if canonical is not None
             else _entry_point_from_asserts(test_list)
         )
@@ -662,18 +662,24 @@ def _entry_point_from_asserts(test_list: Sequence[str]) -> str:
     return names[0]
 
 
-def _entry_point_from_code(code: str) -> str:
+def _entry_point_from_code(code: str, test_list: Sequence[str]) -> str:
     try:
         tree = ast.parse(code)
     except SyntaxError as exc:
         raise ValueError("could not parse MBPP canonical code") from exc
 
-    function_names = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
-    if len(function_names) != 1:
+    function_names = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    tested_names = {
+        name for test in test_list for name in _entry_point_calls_from_assert(test)
+    }
+    matching_names = sorted(function_names & tested_names)
+    if len(matching_names) != 1:
         raise ValueError(
-            f"expected one MBPP canonical function, got {sorted(function_names)}"
+            "expected one tested MBPP canonical function, got "
+            f"{matching_names} from functions {sorted(function_names)} "
+            f"and test calls {sorted(tested_names)}"
         )
-    return function_names[0]
+    return matching_names[0]
 
 
 def _entry_point_calls_from_assert(test: str) -> list[str]:
@@ -693,10 +699,21 @@ def _entry_point_calls_from_assert(test: str) -> list[str]:
         name = _called_function_name(node.func)
         if name is None:
             continue
-        if name in MBPP_WRAPPER_CALLS:
+        if _is_wrapper_call(node):
             continue
         names.append(name)
     return names
+
+
+def _is_wrapper_call(node: ast.Call) -> bool:
+    name = _called_function_name(node.func)
+    if name not in MBPP_WRAPPER_CALLS:
+        return False
+    return any(
+        isinstance(descendant, ast.Call)
+        for arg in node.args
+        for descendant in ast.walk(arg)
+    )
 
 
 def _called_function_name(node: ast.expr) -> str | None:

@@ -1715,6 +1715,64 @@ def test_coding_style_imports_mbpp_rows_with_expected_value_helper_call():
     assert verified.success
 
 
+def test_coding_style_imports_mbpp_rows_with_helper_functions_in_code():
+    rows = [
+        {
+            "task_id": 16,
+            "prompt": "Write a python function to keep positive sorted values.",
+            "code": (
+                "def helper(values):\n"
+                "    return [v for v in values if v > 0]\n\n"
+                "def positive_sorted(values):\n"
+                "    return sorted(helper(values))"
+            ),
+            "test_imports": [],
+            "test_list": [
+                "assert positive_sorted([3, -1, 2]) == [2, 3]",
+                "assert positive_sorted([-1, 4]) == [4]",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+    verified = coding_style.verify_solution(
+        problems[0],
+        "def helper(values):\n"
+        "    return [v for v in values if v > 0]\n\n"
+        "def positive_sorted(values):\n"
+        "    return sorted(helper(values))",
+    )
+
+    assert problems[0].entry_point == "positive_sorted"
+    assert verified.success
+
+
+def test_coding_style_imports_no_code_mbpp_rows_with_builtin_named_entry_point():
+    rows = [
+        {
+            "task_id": 17,
+            "prompt": "Write a python function to sum two values.",
+            "test_imports": [],
+            "test_list": [
+                "assert sum(10, 15) == 25",
+                "assert sum(1, 20) == 21",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "sum"
+    assert "assert candidate(10, 15) == 25" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
 def test_coding_style_imports_bigcodebench_rows_as_unittest_checks():
     rows = [
         {
