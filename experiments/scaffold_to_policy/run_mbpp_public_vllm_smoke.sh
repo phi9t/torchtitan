@@ -192,6 +192,7 @@ run_stage build-report-input report rootfs_cpu \
     "dev=${RESULTS_ROOT}/eval/dev_summary.json" \
     "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
   --scaffold-budget "${NUM_ROLLOUTS}" \
+  --execution-preflight "${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json" \
   --output "${REPORT_INPUT}"
 
 # Real vLLM base-model evaluation with sandboxed code execution on both splits;

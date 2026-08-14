@@ -276,6 +276,7 @@ run_stage build-report-input report rootfs_cpu \
     "ood_test=${RESULTS_ROOT}/eval/base/ood_test_evaluations.jsonl" \
     "adapter_raw_dev=${RESULTS_ROOT}/eval/adapters/raw/dev_evaluations.jsonl" \
     "adapter_raw_ood_test=${RESULTS_ROOT}/eval/adapters/raw/ood_test_evaluations.jsonl" \
+  --execution-preflight "${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json" \
   --output "${REPORT_INPUT}" \
   --no-require-selected
 

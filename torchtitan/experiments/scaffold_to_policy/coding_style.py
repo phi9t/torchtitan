@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -19,10 +20,31 @@ from torchtitan.experiments.scaffold_to_policy import report_artifacts
 
 
 FENCED_CODE_RE = re.compile(r"```(?:python|py)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
-ASSERT_CALL_RE = re.compile(r"assert\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 ASSERT_CALL_ARGS_RE = re.compile(
     r"assert\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*?)\)\s*(?:==|!=|is|in|<=|>=|<|>)",
     re.DOTALL,
+)
+MBPP_WRAPPER_CALLS = frozenset(
+    {
+        "abs",
+        "all",
+        "any",
+        "bool",
+        "dict",
+        "float",
+        "int",
+        "isclose",
+        "len",
+        "list",
+        "max",
+        "min",
+        "round",
+        "set",
+        "sorted",
+        "str",
+        "sum",
+        "tuple",
+    }
 )
 
 
@@ -627,13 +649,44 @@ def _subprocess_text(value: str | bytes | None) -> str:
 def _entry_point_from_asserts(test_list: Sequence[str]) -> str:
     names = []
     for test in test_list:
-        match = ASSERT_CALL_RE.search(test)
-        if match is None:
+        test_names = _entry_point_calls_from_assert(test)
+        if not test_names:
             raise ValueError(f"could not infer MBPP entry point from test: {test}")
-        names.append(match.group(1))
+        names.extend(test_names)
     if len(set(names)) != 1:
         raise ValueError(f"MBPP tests reference multiple entry points: {sorted(set(names))}")
     return names[0]
+
+
+def _entry_point_calls_from_assert(test: str) -> list[str]:
+    try:
+        tree = ast.parse(test)
+    except SyntaxError as exc:
+        raise ValueError(f"could not parse MBPP test: {test}") from exc
+
+    statements = [node for node in tree.body if isinstance(node, ast.Assert)]
+    if len(statements) != 1:
+        raise ValueError(f"MBPP test must contain one assert: {test}")
+
+    names = []
+    for node in ast.walk(statements[0].test):
+        if not isinstance(node, ast.Call):
+            continue
+        name = _called_function_name(node.func)
+        if name is None:
+            continue
+        if isinstance(node.func, ast.Attribute) and name in MBPP_WRAPPER_CALLS:
+            continue
+        names.append(name)
+    return names
+
+
+def _called_function_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
 
 
 def _signature_from_first_assert(test: str, entry_point: str) -> str:
@@ -690,7 +743,7 @@ def _mbpp_check_source(
     entry_point: str,
 ) -> str:
     rewritten_tests = [
-        ASSERT_CALL_RE.sub("assert candidate(", test, count=1) for test in test_list
+        _rewrite_mbpp_assert_call(test, entry_point) for test in test_list
     ]
     body = "\n    ".join(rewritten_tests)
     imports = "\n".join(test_imports)
@@ -702,6 +755,28 @@ def _mbpp_check_source(
         ]
         if line
     )
+
+
+def _rewrite_mbpp_assert_call(test: str, entry_point: str) -> str:
+    try:
+        tree = ast.parse(test)
+    except SyntaxError as exc:
+        raise ValueError(f"could not parse MBPP test: {test}") from exc
+
+    matches = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == entry_point
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"could not rewrite MBPP test for entry point {entry_point!r}: {test}"
+        )
+
+    call = matches[0]
+    return test[: call.func.col_offset] + "candidate" + test[call.func.end_col_offset :]
 
 
 def _bigcodebench_check_source(test: str, entry_point: str) -> str:

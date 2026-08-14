@@ -64,6 +64,66 @@ def test_arithmetic_words_verifier_requires_strict_final_line():
     assert correct.strict_final
 
 
+def test_cli_attaches_execution_preflight_to_report_input(tmp_path):
+    report_input = {
+        "checks": {"summaries_present": True},
+        "metrics": {"splits": {"dev": {"num_problems": 1}}},
+    }
+    preflight = tmp_path / "preflight.json"
+    preflight.write_text(
+        json.dumps(
+            {
+                "kind": "execution_preflight",
+                "readiness": "blocked",
+                "execution_outcome": "blocked",
+                "blocker_codes": ["rootfs_not_active"],
+                "profiles": ["rootfs_cpu"],
+                "semantic_checks": [],
+            }
+        )
+    )
+
+    scaffold_cli._attach_execution_preflight(report_input, preflight)
+
+    assert report_input["checks"]["preflight_ready"] is False
+    assert report_input["checks"]["summaries_present"] is True
+    assert report_input["execution"]["kind"] == "execution_preflight"
+    assert report_input["execution"]["blocker_codes"] == ["rootfs_not_active"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "build-modular-report-input",
+        "build-math-style-report-input",
+        "build-coding-style-report-input",
+    ],
+)
+def test_report_input_parsers_accept_execution_preflight(command):
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            command,
+            "--data-root",
+            "data",
+            "--results-root",
+            "results",
+            "--run-id",
+            "run-a",
+            "--split-registry",
+            "registry.json",
+            "--summary",
+            "dev=summary.json",
+            "--execution-preflight",
+            "preflight.json",
+            "--output",
+            "report.json",
+        ]
+    )
+
+    assert args.execution_preflight == Path("preflight.json")
+
+
 def test_arithmetic_words_prompt_names_strict_output_contract():
     problem = generate_split(seed=1, num_problems=1)[0]
 
@@ -1529,6 +1589,71 @@ def test_coding_style_imports_mbpp_rows_as_executable_checks():
     assert problems[0].entry_point == "remove_Occ"
     assert "def remove_Occ(arg1, arg2):" in problems[0].prompt
     assert "def check(candidate):" in problems[0].test
+    assert verified.success
+
+
+def test_coding_style_imports_mbpp_rows_with_nested_assert_call():
+    rows = [
+        {
+            "task_id": 12,
+            "prompt": "Write a python function to return the angle of a complex number.",
+            "code": (
+                "import cmath\n\n"
+                "def angle_complex(real, imag):\n"
+                "    return cmath.phase(complex(real, imag))"
+            ),
+            "test_imports": ["import math"],
+            "test_list": [
+                "assert math.isclose(angle_complex(0, 1), 1.5707963267948966, rel_tol=0.001)",
+                "assert math.isclose(angle_complex(1, 0), 0.0, rel_tol=0.001)",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+    verified = coding_style.verify_solution(
+        problems[0],
+        "import cmath\n\n"
+        "def angle_complex(real, imag):\n"
+        "    return cmath.phase(complex(real, imag))",
+    )
+
+    assert problems[0].problem_id == "MBPP/12"
+    assert problems[0].entry_point == "angle_complex"
+    assert "math.isclose(candidate(0, 1)" in problems[0].test
+    assert verified.success
+
+
+def test_coding_style_imports_mbpp_rows_with_builtin_named_entry_point():
+    rows = [
+        {
+            "task_id": 13,
+            "prompt": "Write a python function to sum two values.",
+            "code": "def sum(a, b):\n    return a + b - 19",
+            "test_imports": [],
+            "test_list": [
+                "assert sum(10,15) == 6",
+                "assert sum(1,20) == 2",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+    verified = coding_style.verify_solution(
+        problems[0],
+        "def sum(a, b):\n"
+        "    return a + b - 19",
+    )
+
+    assert problems[0].problem_id == "MBPP/13"
+    assert problems[0].entry_point == "sum"
+    assert "assert candidate(10,15) == 6" in problems[0].test
     assert verified.success
 
 

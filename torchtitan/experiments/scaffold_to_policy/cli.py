@@ -18,6 +18,7 @@ import sys
 from typing import Callable
 from urllib.request import Request, urlopen
 
+from torchtitan.experiments.execution.preflight import report_attach
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     ArithmeticWordProblem,
     build_report_input,
@@ -2092,6 +2093,7 @@ def build_modular_report_input(args: argparse.Namespace) -> None:
         evaluation_paths=evaluation_paths,
         runtime_path=args.runtime,
     )
+    _attach_execution_preflight(report_input, args.execution_preflight)
     modular_sequences.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
         failed = [
@@ -2130,6 +2132,7 @@ def build_math_style_report_input(args: argparse.Namespace) -> None:
         scaffold_budget=args.scaffold_budget,
         runtime_path=args.runtime,
     )
+    _attach_execution_preflight(report_input, args.execution_preflight)
     math_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
         failed = [
@@ -2153,6 +2156,7 @@ def build_coding_style_report_input(args: argparse.Namespace) -> None:
         preflight_paths=preflight_paths,
         runtime_path=args.runtime,
     )
+    _attach_execution_preflight(report_input, args.execution_preflight)
     coding_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
         failed = [
@@ -2845,6 +2849,31 @@ def _add_public_import_cache_args(parser: argparse.ArgumentParser) -> None:
 
 def _add_runtime_report_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--runtime", type=Path)
+
+
+def _add_execution_preflight_report_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--execution-preflight",
+        type=Path,
+        help=(
+            "typed execution-preflight artifact to attach as preflight_ready "
+            "and the report execution section"
+        ),
+    )
+
+
+def _attach_execution_preflight(
+    report_input: dict[str, object], preflight_path: Path | None
+) -> None:
+    if preflight_path is None:
+        return
+    preflight = json.loads(preflight_path.read_text())
+    extra_checks, execution_section = report_attach.to_report_sections(preflight)
+    checks = report_input.setdefault("checks", {})
+    if not isinstance(checks, dict):
+        raise ValueError("report_input checks section must be a dict")
+    checks.update(extra_checks)
+    report_input["execution"] = execution_section
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -3744,6 +3773,7 @@ def build_parser() -> argparse.ArgumentParser:
     modular_report_parser.add_argument("--evaluation", nargs="*")
     modular_report_parser.add_argument("--output", type=Path, required=True)
     _add_runtime_report_arg(modular_report_parser)
+    _add_execution_preflight_report_arg(modular_report_parser)
     modular_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3776,6 +3806,7 @@ def build_parser() -> argparse.ArgumentParser:
     math_report_parser.add_argument("--output", type=Path, required=True)
     math_report_parser.add_argument("--scaffold-budget", type=int, default=32)
     _add_runtime_report_arg(math_report_parser)
+    _add_execution_preflight_report_arg(math_report_parser)
     math_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3793,6 +3824,7 @@ def build_parser() -> argparse.ArgumentParser:
     coding_report_parser.add_argument("--output", type=Path, required=True)
     coding_report_parser.add_argument("--scaffold-budget", type=int, default=4)
     _add_runtime_report_arg(coding_report_parser)
+    _add_execution_preflight_report_arg(coding_report_parser)
     coding_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
