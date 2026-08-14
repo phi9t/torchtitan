@@ -159,6 +159,10 @@ def test_real_zero_measurement_is_real_not_blocked():
 
 def test_legacy_execution_status_reexports_condition_status():
     assert execution_status.ConditionStatus is models.ConditionStatus
+    assert execution_status.EXECUTION_OUTCOMES is models.EXECUTION_OUTCOMES
+    assert execution_status.MEASUREMENTS is models.MEASUREMENTS
+    assert execution_status.PROMOTIONS is models.PROMOTIONS
+    assert models.ATTEMPT_EXECUTION_OUTCOMES is models.EXECUTION_OUTCOMES
 
 
 def test_blocker_translates_to_not_run_without_score():
