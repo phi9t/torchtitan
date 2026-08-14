@@ -683,7 +683,10 @@ def _entry_point_from_code(code: str, test_list: Sequence[str]) -> str:
 def _entry_point_calls_from_assert(test: str) -> list[str]:
     statement = _single_assert(test)
     result_expr = _assert_result_expression(statement.test)
-    candidate = _candidate_call_from_result(result_expr)
+    try:
+        candidate = _candidate_call_from_result(result_expr)
+    except ValueError as exc:
+        raise ValueError(f"could not infer MBPP entry point from test: {test}") from exc
     if candidate is None:
         return []
     name = _called_function_name(candidate.func)
@@ -737,10 +740,10 @@ def _candidate_call_from_result(node: ast.expr) -> ast.Call | None:
         if isinstance(current, ast.Call):
             if not _is_wrapper_call(current):
                 return current
-            nested = _unique_call_bearing_argument(current)
-            if nested is None:
+            next_expr = _unique_call_bearing_argument(current)
+            if next_expr is None:
                 return current
-            current = nested
+            current = next_expr
             continue
         if isinstance(current, ast.Subscript):
             current = current.value
@@ -754,16 +757,16 @@ def _candidate_call_from_result(node: ast.expr) -> ast.Call | None:
         return None
 
 
-def _unique_call_bearing_argument(node: ast.Call) -> ast.Call | None:
-    nested_calls = []
+def _unique_call_bearing_argument(node: ast.Call) -> ast.expr | None:
+    call_bearing_args = []
     for arg in node.args:
-        arg_calls = [
-            descendant for descendant in ast.walk(arg) if isinstance(descendant, ast.Call)
-        ]
-        nested_calls.extend(arg_calls)
-    if len(nested_calls) != 1:
+        if any(isinstance(descendant, ast.Call) for descendant in ast.walk(arg)):
+            call_bearing_args.append(arg)
+    if not call_bearing_args:
         return None
-    return nested_calls[0]
+    if len(call_bearing_args) != 1:
+        raise ValueError("ambiguous MBPP wrapper call")
+    return call_bearing_args[0]
 
 
 def _called_function_name(node: ast.expr) -> str | None:

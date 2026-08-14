@@ -1864,6 +1864,48 @@ def test_coding_style_imports_no_code_mbpp_rows_with_later_wrapper_argument():
     assert problems[0].canonical_solution is None
 
 
+def test_coding_style_imports_no_code_mbpp_rows_with_nested_wrapper_argument():
+    rows = [
+        {
+            "task_id": 23,
+            "prompt": "Write a python function to score a value.",
+            "test_imports": [],
+            "test_list": [
+                "assert max(0, score_value(abs(-3))) == 3",
+                "assert max(0, score_value(abs(5))) == 5",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "score_value"
+    assert "assert max(0, candidate(abs(-3))) == 3" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
+def test_coding_style_rejects_no_code_mbpp_rows_with_ambiguous_wrapper_calls():
+    rows = [
+        {
+            "task_id": 24,
+            "prompt": "Write a python function to transform values.",
+            "test_imports": [],
+            "test_list": [
+                "assert max(foo_value(1), bar_value(2)) == 3",
+            ],
+        }
+    ]
+
+    with pytest.raises(ValueError, match="could not infer MBPP entry point"):
+        coding_style.import_mbpp_rows(
+            rows,
+            source="google-research-datasets/mbpp:sanitized:main:test",
+        )
+
+
 def test_coding_style_imports_builtin_named_code_with_nested_argument_call():
     rows = [
         {
