@@ -1864,6 +1864,29 @@ def test_coding_style_ignores_callable_subscript_index_in_no_code_mbpp_row():
     assert problems[0].canonical_solution is None
 
 
+def test_coding_style_imports_no_code_mbpp_rows_with_dict_key_candidate():
+    rows = [
+        {
+            "task_id": 30,
+            "prompt": "Write a python function to normalize a key.",
+            "test_imports": [],
+            "test_list": [
+                'assert {normalize_key("A"): 1} == {"a": 1}',
+                'assert {normalize_key("B"): 2} == {"b": 2}',
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "normalize_key"
+    assert 'assert {candidate("A"): 1} == {"a": 1}' in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
 def test_coding_style_imports_no_code_mbpp_rows_with_later_wrapper_argument():
     rows = [
         {
@@ -2019,6 +2042,29 @@ def test_coding_style_rewrites_multiline_repeated_mbpp_candidates():
     assert "candidate(2)" in problems[0].test
     assert "score_value" not in problems[0].test
     assert problems[0].canonical_solution is None
+
+
+def test_coding_style_rewrites_unicode_prefix_before_candidate_call():
+    rows = [
+        {
+            "task_id": 31,
+            "prompt": "Write a python function to normalize a label.",
+            "test_imports": [],
+            "test_list": [
+                'assert "é" and normalize_label("A") == "a"',
+                'assert "é" and normalize_label("B") == "b"',
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "normalize_label"
+    assert 'assert "é" and candidate("A") == "a"' in problems[0].test
+    assert "normalize_label" not in problems[0].test
 
 
 def test_coding_style_imports_builtin_named_code_with_nested_argument_call():

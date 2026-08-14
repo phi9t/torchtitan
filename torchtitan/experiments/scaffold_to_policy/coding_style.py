@@ -769,10 +769,16 @@ def _result_bearing_children(node: ast.AST) -> list[ast.expr]:
         return [node.operand]
     if isinstance(node, ast.IfExp):
         return [node.body, node.orelse]
+    if isinstance(node, ast.Compare):
+        return [node.left] + list(node.comparators)
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return list(node.elts)
     if isinstance(node, ast.Dict):
-        return [value for value in node.values if value is not None]
+        return [
+            item
+            for item in list(node.keys) + list(node.values)
+            if item is not None
+        ]
     if isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
         return [node.elt]
     if isinstance(node, ast.DictComp):
@@ -881,10 +887,12 @@ def _rewrite_mbpp_assert_call(test: str, entry_point: str) -> str:
     rewritten = test
     line_starts = _line_start_offsets(test)
     for call in sorted(
-        matches, key=lambda node: _absolute_offset(line_starts, node.func), reverse=True
+        matches,
+        key=lambda node: _absolute_offset(test, line_starts, node.func),
+        reverse=True,
     ):
-        start = _absolute_offset(line_starts, call.func)
-        end = _absolute_end_offset(line_starts, call.func)
+        start = _absolute_offset(test, line_starts, call.func)
+        end = _absolute_end_offset(test, line_starts, call.func)
         rewritten = (
             rewritten[:start]
             + "candidate"
@@ -901,12 +909,24 @@ def _line_start_offsets(text: str) -> list[int]:
     return offsets
 
 
-def _absolute_offset(line_starts: Sequence[int], node: ast.AST) -> int:
-    return line_starts[node.lineno - 1] + node.col_offset
+def _absolute_offset(text: str, line_starts: Sequence[int], node: ast.AST) -> int:
+    return _absolute_source_offset(text, line_starts, node.lineno, node.col_offset)
 
 
-def _absolute_end_offset(line_starts: Sequence[int], node: ast.AST) -> int:
-    return line_starts[node.end_lineno - 1] + node.end_col_offset
+def _absolute_end_offset(text: str, line_starts: Sequence[int], node: ast.AST) -> int:
+    return _absolute_source_offset(text, line_starts, node.end_lineno, node.end_col_offset)
+
+
+def _absolute_source_offset(
+    text: str, line_starts: Sequence[int], line_number: int, byte_column: int
+) -> int:
+    line_start = line_starts[line_number - 1]
+    if line_number < len(line_starts):
+        line = text[line_start : line_starts[line_number] - 1]
+    else:
+        line = text[line_start:]
+    char_column = len(line.encode("utf-8")[:byte_column].decode("utf-8"))
+    return line_start + char_column
 
 
 def _bigcodebench_check_source(test: str, entry_point: str) -> str:
