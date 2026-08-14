@@ -732,12 +732,18 @@ def _is_wrapper_call(node: ast.Call) -> bool:
 
 
 def _candidate_names_from_result(node: ast.expr) -> list[str]:
+    calls = _candidate_calls_from_result(node)
     names = []
-    for call in _candidate_calls_from_result(node):
+    has_unnameable = False
+    for call in calls:
         name = _called_function_name(call.func)
-        if name is not None:
+        if name is None:
+            has_unnameable = True
+        else:
             names.append(name)
     distinct = sorted(set(names))
+    if has_unnameable:
+        raise ValueError("ambiguous MBPP result expression: dynamic callee")
     if len(distinct) > 1:
         raise ValueError(f"ambiguous MBPP result expression: {distinct}")
     return names
@@ -747,10 +753,35 @@ def _candidate_calls_from_result(node: ast.AST) -> list[ast.Call]:
     if isinstance(node, ast.Call) and not _is_wrapper_call(node):
         return [node]
     candidates = []
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, ast.expr):
-            candidates.extend(_candidate_calls_from_result(child))
+    for child in _result_bearing_children(node):
+        candidates.extend(_candidate_calls_from_result(child))
     return candidates
+
+
+def _result_bearing_children(node: ast.AST) -> list[ast.expr]:
+    if isinstance(node, ast.Call):
+        return list(node.args) if _is_wrapper_call(node) else []
+    if isinstance(node, ast.Subscript):
+        return [node.value]
+    if isinstance(node, ast.Attribute):
+        return [node.value]
+    if isinstance(node, ast.UnaryOp):
+        return [node.operand]
+    if isinstance(node, ast.IfExp):
+        return [node.body, node.orelse]
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return list(node.elts)
+    if isinstance(node, ast.Dict):
+        return [value for value in node.values if value is not None]
+    if isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
+        return [node.elt]
+    if isinstance(node, ast.DictComp):
+        return [node.key, node.value]
+    if isinstance(node, ast.BinOp):
+        return [node.left, node.right]
+    if isinstance(node, ast.BoolOp):
+        return list(node.values)
+    return []
 
 
 def _called_function_name(node: ast.expr) -> str | None:
@@ -848,13 +879,34 @@ def _rewrite_mbpp_assert_call(test: str, entry_point: str) -> str:
         )
 
     rewritten = test
-    for call in sorted(matches, key=lambda node: node.func.col_offset, reverse=True):
+    line_starts = _line_start_offsets(test)
+    for call in sorted(
+        matches, key=lambda node: _absolute_offset(line_starts, node.func), reverse=True
+    ):
+        start = _absolute_offset(line_starts, call.func)
+        end = _absolute_end_offset(line_starts, call.func)
         rewritten = (
-            rewritten[: call.func.col_offset]
+            rewritten[:start]
             + "candidate"
-            + rewritten[call.func.end_col_offset :]
+            + rewritten[end:]
         )
     return rewritten
+
+
+def _line_start_offsets(text: str) -> list[int]:
+    offsets = [0]
+    for index, char in enumerate(text):
+        if char == "\n":
+            offsets.append(index + 1)
+    return offsets
+
+
+def _absolute_offset(line_starts: Sequence[int], node: ast.AST) -> int:
+    return line_starts[node.lineno - 1] + node.col_offset
+
+
+def _absolute_end_offset(line_starts: Sequence[int], node: ast.AST) -> int:
+    return line_starts[node.end_lineno - 1] + node.end_col_offset
 
 
 def _bigcodebench_check_source(test: str, entry_point: str) -> str:

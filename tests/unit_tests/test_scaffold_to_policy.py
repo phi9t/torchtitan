@@ -1841,6 +1841,29 @@ def test_coding_style_imports_no_code_mbpp_rows_with_subscripted_result():
     assert problems[0].canonical_solution is None
 
 
+def test_coding_style_ignores_callable_subscript_index_in_no_code_mbpp_row():
+    rows = [
+        {
+            "task_id": 27,
+            "prompt": "Write a python function to normalize values.",
+            "test_imports": [],
+            "test_list": [
+                "assert normalize_values([3, 1])[index_value()] == 1",
+                "assert normalize_values([3, 1])[0] == 1",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "normalize_values"
+    assert "candidate([3, 1])[index_value()]" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
 def test_coding_style_imports_no_code_mbpp_rows_with_later_wrapper_argument():
     rows = [
         {
@@ -1949,6 +1972,52 @@ def test_coding_style_imports_no_code_mbpp_rows_with_list_wrapper():
 
     assert problems[0].entry_point == "score_value"
     assert "assert max([candidate(-3), candidate(2)]) == 3" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
+def test_coding_style_rejects_no_code_mbpp_rows_with_dynamic_callee():
+    rows = [
+        {
+            "task_id": 28,
+            "prompt": "Write a python function to score values.",
+            "test_imports": [],
+            "test_list": [
+                "assert max(foo_value(1), funcs[0](2)) == 3",
+            ],
+        }
+    ]
+
+    with pytest.raises(ValueError, match="could not infer MBPP entry point"):
+        coding_style.import_mbpp_rows(
+            rows,
+            source="google-research-datasets/mbpp:sanitized:main:test",
+        )
+
+
+def test_coding_style_rewrites_multiline_repeated_mbpp_candidates():
+    rows = [
+        {
+            "task_id": 29,
+            "prompt": "Write a python function to score values.",
+            "test_imports": [],
+            "test_list": [
+                "assert max(\n"
+                "    score_value(-3),\n"
+                "    score_value(2),\n"
+                ") == 3",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "score_value"
+    assert "candidate(-3)" in problems[0].test
+    assert "candidate(2)" in problems[0].test
+    assert "score_value" not in problems[0].test
     assert problems[0].canonical_solution is None
 
 
