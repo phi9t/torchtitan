@@ -125,6 +125,74 @@ def test_report_input_parsers_accept_execution_preflight(command):
     assert args.execution_preflight == Path("preflight.json")
 
 
+def test_multiple_choice_report_command_attaches_execution_preflight(tmp_path):
+    problem = multiple_choice.MultipleChoiceProblem(
+        problem_id="mc-1",
+        source="unit",
+        question="Which choice is correct?",
+        choices=("right", "wrong", "also wrong", "still wrong"),
+        answer="A",
+    )
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    split_registry = data_root / "split_registry.json"
+    summary = results_root / "dev_summary.json"
+    preflight = results_root / "preflight.json"
+    output = results_root / "report_input.json"
+
+    multiple_choice.write_jsonl(dev, [problem.to_json()])
+    multiple_choice.write_json(
+        split_registry,
+        multiple_choice.build_split_registry({"dev": dev}),
+    )
+    multiple_choice.write_json(
+        summary,
+        multiple_choice.summarize_evaluations(
+            [multiple_choice.evaluate_fixture_rollouts(problem, ["FINAL: A"])],
+            ks=(1,),
+        ),
+    )
+    multiple_choice.write_json(
+        preflight,
+        {
+            "kind": "execution_preflight",
+            "readiness": "ready",
+            "execution_outcome": "pass",
+            "blocker_codes": [],
+            "profiles": ["rootfs_cpu"],
+            "semantic_checks": [],
+        },
+    )
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "build-multiple-choice-report-input",
+            "--data-root",
+            str(data_root),
+            "--results-root",
+            str(results_root),
+            "--run-id",
+            "run-mc",
+            "--split-registry",
+            str(split_registry),
+            "--summary",
+            f"dev={summary}",
+            "--execution-preflight",
+            str(preflight),
+            "--output",
+            str(output),
+        ]
+    )
+    args.func(args)
+
+    report_input = json.loads(output.read_text())
+    assert report_input["checks"]["preflight_ready"] is True
+    assert report_input["execution"]["kind"] == "execution_preflight"
+    assert report_input["execution"]["profiles"] == ["rootfs_cpu"]
+
+
 def test_arithmetic_words_prompt_names_strict_output_contract():
     problem = generate_split(seed=1, num_problems=1)[0]
 
