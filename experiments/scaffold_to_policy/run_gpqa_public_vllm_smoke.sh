@@ -2,15 +2,29 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
+# Wave F4 public hard-reasoning runner: GPQA public-dataset vLLM smoke driven
+# through the typed begin/stage/finish lifecycle. Preserves the prototype
+# runner's graceful blocker behavior for gated dataset import, GPU-memory
+# preflight, and vLLM runtime failures by finishing the attempt as blocked with
+# not_run conditions.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/run_common.sh"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 
-scaffold_enter_rootfs_if_needed "run_gpqa_public_vllm_smoke.sh" "$@"
-scaffold_setup_env
+if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
+  exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- "experiments/scaffold_to_policy/run_gpqa_public_vllm_smoke.sh" "$@"
+fi
+
+cd "${REPO_ROOT}"
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
+export HF_HOME="${REPO_ROOT}/.cache/huggingface"
+export HF_HUB_CACHE="${HF_HOME}/hub"
+export VLLM_USE_FLASHINFER_SAMPLER="${SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER:-0}"
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-gpqa-public-vllm-smoke}"
+ATTEMPT_ID="${ATTEMPT_ID:-attempt-01}"
 MODEL="${MODEL:-./assets/hf/Qwen3-1.7B}"
 DATASET="${DATASET:-Idavidrein/gpqa}"
 DATASET_SUBSET="${DATASET_SUBSET:-gpqa_diamond}"
@@ -34,8 +48,16 @@ OOD_RAW_CACHE="${OOD_RAW_CACHE:-}"
 RUNTIME_METADATA="${RESULTS_ROOT}/manifests/runtime_${RUN_ID}.json"
 
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}/eval" "${RESULTS_ROOT}/manifests" "${HF_HOME}"
-scaffold_setup_run_manifest
-scaffold_capture_vllm_runtime_metadata "${RUNTIME_METADATA}"
+
+CLI="python -m torchtitan.experiments.scaffold_to_policy.cli"
+LIFECYCLE="python -m torchtitan.experiments.execution"
+LOCATOR=(--results-root "${RESULTS_ROOT}" --run-id "${RUN_ID}" --attempt-id "${ATTEMPT_ID}")
+
+if [[ "${TORCHTITAN_IN_ROOTFS:-0}" == "1" ]]; then
+  ROOTFS_JSON=true
+else
+  ROOTFS_JSON=false
+fi
 
 offline_args=()
 case "${OFFLINE}" in
@@ -54,7 +76,168 @@ if [[ -n "${OOD_RAW_CACHE}" ]]; then
   ood_cache_args=(--raw-cache "${OOD_RAW_CACHE}")
 fi
 
-if ! scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
+run_stage() {
+  local stage_id="$1"
+  local kind="$2"
+  local adapter="$3"
+  shift 3
+  ${LIFECYCLE} stage "${LOCATOR[@]}" \
+    --stage-id "${stage_id}" --name "${stage_id}" \
+    --kind "${kind}" --adapter "${adapter}" \
+    --stage-extra "rootfs_active=${ROOTFS_JSON}" \
+    -- "$@"
+}
+
+write_evaluations() {
+  local execution_outcome="$1"
+  local measurement="$2"
+  local output="$3"
+  EXECUTION_OUTCOME="${execution_outcome}" MEASUREMENT="${measurement}" \
+    python - >"${output}" <<'PY'
+import json
+import os
+
+splits = ["dev", "ood_test"]
+print(
+    json.dumps(
+        {
+            split: {
+                "execution_outcome": os.environ["EXECUTION_OUTCOME"],
+                "measurement": os.environ["MEASUREMENT"],
+                "promotion": "not_evaluated",
+            }
+            for split in splits
+        },
+        sort_keys=True,
+    )
+)
+PY
+}
+
+finish_with_status() {
+  local attempt_outcome="$1"
+  local measurement="$2"
+  local report_input="$3"
+  local evaluations_file="${RESULTS_ROOT}/manifests/evaluations_${RUN_ID}.json"
+  write_evaluations "${attempt_outcome}" "${measurement}" "${evaluations_file}"
+  ${LIFECYCLE} finish "${LOCATOR[@]}" \
+    --attempt-outcome "${attempt_outcome}" \
+    --report-input "${report_input}" \
+    --evaluations "${evaluations_file}"
+}
+
+write_failure_marker() {
+  local stage="$1"
+  local failure_type="$2"
+  local output="$3"
+  STAGE="${stage}" FAILURE_TYPE="${failure_type}" OUTPUT="${output}" RUN_ID="${RUN_ID}" \
+    ROOTFS_ACTIVE="${ROOTFS_JSON}" python - <<'PY'
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+marker = {
+    "schema_version": 1,
+    "kind": "stage_failure",
+    "failure_type": os.environ["FAILURE_TYPE"],
+    "stage": os.environ["STAGE"],
+    "run_id": os.environ["RUN_ID"],
+    "rootfs_active": os.environ["ROOTFS_ACTIVE"] == "true",
+    "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+}
+output = Path(os.environ["OUTPUT"])
+output.parent.mkdir(parents=True, exist_ok=True)
+output.write_text(json.dumps(marker, indent=2, sort_keys=True) + "\n")
+PY
+}
+
+${LIFECYCLE} preflight \
+  --profile vllm_1gpu \
+  --profile reasoning \
+  --require-ready \
+  --output "${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json"
+
+FIELDS_FILE="${RESULTS_ROOT}/manifests/fields_${RUN_ID}.json"
+RUN_ID="${RUN_ID}" MODEL="${MODEL}" DATASET="${DATASET}" DATASET_SUBSET="${DATASET_SUBSET}" \
+  DATASET_REVISION="${DATASET_REVISION}" SOURCE_SPLIT="${SOURCE_SPLIT}" \
+  DEV_PROBLEMS="${DEV_PROBLEMS}" OOD_PROBLEMS="${OOD_PROBLEMS}" \
+  DEV_OFFSET="${DEV_OFFSET}" OOD_OFFSET="${OOD_OFFSET}" \
+  NUM_ROLLOUTS="${NUM_ROLLOUTS}" MAX_NEW_TOKENS="${MAX_NEW_TOKENS}" \
+  PROMPT_VARIANT="${PROMPT_VARIANT}" TEMPERATURE="${TEMPERATURE}" TOP_P="${TOP_P}" \
+  GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION}" OFFLINE="${OFFLINE}" \
+  DEV_RAW_CACHE="${DEV_RAW_CACHE}" OOD_RAW_CACHE="${OOD_RAW_CACHE}" \
+  python - >"${FIELDS_FILE}" <<'PY'
+import json
+import os
+
+def _int(name):
+    return int(os.environ[name])
+
+def _float(name):
+    return float(os.environ[name])
+
+print(
+    json.dumps(
+        {
+            "model": os.environ["MODEL"],
+            "dataset": {
+                "name": os.environ["DATASET"],
+                "subset": os.environ["DATASET_SUBSET"] or None,
+                "revision": os.environ["DATASET_REVISION"],
+                "source_split": os.environ["SOURCE_SPLIT"],
+            },
+            "splits": {
+                "dev": {
+                    "limit": _int("DEV_PROBLEMS"),
+                    "offset": _int("DEV_OFFSET"),
+                    "raw_cache": os.environ["DEV_RAW_CACHE"] or None,
+                },
+                "ood_test": {
+                    "limit": _int("OOD_PROBLEMS"),
+                    "offset": _int("OOD_OFFSET"),
+                    "raw_cache": os.environ["OOD_RAW_CACHE"] or None,
+                },
+            },
+            "sampling": {
+                "prompt_variant": os.environ["PROMPT_VARIANT"],
+                "temperature": _float("TEMPERATURE"),
+                "top_p": _float("TOP_P"),
+                "max_new_tokens": _int("MAX_NEW_TOKENS"),
+                "gpu_memory_utilization": _float("GPU_MEMORY_UTILIZATION"),
+            },
+            "rollouts": {"eval": _int("NUM_ROLLOUTS")},
+            "offline": os.environ["OFFLINE"],
+            "run_id": os.environ["RUN_ID"],
+        },
+        sort_keys=True,
+    )
+)
+PY
+
+${LIFECYCLE} begin "${LOCATOR[@]}" \
+  --family reasoning \
+  --task gpqa \
+  --lane public_smoke \
+  --fields "${FIELDS_FILE}"
+
+run_stage capture-runtime-metadata preflight rootfs_cpu \
+  ${CLI} capture-runtime-metadata \
+  --output "${RUNTIME_METADATA}" \
+  --run-id "${RUN_ID}" \
+  --model "${MODEL}" \
+  --num-rollouts "${NUM_ROLLOUTS}" \
+  --temperature "${TEMPERATURE}" \
+  --top-p "${TOP_P}" \
+  --max-new-tokens "${MAX_NEW_TOKENS}" \
+  --prompt-variant "${PROMPT_VARIANT}" \
+  --max-model-len "${MAX_MODEL_LEN:-${SCAFFOLD_TO_POLICY_VLLM_MAX_MODEL_LEN:-2048}}" \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
+  --attention-backend "${SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND:-TRITON_ATTN}" \
+  --use-flashinfer-sampler "${SCAFFOLD_TO_POLICY_VLLM_USE_FLASHINFER_SAMPLER:-0}"
+
+if ! run_stage import-dev acquire rootfs_cpu \
+  ${CLI} import-gpqa-split \
   --dataset "${DATASET}" \
   --subset "${DATASET_SUBSET}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -66,8 +249,10 @@ if ! scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_
   "${dev_cache_args[@]}" \
   "${offline_args[@]}"; then
   FAILURE_MARKER="${RESULTS_ROOT}/eval/gpqa_import_failure.json"
-  scaffold_write_stage_failure_marker import_dev gpqa_import_blocker "${FAILURE_MARKER}"
-  scaffold_run_stage write_import_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+  write_failure_marker import-dev gpqa_import_blocker "${FAILURE_MARKER}"
+  REPORT_INPUT="${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  run_stage write-import-blocker-report-input report rootfs_cpu \
+    ${CLI} write-blocker-report-input \
     --results-root "${RESULTS_ROOT}" \
     --run-id "${RUN_ID}" \
     --task multiple_choice \
@@ -77,12 +262,14 @@ if ! scaffold_run_stage import_dev python -m torchtitan.experiments.scaffold_to_
     --runtime "${RUNTIME_METADATA}" \
     --limitation "GPQA Diamond import failed, commonly because the dataset is gated and HF_TOKEN is not configured inside the rootfs." \
     --limitation "No benchmark task execution or model score was produced." \
-    --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
-  echo "wrote GPQA blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    --output "${REPORT_INPUT}"
+  finish_with_status blocked not_run "${REPORT_INPUT}"
+  echo "wrote blocked attempt bundle ${RESULTS_ROOT}/runs/${RUN_ID}/${ATTEMPT_ID}"
   exit 0
 fi
 
-scaffold_run_stage import_ood_test python -m torchtitan.experiments.scaffold_to_policy.cli import-gpqa-split \
+run_stage import-ood acquire rootfs_cpu \
+  ${CLI} import-gpqa-split \
   --dataset "${DATASET}" \
   --subset "${DATASET_SUBSET}" \
   --source-split "${SOURCE_SPLIT}" \
@@ -94,17 +281,19 @@ scaffold_run_stage import_ood_test python -m torchtitan.experiments.scaffold_to_
   "${ood_cache_args[@]}" \
   "${offline_args[@]}"
 
-scaffold_run_stage validate_splits python -m torchtitan.experiments.scaffold_to_policy.cli validate-multiple-choice-splits \
+run_stage validate-splits verify rootfs_cpu \
+  ${CLI} validate-multiple-choice-splits \
   --split \
     "dev=${DATA_ROOT}/dev.jsonl" \
     "ood_test=${DATA_ROOT}/ood_test.jsonl" \
   --output "${DATA_ROOT}/split_registry.json"
 
-scaffold_run_stage preflight_gpu_memory python -m torchtitan.experiments.scaffold_to_policy.cli preflight-vllm-gpu-memory \
+run_stage preflight-gpu-memory preflight rootfs_vllm \
+  ${CLI} preflight-vllm-gpu-memory \
   --output "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" \
   --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
   --no-require-selected
-if ! scaffold_run_stage require_gpu_memory_selected python - <<'PY' "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json"
+if ! run_stage require-gpu-memory-selected verify rootfs_cpu python - "${RESULTS_ROOT}/eval/vllm_gpu_memory_preflight.json" <<'PY'
 import json
 import sys
 
@@ -112,7 +301,9 @@ payload = json.loads(open(sys.argv[1]).read())
 raise SystemExit(0 if payload.get("selected") else 1)
 PY
 then
-  scaffold_run_stage write_gpu_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+  REPORT_INPUT="${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  run_stage write-gpu-blocker-report-input report rootfs_cpu \
+    ${CLI} write-blocker-report-input \
     --results-root "${RESULTS_ROOT}" \
     --run-id "${RUN_ID}" \
     --task multiple_choice \
@@ -122,13 +313,15 @@ then
     --runtime "${RUNTIME_METADATA}" \
     --limitation "GPQA Diamond run stopped before model execution because vLLM GPU memory preflight failed." \
     --limitation "No benchmark task execution or model score was produced." \
-    --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
-  echo "wrote GPQA GPU blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    --output "${REPORT_INPUT}"
+  finish_with_status blocked not_run "${REPORT_INPUT}"
+  echo "wrote blocked attempt bundle ${RESULTS_ROOT}/runs/${RUN_ID}/${ATTEMPT_ID}"
   exit 0
 fi
 
 for split in dev ood_test; do
-  if ! scaffold_run_stage "evaluate_${split}" python -m torchtitan.experiments.scaffold_to_policy.cli evaluate-multiple-choice-vllm \
+  if ! run_stage "base-eval-${split}" evaluate rootfs_vllm \
+    ${CLI} evaluate-multiple-choice-vllm \
     --problems "${DATA_ROOT}/${split}.jsonl" \
     --model "${MODEL}" \
     --output "${RESULTS_ROOT}/eval/${split}_evaluations.jsonl" \
@@ -140,8 +333,10 @@ for split in dev ood_test; do
     --top-p "${TOP_P}" \
     --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"; then
     FAILURE_MARKER="${RESULTS_ROOT}/eval/${split}_vllm_runtime_failure.json"
-    scaffold_write_stage_failure_marker "evaluate_${split}" vllm_runtime_failure "${FAILURE_MARKER}"
-    scaffold_run_stage write_runtime_blocker_report_input python -m torchtitan.experiments.scaffold_to_policy.cli write-blocker-report-input \
+    write_failure_marker "base-eval-${split}" vllm_runtime_failure "${FAILURE_MARKER}"
+    REPORT_INPUT="${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+    run_stage write-runtime-blocker-report-input report rootfs_cpu \
+      ${CLI} write-blocker-report-input \
       --results-root "${RESULTS_ROOT}" \
       --run-id "${RUN_ID}" \
       --task multiple_choice \
@@ -153,13 +348,16 @@ for split in dev ood_test; do
       --runtime "${RUNTIME_METADATA}" \
       --limitation "GPQA Diamond run stopped during ${split} model execution because vLLM failed at runtime." \
       --limitation "No complete benchmark task execution or model score was produced." \
-      --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
-    echo "wrote GPQA runtime blocker ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+      --output "${REPORT_INPUT}"
+    finish_with_status blocked not_run "${REPORT_INPUT}"
+    echo "wrote blocked attempt bundle ${RESULTS_ROOT}/runs/${RUN_ID}/${ATTEMPT_ID}"
     exit 0
   fi
 done
 
-scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_to_policy.cli build-multiple-choice-report-input \
+REPORT_INPUT="${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+run_stage build-report-input report rootfs_cpu \
+  ${CLI} build-multiple-choice-report-input \
   --data-root "${DATA_ROOT}" \
   --results-root "${RESULTS_ROOT}" \
   --run-id "${RUN_ID}" \
@@ -169,6 +367,9 @@ scaffold_run_stage build_report_input python -m torchtitan.experiments.scaffold_
     "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
   --scaffold-budget "${NUM_ROLLOUTS}" \
   --runtime "${RUNTIME_METADATA}" \
-  --output "${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+  --execution-preflight "${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json" \
+  --output "${REPORT_INPUT}"
 
-echo "wrote ${RESULTS_ROOT}/manifests/report_input_${RUN_ID}.json"
+finish_with_status completed real "${REPORT_INPUT}"
+
+echo "wrote attempt bundle ${RESULTS_ROOT}/runs/${RUN_ID}/${ATTEMPT_ID}"
