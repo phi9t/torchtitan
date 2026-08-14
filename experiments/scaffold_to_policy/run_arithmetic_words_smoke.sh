@@ -117,6 +117,7 @@ ${LIFECYCLE} stage "${LOCATOR[@]}" \
   --summary \
     "dev=${RESULTS_ROOT}/eval/dev_summary.json" \
     "ood_test=${RESULTS_ROOT}/eval/ood_test_summary.json" \
+  --execution-preflight "${RESULTS_ROOT}/manifests/preflight_${RUN_ID}.json" \
   --output "${REPORT_INPUT}"
 
 # Fixture rollouts are never a real measurement: each eval split is a fixture

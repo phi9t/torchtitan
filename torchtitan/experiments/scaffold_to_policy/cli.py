@@ -2071,6 +2071,7 @@ def build_arithmetic_report_input(args: argparse.Namespace) -> None:
         summary_paths=summary_paths,
         runtime_path=args.runtime,
     )
+    _attach_execution_preflight(report_input, args.execution_preflight)
     write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
         failed = [
@@ -2113,6 +2114,7 @@ def build_gsm_style_report_input(args: argparse.Namespace) -> None:
         scaffold_budget=args.scaffold_budget,
         runtime_path=args.runtime,
     )
+    _attach_execution_preflight(report_input, args.execution_preflight)
     gsm_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
         failed = [
@@ -3760,6 +3762,7 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--summary", nargs="+", required=True)
     report_parser.add_argument("--output", type=Path, required=True)
     _add_runtime_report_arg(report_parser)
+    _add_execution_preflight_report_arg(report_parser)
     report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,
@@ -3793,6 +3796,7 @@ def build_parser() -> argparse.ArgumentParser:
     gsm_report_parser.add_argument("--output", type=Path, required=True)
     gsm_report_parser.add_argument("--scaffold-budget", type=int, default=32)
     _add_runtime_report_arg(gsm_report_parser)
+    _add_execution_preflight_report_arg(gsm_report_parser)
     gsm_report_parser.add_argument(
         "--require-selected",
         action=argparse.BooleanOptionalAction,

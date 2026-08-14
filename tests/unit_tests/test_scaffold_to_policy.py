@@ -94,7 +94,9 @@ def test_cli_attaches_execution_preflight_to_report_input(tmp_path):
 @pytest.mark.parametrize(
     "command",
     [
+        "build-arithmetic-report-input",
         "build-modular-report-input",
+        "build-gsm-style-report-input",
         "build-math-style-report-input",
         "build-coding-style-report-input",
         "build-multiple-choice-report-input",
@@ -125,6 +127,133 @@ def test_report_input_parsers_accept_execution_preflight(command):
     )
 
     assert args.execution_preflight == Path("preflight.json")
+
+
+def test_arithmetic_report_command_attaches_execution_preflight(tmp_path):
+    problems = generate_split(seed=7, num_problems=1)
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    split_registry = data_root / "split_registry.json"
+    summary = results_root / "dev_summary.json"
+    preflight = results_root / "preflight.json"
+    output = results_root / "report_input.json"
+
+    write_jsonl(dev, [problem.to_json() for problem in problems])
+    write_json(split_registry, build_split_registry({"dev": dev}))
+    write_json(
+        summary,
+        summarize_evaluations(
+            [evaluate_fixture_rollouts(problems[0], [f"FINAL: {problems[0].answer}"])],
+            ks=(1,),
+        ),
+    )
+    write_json(
+        preflight,
+        {
+            "kind": "execution_preflight",
+            "readiness": "ready",
+            "execution_outcome": "pass",
+            "blocker_codes": [],
+            "profiles": ["host_static"],
+            "semantic_checks": [],
+        },
+    )
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "build-arithmetic-report-input",
+            "--data-root",
+            str(data_root),
+            "--results-root",
+            str(results_root),
+            "--run-id",
+            "run-arithmetic",
+            "--split-registry",
+            str(split_registry),
+            "--summary",
+            f"dev={summary}",
+            "--execution-preflight",
+            str(preflight),
+            "--output",
+            str(output),
+        ]
+    )
+    args.func(args)
+
+    report_input = json.loads(output.read_text())
+    assert report_input["checks"]["preflight_ready"] is True
+    assert report_input["execution"]["kind"] == "execution_preflight"
+    assert report_input["execution"]["profiles"] == ["host_static"]
+
+
+def test_gsm_style_report_command_attaches_execution_preflight(tmp_path):
+    problem = gsm_style.GSMStyleProblem(
+        problem_id="gsm-1",
+        source="unit",
+        question="What is 20 + 22?",
+        answer="42",
+        normalized_answer="42",
+    )
+    data_root = tmp_path / "data"
+    results_root = tmp_path / "results"
+    dev = data_root / "dev.jsonl"
+    split_registry = data_root / "split_registry.json"
+    summary = results_root / "dev_summary.json"
+    preflight = results_root / "preflight.json"
+    output = results_root / "report_input.json"
+
+    gsm_style.write_jsonl(dev, [problem.to_json()])
+    gsm_style.write_json(split_registry, gsm_style.build_split_registry({"dev": dev}))
+    gsm_style.write_json(
+        summary,
+        gsm_style.summarize_evaluations(
+            [gsm_style.evaluate_fixture_rollouts(problem, ["FINAL: 42"])],
+            ks=(1,),
+        ),
+    )
+    gsm_style.write_json(
+        preflight,
+        {
+            "kind": "execution_preflight",
+            "readiness": "blocked",
+            "execution_outcome": "blocked",
+            "blocker_codes": ["vllm_missing"],
+            "profiles": ["vllm_1gpu", "reasoning"],
+            "semantic_checks": [],
+        },
+    )
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "build-gsm-style-report-input",
+            "--data-root",
+            str(data_root),
+            "--results-root",
+            str(results_root),
+            "--run-id",
+            "run-gsm",
+            "--split-registry",
+            str(split_registry),
+            "--summary",
+            f"dev={summary}",
+            "--scaffold-budget",
+            "1",
+            "--execution-preflight",
+            str(preflight),
+            "--output",
+            str(output),
+            "--no-require-selected",
+        ]
+    )
+    args.func(args)
+
+    report_input = json.loads(output.read_text())
+    assert report_input["checks"]["preflight_ready"] is False
+    assert report_input["execution"]["kind"] == "execution_preflight"
+    assert report_input["execution"]["blocker_codes"] == ["vllm_missing"]
 
 
 def test_multiple_choice_report_command_attaches_execution_preflight(tmp_path):
