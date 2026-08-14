@@ -311,7 +311,10 @@ fresh random marker on every invocation, so it cannot deterministically
 reattach or reconcile a redelivery. Temporal Activities must therefore obtain
 their declaration, attempt identity, and idempotency keys from the typed
 lifecycle (F1), not from this legacy manifest, and treat the append-only
-manifest only as tamper-resistant evidence storage.
+manifest only as an append-preserving legacy log. Integrity and tamper-evidence
+claims belong to the typed lifecycle's validated receipts and content digests,
+not to this file: append mode stops this helper from truncating prior rows but
+provides no protection against later modification, deletion, or replacement.
 [Append-only manifest setup](run_common.sh#L33-L57),
 [stage append](run_common.sh#L98-L101)
 
