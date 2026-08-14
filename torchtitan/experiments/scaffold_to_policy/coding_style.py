@@ -412,10 +412,14 @@ def import_mbpp_rows(
         test_list = [str(value) for value in row["test_list"]]
         if not test_list:
             raise ValueError("MBPP row has no tests")
-        entry_point = _entry_point_from_asserts(test_list)
+        canonical = None if row.get("code") is None else str(row.get("code"))
+        entry_point = (
+            _entry_point_from_code(canonical)
+            if canonical is not None
+            else _entry_point_from_asserts(test_list)
+        )
         test = _mbpp_check_source(test_imports, test_list, entry_point)
         task_id = f"MBPP/{row['task_id']}"
-        canonical = None if row.get("code") is None else str(row.get("code"))
         signature = _signature_from_first_assert(test_list[0], entry_point)
         problems.append(
             CodingStyleProblem(
@@ -658,6 +662,20 @@ def _entry_point_from_asserts(test_list: Sequence[str]) -> str:
     return names[0]
 
 
+def _entry_point_from_code(code: str) -> str:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as exc:
+        raise ValueError("could not parse MBPP canonical code") from exc
+
+    function_names = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
+    if len(function_names) != 1:
+        raise ValueError(
+            f"expected one MBPP canonical function, got {sorted(function_names)}"
+        )
+    return function_names[0]
+
+
 def _entry_point_calls_from_assert(test: str) -> list[str]:
     try:
         tree = ast.parse(test)
@@ -675,7 +693,7 @@ def _entry_point_calls_from_assert(test: str) -> list[str]:
         name = _called_function_name(node.func)
         if name is None:
             continue
-        if isinstance(node.func, ast.Attribute) and name in MBPP_WRAPPER_CALLS:
+        if name in MBPP_WRAPPER_CALLS:
             continue
         names.append(name)
     return names

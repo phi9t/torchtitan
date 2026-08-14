@@ -1657,6 +1657,64 @@ def test_coding_style_imports_mbpp_rows_with_builtin_named_entry_point():
     assert verified.success
 
 
+def test_coding_style_imports_mbpp_rows_with_bare_wrapper_calls():
+    rows = [
+        {
+            "task_id": 14,
+            "prompt": "Write a python function to return non-negative values.",
+            "code": "def positive_values(values):\n    return [v for v in values if v >= 0]",
+            "test_imports": [],
+            "test_list": [
+                "assert len(positive_values([-1, 2, 3])) == 2",
+                "assert sorted(positive_values([3, -1, 2])) == [2, 3]",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+    verified = coding_style.verify_solution(
+        problems[0],
+        "def positive_values(values):\n"
+        "    return [v for v in values if v >= 0]",
+    )
+
+    assert problems[0].entry_point == "positive_values"
+    assert "len(candidate([-1, 2, 3])) == 2" in problems[0].test
+    assert "sorted(candidate([3, -1, 2])) == [2, 3]" in problems[0].test
+    assert verified.success
+
+
+def test_coding_style_imports_mbpp_rows_with_expected_value_helper_call():
+    rows = [
+        {
+            "task_id": 15,
+            "prompt": "Write a python function to normalize a list.",
+            "code": "def normalize_values(values):\n    return sorted(values)",
+            "test_imports": [],
+            "test_list": [
+                "assert normalize_values([3, 1, 2]) == sorted([1, 2, 3])",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+    verified = coding_style.verify_solution(
+        problems[0],
+        "def normalize_values(values):\n"
+        "    return sorted(values)",
+    )
+
+    assert problems[0].entry_point == "normalize_values"
+    assert "assert candidate([3, 1, 2]) == sorted([1, 2, 3])" in problems[0].test
+    assert verified.success
+
+
 def test_coding_style_imports_bigcodebench_rows_as_unittest_checks():
     rows = [
         {
