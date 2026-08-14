@@ -98,6 +98,7 @@ def test_cli_attaches_execution_preflight_to_report_input(tmp_path):
         "build-math-style-report-input",
         "build-coding-style-report-input",
         "build-multiple-choice-report-input",
+        "build-contest-code-report-input",
     ],
 )
 def test_report_input_parsers_accept_execution_preflight(command):
