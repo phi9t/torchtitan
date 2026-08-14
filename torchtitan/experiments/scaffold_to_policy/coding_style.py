@@ -684,13 +684,10 @@ def _entry_point_calls_from_assert(test: str) -> list[str]:
     statement = _single_assert(test)
     result_expr = _assert_result_expression(statement.test)
     try:
-        candidate = _candidate_call_from_result(result_expr)
+        names = _candidate_names_from_result(result_expr)
     except ValueError as exc:
         raise ValueError(f"could not infer MBPP entry point from test: {test}") from exc
-    if candidate is None:
-        return []
-    name = _called_function_name(candidate.func)
-    return [] if name is None else [name]
+    return names
 
 
 def _call_names_from_assert(test: str) -> list[str]:
@@ -734,39 +731,26 @@ def _is_wrapper_call(node: ast.Call) -> bool:
     )
 
 
-def _candidate_call_from_result(node: ast.expr) -> ast.Call | None:
-    current = node
-    while True:
-        if isinstance(current, ast.Call):
-            if not _is_wrapper_call(current):
-                return current
-            next_expr = _unique_call_bearing_argument(current)
-            if next_expr is None:
-                return current
-            current = next_expr
-            continue
-        if isinstance(current, ast.Subscript):
-            current = current.value
-            continue
-        if isinstance(current, ast.Attribute):
-            current = current.value
-            continue
-        if isinstance(current, ast.UnaryOp):
-            current = current.operand
-            continue
-        return None
+def _candidate_names_from_result(node: ast.expr) -> list[str]:
+    names = []
+    for call in _candidate_calls_from_result(node):
+        name = _called_function_name(call.func)
+        if name is not None:
+            names.append(name)
+    distinct = sorted(set(names))
+    if len(distinct) > 1:
+        raise ValueError(f"ambiguous MBPP result expression: {distinct}")
+    return names
 
 
-def _unique_call_bearing_argument(node: ast.Call) -> ast.expr | None:
-    call_bearing_args = []
-    for arg in node.args:
-        if any(isinstance(descendant, ast.Call) for descendant in ast.walk(arg)):
-            call_bearing_args.append(arg)
-    if not call_bearing_args:
-        return None
-    if len(call_bearing_args) != 1:
-        raise ValueError("ambiguous MBPP wrapper call")
-    return call_bearing_args[0]
+def _candidate_calls_from_result(node: ast.AST) -> list[ast.Call]:
+    if isinstance(node, ast.Call) and not _is_wrapper_call(node):
+        return [node]
+    candidates = []
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.expr):
+            candidates.extend(_candidate_calls_from_result(child))
+    return candidates
 
 
 def _called_function_name(node: ast.expr) -> str | None:
@@ -858,13 +842,19 @@ def _rewrite_mbpp_assert_call(test: str, entry_point: str) -> str:
         and isinstance(node.func, ast.Name)
         and node.func.id == entry_point
     ]
-    if len(matches) != 1:
+    if not matches:
         raise ValueError(
             f"could not rewrite MBPP test for entry point {entry_point!r}: {test}"
         )
 
-    call = matches[0]
-    return test[: call.func.col_offset] + "candidate" + test[call.func.end_col_offset :]
+    rewritten = test
+    for call in sorted(matches, key=lambda node: node.func.col_offset, reverse=True):
+        rewritten = (
+            rewritten[: call.func.col_offset]
+            + "candidate"
+            + rewritten[call.func.end_col_offset :]
+        )
+    return rewritten
 
 
 def _bigcodebench_check_source(test: str, entry_point: str) -> str:

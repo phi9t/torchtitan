@@ -1906,6 +1906,52 @@ def test_coding_style_rejects_no_code_mbpp_rows_with_ambiguous_wrapper_calls():
         )
 
 
+def test_coding_style_imports_no_code_mbpp_rows_with_generator_wrapper():
+    rows = [
+        {
+            "task_id": 25,
+            "prompt": "Write a python function to score each value.",
+            "test_imports": [],
+            "test_list": [
+                "assert sum(score_value(x) for x in [-3, 4]) == 7",
+                "assert sum(score_value(x) for x in [1, 2]) == 3",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "score_value"
+    assert "assert sum(candidate(x) for x in [-3, 4]) == 7" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
+def test_coding_style_imports_no_code_mbpp_rows_with_list_wrapper():
+    rows = [
+        {
+            "task_id": 26,
+            "prompt": "Write a python function to score each value.",
+            "test_imports": [],
+            "test_list": [
+                "assert max([score_value(-3), score_value(2)]) == 3",
+                "assert max([score_value(1), score_value(2)]) == 2",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "score_value"
+    assert "assert max([candidate(-3), candidate(2)]) == 3" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
 def test_coding_style_imports_builtin_named_code_with_nested_argument_call():
     rows = [
         {
