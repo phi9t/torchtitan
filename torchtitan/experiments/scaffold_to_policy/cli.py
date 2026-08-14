@@ -37,6 +37,7 @@ from torchtitan.experiments.scaffold_to_policy.modular_sequences import (
 from torchtitan.experiments.scaffold_to_policy import arc_grid
 from torchtitan.experiments.scaffold_to_policy import coding_style
 from torchtitan.experiments.scaffold_to_policy import contest_code
+from torchtitan.experiments.scaffold_to_policy import evaluation_audit
 from torchtitan.experiments.scaffold_to_policy import external_harness
 from torchtitan.experiments.scaffold_to_policy import gsm_style
 from torchtitan.experiments.scaffold_to_policy import math_style
@@ -1527,6 +1528,14 @@ def write_blocker_report_input(args: argparse.Namespace) -> None:
     }
     if selected_values:
         checks["blocker_selected"] = all(bool(value) for value in selected_values)
+    execution_section = None
+    if args.blocker_type == "execution_preflight_blocked":
+        if len(blocker_payloads) != 1:
+            raise ValueError("execution_preflight_blocked requires exactly one artifact")
+        extra_checks, execution_section = report_attach.to_report_sections(
+            next(iter(blocker_payloads.values()))
+        )
+        checks.update(extra_checks)
     report = {
         "schema_version": 1,
         "run": {
@@ -1549,6 +1558,8 @@ def write_blocker_report_input(args: argparse.Namespace) -> None:
         },
         "blockers": blocker_payloads,
     }
+    if execution_section is not None:
+        report["execution"] = execution_section
     if runtime is not None:
         report["runtime"] = runtime
     arc_grid.write_json(args.output, report)
@@ -2242,6 +2253,17 @@ def write_latest_report_index(args: argparse.Namespace) -> None:
         raise SystemExit("latest report index failed: no report inputs matched")
 
 
+def audit_evaluation_artifacts(args: argparse.Namespace) -> None:
+    audit_report = evaluation_audit.audit_paths(
+        report_inputs=_expand_paths(args.report_input, args.report_glob),
+        attempt_dirs=_expand_paths(args.attempt_dir, args.attempt_glob),
+    )
+    write_json(args.output, audit_report)
+    if args.require_selected and not audit_report["selected"]:
+        failed = audit_report["status_counts"]["fail"]
+        raise SystemExit(f"evaluation audit failed with {failed} blocking findings")
+
+
 def write_external_harness_smoke(args: argparse.Namespace) -> None:
     if args.harness_family == "harbor_terminal":
         pins = external_harness.default_harbor_terminal_pins()
@@ -2841,6 +2863,18 @@ def _parse_split_paths(values: list[str]) -> dict[str, Path]:
             raise ValueError(f"expected SPLIT=PATH, got {value}")
         parsed[split] = Path(path)
     return parsed
+
+
+def _expand_paths(
+    explicit_paths: list[Path] | None,
+    glob_patterns: list[str] | None,
+) -> list[Path]:
+    paths: list[Path] = []
+    if explicit_paths:
+        paths.extend(explicit_paths)
+    for pattern in glob_patterns or []:
+        paths.extend(sorted(Path().glob(pattern)))
+    return paths
 
 
 def _add_public_import_cache_args(parser: argparse.ArgumentParser) -> None:
@@ -3910,6 +3944,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     latest_report_parser.set_defaults(func=write_latest_report_index)
+
+    audit_parser = subparsers.add_parser("audit-evaluation-artifacts")
+    audit_parser.add_argument("--report-input", type=Path, action="append")
+    audit_parser.add_argument("--report-glob", action="append")
+    audit_parser.add_argument("--attempt-dir", type=Path, action="append")
+    audit_parser.add_argument("--attempt-glob", action="append")
+    audit_parser.add_argument("--output", type=Path, required=True)
+    audit_parser.add_argument(
+        "--require-selected",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    audit_parser.set_defaults(func=audit_evaluation_artifacts)
 
     blocker_report_parser = subparsers.add_parser("write-blocker-report-input")
     blocker_report_parser.add_argument("--results-root", type=Path, required=True)

@@ -12,11 +12,13 @@ import json
 from pathlib import Path
 
 import pytest
+from torchtitan.experiments.execution.preflight import profiles, query
 from torchtitan.experiments.scaffold_to_policy import (
     arc_grid,
     cli as scaffold_cli,
     coding_style,
     contest_code,
+    evaluation_audit,
     external_harness,
     gsm_style,
     math_style,
@@ -37,6 +39,28 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     write_jsonl,
 )
 from torchtitan.experiments.scaffold_to_policy.cli import build_parser
+
+
+def _ready_preflight(profile_names: list[str]) -> dict[str, object]:
+    return query.run_preflight(
+        profile_names=profile_names,
+        env=profiles.ProbeEnv(
+            in_rootfs=True,
+            available_packages={"torch", "datasets", "transformers", "vllm"},
+            gpu_count=1,
+        ),
+    )
+
+
+def _blocked_preflight(profile_names: list[str]) -> dict[str, object]:
+    return query.run_preflight(
+        profile_names=profile_names,
+        env=profiles.ProbeEnv(
+            in_rootfs=True,
+            available_packages={"torch", "datasets", "transformers"},
+            gpu_count=0,
+        ),
+    )
 
 
 def test_arithmetic_words_generation_is_deterministic():
@@ -70,25 +94,15 @@ def test_cli_attaches_execution_preflight_to_report_input(tmp_path):
         "metrics": {"splits": {"dev": {"num_problems": 1}}},
     }
     preflight = tmp_path / "preflight.json"
-    preflight.write_text(
-        json.dumps(
-            {
-                "kind": "execution_preflight",
-                "readiness": "blocked",
-                "execution_outcome": "blocked",
-                "blocker_codes": ["rootfs_not_active"],
-                "profiles": ["rootfs_cpu"],
-                "semantic_checks": [],
-            }
-        )
-    )
+    preflight.write_text(json.dumps(_blocked_preflight(["vllm_1gpu"])))
 
     scaffold_cli._attach_execution_preflight(report_input, preflight)
 
     assert report_input["checks"]["preflight_ready"] is False
     assert report_input["checks"]["summaries_present"] is True
     assert report_input["execution"]["kind"] == "execution_preflight"
-    assert report_input["execution"]["blocker_codes"] == ["rootfs_not_active"]
+    assert "vllm_not_importable" in report_input["execution"]["blocker_codes"]
+    assert "insufficient_gpus" in report_input["execution"]["blocker_codes"]
 
 
 @pytest.mark.parametrize(
@@ -129,6 +143,169 @@ def test_report_input_parsers_accept_execution_preflight(command):
     assert args.execution_preflight == Path("preflight.json")
 
 
+def test_audit_report_input_accepts_real_zero_measurement(tmp_path):
+    artifact = tmp_path / "summary.json"
+    artifact.write_text(json.dumps({"run_id": "run-zero"}))
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-zero", "task": "coding_style"},
+                "checks": {
+                    "artifact_provenance_labeled": True,
+                    "summaries_present": True,
+                },
+                "metrics": {
+                    "splits": {
+                        "dev": {
+                            "num_problems": 2,
+                            "total_rollouts": 4,
+                            "pass_at_k": {"1": 0.0, "2": 0.0},
+                        }
+                    }
+                },
+                "artifacts": {
+                    "details": {
+                        "summary": {
+                            "path": str(artifact),
+                            "exists": True,
+                            "sha256": "abc",
+                            "run_binding": {
+                                "run_id": "run-zero",
+                                "status": "fresh",
+                            },
+                        }
+                    }
+                },
+            }
+        )
+    )
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert audit["selected"]
+    assert audit["status_counts"]["fail"] == 0
+    assert any(
+        finding["audit_id"] == "report.pass_at_k_budget"
+        for finding in audit["findings"]
+    )
+
+
+def test_audit_report_input_warns_for_typed_blocker(tmp_path):
+    blocker = tmp_path / "blocker.json"
+    blocker.write_text(json.dumps({"run_id": "run-blocked", "selected": False}))
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-blocked", "task": "multiple_choice"},
+                "checks": {
+                    "artifact_provenance_labeled": True,
+                    "blocker_artifacts_present": True,
+                    "benchmark_execution_completed": False,
+                    "blocker_selected": False,
+                    "preflight_ready": False,
+                },
+                "blockers": {"import_failure": {"selected": False}},
+                "artifacts": {
+                    "details": {
+                        "blocker": {
+                            "path": str(blocker),
+                            "exists": True,
+                            "sha256": "abc",
+                            "run_binding": {
+                                "run_id": "run-blocked",
+                                "status": "fresh",
+                            },
+                        }
+                    }
+                },
+            }
+        )
+    )
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert audit["selected"]
+    assert audit["status_counts"]["fail"] == 0
+    assert any(
+        finding["audit_id"] == "report.typed_blocker"
+        and finding["status"] == "warn"
+        for finding in audit["findings"]
+    )
+
+
+def test_audit_attempt_rejects_invalid_condition_status(tmp_path):
+    attempt = tmp_path / "runs" / "run-a" / "attempt-01"
+    (attempt / "derived").mkdir(parents=True)
+    (attempt / "processes" / "coordinator").mkdir(parents=True)
+    (attempt / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-a", "family": "reasoning"},
+                "attempt": {"attempt_id": "attempt-01"},
+            }
+        )
+    )
+    (attempt / "outcome.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "attempt_id": "attempt-01",
+                "execution_outcome": "completed",
+                "evaluations": {
+                    "dev": {
+                        "execution_outcome": "completed",
+                        "measurement": "not-a-measurement",
+                        "promotion": "hold",
+                    }
+                },
+            }
+        )
+    )
+    (attempt / "derived" / "report_input.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-a"},
+                "checks": {"artifact_provenance_labeled": True},
+            }
+        )
+    )
+    (attempt / "processes" / "coordinator" / "events.jsonl").write_text("{}\n")
+
+    audit = evaluation_audit.audit_paths(attempt_dirs=[attempt])
+
+    assert not audit["selected"]
+    assert audit["status_counts"]["fail"] >= 1
+    assert any(
+        finding["audit_id"] == "attempt.evaluations"
+        for finding in audit["findings"]
+    )
+
+
+def test_audit_evaluation_artifacts_parser_accepts_globs():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "audit-evaluation-artifacts",
+            "--report-glob",
+            "results/*/report_input.json",
+            "--attempt-glob",
+            "results/*/runs/*/attempt-01",
+            "--output",
+            "audit.json",
+        ]
+    )
+
+    assert args.report_glob == ["results/*/report_input.json"]
+    assert args.attempt_glob == ["results/*/runs/*/attempt-01"]
+
+
 def test_arithmetic_report_command_attaches_execution_preflight(tmp_path):
     problems = generate_split(seed=7, num_problems=1)
     data_root = tmp_path / "data"
@@ -150,14 +327,7 @@ def test_arithmetic_report_command_attaches_execution_preflight(tmp_path):
     )
     write_json(
         preflight,
-        {
-            "kind": "execution_preflight",
-            "readiness": "ready",
-            "execution_outcome": "completed",
-            "blocker_codes": [],
-            "profiles": ["host_static"],
-            "semantic_checks": [],
-        },
+        _ready_preflight(["host_static"]),
     )
 
     parser = build_parser()
@@ -185,7 +355,7 @@ def test_arithmetic_report_command_attaches_execution_preflight(tmp_path):
     report_input = json.loads(output.read_text())
     assert report_input["checks"]["preflight_ready"] is True
     assert report_input["execution"]["kind"] == "execution_preflight"
-    assert report_input["execution"]["profiles"] == ["host_static"]
+    assert report_input["execution"]["profiles"][0]["name"] == "host_static"
 
 
 def test_gsm_style_report_command_attaches_execution_preflight(tmp_path):
@@ -215,14 +385,7 @@ def test_gsm_style_report_command_attaches_execution_preflight(tmp_path):
     )
     gsm_style.write_json(
         preflight,
-        {
-            "kind": "execution_preflight",
-            "readiness": "blocked",
-            "execution_outcome": "blocked",
-            "blocker_codes": ["vllm_missing"],
-            "profiles": ["vllm_1gpu", "reasoning"],
-            "semantic_checks": [],
-        },
+        _blocked_preflight(["vllm_1gpu", "reasoning"]),
     )
 
     parser = build_parser()
@@ -253,7 +416,7 @@ def test_gsm_style_report_command_attaches_execution_preflight(tmp_path):
     report_input = json.loads(output.read_text())
     assert report_input["checks"]["preflight_ready"] is False
     assert report_input["execution"]["kind"] == "execution_preflight"
-    assert report_input["execution"]["blocker_codes"] == ["vllm_missing"]
+    assert "vllm_not_importable" in report_input["execution"]["blocker_codes"]
 
 
 def test_multiple_choice_report_command_attaches_execution_preflight(tmp_path):
@@ -286,14 +449,7 @@ def test_multiple_choice_report_command_attaches_execution_preflight(tmp_path):
     )
     multiple_choice.write_json(
         preflight,
-        {
-            "kind": "execution_preflight",
-            "readiness": "ready",
-            "execution_outcome": "completed",
-            "blocker_codes": [],
-            "profiles": ["rootfs_cpu"],
-            "semantic_checks": [],
-        },
+        _ready_preflight(["rootfs_cpu"]),
     )
 
     parser = build_parser()
@@ -321,7 +477,7 @@ def test_multiple_choice_report_command_attaches_execution_preflight(tmp_path):
     report_input = json.loads(output.read_text())
     assert report_input["checks"]["preflight_ready"] is True
     assert report_input["execution"]["kind"] == "execution_preflight"
-    assert report_input["execution"]["profiles"] == ["rootfs_cpu"]
+    assert report_input["execution"]["profiles"][0]["name"] == "rootfs_cpu"
 
 
 def test_arithmetic_words_prompt_names_strict_output_contract():
@@ -601,6 +757,41 @@ def test_blocker_report_input_records_artifact_provenance(tmp_path):
     assert report_input["runtime"]["rootfs"]["active"]
     assert report_input["artifacts"]["details"]["runtime"]["sha256"]
     assert report_input["limitations"] == ["No model score was produced."]
+
+
+def test_blocker_report_input_attaches_execution_preflight(tmp_path):
+    parser = build_parser()
+    results_root = tmp_path / "results"
+    blocker = results_root / "manifests" / "preflight_fixture.json"
+    output = results_root / "manifests" / "report_input_fixture.json"
+    arc_grid.write_json(blocker, _blocked_preflight(["vllm_1gpu"]))
+
+    args = parser.parse_args(
+        [
+            "write-blocker-report-input",
+            "--results-root",
+            str(results_root),
+            "--run-id",
+            "fixture",
+            "--task",
+            "gsm_style",
+            "--lane",
+            "reasoning",
+            "--blocker-type",
+            "execution_preflight_blocked",
+            "--artifact",
+            f"execution_preflight={blocker}",
+            "--output",
+            str(output),
+        ]
+    )
+    args.func(args)
+
+    report_input = json.loads(output.read_text())
+    assert report_input["checks"]["benchmark_execution_completed"] is False
+    assert report_input["checks"]["preflight_ready"] is False
+    assert report_input["execution"]["readiness"] == "blocked"
+    assert "insufficient_gpus" in report_input["execution"]["blocker_codes"]
 
 
 def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():

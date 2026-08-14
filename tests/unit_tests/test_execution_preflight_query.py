@@ -102,3 +102,38 @@ def test_report_attach_rejects_blocked_without_blocker_codes():
     with pytest.raises(ValueError, match="blocked preflight"):
         report_attach.to_report_sections(preflight)
 
+
+def test_report_attach_rejects_unsupported_schema_version():
+    preflight = query.run_preflight(profile_names=["host_static"], env=_ready_env())
+    preflight["schema_version"] = 2
+
+    with pytest.raises(ValueError, match="schema_version"):
+        report_attach.to_report_sections(preflight)
+
+
+def test_report_attach_rejects_malformed_profile_report():
+    preflight = query.run_preflight(profile_names=["host_static"], env=_ready_env())
+    preflight["profiles"] = ["host_static"]
+
+    with pytest.raises(ValueError, match=r"profiles\[0\]"):
+        report_attach.to_report_sections(preflight)
+
+
+def test_report_attach_rejects_malformed_semantic_check():
+    preflight = query.run_preflight(
+        profile_names=["host_static"],
+        env=_ready_env(),
+        semantic_checks=[
+            query.SemanticCheck(
+                name="fixture",
+                passed=False,
+                blocker_code="fixture_failed",
+                details={},
+            )
+        ],
+    )
+    preflight["semantic_checks"][0]["details"] = "bad"
+
+    with pytest.raises(ValueError, match=r"semantic_checks\[0\]"):
+        report_attach.to_report_sections(preflight)
+

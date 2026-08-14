@@ -15,6 +15,7 @@ readiness. It never rewrites metrics, verifier, or scaffold sections.
 from __future__ import annotations
 
 from torchtitan.experiments.execution import models
+from torchtitan.experiments.execution.preflight import doctor
 
 
 _READINESS = ("ready", "blocked")
@@ -46,6 +47,8 @@ def to_report_sections(
 
 
 def _validate_preflight(preflight: dict[str, object]) -> None:
+    if preflight.get("schema_version") != 1:
+        raise ValueError("preflight.schema_version must be 1")
     if preflight.get("kind") != "execution_preflight":
         raise ValueError("preflight.kind must be 'execution_preflight'")
     readiness = preflight.get("readiness")
@@ -73,8 +76,81 @@ def _validate_preflight(preflight: dict[str, object]) -> None:
     if readiness == "blocked" and not blocker_codes:
         raise ValueError("blocked preflight must include blocker_codes")
     profiles = preflight.get("profiles")
-    if not isinstance(profiles, list):
-        raise ValueError("preflight.profiles must be a list")
+    if not isinstance(profiles, list) or not profiles:
+        raise ValueError("preflight.profiles must be a non-empty list")
+    for index, profile in enumerate(profiles):
+        _validate_profile_report(profile, index)
     semantic_checks = preflight.get("semantic_checks")
     if not isinstance(semantic_checks, list):
         raise ValueError("preflight.semantic_checks must be a list")
+    for index, semantic_check in enumerate(semantic_checks):
+        _validate_semantic_check(semantic_check, index)
+
+
+def _validate_profile_report(value: object, index: int) -> None:
+    if not isinstance(value, dict):
+        raise ValueError(f"preflight.profiles[{index}] must be an object")
+    if value.get("kind") != "profile_report":
+        raise ValueError(f"preflight.profiles[{index}].kind must be 'profile_report'")
+    if not isinstance(value.get("name"), str) or not value.get("name"):
+        raise ValueError(f"preflight.profiles[{index}].name must be non-empty")
+    readiness = value.get("readiness")
+    if readiness not in _READINESS:
+        raise ValueError(f"preflight.profiles[{index}].readiness is invalid")
+    execution_outcome = value.get("execution_outcome")
+    if execution_outcome != _READY_OUTCOMES[readiness]:
+        raise ValueError(
+            f"preflight.profiles[{index}].execution_outcome is inconsistent"
+        )
+    blocker_codes = value.get("blocker_codes")
+    if not isinstance(blocker_codes, list) or not all(
+        isinstance(code, str) and code for code in blocker_codes
+    ):
+        raise ValueError(
+            f"preflight.profiles[{index}].blocker_codes must be a list of strings"
+        )
+    clauses = value.get("clauses")
+    if not isinstance(clauses, list):
+        raise ValueError(f"preflight.profiles[{index}].clauses must be a list")
+    for clause_index, clause in enumerate(clauses):
+        _validate_clause(clause, index, clause_index)
+
+
+def _validate_clause(value: object, profile_index: int, clause_index: int) -> None:
+    prefix = f"preflight.profiles[{profile_index}].clauses[{clause_index}]"
+    if not isinstance(value, dict):
+        raise ValueError(f"{prefix} must be an object")
+    for field in ("name", "group", "requirement", "status"):
+        if not isinstance(value.get(field), str) or not value.get(field):
+            raise ValueError(f"{prefix}.{field} must be a non-empty string")
+    if value["group"] not in doctor.CLAUSE_GROUPS:
+        raise ValueError(f"{prefix}.group is invalid")
+    if value["status"] not in doctor.CLAUSE_STATUSES:
+        raise ValueError(f"{prefix}.status is invalid")
+    if not isinstance(value.get("details"), dict):
+        raise ValueError(f"{prefix}.details must be an object")
+    blocker_code = value.get("blocker_code")
+    if value["status"] == "fail":
+        if not isinstance(blocker_code, str) or not blocker_code:
+            raise ValueError(f"{prefix}.blocker_code must be set on failed clauses")
+    elif blocker_code is not None:
+        raise ValueError(f"{prefix}.blocker_code is only valid for failed clauses")
+
+
+def _validate_semantic_check(value: object, index: int) -> None:
+    prefix = f"preflight.semantic_checks[{index}]"
+    if not isinstance(value, dict):
+        raise ValueError(f"{prefix} must be an object")
+    for field in ("name", "status"):
+        if not isinstance(value.get(field), str) or not value.get(field):
+            raise ValueError(f"{prefix}.{field} must be a non-empty string")
+    if value["status"] not in ("pass", "fail"):
+        raise ValueError(f"{prefix}.status must be 'pass' or 'fail'")
+    blocker_code = value.get("blocker_code")
+    if value["status"] == "fail":
+        if not isinstance(blocker_code, str) or not blocker_code:
+            raise ValueError(f"{prefix}.blocker_code must be set on failures")
+    elif blocker_code is not None:
+        raise ValueError(f"{prefix}.blocker_code must be null on passes")
+    if not isinstance(value.get("details"), dict):
+        raise ValueError(f"{prefix}.details must be an object")

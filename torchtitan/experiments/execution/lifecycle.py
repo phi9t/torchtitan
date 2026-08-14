@@ -144,6 +144,7 @@ class RunAttempt:
         *,
         stage_extra: dict | None = None,
         stage_extra_files: dict[str, str] | None = None,
+        terminal_kind_by_return_code: dict[int, str] | None = None,
     ) -> models.StageEvent:
         stage_invocation_id = _new_stage_invocation_id(spec.stage_id)
         self._stage_invocations.append(stage_invocation_id)
@@ -162,8 +163,11 @@ class RunAttempt:
         # An executor may declare a terminal state a return code cannot express
         # (a gate that blocked the launch, or a cancellation that interrupted
         # it); otherwise derive succeeded/failed from the return code.
-        terminal_kind = result.terminal_kind or _TERMINAL_EVENT_FOR_RETURN_CODE.get(
-            result.return_code, "stage_failed"
+        terminal_overrides = terminal_kind_by_return_code or {}
+        terminal_kind = (
+            result.terminal_kind
+            or terminal_overrides.get(result.return_code)
+            or _TERMINAL_EVENT_FOR_RETURN_CODE.get(result.return_code, "stage_failed")
         )
         terminal = models.StageEvent(
             kind=terminal_kind,

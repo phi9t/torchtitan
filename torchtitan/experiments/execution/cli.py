@@ -84,6 +84,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "command runs; a missing file is skipped. Repeat for multiple keys.",
     )
     stage.add_argument(
+        "--terminal-kind-for-return-code",
+        action="append",
+        default=None,
+        dest="terminal_kind_for_return_codes",
+        metavar="CODE=EVENT",
+        help="map one command return code to a terminal stage event such as "
+        "stage_blocked; repeat for multiple codes",
+    )
+    stage.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="the stage argv, after a -- separator",
@@ -162,6 +171,9 @@ def _handle_stage(args: argparse.Namespace) -> int:
     argv = _stage_argv(args.command)
     stage_extra = _parse_stage_extras(args.stage_extras)
     stage_extra_files = _parse_stage_extra_files(args.stage_extra_files)
+    terminal_kind_by_return_code = _parse_terminal_kind_overrides(
+        args.terminal_kind_for_return_codes
+    )
     attempt = RunAttempt.attach(
         run_id=args.run_id,
         attempt_id=args.attempt_id,
@@ -179,6 +191,7 @@ def _handle_stage(args: argparse.Namespace) -> int:
         spec,
         stage_extra=stage_extra,
         stage_extra_files=stage_extra_files,
+        terminal_kind_by_return_code=terminal_kind_by_return_code,
     )
     # Propagate the command's return code so a shell caller can react; a
     # missing return code (blocked/interrupted) is a nonzero facade failure.
@@ -265,6 +278,27 @@ def _parse_stage_extra_files(raw: list[str] | None) -> dict[str, str] | None:
         if not sep or not key or not path:
             raise ValueError(f"--stage-extra-file must be KEY=PATH, got {item!r}")
         mapping[key] = path
+    return mapping
+
+
+def _parse_terminal_kind_overrides(raw: list[str] | None) -> dict[int, str]:
+    mapping: dict[int, str] = {}
+    for item in raw or []:
+        key, sep, value = item.partition("=")
+        if not sep or not key:
+            raise ValueError(
+                f"--terminal-kind-for-return-code must be CODE=EVENT, got {item!r}"
+            )
+        try:
+            code = int(key)
+        except ValueError as exc:
+            raise ValueError(f"return code must be an integer, got {key!r}") from exc
+        if value not in models.STAGE_TERMINAL_EVENTS:
+            raise ValueError(
+                f"terminal event must be one of {models.STAGE_TERMINAL_EVENTS}, "
+                f"got {value!r}"
+            )
+        mapping[code] = value
     return mapping
 
 

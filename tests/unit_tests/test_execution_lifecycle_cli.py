@@ -122,6 +122,38 @@ def test_stage_failure_returns_nonzero_and_records_failure(tmp_path):
     assert kinds[-1] == "stage_failed"
 
 
+def test_stage_can_map_return_code_to_blocked(tmp_path):
+    _begin(tmp_path)
+    rc = cli.main(
+        [
+            "stage",
+            "--results-root",
+            str(tmp_path),
+            "--run-id",
+            "run-1",
+            "--attempt-id",
+            "attempt-1",
+            "--stage-id",
+            "preflight",
+            "--name",
+            "preflight",
+            "--kind",
+            "preflight",
+            "--adapter",
+            "rootfs_cpu",
+            "--terminal-kind-for-return-code",
+            "1=stage_blocked",
+            "--",
+            "false",
+        ]
+    )
+    assert rc == 1
+    stream = _bundle_dir(tmp_path) / "processes" / "coordinator" / "events.jsonl"
+    rows = [json.loads(line) for line in stream.read_text().splitlines()]
+    assert rows[-1]["kind"] == "stage_blocked"
+    assert rows[-1]["return_code"] == 1
+
+
 def test_finish_reconstructs_invocations_from_event_stream(tmp_path):
     _begin(tmp_path)
     for stage_id in ("s1", "s2"):
