@@ -683,9 +683,9 @@ def _entry_point_from_code(code: str, test_list: Sequence[str]) -> str:
 def _entry_point_calls_from_assert(test: str) -> list[str]:
     statement = _single_assert(test)
     result_expr = _assert_result_expression(statement.test)
-    if not isinstance(result_expr, ast.Call):
+    candidate = _candidate_call_from_result(result_expr)
+    if candidate is None:
         return []
-    candidate = _peel_result_wrapper(result_expr)
     name = _called_function_name(candidate.func)
     return [] if name is None else [name]
 
@@ -731,18 +731,39 @@ def _is_wrapper_call(node: ast.Call) -> bool:
     )
 
 
-def _peel_result_wrapper(node: ast.Call) -> ast.Call:
+def _candidate_call_from_result(node: ast.expr) -> ast.Call | None:
     current = node
-    while _is_wrapper_call(current) and current.args:
-        nested_calls = [
-            descendant
-            for descendant in ast.walk(current.args[0])
-            if isinstance(descendant, ast.Call)
+    while True:
+        if isinstance(current, ast.Call):
+            if not _is_wrapper_call(current):
+                return current
+            nested = _unique_call_bearing_argument(current)
+            if nested is None:
+                return current
+            current = nested
+            continue
+        if isinstance(current, ast.Subscript):
+            current = current.value
+            continue
+        if isinstance(current, ast.Attribute):
+            current = current.value
+            continue
+        if isinstance(current, ast.UnaryOp):
+            current = current.operand
+            continue
+        return None
+
+
+def _unique_call_bearing_argument(node: ast.Call) -> ast.Call | None:
+    nested_calls = []
+    for arg in node.args:
+        arg_calls = [
+            descendant for descendant in ast.walk(arg) if isinstance(descendant, ast.Call)
         ]
-        if not nested_calls:
-            break
-        current = nested_calls[0]
-    return current
+        nested_calls.extend(arg_calls)
+    if len(nested_calls) != 1:
+        return None
+    return nested_calls[0]
 
 
 def _called_function_name(node: ast.expr) -> str | None:

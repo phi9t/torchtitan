@@ -1818,6 +1818,52 @@ def test_coding_style_imports_no_code_mbpp_rows_with_helper_call_argument():
     assert problems[0].canonical_solution is None
 
 
+def test_coding_style_imports_no_code_mbpp_rows_with_subscripted_result():
+    rows = [
+        {
+            "task_id": 21,
+            "prompt": "Write a python function to return normalized values.",
+            "test_imports": [],
+            "test_list": [
+                "assert normalize_values([3, 1])[0] == 1",
+                "assert normalize_values([3, 1])[1] == 3",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "normalize_values"
+    assert "assert candidate([3, 1])[0] == 1" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
+def test_coding_style_imports_no_code_mbpp_rows_with_later_wrapper_argument():
+    rows = [
+        {
+            "task_id": 22,
+            "prompt": "Write a python function to score a value.",
+            "test_imports": [],
+            "test_list": [
+                "assert max(0, score_value(-3)) == 3",
+                "assert max(0, score_value(5)) == 5",
+            ],
+        }
+    ]
+
+    problems = coding_style.import_mbpp_rows(
+        rows,
+        source="google-research-datasets/mbpp:sanitized:main:test",
+    )
+
+    assert problems[0].entry_point == "score_value"
+    assert "assert max(0, candidate(-3)) == 3" in problems[0].test
+    assert problems[0].canonical_solution is None
+
+
 def test_coding_style_imports_builtin_named_code_with_nested_argument_call():
     rows = [
         {
