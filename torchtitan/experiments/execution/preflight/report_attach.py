@@ -78,13 +78,25 @@ def _validate_preflight(preflight: dict[str, object]) -> None:
     profiles = preflight.get("profiles")
     if not isinstance(profiles, list) or not profiles:
         raise ValueError("preflight.profiles must be a non-empty list")
+    derived_profile_blockers: list[str] = []
     for index, profile in enumerate(profiles):
         _validate_profile_report(profile, index)
+        if isinstance(profile, dict):
+            derived_profile_blockers.extend(profile["blocker_codes"])
     semantic_checks = preflight.get("semantic_checks")
     if not isinstance(semantic_checks, list):
         raise ValueError("preflight.semantic_checks must be a list")
+    semantic_blockers: list[str] = []
     for index, semantic_check in enumerate(semantic_checks):
         _validate_semantic_check(semantic_check, index)
+        if isinstance(semantic_check, dict) and semantic_check["status"] == "fail":
+            semantic_blockers.append(semantic_check["blocker_code"])
+    derived_blockers = derived_profile_blockers + semantic_blockers
+    derived_readiness = "ready" if not derived_blockers else "blocked"
+    if readiness != derived_readiness:
+        raise ValueError("preflight.readiness is inconsistent with nested evidence")
+    if blocker_codes != derived_blockers:
+        raise ValueError("preflight.blocker_codes are inconsistent with nested evidence")
 
 
 def _validate_profile_report(value: object, index: int) -> None:
@@ -112,8 +124,20 @@ def _validate_profile_report(value: object, index: int) -> None:
     clauses = value.get("clauses")
     if not isinstance(clauses, list):
         raise ValueError(f"preflight.profiles[{index}].clauses must be a list")
+    derived_blockers: list[str] = []
     for clause_index, clause in enumerate(clauses):
         _validate_clause(clause, index, clause_index)
+        if isinstance(clause, dict) and clause["status"] == "fail":
+            derived_blockers.append(clause["blocker_code"])
+    derived_readiness = "ready" if not derived_blockers else "blocked"
+    if readiness != derived_readiness:
+        raise ValueError(
+            f"preflight.profiles[{index}].readiness is inconsistent with clauses"
+        )
+    if blocker_codes != derived_blockers:
+        raise ValueError(
+            f"preflight.profiles[{index}].blocker_codes are inconsistent with clauses"
+        )
 
 
 def _validate_clause(value: object, profile_index: int, clause_index: int) -> None:

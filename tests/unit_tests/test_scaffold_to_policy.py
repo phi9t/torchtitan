@@ -146,6 +146,11 @@ def test_report_input_parsers_accept_execution_preflight(command):
 def test_audit_report_input_accepts_real_zero_measurement(tmp_path):
     artifact = tmp_path / "summary.json"
     artifact.write_text(json.dumps({"run_id": "run-zero"}))
+    artifact_record = report_artifacts.describe_artifact(
+        artifact,
+        run_id="run-zero",
+        payload=json.loads(artifact.read_text()),
+    )
     report = tmp_path / "report_input.json"
     report.write_text(
         json.dumps(
@@ -167,15 +172,7 @@ def test_audit_report_input_accepts_real_zero_measurement(tmp_path):
                 },
                 "artifacts": {
                     "details": {
-                        "summary": {
-                            "path": str(artifact),
-                            "exists": True,
-                            "sha256": "abc",
-                            "run_binding": {
-                                "run_id": "run-zero",
-                                "status": "fresh",
-                            },
-                        }
+                        "summary": artifact_record,
                     }
                 },
             }
@@ -195,6 +192,11 @@ def test_audit_report_input_accepts_real_zero_measurement(tmp_path):
 def test_audit_report_input_warns_for_typed_blocker(tmp_path):
     blocker = tmp_path / "blocker.json"
     blocker.write_text(json.dumps({"run_id": "run-blocked", "selected": False}))
+    blocker_record = report_artifacts.describe_artifact(
+        blocker,
+        run_id="run-blocked",
+        payload=json.loads(blocker.read_text()),
+    )
     report = tmp_path / "report_input.json"
     report.write_text(
         json.dumps(
@@ -211,15 +213,7 @@ def test_audit_report_input_warns_for_typed_blocker(tmp_path):
                 "blockers": {"import_failure": {"selected": False}},
                 "artifacts": {
                     "details": {
-                        "blocker": {
-                            "path": str(blocker),
-                            "exists": True,
-                            "sha256": "abc",
-                            "run_binding": {
-                                "run_id": "run-blocked",
-                                "status": "fresh",
-                            },
-                        }
+                        "blocker": blocker_record,
                     }
                 },
             }
@@ -233,6 +227,44 @@ def test_audit_report_input_warns_for_typed_blocker(tmp_path):
     assert any(
         finding["audit_id"] == "report.typed_blocker"
         and finding["status"] == "warn"
+        for finding in audit["findings"]
+    )
+
+
+def test_audit_rejects_empty_input_set():
+    audit = evaluation_audit.audit_paths()
+
+    assert not audit["selected"]
+    assert audit["status_counts"]["fail"] == 1
+    assert audit["findings"][0]["audit_id"] == "audit.inputs"
+
+
+def test_audit_report_input_recomputes_artifact_hash(tmp_path):
+    artifact = tmp_path / "summary.json"
+    artifact.write_text(json.dumps({"run_id": "run-tamper", "value": 1}))
+    artifact_record = report_artifacts.describe_artifact(
+        artifact,
+        run_id="run-tamper",
+        payload=json.loads(artifact.read_text()),
+    )
+    artifact.write_text(json.dumps({"run_id": "run-tamper", "value": 2}))
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-tamper", "task": "coding_style"},
+                "checks": {"artifact_provenance_labeled": True},
+                "artifacts": {"details": {"summary": artifact_record}},
+            }
+        )
+    )
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "report.artifacts.sha256"
         for finding in audit["findings"]
     )
 
@@ -284,6 +316,64 @@ def test_audit_attempt_rejects_invalid_condition_status(tmp_path):
     assert any(
         finding["audit_id"] == "attempt.evaluations"
         for finding in audit["findings"]
+    )
+
+
+def test_audit_attempt_rejects_unpaired_events(tmp_path):
+    attempt = tmp_path / "runs" / "run-a" / "attempt-01"
+    (attempt / "derived").mkdir(parents=True)
+    (attempt / "processes" / "coordinator").mkdir(parents=True)
+    (attempt / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-a", "family": "reasoning"},
+                "attempt": {"attempt_id": "attempt-01"},
+            }
+        )
+    )
+    (attempt / "outcome.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "attempt_id": "attempt-01",
+                "execution_outcome": "completed",
+                "stage_invocation_ids": ["inv-a"],
+                "evaluations": {
+                    "dev": {
+                        "execution_outcome": "completed",
+                        "measurement": "real",
+                        "promotion": "hold",
+                    }
+                },
+            }
+        )
+    )
+    (attempt / "derived" / "report_input.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-a"},
+                "checks": {"artifact_provenance_labeled": True},
+            }
+        )
+    )
+    (attempt / "processes" / "coordinator" / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "kind": "stage_started",
+                "stage_id": "preflight",
+                "stage_invocation_id": "inv-a",
+            }
+        )
+        + "\n"
+    )
+
+    audit = evaluation_audit.audit_paths(attempt_dirs=[attempt])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "attempt.events" for finding in audit["findings"]
     )
 
 
@@ -792,6 +882,37 @@ def test_blocker_report_input_attaches_execution_preflight(tmp_path):
     assert report_input["checks"]["preflight_ready"] is False
     assert report_input["execution"]["readiness"] == "blocked"
     assert "insufficient_gpus" in report_input["execution"]["blocker_codes"]
+
+
+def test_blocker_report_input_rejects_ready_execution_preflight(tmp_path):
+    parser = build_parser()
+    results_root = tmp_path / "results"
+    blocker = results_root / "manifests" / "preflight_fixture.json"
+    output = results_root / "manifests" / "report_input_fixture.json"
+    arc_grid.write_json(blocker, _ready_preflight(["host_static"]))
+
+    args = parser.parse_args(
+        [
+            "write-blocker-report-input",
+            "--results-root",
+            str(results_root),
+            "--run-id",
+            "fixture",
+            "--task",
+            "gsm_style",
+            "--lane",
+            "reasoning",
+            "--blocker-type",
+            "execution_preflight_blocked",
+            "--artifact",
+            f"execution_preflight={blocker}",
+            "--output",
+            str(output),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="requires a blocked preflight"):
+        args.func(args)
 
 
 def test_arithmetic_words_vllm_parser_defaults_to_chat_prompt():

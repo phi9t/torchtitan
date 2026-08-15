@@ -10,6 +10,7 @@ artifacts and does not rerun model generation, training, or external harnesses.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
 from typing import Iterable
@@ -55,9 +56,15 @@ def audit_paths(
     attempt_dirs: Iterable[Path] = (),
 ) -> dict[str, object]:
     findings: list[AuditFinding] = []
-    for path in report_inputs:
+    report_input_paths = list(report_inputs)
+    attempt_dir_paths = list(attempt_dirs)
+    if not report_input_paths and not attempt_dir_paths:
+        findings.append(
+            _fail("audit.inputs", "no report inputs or attempt dirs matched", None)
+        )
+    for path in report_input_paths:
         findings.extend(audit_report_input(path))
-    for path in attempt_dirs:
+    for path in attempt_dir_paths:
         findings.extend(audit_attempt_dir(path))
     return build_audit_report(findings)
 
@@ -115,14 +122,8 @@ def audit_attempt_dir(path: Path) -> list[AuditFinding]:
         _audit_attempt_identity(manifest, outcome, report, path, findings)
         _audit_attempt_outcome(outcome, outcome_path, findings)
 
-    if not events_path.is_file():
-        findings.append(_fail("attempt.events", "missing coordinator events", events_path))
-    elif events_path.stat().st_size == 0:
-        findings.append(_fail("attempt.events", "empty coordinator events", events_path))
-    else:
-        findings.append(
-            _pass("attempt.events", "coordinator events are present", events_path)
-        )
+    if outcome is not None:
+        _audit_event_stream(events_path, outcome, findings)
 
     return findings
 
@@ -285,13 +286,25 @@ def _audit_artifact_records(
     if not records:
         findings.append(_warn("report.artifacts.records", "report has no artifact records", path))
         return
-    missing = [record for record in records if not bool(record.get("exists"))]
-    unlabeled = [record for record in records if not isinstance(record.get("run_binding"), dict)]
-    unhashed = [
-        record
-        for record in records
-        if bool(record.get("exists")) and not isinstance(record.get("sha256"), str)
-    ]
+    missing = []
+    unlabeled = []
+    unhashed = []
+    digest_mismatches = []
+    for record in records:
+        record_path = record.get("path")
+        actual_path = Path(record_path) if isinstance(record_path, str) else None
+        if actual_path is None or not actual_path.is_file():
+            missing.append(record)
+            continue
+        if not bool(record.get("exists")):
+            missing.append(record)
+        if not isinstance(record.get("run_binding"), dict):
+            unlabeled.append(record)
+        recorded_sha = record.get("sha256")
+        if not isinstance(recorded_sha, str):
+            unhashed.append(record)
+        elif _sha256(actual_path) != recorded_sha:
+            digest_mismatches.append(record)
     if missing:
         findings.append(
             _fail("report.artifacts.missing", f"{len(missing)} referenced artifacts are missing", path)
@@ -304,7 +317,15 @@ def _audit_artifact_records(
         findings.append(
             _fail("report.artifacts.unhashed", f"{len(unhashed)} existing artifact records lack sha256", path)
         )
-    if not missing and not unlabeled and not unhashed:
+    if digest_mismatches:
+        findings.append(
+            _fail(
+                "report.artifacts.sha256",
+                f"{len(digest_mismatches)} artifact digests do not match current files",
+                path,
+            )
+        )
+    if not missing and not unlabeled and not unhashed and not digest_mismatches:
         findings.append(
             _pass("report.artifacts", f"{len(records)} artifact records are present and labeled", path)
         )
@@ -359,6 +380,80 @@ def _audit_attempt_outcome(
             findings.append(_fail("attempt.evaluations", f"{name} status is invalid: {exc}", path))
     if not any(f.audit_id == "attempt.evaluations" and f.status == "fail" for f in findings):
         findings.append(_pass("attempt.evaluations", "all condition statuses are valid", path))
+
+
+def _audit_event_stream(
+    path: Path,
+    outcome: dict[str, object],
+    findings: list[AuditFinding],
+) -> None:
+    if not path.is_file():
+        findings.append(_fail("attempt.events", "missing coordinator events", path))
+        return
+    if path.stat().st_size == 0:
+        findings.append(_fail("attempt.events", "empty coordinator events", path))
+        return
+    rows = []
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            findings.append(
+                _fail("attempt.events", f"invalid JSON on line {line_number}: {exc}", path)
+            )
+            return
+        if not isinstance(row, dict):
+            findings.append(
+                _fail("attempt.events", f"event line {line_number} is not an object", path)
+            )
+            return
+        rows.append(row)
+
+    started: dict[str, dict[str, object]] = {}
+    terminal: dict[str, dict[str, object]] = {}
+    for row in rows:
+        kind = row.get("kind")
+        invocation_id = row.get("stage_invocation_id")
+        if kind not in models.STAGE_EVENT_KINDS:
+            findings.append(_fail("attempt.events", f"unknown event kind {kind!r}", path))
+            return
+        if not isinstance(invocation_id, str) or not invocation_id:
+            findings.append(_fail("attempt.events", "event missing stage_invocation_id", path))
+            return
+        if kind == "stage_started":
+            if invocation_id in started:
+                findings.append(_fail("attempt.events", "duplicate stage_started event", path))
+                return
+            started[invocation_id] = row
+        else:
+            if invocation_id in terminal:
+                findings.append(_fail("attempt.events", "duplicate terminal stage event", path))
+                return
+            terminal[invocation_id] = row
+
+    if set(started) != set(terminal):
+        findings.append(
+            _fail("attempt.events", "stage_started and terminal events are not paired", path)
+        )
+        return
+    outcome_invocations = outcome.get("stage_invocation_ids")
+    if not isinstance(outcome_invocations, list) or not all(
+        isinstance(value, str) and value for value in outcome_invocations
+    ):
+        findings.append(
+            _fail("attempt.events", "outcome has invalid stage_invocation_ids", path)
+        )
+        return
+    if set(outcome_invocations) != set(started):
+        findings.append(
+            _fail(
+                "attempt.events",
+                "outcome stage_invocation_ids do not match coordinator events",
+                path,
+            )
+        )
+        return
+    findings.append(_pass("attempt.events", "coordinator events are paired", path))
 
 
 def _load_required_object(
@@ -420,5 +515,13 @@ def _warn(audit_id: str, message: str, path: Path, *, scope: str = "report") -> 
     return AuditFinding(audit_id, "warn", scope, message, str(path))
 
 
-def _fail(audit_id: str, message: str, path: Path, *, scope: str = "report") -> AuditFinding:
-    return AuditFinding(audit_id, "fail", scope, message, str(path))
+def _fail(audit_id: str, message: str, path: Path | None, *, scope: str = "report") -> AuditFinding:
+    return AuditFinding(audit_id, "fail", scope, message, None if path is None else str(path))
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

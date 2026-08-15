@@ -1535,6 +1535,14 @@ def write_blocker_report_input(args: argparse.Namespace) -> None:
         extra_checks, execution_section = report_attach.to_report_sections(
             next(iter(blocker_payloads.values()))
         )
+        if (
+            execution_section["readiness"] != "blocked"
+            or execution_section["execution_outcome"] != "blocked"
+            or not execution_section["blocker_codes"]
+        ):
+            raise ValueError(
+                "execution_preflight_blocked requires a blocked preflight artifact"
+            )
         checks.update(extra_checks)
     report = {
         "schema_version": 1,

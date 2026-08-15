@@ -119,6 +119,26 @@ def test_report_attach_rejects_malformed_profile_report():
         report_attach.to_report_sections(preflight)
 
 
+def test_report_attach_rejects_top_level_profile_disagreement():
+    preflight = query.run_preflight(profile_names=["rootfs_cpu"], env=_blocked_env())
+    preflight["readiness"] = "ready"
+    preflight["execution_outcome"] = "completed"
+    preflight["blocker_codes"] = []
+
+    with pytest.raises(ValueError, match="nested evidence"):
+        report_attach.to_report_sections(preflight)
+
+
+def test_report_attach_rejects_profile_clause_disagreement():
+    preflight = query.run_preflight(profile_names=["rootfs_cpu"], env=_blocked_env())
+    preflight["profiles"][0]["readiness"] = "ready"
+    preflight["profiles"][0]["execution_outcome"] = "completed"
+    preflight["profiles"][0]["blocker_codes"] = []
+
+    with pytest.raises(ValueError, match="inconsistent with clauses"):
+        report_attach.to_report_sections(preflight)
+
+
 def test_report_attach_rejects_malformed_semantic_check():
     preflight = query.run_preflight(
         profile_names=["host_static"],
