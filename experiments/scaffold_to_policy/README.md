@@ -12,6 +12,9 @@ reports, and experiment evidence contracts.
   authoritative master program and dependency order.
 - [`runtime_preflight_roadmap.md`](runtime_preflight_roadmap.md) defines the
   bwrap rootfs, lifecycle, preflight, tracing, local Temporal, and failure model.
+- [`benchmark_evaluation_infra_design.md`](benchmark_evaluation_infra_design.md)
+  defines the shared benchmark declaration, audit, result-classification, and
+  report-validation infrastructure needed before broad benchmark claims.
 - [`training_research_plan.md`](training_research_plan.md) defines TorchTitan
   SFT, DCP recovery, policy export, deterministic RL, and async RL experiments.
 - [`reasoning_research_plan.md`](reasoning_research_plan.md) defines the
