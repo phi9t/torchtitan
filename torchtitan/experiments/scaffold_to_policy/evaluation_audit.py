@@ -304,8 +304,18 @@ def _audit_artifact_records(
         run_binding = record.get("run_binding")
         if not isinstance(run_binding, dict):
             unlabeled.append(record)
-        elif not _valid_run_binding(run_binding, run_id):
-            binding_mismatches.append(record)
+        else:
+            try:
+                payload = json.loads(actual_path.read_text())
+            except json.JSONDecodeError:
+                payload = None
+            if not _valid_run_binding(
+                run_binding,
+                run_id,
+                path=actual_path,
+                payload=payload,
+            ):
+                binding_mismatches.append(record)
         recorded_sha = record.get("sha256")
         if not isinstance(recorded_sha, str):
             unhashed.append(record)
@@ -351,15 +361,25 @@ def _audit_artifact_records(
         )
 
 
-def _valid_run_binding(run_binding: dict[str, object], run_id: str | None) -> bool:
+def _valid_run_binding(
+    run_binding: dict[str, object],
+    run_id: str | None,
+    *,
+    path: Path,
+    payload: object | None,
+) -> bool:
     if run_id is None or run_binding.get("run_id") != run_id:
         return False
-    status = run_binding.get("status")
-    if status not in {"fresh", "reused_or_unscoped"}:
+    path_contains_run_id = run_id in str(path)
+    payload_contains_run_id = _payload_contains_run_id(payload, run_id)
+    if run_binding.get("path_contains_run_id") != path_contains_run_id:
         return False
-    if not isinstance(run_binding.get("path_contains_run_id"), bool):
+    if run_binding.get("payload_contains_run_id") != payload_contains_run_id:
         return False
-    if not isinstance(run_binding.get("payload_contains_run_id"), bool):
+    expected_status = (
+        "fresh" if path_contains_run_id or payload_contains_run_id else "reused_or_unscoped"
+    )
+    if run_binding.get("status") != expected_status:
         return False
     return True
 
@@ -589,3 +609,15 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _payload_contains_run_id(payload: object | None, run_id: str) -> bool:
+    if payload is None:
+        return False
+    if isinstance(payload, str):
+        return payload == run_id or run_id in payload
+    if isinstance(payload, dict):
+        return any(_payload_contains_run_id(value, run_id) for value in payload.values())
+    if isinstance(payload, list):
+        return any(_payload_contains_run_id(value, run_id) for value in payload)
+    return False

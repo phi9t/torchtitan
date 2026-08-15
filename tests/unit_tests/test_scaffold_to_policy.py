@@ -298,6 +298,38 @@ def test_audit_report_input_rejects_wrong_run_binding(tmp_path):
     )
 
 
+def test_audit_report_input_recomputes_freshness_binding(tmp_path):
+    artifact = tmp_path / "summary.json"
+    artifact.write_text(json.dumps({"value": 1}))
+    artifact_record = report_artifacts.describe_artifact(
+        artifact,
+        run_id="run-binding",
+        payload=json.loads(artifact.read_text()),
+    )
+    artifact_record["run_binding"]["path_contains_run_id"] = True
+    artifact_record["run_binding"]["payload_contains_run_id"] = True
+    artifact_record["run_binding"]["status"] = "fresh"
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-binding", "task": "coding_style"},
+                "checks": {"artifact_provenance_labeled": True},
+                "artifacts": {"details": {"summary": artifact_record}},
+            }
+        )
+    )
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "report.artifacts.run_binding"
+        for finding in audit["findings"]
+    )
+
+
 def test_audit_attempt_rejects_invalid_condition_status(tmp_path):
     attempt = tmp_path / "runs" / "run-a" / "attempt-01"
     (attempt / "derived").mkdir(parents=True)
