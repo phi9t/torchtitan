@@ -330,6 +330,107 @@ def test_audit_report_input_recomputes_freshness_binding(tmp_path):
     )
 
 
+def test_audit_report_input_rejects_numeric_freshness_flags(tmp_path):
+    artifact = tmp_path / "summary.json"
+    artifact.write_text(json.dumps({"run_id": "run-binding"}))
+    artifact_record = report_artifacts.describe_artifact(
+        artifact,
+        run_id="run-binding",
+        payload=json.loads(artifact.read_text()),
+    )
+    artifact_record["run_binding"]["path_contains_run_id"] = 0
+    artifact_record["run_binding"]["payload_contains_run_id"] = 1
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-binding", "task": "coding_style"},
+                "checks": {"artifact_provenance_labeled": True},
+                "artifacts": {"details": {"summary": artifact_record}},
+            }
+        )
+    )
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "report.artifacts.run_binding"
+        for finding in audit["findings"]
+    )
+
+
+def test_audit_report_input_handles_binary_artifact_payload(tmp_path):
+    artifact = tmp_path / "summary.bin"
+    artifact.write_bytes(b"\xff\xfe\x00")
+    artifact_record = report_artifacts.describe_artifact(
+        artifact,
+        run_id="run-binary",
+        payload=None,
+    )
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-binary", "task": "coding_style"},
+                "checks": {"artifact_provenance_labeled": True},
+                "artifacts": {"details": {"summary": artifact_record}},
+            }
+        )
+    )
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "report.artifacts.payload"
+        for finding in audit["findings"]
+    )
+
+
+def test_audit_report_input_handles_unhashable_artifact_digest(
+    tmp_path,
+    monkeypatch,
+):
+    artifact = tmp_path / "summary.json"
+    artifact.write_text(json.dumps({"run_id": "run-unhashable"}))
+    artifact_record = report_artifacts.describe_artifact(
+        artifact,
+        run_id="run-unhashable",
+        payload=json.loads(artifact.read_text()),
+    )
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-unhashable", "task": "coding_style"},
+                "checks": {"artifact_provenance_labeled": True},
+                "artifacts": {"details": {"summary": artifact_record}},
+            }
+        )
+    )
+
+    def fail_hash(path: Path) -> str:
+        raise OSError("simulated read failure")
+
+    monkeypatch.setattr(evaluation_audit, "_sha256", fail_hash)
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "report.artifacts.sha256_read"
+        for finding in audit["findings"]
+    )
+    assert all(
+        finding["audit_id"] != "report.artifacts.payload"
+        for finding in audit["findings"]
+    )
+
+
 def test_audit_attempt_rejects_invalid_condition_status(tmp_path):
     attempt = tmp_path / "runs" / "run-a" / "attempt-01"
     (attempt / "derived").mkdir(parents=True)

@@ -292,7 +292,9 @@ def _audit_artifact_records(
     unlabeled = []
     unhashed = []
     digest_mismatches = []
+    unreadable_digests = []
     binding_mismatches = []
+    unreadable_payloads = []
     for record in records:
         record_path = record.get("path")
         actual_path = Path(record_path) if isinstance(record_path, str) else None
@@ -307,8 +309,9 @@ def _audit_artifact_records(
         else:
             try:
                 payload = json.loads(actual_path.read_text())
-            except json.JSONDecodeError:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 payload = None
+                unreadable_payloads.append(record)
             if not _valid_run_binding(
                 run_binding,
                 run_id,
@@ -319,8 +322,14 @@ def _audit_artifact_records(
         recorded_sha = record.get("sha256")
         if not isinstance(recorded_sha, str):
             unhashed.append(record)
-        elif _sha256(actual_path) != recorded_sha:
-            digest_mismatches.append(record)
+        else:
+            try:
+                actual_sha = _sha256(actual_path)
+            except OSError:
+                unreadable_digests.append(record)
+            else:
+                if actual_sha != recorded_sha:
+                    digest_mismatches.append(record)
     if missing:
         findings.append(
             _fail("report.artifacts.missing", f"{len(missing)} referenced artifacts are missing", path)
@@ -341,6 +350,22 @@ def _audit_artifact_records(
                 path,
             )
         )
+    if unreadable_digests:
+        findings.append(
+            _fail(
+                "report.artifacts.sha256_read",
+                f"{len(unreadable_digests)} artifact digests could not be recomputed",
+                path,
+            )
+        )
+    if unreadable_payloads:
+        findings.append(
+            _fail(
+                "report.artifacts.payload",
+                f"{len(unreadable_payloads)} artifact payloads could not be read as JSON",
+                path,
+            )
+        )
     if binding_mismatches:
         findings.append(
             _fail(
@@ -354,6 +379,8 @@ def _audit_artifact_records(
         and not unlabeled
         and not unhashed
         and not digest_mismatches
+        and not unreadable_digests
+        and not unreadable_payloads
         and not binding_mismatches
     ):
         findings.append(
@@ -372,9 +399,15 @@ def _valid_run_binding(
         return False
     path_contains_run_id = run_id in str(path)
     payload_contains_run_id = _payload_contains_run_id(payload, run_id)
-    if run_binding.get("path_contains_run_id") != path_contains_run_id:
+    recorded_path_binding = run_binding.get("path_contains_run_id")
+    recorded_payload_binding = run_binding.get("payload_contains_run_id")
+    if not isinstance(recorded_path_binding, bool):
         return False
-    if run_binding.get("payload_contains_run_id") != payload_contains_run_id:
+    if not isinstance(recorded_payload_binding, bool):
+        return False
+    if recorded_path_binding != path_contains_run_id:
+        return False
+    if recorded_payload_binding != payload_contains_run_id:
         return False
     expected_status = (
         "fresh" if path_contains_run_id or payload_contains_run_id else "reused_or_unscoped"
