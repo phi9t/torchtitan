@@ -100,7 +100,7 @@ def audit_report_input(path: Path) -> list[AuditFinding]:
 
     _audit_report_checks(payload, path, findings)
     _audit_metrics(payload, path, findings)
-    _audit_artifact_records(payload, path, findings)
+    _audit_artifact_records(payload, path, findings, run_id=run_id)
     return findings
 
 
@@ -277,6 +277,8 @@ def _audit_artifact_records(
     payload: dict[str, object],
     path: Path,
     findings: list[AuditFinding],
+    *,
+    run_id: str | None,
 ) -> None:
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, dict):
@@ -290,6 +292,7 @@ def _audit_artifact_records(
     unlabeled = []
     unhashed = []
     digest_mismatches = []
+    binding_mismatches = []
     for record in records:
         record_path = record.get("path")
         actual_path = Path(record_path) if isinstance(record_path, str) else None
@@ -298,8 +301,11 @@ def _audit_artifact_records(
             continue
         if not bool(record.get("exists")):
             missing.append(record)
-        if not isinstance(record.get("run_binding"), dict):
+        run_binding = record.get("run_binding")
+        if not isinstance(run_binding, dict):
             unlabeled.append(record)
+        elif not _valid_run_binding(run_binding, run_id):
+            binding_mismatches.append(record)
         recorded_sha = record.get("sha256")
         if not isinstance(recorded_sha, str):
             unhashed.append(record)
@@ -325,10 +331,37 @@ def _audit_artifact_records(
                 path,
             )
         )
-    if not missing and not unlabeled and not unhashed and not digest_mismatches:
+    if binding_mismatches:
+        findings.append(
+            _fail(
+                "report.artifacts.run_binding",
+                f"{len(binding_mismatches)} artifact run bindings are invalid",
+                path,
+            )
+        )
+    if (
+        not missing
+        and not unlabeled
+        and not unhashed
+        and not digest_mismatches
+        and not binding_mismatches
+    ):
         findings.append(
             _pass("report.artifacts", f"{len(records)} artifact records are present and labeled", path)
         )
+
+
+def _valid_run_binding(run_binding: dict[str, object], run_id: str | None) -> bool:
+    if run_id is None or run_binding.get("run_id") != run_id:
+        return False
+    status = run_binding.get("status")
+    if status not in {"fresh", "reused_or_unscoped"}:
+        return False
+    if not isinstance(run_binding.get("path_contains_run_id"), bool):
+        return False
+    if not isinstance(run_binding.get("payload_contains_run_id"), bool):
+        return False
+    return True
 
 
 def _audit_attempt_identity(
@@ -411,29 +444,55 @@ def _audit_event_stream(
 
     started: dict[str, dict[str, object]] = {}
     terminal: dict[str, dict[str, object]] = {}
+    ordered_invocations: list[str] = []
     for row in rows:
         kind = row.get("kind")
         invocation_id = row.get("stage_invocation_id")
+        stage_id = row.get("stage_id")
         if kind not in models.STAGE_EVENT_KINDS:
             findings.append(_fail("attempt.events", f"unknown event kind {kind!r}", path))
             return
         if not isinstance(invocation_id, str) or not invocation_id:
             findings.append(_fail("attempt.events", "event missing stage_invocation_id", path))
             return
+        if not isinstance(stage_id, str) or not stage_id:
+            findings.append(_fail("attempt.events", "event missing stage_id", path))
+            return
         if kind == "stage_started":
             if invocation_id in started:
                 findings.append(_fail("attempt.events", "duplicate stage_started event", path))
                 return
+            if invocation_id in terminal:
+                findings.append(
+                    _fail("attempt.events", "stage_started appears after terminal event", path)
+                )
+                return
             started[invocation_id] = row
+            ordered_invocations.append(invocation_id)
         else:
+            if invocation_id not in started:
+                findings.append(
+                    _fail("attempt.events", "terminal event appears before stage_started", path)
+                )
+                return
             if invocation_id in terminal:
                 findings.append(_fail("attempt.events", "duplicate terminal stage event", path))
+                return
+            if started[invocation_id].get("stage_id") != stage_id:
+                findings.append(
+                    _fail("attempt.events", "terminal stage_id does not match start", path)
+                )
                 return
             terminal[invocation_id] = row
 
     if set(started) != set(terminal):
         findings.append(
             _fail("attempt.events", "stage_started and terminal events are not paired", path)
+        )
+        return
+    if len(ordered_invocations) != len(set(ordered_invocations)):
+        findings.append(
+            _fail("attempt.events", "duplicate stage_invocation_ids in event stream", path)
         )
         return
     outcome_invocations = outcome.get("stage_invocation_ids")
@@ -444,7 +503,12 @@ def _audit_event_stream(
             _fail("attempt.events", "outcome has invalid stage_invocation_ids", path)
         )
         return
-    if set(outcome_invocations) != set(started):
+    if len(outcome_invocations) != len(set(outcome_invocations)):
+        findings.append(
+            _fail("attempt.events", "outcome has duplicate stage_invocation_ids", path)
+        )
+        return
+    if outcome_invocations != ordered_invocations:
         findings.append(
             _fail(
                 "attempt.events",

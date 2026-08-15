@@ -269,6 +269,35 @@ def test_audit_report_input_recomputes_artifact_hash(tmp_path):
     )
 
 
+def test_audit_report_input_rejects_wrong_run_binding(tmp_path):
+    artifact = tmp_path / "summary.json"
+    artifact.write_text(json.dumps({"run_id": "run-binding"}))
+    artifact_record = report_artifacts.describe_artifact(
+        artifact,
+        run_id="other-run",
+        payload=json.loads(artifact.read_text()),
+    )
+    report = tmp_path / "report_input.json"
+    report.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-binding", "task": "coding_style"},
+                "checks": {"artifact_provenance_labeled": True},
+                "artifacts": {"details": {"summary": artifact_record}},
+            }
+        )
+    )
+
+    audit = evaluation_audit.audit_paths(report_inputs=[report])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "report.artifacts.run_binding"
+        for finding in audit["findings"]
+    )
+
+
 def test_audit_attempt_rejects_invalid_condition_status(tmp_path):
     attempt = tmp_path / "runs" / "run-a" / "attempt-01"
     (attempt / "derived").mkdir(parents=True)
@@ -360,6 +389,72 @@ def test_audit_attempt_rejects_unpaired_events(tmp_path):
     )
     (attempt / "processes" / "coordinator" / "events.jsonl").write_text(
         json.dumps(
+            {
+                "kind": "stage_started",
+                "stage_id": "preflight",
+                "stage_invocation_id": "inv-a",
+            }
+        )
+        + "\n"
+    )
+
+    audit = evaluation_audit.audit_paths(attempt_dirs=[attempt])
+
+    assert not audit["selected"]
+    assert any(
+        finding["audit_id"] == "attempt.events" for finding in audit["findings"]
+    )
+
+
+def test_audit_attempt_rejects_terminal_before_start(tmp_path):
+    attempt = tmp_path / "runs" / "run-a" / "attempt-01"
+    (attempt / "derived").mkdir(parents=True)
+    (attempt / "processes" / "coordinator").mkdir(parents=True)
+    (attempt / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-a", "family": "reasoning"},
+                "attempt": {"attempt_id": "attempt-01"},
+            }
+        )
+    )
+    (attempt / "outcome.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "attempt_id": "attempt-01",
+                "execution_outcome": "completed",
+                "stage_invocation_ids": ["inv-a"],
+                "evaluations": {
+                    "dev": {
+                        "execution_outcome": "completed",
+                        "measurement": "real",
+                        "promotion": "hold",
+                    }
+                },
+            }
+        )
+    )
+    (attempt / "derived" / "report_input.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run": {"run_id": "run-a"},
+                "checks": {"artifact_provenance_labeled": True},
+            }
+        )
+    )
+    (attempt / "processes" / "coordinator" / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "kind": "stage_succeeded",
+                "stage_id": "preflight",
+                "stage_invocation_id": "inv-a",
+            }
+        )
+        + "\n"
+        + json.dumps(
             {
                 "kind": "stage_started",
                 "stage_id": "preflight",
