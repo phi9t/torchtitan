@@ -246,6 +246,224 @@ bundle:
 - measured Tier-0 throughput, memory, host CPU, artifact-volume, detection, or
   correctness proof.
 
+### Producer roadmap for estimator core hooks
+
+This roadmap is documentation only. It does not change schema version 1, does
+not imply that these producers exist today, and does not authorize core code
+changes, a central collector, optional dependencies, or training-control-flow
+changes. Child tickets must implement each producer at its owning component
+boundary and preserve the current v1 bundle contract.
+
+The proposed fields below are the minimum useful core hooks for the
+training-state estimator. Each field should be emitted only when the owning
+component already has the source event or artifact in hand; otherwise the
+offline analyzer should mark the evidence family absent instead of inventing
+values.
+
+- Topology fields:
+  - `topology_epoch`: owner `torchtitan.distributed` mesh setup; Tier 0; low
+    overhead risk when emitted once per mesh or topology change; source kind
+    distributed binding or membership snapshot; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus artifact/event
+    inspection; fallback absent means all topology-derived observations carry
+    `quality=uncollected`; child ticket needed.
+  - `device_uuid`: owner distributed device binding; Tier 0; low overhead risk
+    when read once after device assignment; source kind distributed binding
+    event; validation command `NGPU=2 ./run_train.sh` on CUDA hardware plus
+    event inspection; fallback use `device_index` only and mark physical-device
+    joins as incomplete; child ticket needed.
+  - `mesh_axis_<axis>_{rank,size}`: owner distributed mesh setup; Tier 0; low
+    overhead risk because current structured events already carry available
+    axis ranks and sizes after binding; source kind structured event context;
+    validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus structured-event
+    inspection; fallback retain process-only joins and skip mesh graph edges;
+    no child ticket needed for current axes unless new mesh axes are added.
+  - `topology_source`: owner distributed setup or launcher metadata adapter;
+    Tier 0 for launcher/static metadata, Tier 1 for external topology dumps;
+    medium overhead risk if it shells out or queries hardware at startup;
+    source kind topology snapshot artifact; validation command
+    `NGPU=2 ./run_train.sh` with the source enabled plus artifact inspection;
+    fallback topology source is `unknown` and physical-link confidence is
+    unavailable; child ticket needed.
+
+- Microbatch fields:
+  - `step`: owner core `Trainer` train-step loop; Tier 0; low overhead risk
+    because step identity is already tracked for logs and checkpoint cadence;
+    source kind structured event context; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus structured-event
+    inspection; fallback align by event order only and mark transaction
+    observations under-specified; child ticket needed only for missing
+    step-bound events.
+  - `microbatch`: owner pipeline schedule or train-step loop; Tier 0 when PP is
+    disabled or when emitted at optimizer-step granularity, Tier 1 for
+    per-microbatch timing; medium overhead risk if emitted per microbatch on
+    every rank; source kind structured train-step or schedule event; validation
+    command `NGPU=2 ./run_train.sh` with a PP config plus event inspection;
+    fallback aggregate only at optimizer-step scope and skip microbatch
+    dependency edges; child ticket needed.
+  - `microbatch_count`: owner pipeline schedule or train-step loop; Tier 0; low
+    overhead risk when emitted once per optimizer step; source kind structured
+    train-step event; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus event inspection;
+    fallback infer nothing from config and mark microbatch completeness unknown;
+    child ticket needed.
+  - `gradient_accumulation_index`: owner train-step loop; Tier 0; low overhead
+    risk when emitted once per local accumulation step; source kind structured
+    train-step event; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus event inspection;
+    fallback do not distinguish local accumulation work from optimizer-step
+    work; child ticket needed.
+
+- Collective fields:
+  - `process_group_id`: owner distributed process-group creation or collective
+    wrapper; Tier 0 for stable creation snapshots, Tier 1 for per-collective
+    events; medium overhead risk until PyTorch exposes stable IDs for every
+    group; source kind process-group membership snapshot or collective event;
+    validation command `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus
+    membership/event inspection; fallback join collectives only by rank, phase,
+    and time window; child ticket needed.
+  - `process_group_epoch`: owner distributed process-group lifecycle; Tier 0;
+    low overhead risk when incremented only on group creation, destruction, or
+    elastic membership change; source kind process-group membership snapshot;
+    validation command `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus
+    snapshot inspection; fallback transaction-risk output reports membership
+    epoch unavailable; child ticket needed.
+  - `collective_name`: owner collective wrapper, Flight Recorder join, or
+    profiler summary adapter; Tier 1; medium overhead risk for per-collective
+    logging, low if derived offline from existing traces; source kind
+    collective event or trace summary; validation command
+    `NGPU=2 ./run_train.sh` with profiler/Flight Recorder enabled plus summary
+    inspection; fallback collective residuals remain phase-level only; child
+    ticket needed.
+  - `collective_seq`: owner collective wrapper or trace summary adapter; Tier 1;
+    medium overhead risk for online per-collective counters; source kind
+    collective event or trace summary; validation command
+    `NGPU=2 ./run_train.sh` with profiler/Flight Recorder enabled plus summary
+    inspection; fallback cannot separate arrival skew from repeated same-name
+    collective calls; child ticket needed.
+
+- Checkpoint fields:
+  - `checkpoint_id`: owner checkpoint manager; Tier 0; low overhead risk when
+    derived from the native checkpoint path already indexed by v1; source kind
+    checkpoint artifact lifecycle row; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` with checkpointing enabled
+    plus artifact-index inspection; fallback use artifact path as an opaque
+    checkpoint reference; child ticket needed for semantic identity beyond
+    current artifact IDs.
+  - `checkpoint_operation`: owner checkpoint manager; Tier 0; low overhead risk
+    because save/load direction is already known at declaration; source kind
+    checkpoint artifact lifecycle metadata; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` with checkpointing enabled
+    plus artifact-index inspection; fallback infer only from artifact relation
+    and mark operation confidence low; child ticket needed.
+  - `checkpoint_parent_id`: owner checkpoint manager; Tier 0; low overhead risk
+    when recorded once per save after successful load or previous save; source
+    kind semantic checkpoint manifest; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` resume from a prior
+    checkpoint plus manifest inspection; fallback lineage graph starts a new
+    unknown-parent root; child ticket needed.
+  - `checkpoint_state_inventory`: owner checkpoint manager; Tier 1; medium
+    overhead risk if it enumerates shards or state entries during a hot path;
+    source kind semantic checkpoint manifest; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` checkpoint save/load smoke
+    plus manifest inspection; fallback report checkpoint presence without
+    restore-equivalence or shard-completeness claims; child ticket needed.
+
+- Data cursor fields:
+  - `data_cursor_id`: owner dataloader or dataset state component; Tier 0; low
+    overhead risk when emitted at checkpoint or step boundary only; source kind
+    data-cursor snapshot or checkpoint metadata; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` with checkpointing enabled
+    plus metadata inspection; fallback transaction reasoning reports data
+    position unavailable; child ticket needed.
+  - `data_cursor_position`: owner dataloader or dataset state component; Tier 0
+    at checkpoint boundary, Tier 1 at regular step intervals; medium overhead
+    risk if serialized frequently or for large sampler state; source kind
+    data-cursor snapshot; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` checkpoint/resume smoke plus
+    snapshot inspection; fallback cannot prove replay position or sample
+    freshness; child ticket needed.
+  - `rng_state_id`: owner checkpoint manager with dataloader and RNG state
+    providers; Tier 0 at checkpoint boundary; medium overhead risk if content
+    digests are computed synchronously; source kind checkpoint semantic
+    manifest; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` checkpoint/resume smoke plus
+    manifest inspection; fallback checkpoint lineage cannot claim deterministic
+    resume equivalence; child ticket needed.
+
+- Replica and process-group epoch fields:
+  - `replica_id`: owner TorchFT or replica manager, absent for non-replicated
+    core runs; Tier 0; low overhead risk when copied from replica setup
+    metadata; source kind replica membership snapshot; validation command
+    TorchFT smoke with run evidence enabled plus snapshot inspection; fallback
+    treat the process as a single unnamed replica; child ticket needed.
+  - `replica_epoch`: owner TorchFT or replica manager; Tier 0; low overhead risk
+    when emitted only on replica membership or role changes; source kind
+    replica membership snapshot; validation command TorchFT failover or restart
+    smoke plus snapshot inspection; fallback transaction-risk output reports
+    replica epoch unavailable; child ticket needed.
+  - `replica_role`: owner TorchFT or replica manager; Tier 0; low overhead risk
+    when emitted with replica membership; source kind replica membership
+    snapshot; validation command TorchFT smoke plus snapshot inspection;
+    fallback do not infer primary/standby or per-replica checkpoint ownership;
+    child ticket needed.
+
+- Transaction fields:
+  - `transaction_id`: owner train-step loop or checkpoint manager; Tier 0; low
+    overhead risk when assigned once per optimizer step and reused by related
+    checkpoint events; source kind structured train-step event and checkpoint
+    manifest; validation command `COMM_MODE=fake_backend NGPU=2 ./run_train.sh`
+    plus event/artifact inspection; fallback transaction observations remain
+    advisory and unjoined; child ticket needed.
+  - `transaction_state`: owner train-step loop; Tier 0; low overhead risk for
+    coarse `started`, `optimizer_committed`, and `checkpointed` states; source
+    kind structured train-step event; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus event inspection;
+    fallback cannot distinguish speculative work from committed optimizer
+    state; child ticket needed.
+  - `optimizer_step_committed`: owner optimizer/train-step loop; Tier 0; low
+    overhead risk when emitted once after successful optimizer and scheduler
+    updates; source kind structured train-step event; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` plus event inspection;
+    fallback transaction-risk output cannot claim whether the step committed;
+    child ticket needed.
+  - `latest_recoverable_checkpoint_id`: owner checkpoint manager; Tier 0; low
+    overhead risk when updated after checkpoint completion; source kind
+    checkpoint artifact lifecycle row or semantic manifest; validation command
+    `COMM_MODE=fake_backend NGPU=2 ./run_train.sh` checkpoint save smoke plus
+    artifact/manifest inspection; fallback recovery horizon remains unknown;
+    child ticket needed.
+
+- Incident fields:
+  - `incident_id`: owner run-evidence incident producer at the component that
+    observes the fault; Tier 0 for fatal correctness and process outcomes,
+    Tier 2 for anomaly-triggered diagnostics; low overhead risk for one record
+    per incident; source kind typed incident record; validation command focused
+    failure injection or existing failing config plus incident-record
+    inspection; fallback derive only coarse incidents from process outcomes and
+    artifact failures; child ticket needed.
+  - `incident_type`: owner observing component; Tier 0; low overhead risk for
+    enum classification; source kind typed incident record; validation command
+    focused failure injection plus incident-record inspection; fallback classify
+    as `unknown_failure` from terminal outcome only; child ticket needed.
+  - `incident_severity`: owner observing component; Tier 0; low overhead risk
+    for bounded enum values; source kind typed incident record; validation
+    command focused failure injection plus incident-record inspection; fallback
+    analyzer uses conservative unknown severity; child ticket needed.
+  - `incident_window_ns`: owner incident producer or offline analyzer; Tier 2
+    if anomaly-triggered, Tier 0 only for fixed terminal-failure windows; low
+    overhead risk when storing two timestamps; source kind typed incident
+    record or analyzer report; validation command focused failure injection
+    plus report inspection; fallback analyzer uses configured default windows;
+    child ticket needed.
+  - `incident_source_artifact_id`: owner incident producer; Tier 0 for
+    artifact-failure incidents, Tier 2 for diagnostic artifacts; low overhead
+    risk when referencing existing artifact rows; source kind typed incident
+    record; validation command artifact-failure injection plus index and
+    incident inspection; fallback incident is not joined to native artifacts;
+    child ticket needed.
+
 A `local_tensor` launch is useful for checking entrypoint and evidence bootstrap
 plumbing, but the entrypoint returns before constructing `Trainer`. It is not
 distributed-training, numerical, scale, convergence, overhead, correctness, or
