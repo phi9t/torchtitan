@@ -1,11 +1,18 @@
 # Modded NanoGPT B200 Benchmark Design
 
-Status: design draft
+Status: historical design draft; superseded for implementation
 Date: 2026-08-14
 Surface: repo-local research program
 Route: `ask-matt` gated design path
 
 ## Intent
+
+This document is retained as the historical benchmark-design sketch. The
+canonical implementation spec and current acceptance criteria now live in
+`.scratch/modded-nanogpt-b200/spec.md`; executable launch rules live in
+`experiments/modded_nanogpt_b200/preflight_checklist.md`. When this document
+conflicts with either file, use the scratch spec first and the preflight
+checklist second.
 
 Design a B200 benchmark around
 `https://github.com/kellerjordan/modded-nanogpt` that answers three separate

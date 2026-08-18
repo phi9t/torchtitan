@@ -13,6 +13,9 @@ data
 experiments/countdown_search_distill/data_rescored/
 experiments/countdown_search_distill/results/
 experiments/countdown_search_distill/sweeps/
+experiments/modded_nanogpt_b200/data/
+experiments/modded_nanogpt_b200/results/
+experiments/modded_nanogpt_b200/sources/
 experiments/scaffold_to_policy/data/
 experiments/scaffold_to_policy/results/
 out
@@ -29,6 +32,7 @@ torchtitan/experiments/flux/assets/*
 *.log
 error.json
 _remote_module_non_scriptable.py
+.scratch/trae-pytest-tmp/
 
 # Editor temporaries (VIM)
 [._]*.s[a-v][a-z]
