@@ -41,6 +41,7 @@ ACTIVE_JOB_SEARCH_COMMANDS = ("pgrep", "grep", "rg", "ripgrep", "ps")
 PRELAUNCH_RESULT_FILES = frozenset(
     {"operator_notes.md", "active_jobs.json", "active_jobs_prelaunch.json"}
 )
+COMPILE_WORKER_CPU_PROGRESS_THRESHOLD = 0.1
 
 
 @dataclass(frozen=True)
@@ -344,14 +345,21 @@ def _source_data_path_blocker(
     return {"phase": "data_path", "message": "; ".join(missing)}
 
 
+def _full_trial_visible_devices() -> str:
+    return ",".join(str(index) for index in range(FULL_TRIAL_GPU_COUNT))
+
+
 def _run_env(config: RunConfig) -> dict[str, str]:
     result_abs = config.result_dir.resolve()
     data_root = _data_root_from_manifest(config.data_manifest)
+    visible_devices = _full_trial_visible_devices()
     env = {
         "HF_HOME": str((Path.cwd() / ".cache/huggingface").resolve()),
         "HF_HUB_CACHE": str((Path.cwd() / ".cache/huggingface/hub").resolve()),
         "CC": "/usr/bin/gcc",
         "CXX": "/usr/bin/g++",
+        "CUDA_VISIBLE_DEVICES": visible_devices,
+        "NVIDIA_VISIBLE_DEVICES": visible_devices,
         "DATA_PATH": str(data_root),
         "TORCHINDUCTOR_CACHE_DIR": str(result_abs / "torchinductor_cache"),
         "TRITON_CACHE_DIR": str(result_abs / "triton_cache"),
@@ -446,6 +454,7 @@ def _attempt_command(config: RunConfig) -> list[str]:
 def _default_runner(cmd: list[str], **kwargs) -> CommandResult:
     log_path = kwargs.pop("log_path", None)
     no_output_timeout_seconds = kwargs.pop("no_output_timeout_seconds", None)
+    progress_probe = kwargs.pop("progress_probe", None)
     if log_path is not None:
         log_path = Path(log_path)
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -469,6 +478,9 @@ def _default_runner(cmd: list[str], **kwargs) -> CommandResult:
                 events = selector.select(timeout=timeout)
                 if not events:
                     if no_output_timeout_seconds is not None:
+                        if progress_probe is not None and progress_probe():
+                            last_output = time.monotonic()
+                            continue
                         message = (
                             f"no output for {no_output_timeout_seconds} seconds; "
                             "terminating command\n"
@@ -505,6 +517,30 @@ def _default_runner(cmd: list[str], **kwargs) -> CommandResult:
         **kwargs,
     )
     return CommandResult(returncode=proc.returncode, stdout=proc.stdout)
+
+
+def _compile_worker_progress_active() -> bool:
+    proc = subprocess.run(
+        ["ps", "-eo", "pcpu=,args="],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return False
+    for line in proc.stdout.splitlines():
+        stripped = line.strip()
+        if "torch/_inductor/compile_worker" not in stripped:
+            continue
+        cpu_text, _, _args = stripped.partition(" ")
+        try:
+            cpu_percent = float(cpu_text)
+        except ValueError:
+            continue
+        if cpu_percent >= COMPILE_WORKER_CPU_PROGRESS_THRESHOLD:
+            return True
+    return False
 
 
 def _active_job_kind(args: str) -> str | None:
@@ -1494,6 +1530,7 @@ def run_attempt(
             env=train_env,
             log_path=config.result_dir / "run.log",
             no_output_timeout_seconds=600,
+            progress_probe=_compile_worker_progress_active,
         )
     finally:
         _stop_telemetry(config, telemetry_processes, "training_finished")

@@ -122,11 +122,14 @@ def test_direct_python_cli_fails_closed_outside_rootfs(
     wrapper: str,
     args: list[str],
 ):
+    env = dict(os.environ)
+    env.pop("TORCHTITAN_IN_ROOTFS", None)
     proc = subprocess.run(
         [sys.executable, script, *args],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env=env,
     )
 
     assert proc.returncode == 21
@@ -171,13 +174,35 @@ def test_shell_wrapper_rejects_forged_rootfs_marker_outside_workspace(tmp_path: 
         "CXX": "/bin/true",
     }
     proc = subprocess.run(
-        ["bash", "experiments/modded_nanogpt_b200/setup_flash_attention.sh", "--help"],
+        [
+            "bash",
+            "/workspace/torchtitan/experiments/modded_nanogpt_b200/setup_flash_attention.sh",
+            "--help",
+        ],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         env=env,
+        cwd=tmp_path,
     )
 
     assert proc.returncode == 21
     assert "expected rootfs workspace /workspace/torchtitan" in proc.stdout
     assert "pip install" not in proc.stdout
+
+
+def test_flash_attention_setup_probes_health_before_install_commands():
+    script = Path("experiments/modded_nanogpt_b200/setup_flash_attention.sh")
+    text = script.read_text()
+
+    probe_def = text.index("flash_attn_health_probe()")
+    fast_path = text.index('flash_attn_health_probe; then')
+    cuda_install = text.index("python -m pip install")
+    flash_install = text.index("flash_attn_install=(")
+
+    assert probe_def < fast_path < cuda_install < flash_install
+    assert 'FLASH_ATTN_FORCE_REBUILD="${FLASH_ATTN_FORCE_REBUILD:-0}"' in text
+    assert '"${FLASH_ATTN_FORCE_REBUILD}" != "1"' in text
+    assert "flash-attn already healthy; skipping rebuild" in text
+    assert "--force-reinstall" in text[fast_path:]
+    assert "flash_attn_health_probe\n" in text[flash_install:]

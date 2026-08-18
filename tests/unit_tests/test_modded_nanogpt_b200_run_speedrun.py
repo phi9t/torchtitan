@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 from experiments.modded_nanogpt_b200 import run_speedrun
@@ -1179,6 +1181,74 @@ def test_full_lane_b_rejects_unclassified_variant_patch_before_preflight(
     assert "launch-full-b200" not in (result_dir / "attempt.json").read_text()
 
 
+def test_default_runner_extends_no_output_timeout_when_progress_probe_is_active(
+    tmp_path: Path,
+):
+    log_path = tmp_path / "quiet_compile.log"
+    script = tmp_path / "quiet_compile.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import time
+
+            print("compile started", flush=True)
+            time.sleep(0.25)
+            print("compile finished", flush=True)
+            """
+        )
+    )
+    probe_calls = 0
+
+    def progress_probe() -> bool:
+        nonlocal probe_calls
+        probe_calls += 1
+        return probe_calls <= 3
+
+    result = run_speedrun._default_runner(
+        [sys.executable, str(script)],
+        log_path=log_path,
+        no_output_timeout_seconds=0.1,
+        progress_probe=progress_probe,
+    )
+
+    assert result.returncode == 0
+    assert probe_calls >= 1
+    assert "compile finished" in log_path.read_text()
+    assert "no output for 0.1 seconds" not in log_path.read_text()
+
+
+def test_compile_worker_progress_probe_requires_active_cpu(monkeypatch):
+    class FakeProc:
+        returncode = 0
+        stdout = """
+          0.0 /usr/bin/python3 /usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_worker/__main__.py
+          3.5 /usr/bin/python3 /usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_worker/__main__.py
+        """
+
+    def fake_run(*args, **kwargs):
+        return FakeProc()
+
+    monkeypatch.setattr(run_speedrun.subprocess, "run", fake_run)
+
+    assert run_speedrun._compile_worker_progress_active() is True
+
+
+def test_compile_worker_progress_probe_rejects_idle_workers(monkeypatch):
+    class FakeProc:
+        returncode = 0
+        stdout = """
+          0.0 /usr/bin/python3 /usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_worker/__main__.py
+          0.0 /usr/bin/python3 train_gpt.py
+        """
+
+    def fake_run(*args, **kwargs):
+        return FakeProc()
+
+    monkeypatch.setattr(run_speedrun.subprocess, "run", fake_run)
+
+    assert run_speedrun._compile_worker_progress_active() is False
+
+
 def test_preflight_failure_stops_before_training_but_still_writes_summary(
     tmp_path: Path,
 ):
@@ -1388,6 +1458,7 @@ def test_training_attempt_starts_and_stops_telemetry(tmp_path: Path, monkeypatch
         assert kwargs["cwd"] == source
         assert kwargs["log_path"] == result_dir / "run.log"
         assert kwargs["no_output_timeout_seconds"] == 600
+        assert kwargs["progress_probe"] is run_speedrun._compile_worker_progress_active
         (result_dir / "run.log").write_text(
             "NCCL communicator abort during all_reduce\n"
         )
@@ -1522,6 +1593,126 @@ def test_training_attempt_starts_and_stops_telemetry(tmp_path: Path, monkeypatch
     assert summary["telemetry"]["reason"] == "training_finished"
     assert summary["blocker"]["phase"] == "nccl"
     assert "communicator abort" in summary["blocker"]["message"]
+
+
+def test_full_attempt_limits_setup_preflight_and_training_to_first_two_gpus(
+    tmp_path: Path, monkeypatch
+):
+    source = tmp_path / "source"
+    _make_source(source)
+    manifest = tmp_path / "data_manifest.json"
+    shard_dir = source / "data" / "fineweb10B"
+    shard_dir.mkdir(parents=True)
+    train_shard = shard_dir / "fineweb_train_000000.bin"
+    val_shard = shard_dir / "fineweb_val_000000.bin"
+    train_shard.write_bytes(b"x")
+    val_shard.write_bytes(b"y")
+    subprocess.run(["git", "add", "data"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "add data fixture"],
+        cwd=source,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "dataset": "fineweb10B",
+                "token_budget": "900M",
+                "files": [
+                    {"path": str(train_shard), "bytes": 1, "sha256": "fixture"},
+                    {"path": str(val_shard), "bytes": 1, "sha256": "fixture"},
+                ],
+            }
+        )
+        + "\n"
+    )
+    result_dir = tmp_path / "results" / "lane_b_full_gpu_mask"
+    command_envs: list[dict[str, str]] = []
+
+    def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        command_envs.append(dict(kwargs["env"]))
+        if _is_fa2_setup_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="fa2 setup ok\n")
+        if _is_preflight_command(cmd):
+            _write_success_preflight_report(
+                result_dir / "preflight_report.json",
+                lane="B",
+                mode="full",
+                run_id="lane_b_full_gpu_mask",
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        assert cmd == ["torchrun", "--standalone", "--nproc_per_node=2", "train_gpt.py"]
+        assert kwargs["cwd"] == source
+        return run_speedrun.CommandResult(returncode=0, stdout="training ok\n")
+
+    class FakeProcess:
+        pid = 4321
+        returncode = 0
+
+        def terminate(self) -> None:
+            return None
+
+        def wait(self, timeout=None) -> int:
+            return self.returncode
+
+        def kill(self) -> None:
+            return None
+
+    def fake_start(config: run_speedrun.RunConfig):
+        return [
+            run_speedrun.TelemetryProcess(
+                name="process_watch",
+                proc=FakeProcess(),
+                output=config.result_dir / "telemetry" / "process_watch.log",
+            )
+        ]
+
+    def fake_check_active_jobs(output=None):
+        report = {
+            "schema_version": 1,
+            "ok": True,
+            "active_job_count": 0,
+            "active_jobs": [],
+            "ignored_match_count": 0,
+            "ignored_matches": [],
+        }
+        if output is not None:
+            run_speedrun._write_json_atomic(output, report)
+        return report
+
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0,1,2,3,4,5,6,7")
+    monkeypatch.setenv("NVIDIA_VISIBLE_DEVICES", "all")
+    monkeypatch.setattr(run_speedrun, "_start_telemetry", fake_start)
+    monkeypatch.setattr(run_speedrun, "check_active_jobs", fake_check_active_jobs)
+
+    exit_code = run_speedrun.run_attempt(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="full",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="triton",
+            verify_sha=True,
+            launch_authorization=run_speedrun.FULL_LAUNCH_AUTHORIZATION_TOKEN,
+            result_root=tmp_path / "results",
+        ),
+        command_runner=fake_runner,
+    )
+
+    assert exit_code == 0
+    assert [env["CUDA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 3
+    assert [env["NVIDIA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 3
+    env_text = (result_dir / "command.env").read_text()
+    assert "CUDA_VISIBLE_DEVICES=0,1" in env_text
+    assert "NVIDIA_VISIBLE_DEVICES=0,1" in env_text
+    attempt_text = (result_dir / "attempt.json").read_text()
+    attempt = json.loads(attempt_text)
+    assert attempt["environment"]["CUDA_VISIBLE_DEVICES"] == "0,1"
+    assert attempt["environment"]["NVIDIA_VISIBLE_DEVICES"] == "0,1"
 
 
 def test_full_skip_run_writes_launch_readiness_report(tmp_path: Path, monkeypatch):
@@ -2371,6 +2562,8 @@ def test_direct_script_execution_fails_closed_outside_rootfs(tmp_path: Path):
     source.mkdir()
     manifest = tmp_path / "data_manifest.json"
     _make_manifest(manifest)
+    child_env = dict(os.environ)
+    child_env.pop("TORCHTITAN_IN_ROOTFS", None)
 
     proc = subprocess.run(
         [
@@ -2395,6 +2588,7 @@ def test_direct_script_execution_fails_closed_outside_rootfs(tmp_path: Path):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        env=child_env,
     )
 
     assert proc.returncode == 21
