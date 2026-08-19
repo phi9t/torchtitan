@@ -19,6 +19,9 @@ from experiments.modded_nanogpt_b200 import preflight
 LANE_B_TRITON_KERNELS = Path(
     "experiments/modded_nanogpt_b200/sources/modded-nanogpt-b200-sdpa/triton_kernels.py"
 )
+LANE_B_TRAIN_GPT = Path(
+    "experiments/modded_nanogpt_b200/sources/modded-nanogpt-b200-sdpa/train_gpt.py"
+)
 
 
 def test_direct_script_help_imports_from_repo_root():
@@ -48,6 +51,50 @@ def test_lane_b_triton_backward_flattens_3d_mlp_tensors():
     assert "dpre = linear_relu_square(grad_flat, W2, aux=post)" in backward_source
     assert "dW1 = dpre.T @ x_flat" in backward_source
     assert "dW1 = dpre.T @ x\n" not in backward_source
+
+
+def test_lane_b_softcapped_cross_entropy_backward_matches_forward_arity():
+    source = LANE_B_TRITON_KERNELS.read_text()
+    class_source = source[source.index("class FusedSoftcappedCrossEntropy") :]
+
+    assert (
+        "def forward(ctx, x, targets, mtp_weights, prefix_targets, prefix_weight, "
+        "lm_head_weight, x_s, w_s, grad_s, grad_scale, A=23.0, B=5.0, C=7.5):"
+        in class_source
+    )
+    assert (
+        "return grad_x, None, None, None, None, grad_w, None, None, None, None, "
+        "None, None, None"
+        in class_source
+    )
+
+
+def test_lane_b_train_compile_decorators_obey_compile_disable_env():
+    source = LANE_B_TRAIN_GPT.read_text()
+
+    assert "TORCH_COMPILE_DISABLE" in source
+    assert "def maybe_compile(*args, **kwargs):" in source
+    assert "@maybe_compile" in source
+    direct_compile_decorators = [
+        line
+        for line in source.splitlines()
+        if line.strip() == "@torch.compile"
+        or line.strip().startswith("@torch.compile(")
+    ]
+    assert direct_compile_decorators == []
+    assert "torch.compile(model, dynamic=False, fullgraph=model_compile_fullgraph)" in source
+
+
+def test_lane_b_compile_disabled_optimizer_avoids_eager_uint32_cuda_ops():
+    source = LANE_B_TRAIN_GPT.read_text()
+    helper_source = source[source.index("    def _cautious_wd_and_update_inplace") :]
+    helper_source = helper_source[
+        : helper_source.index("    @staticmethod", helper_source.index("return"))
+    ]
+
+    assert "p.to(torch.int32) * 65536" in helper_source
+    assert "p.to(torch.uint32) << 16" not in helper_source
+    assert "p_precise_raw.view(torch.float32)" in helper_source
 
 
 def test_torch_diagnostic_writes_success_report(monkeypatch, tmp_path):

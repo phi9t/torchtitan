@@ -39,7 +39,15 @@ FULL_TRIAL_GPU_COUNT = 2
 ACTIVE_JOB_COMMANDS = ("torchrun", "train_gpt.py", "cached_fineweb10B.py")
 ACTIVE_JOB_SEARCH_COMMANDS = ("pgrep", "grep", "rg", "ripgrep", "ps")
 PRELAUNCH_RESULT_FILES = frozenset(
-    {"operator_notes.md", "active_jobs.json", "active_jobs_prelaunch.json"}
+    {
+        "active_jobs.json",
+        "active_jobs_prelaunch.json",
+        "operator_launch.log",
+        "operator_notes.md",
+        "rootfs_plan.json",
+        "rootfs_plan_verification.json",
+        "teardown.json",
+    }
 )
 COMPILE_WORKER_CPU_PROGRESS_THRESHOLD = 0.1
 
@@ -103,13 +111,17 @@ def _is_under_result_root(path: Path, result_root: Path) -> bool:
             return False
 
 
-def _claim_label(lane: str, mode: str, attention_backend: str) -> str:
+def _claim_label(
+    lane: str, mode: str, attention_backend: str, mlp_backend: str
+) -> str:
     if mode == "smoke":
         return "smoke"
     if mode == "diagnostic":
         return "diagnostic"
     if lane == "A":
         return "B200 upstream reproduction"
+    if mode == "full" and lane == "B" and mlp_backend == "torch":
+        return "B200 prerequisite torch-MLP fallback"
     if attention_backend == "fa2":
         return "B200 compatibility patchset"
     return "B200 systems-only"
@@ -139,7 +151,12 @@ def _classification(config: RunConfig) -> dict[str, object]:
         "lane": config.lane,
         "mode": config.mode,
         "arm": arm,
-        "claim_label": _claim_label(config.lane, config.mode, config.attention_backend),
+        "claim_label": _claim_label(
+            config.lane,
+            config.mode,
+            config.attention_backend,
+            config.mlp_backend,
+        ),
         "evidence_tier": _evidence_tier(config.mode),
         "run_id": run_id,
         "attempt_id": attempt_id,
@@ -368,6 +385,9 @@ def _run_env(config: RunConfig) -> dict[str, str]:
     }
     if config.lane == "B":
         env["MODDED_NANOGPT_CE_COMPUTE_CAPABILITY"] = "100"
+    if config.lane == "B" and config.mode == "full":
+        env["MODDED_NANOGPT_COMPILE_FULLGRAPH"] = "0"
+        env["TORCH_COMPILE_DISABLE"] = "1"
     return env
 
 

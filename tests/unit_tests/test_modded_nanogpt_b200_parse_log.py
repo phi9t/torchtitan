@@ -196,6 +196,156 @@ def test_successful_full_lane_a_summary_requires_final_validation(tmp_path: Path
     }
 
 
+def test_final_metrics_parse_speedrun_ms_and_mib_format(tmp_path: Path):
+    log = tmp_path / "run.log"
+    log.write_text(
+        "\n".join(
+            [
+                "step:1285/1285 train_time:443531ms step_avg:345.16ms",
+                "step:1285/1285 val_loss:3.2873 train_time:443563ms step_avg:345.19ms",
+                "peak memory allocated: 142696 MiB reserved: 150356 MiB",
+            ]
+        )
+        + "\n"
+    )
+    preflight = tmp_path / "preflight_report.json"
+    classification = {
+        **_classification(mode="full", lane="B"),
+        "claim_label": "B200 prerequisite torch-MLP fallback",
+        "claim_eligible": False,
+    }
+    _write_json(
+        preflight,
+        {
+            "ok": True,
+            "classification": classification,
+            "environment": {"torch": "2.13.0+cu132"},
+            "gpus": [{"index": i, "name": "NVIDIA B200"} for i in range(2)],
+        },
+    )
+
+    summary = parse_log.build_summary(
+        log_path=log,
+        result_dir=tmp_path,
+        source_path=tmp_path / "variant",
+        data_manifest_path=tmp_path / "data_manifest.json",
+        preflight_report_path=preflight,
+        wall_clock_path=None,
+    )
+
+    assert summary["final_validation_reached"] is True
+    assert summary["final_metrics"] == {
+        "val_loss": 3.2873,
+        "train_time": 443.563,
+        "step_avg": 0.34519,
+        "peak_allocated_memory": 142696 / 1024,
+        "peak_reserved_memory": 150356 / 1024,
+    }
+    assert summary["included_in_baseline_stats"] is False
+    assert summary["claim_validation"]["successful_b200_reproduction"] is False
+
+
+def test_data_manifest_pointer_resolves_repo_relative_path(
+    tmp_path: Path, monkeypatch,
+):
+    repo_root = tmp_path / "repo"
+    monkeypatch.setattr(parse_log, "REPO_ROOT", repo_root)
+    full_manifest = repo_root / "experiments" / "full_manifest.json"
+    full_manifest.parent.mkdir(parents=True)
+    _write_json(
+        full_manifest,
+        {
+            "schema_version": 1,
+            "dataset": "fineweb10B",
+            "token_budget": "900M",
+            "source": {"commit": "ecbb586296d3dac36fd206211f25d63bad4a6b35"},
+            "files": [
+                {
+                    "path": str(tmp_path / "data" / f"shard_{idx:02d}.bin"),
+                    "bytes": 200001024,
+                    "sha256": f"{idx:064x}",
+                }
+                for idx in range(10)
+            ],
+            "num_files": 10,
+            "total_bytes": 2000010240,
+            "verified_sha": True,
+        },
+    )
+    pointer_dir = repo_root / "results" / "run"
+    pointer_dir.mkdir(parents=True)
+    pointer = pointer_dir / "data_manifest.json"
+    repo_relative = full_manifest.relative_to(parse_log.REPO_ROOT)
+    _write_json(
+        pointer,
+        {
+            "schema_version": 1,
+            "kind": "data_manifest_pointer",
+            "path": str(repo_relative),
+        },
+    )
+
+    summary = parse_log._data_manifest_summary(pointer)
+
+    assert summary["resolved_path"] == str(full_manifest)
+    assert summary["resolved_exists"] is True
+    assert summary["dataset"] == "fineweb10B"
+    assert summary["token_budget"] == "900M"
+    assert summary["verified_sha"] is True
+    assert summary["num_files"] == 10
+
+
+def test_full_attempt_accepts_repo_relative_launch_manifest_path(
+    tmp_path: Path, monkeypatch,
+):
+    repo_root = tmp_path / "repo"
+    monkeypatch.setattr(parse_log, "REPO_ROOT", repo_root)
+    manifest = repo_root / "experiments" / "manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}\n")
+
+    blocker = parse_log._full_attempt_evidence_blocker(
+        _classification(mode="full", lane="B"),
+        launch_readiness={
+            "training_launched": True,
+            "skip_run": False,
+            "allow_previous_stall": False,
+            "preflight_ok": True,
+            "data_manifest": "experiments/manifest.json",
+            "full_mode_gates": {
+                "verify_sha_requested": True,
+                "data_manifest_checked": True,
+                "verified_sha": True,
+                "manifest_token_budget": "900M",
+                "manifest_num_files": parse_log.EXPECTED_FINEWEB_SHARDS,
+                "manifest_total_bytes": parse_log.EXPECTED_FINEWEB_BYTES,
+                "nccl_checked": True,
+            },
+        },
+        exit_code={"phase": "training", "exit_code": 0},
+        telemetry={
+            "rootfs": {
+                "torchtitan_in_rootfs": "1",
+                "cwd": "/workspace/torchtitan",
+                "workspace_sentinel_exists": True,
+            },
+        },
+        data_manifest={
+            "path": str(repo_root / "results" / "run" / "data_manifest.json"),
+            "resolved_path": str(manifest),
+            "verified_sha": True,
+            "token_budget": "900M",
+            "num_files": parse_log.EXPECTED_FINEWEB_SHARDS,
+            "total_bytes": parse_log.EXPECTED_FINEWEB_BYTES,
+            "source_commit": parse_log.UPSTREAM_COMMIT,
+        },
+        preflight_data_manifest={"verified_sha": True},
+        gpus=[{"name": "NVIDIA B200"} for _ in range(8)],
+    )
+
+    assert blocker is None
+
+
 def test_full_baseline_rejects_nonzero_training_exit_code(tmp_path: Path):
     log = tmp_path / "run.log"
     log.write_text(
@@ -1733,3 +1883,46 @@ def test_cli_classification_overrides_legacy_preflight_without_classification(
     assert summary["classification"]["claim_label"] == "diagnostic"
     assert summary["classification"]["evidence_tier"] == "diagnostic"
     assert summary["classification"]["claim_eligible"] is False
+
+
+def test_cli_classification_preserves_explicit_non_claimable_full_override(
+    tmp_path: Path,
+):
+    log = tmp_path / "run.log"
+    log.write_text("RuntimeError: function FusedSoftcappedCrossEntropyBackward\n")
+    preflight = tmp_path / "preflight_report.json"
+    _write_json(
+        preflight,
+        {
+            "ok": True,
+            "classification": {
+                **_classification(mode="full", lane="B"),
+                "claim_label": "B200 prerequisite torch-MLP fallback",
+                "claim_eligible": False,
+            },
+        },
+    )
+
+    summary = parse_log.build_summary(
+        log_path=log,
+        result_dir=tmp_path,
+        source_path=tmp_path / "variant",
+        data_manifest_path=tmp_path / "data_manifest.json",
+        preflight_report_path=preflight,
+        wall_clock_path=None,
+        classification_override={
+            "lane": "B",
+            "mode": "full",
+            "arm": "B0",
+            "claim_label": "B200 prerequisite torch-MLP fallback",
+            "evidence_tier": "full-single-attempt",
+            "run_id": "lane_b_torch_mlp_prereq",
+            "attempt_id": "lane_b_torch_mlp_prereq_attempt_001",
+            "claim_eligible": False,
+        },
+    )
+
+    classification = summary["classification"]
+    assert classification["claim_label"] == "B200 prerequisite torch-MLP fallback"
+    assert classification["evidence_tier"] == "full-single-attempt"
+    assert classification["claim_eligible"] is False

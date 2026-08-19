@@ -433,6 +433,13 @@ def check_mlp_backend(source: Path, mlp_backend: str, allow_previous_stall: bool
         raise CheckFailure(f"unsupported MLP backend: {mlp_backend}")
 
     smoke_detail = _run_torch_mlp_smoke(source)
+    if os.environ.get("TORCH_COMPILE_DISABLE") == "1":
+        return {
+            "backend": "torch",
+            "local_smoke": smoke_detail,
+            "full_mode_policy": "compile_disabled_prerequisite",
+            "claim_eligible": False,
+        }
     if not allow_previous_stall:
         raise CheckFailure(
             "MODDED_NANOGPT_MLP_BACKEND=torch passes a local smoke, but the only full-job options "
@@ -608,13 +615,17 @@ def write_report(report_path: Path | None, report: dict[str, Any]) -> None:
     tmp.replace(report_path)
 
 
-def derive_claim_label(lane: str, mode: str, attention_backend: str) -> str:
+def derive_claim_label(
+    lane: str, mode: str, attention_backend: str, mlp_backend: str
+) -> str:
     if mode == "smoke":
         return "smoke"
     if mode == "diagnostic":
         return "diagnostic"
     if lane == "A":
         return "B200 upstream reproduction"
+    if mode == "full" and lane == "B" and mlp_backend == "torch":
+        return "B200 prerequisite torch-MLP fallback"
     if lane == "B" and attention_backend == "fa2":
         return "B200 compatibility patchset"
     return "B200 systems-only"
@@ -695,7 +706,12 @@ def parse_args() -> argparse.Namespace:
     if args.arm is None:
         args.arm = "A0" if args.lane == "A" else "B0"
     if args.claim_label is None:
-        args.claim_label = derive_claim_label(args.lane, args.mode, args.attention_backend)
+        args.claim_label = derive_claim_label(
+            args.lane,
+            args.mode,
+            args.attention_backend,
+            args.mlp_backend,
+        )
     if args.evidence_tier is None:
         args.evidence_tier = derive_evidence_tier(args.mode)
     return args
@@ -782,9 +798,15 @@ def main(*, enforce_rootfs: bool = False) -> int:
         )
         checked("data_manifest", lambda: check_data_manifest(args.data_manifest, mode=args.mode, verify_sha=args.verify_sha))
         checked("attention_backend", lambda: check_attention(args.lane, args.attention_backend))
-        checked("mlp_backend", lambda: check_mlp_backend(args.source, args.mlp_backend, args.allow_previous_stall))
+        mlp_detail = checked("mlp_backend", lambda: check_mlp_backend(args.source, args.mlp_backend, args.allow_previous_stall))
         report["ok"] = True
-        report["classification"]["claim_eligible"] = args.mode == "full"
+        report["classification"]["claim_eligible"] = (
+            args.mode == "full"
+            and not (
+                isinstance(mlp_detail, dict)
+                and mlp_detail.get("claim_eligible") is False
+            )
+        )
         write_report(args.report, report)
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0

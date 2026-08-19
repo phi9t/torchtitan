@@ -374,12 +374,38 @@ def test_full_manifest_with_declared_verified_sha_still_checks_shard_hashes(
         raise AssertionError("expected shard hash verification failure")
 
 
-def test_torch_mlp_full_policy_preserves_smoke_detail(monkeypatch, tmp_path):
+def test_torch_mlp_full_policy_allows_compile_disabled_prerequisite(
+    monkeypatch, tmp_path
+):
     source = tmp_path / "source"
     source.mkdir()
     (source / "triton_kernels.py").write_text("class FusedLinearReLUSquareFunction:\n    pass\n")
 
     monkeypatch.setattr(preflight, "_run_torch_mlp_smoke", lambda path: {"backend": "torch", "output_shape": [2, 16, 768]})
+    monkeypatch.setenv("TORCH_COMPILE_DISABLE", "1")
+
+    detail = preflight.check_mlp_backend(source, "torch", allow_previous_stall=False)
+
+    assert detail == {
+        "backend": "torch",
+        "local_smoke": {
+            "backend": "torch",
+            "output_shape": [2, 16, 768],
+        },
+        "full_mode_policy": "compile_disabled_prerequisite",
+        "claim_eligible": False,
+    }
+
+
+def test_torch_mlp_full_policy_blocks_without_compile_disabled(
+    monkeypatch, tmp_path
+):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "triton_kernels.py").write_text("class FusedLinearReLUSquareFunction:\n    pass\n")
+
+    monkeypatch.setattr(preflight, "_run_torch_mlp_smoke", lambda path: {"backend": "torch", "output_shape": [2, 16, 768]})
+    monkeypatch.delenv("TORCH_COMPILE_DISABLE", raising=False)
 
     try:
         preflight.check_mlp_backend(source, "torch", allow_previous_stall=False)

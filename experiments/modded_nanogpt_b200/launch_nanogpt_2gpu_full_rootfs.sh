@@ -125,7 +125,7 @@ experiments/modded_nanogpt_b200/run_speedrun.sh \
   --source "${SOURCE}" \
   --data-manifest "${DATA_MANIFEST}" \
   --attention-backend fa2 \
-  --mlp-backend triton \
+  --mlp-backend torch \
   --verify-sha \
   --launch-authorization=launch-full-b200 \
   --result-dir "${RESULT_DIR}" \

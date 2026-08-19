@@ -40,22 +40,29 @@ NULL_FINAL_METRICS = {
 
 _FLOAT = r"([0-9]+(?:\.[0-9]+)?)"
 _VAL_LOSS_PATTERNS = [
-    re.compile(rf"(?:final\s+)?val(?:idation)?(?:\s+loss)?\s*[:=]\s*{_FLOAT}", re.I),
+    re.compile(
+        rf"(?:final[\s_-]+)?val(?:idation)?(?:[\s_-]+loss)?\s*[:=]\s*{_FLOAT}",
+        re.I,
+    ),
     re.compile(rf"final\s+validation\s+loss\s*[:=]\s*{_FLOAT}", re.I),
 ]
 _TRAIN_TIME_PATTERNS = [
-    re.compile(rf"\btrain[_\s-]*time\s*[:=]\s*{_FLOAT}", re.I),
+    re.compile(rf"\btrain[_\s-]*time\s*[:=]\s*{_FLOAT}\s*([a-z]+)?", re.I),
 ]
 _STEP_AVG_PATTERNS = [
-    re.compile(rf"\bstep[_\s-]*avg\s*[:=]\s*{_FLOAT}", re.I),
+    re.compile(rf"\bstep[_\s-]*avg\s*[:=]\s*{_FLOAT}\s*([a-z]+)?", re.I),
 ]
 _PEAK_ALLOCATED_PATTERNS = [
-    re.compile(rf"peak\s+memory\s+allocated\s*[:=]\s*{_FLOAT}\s*GiB", re.I),
-    re.compile(rf"peak\s+allocated\s+memory\s*[:=]\s*{_FLOAT}\s*GiB", re.I),
+    re.compile(rf"peak\s+memory\s+allocated\s*[:=]\s*{_FLOAT}\s*([kmgt]?i?b)", re.I),
+    re.compile(rf"peak\s+allocated\s+memory\s*[:=]\s*{_FLOAT}\s*([kmgt]?i?b)", re.I),
 ]
 _PEAK_RESERVED_PATTERNS = [
-    re.compile(rf"peak\s+memory\s+reserved\s*[:=]\s*{_FLOAT}\s*GiB", re.I),
-    re.compile(rf"peak\s+reserved\s+memory\s*[:=]\s*{_FLOAT}\s*GiB", re.I),
+    re.compile(rf"peak\s+memory\s+reserved\s*[:=]\s*{_FLOAT}\s*([kmgt]?i?b)", re.I),
+    re.compile(rf"peak\s+reserved\s+memory\s*[:=]\s*{_FLOAT}\s*([kmgt]?i?b)", re.I),
+    re.compile(
+        rf"peak\s+memory\s+allocated\s*[:=]\s*{_FLOAT}\s*[kmgt]?i?b\s+reserved\s*[:=]?\s*{_FLOAT}\s*([kmgt]?i?b)",
+        re.I,
+    ),
 ]
 _RELEVANT_ERROR_PATTERNS = [
     re.compile(pattern, re.I)
@@ -93,6 +100,39 @@ def _last_float(patterns: list[re.Pattern[str]], text: str) -> float | None:
     for pattern in patterns:
         for match in pattern.finditer(text):
             value = float(match.group(1))
+    return value
+
+
+def _last_time_seconds(patterns: list[re.Pattern[str]], text: str) -> float | None:
+    value = None
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            amount = float(match.group(1))
+            unit = match.group(2).lower() if match.lastindex and match.group(2) else ""
+            if unit in {"ms", "millisecond", "milliseconds"}:
+                amount /= 1000
+            value = amount
+    return value
+
+
+def _last_memory_gib(patterns: list[re.Pattern[str]], text: str) -> float | None:
+    value = None
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            if pattern.groups >= 3:
+                amount = float(match.group(2))
+                unit = match.group(3)
+            else:
+                amount = float(match.group(1))
+                unit = match.group(2)
+            unit = unit.lower()
+            if unit in {"kib", "kb"}:
+                amount /= 1024 * 1024
+            elif unit in {"mib", "mb"}:
+                amount /= 1024
+            elif unit in {"tib", "tb"}:
+                amount *= 1024
+            value = amount
     return value
 
 
@@ -316,7 +356,11 @@ def _data_manifest_summary(path: Path) -> dict[str, Any]:
         if isinstance(pointer_path, str) and pointer_path:
             resolved_path = Path(pointer_path)
             if not resolved_path.is_absolute():
-                resolved_path = path.parent / resolved_path
+                repo_relative_path = REPO_ROOT / resolved_path
+                if repo_relative_path.exists():
+                    resolved_path = repo_relative_path
+                else:
+                    resolved_path = path.parent / resolved_path
             resolved_manifest = _read_json(resolved_path)
             if "verified_sha" not in manifest:
                 verified_sha = resolved_manifest.get("verified_sha")
@@ -348,6 +392,15 @@ def _data_manifest_summary(path: Path) -> dict[str, Any]:
         "total_bytes": resolved_manifest.get("total_bytes"),
         "sha256_entries": sha_entries,
     }
+
+
+def _manifest_path_id(value: str) -> str:
+    path = Path(value)
+    if not path.is_absolute():
+        repo_relative_path = REPO_ROOT / path
+        if repo_relative_path.exists():
+            path = repo_relative_path
+    return str(path)
 
 
 def _preflight_check_detail(preflight: dict[str, Any], name: str) -> dict[str, Any]:
@@ -652,24 +705,26 @@ def _default_classification(
         bool(base.get("claim_eligible")) and lane in {"A", "B"} and mode == "full"
     )
     if classification_override:
-        base["claim_label"] = _claim_label(lane, mode)
-        base["evidence_tier"] = _evidence_tier(mode)
-        base["claim_eligible"] = lane in {"A", "B"} and mode == "full"
+        base["claim_label"] = base.get("claim_label") or _claim_label(lane, mode)
+        base["evidence_tier"] = base.get("evidence_tier") or _evidence_tier(mode)
+        base["claim_eligible"] = (
+            bool(base.get("claim_eligible")) and lane in {"A", "B"} and mode == "full"
+        )
     return base
 
 
 def _final_metrics(text: str) -> dict[str, float | None]:
     val_loss = _last_float(_VAL_LOSS_PATTERNS, text)
-    train_time = _last_float(_TRAIN_TIME_PATTERNS, text)
-    step_avg = _last_float(_STEP_AVG_PATTERNS, text)
+    train_time = _last_time_seconds(_TRAIN_TIME_PATTERNS, text)
+    step_avg = _last_time_seconds(_STEP_AVG_PATTERNS, text)
     if val_loss is None or train_time is None or step_avg is None:
         return dict(NULL_FINAL_METRICS)
     return {
         "val_loss": val_loss,
         "train_time": train_time,
         "step_avg": step_avg,
-        "peak_allocated_memory": _last_float(_PEAK_ALLOCATED_PATTERNS, text),
-        "peak_reserved_memory": _last_float(_PEAK_RESERVED_PATTERNS, text),
+        "peak_allocated_memory": _last_memory_gib(_PEAK_ALLOCATED_PATTERNS, text),
+        "peak_reserved_memory": _last_memory_gib(_PEAK_RESERVED_PATTERNS, text),
     }
 
 
@@ -783,7 +838,7 @@ def _full_attempt_evidence_blocker(
         }
     readiness_manifest = launch_readiness.get("data_manifest")
     accepted_manifest_paths = {
-        value
+        _manifest_path_id(value)
         for value in (
             data_manifest.get("path"),
             data_manifest.get("resolved_path"),
@@ -793,7 +848,7 @@ def _full_attempt_evidence_blocker(
     if (
         isinstance(readiness_manifest, str)
         and readiness_manifest
-        and readiness_manifest not in accepted_manifest_paths
+        and _manifest_path_id(readiness_manifest) not in accepted_manifest_paths
     ):
         return {
             "phase": "data_manifest",

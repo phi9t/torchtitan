@@ -482,7 +482,7 @@ def test_full_launch_rejects_bad_source_visible_data_path_before_torchrun(
 
 
 def test_full_attempt_initial_metadata_is_not_claim_eligible_before_preflight(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ):
     source = tmp_path / "source"
     _make_source(source)
@@ -500,6 +500,19 @@ def test_full_attempt_initial_metadata_is_not_claim_eligible_before_preflight(
             run_id="lane_b_full_initial_claim",
         )
         return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+
+    monkeypatch.setattr(
+        run_speedrun,
+        "check_active_jobs",
+        lambda output=None: {
+            "schema_version": 1,
+            "ok": True,
+            "active_job_count": 0,
+            "active_jobs": [],
+            "ignored_match_count": 0,
+            "ignored_matches": [],
+        },
+    )
 
     exit_code = run_speedrun.run_attempt(
         run_speedrun.RunConfig(
@@ -970,6 +983,86 @@ def test_run_attempt_accepts_prelaunch_active_jobs_snapshot_but_rescans(
     active_jobs = json.loads((result_dir / "active_jobs.json").read_text())
     assert active_jobs["scanner"] == "in-harness"
     assert active_jobs["active_job_count"] == 0
+
+
+def test_run_attempt_accepts_rootfs_launcher_prelaunch_files(
+    monkeypatch,
+    tmp_path: Path,
+):
+    source = tmp_path / "source"
+    _make_source(source)
+    manifest = tmp_path / "data_manifest.json"
+    _make_manifest(manifest)
+    result_dir = tmp_path / "results" / "lane_b_full_rootfs_launcher"
+    result_dir.mkdir(parents=True)
+    (result_dir / "operator_launch.log").write_text("[timestamp] rootfs prep\n")
+    (result_dir / "rootfs_plan.json").write_text("{}\n")
+    (result_dir / "rootfs_plan_verification.json").write_text('{"ok": true}\n')
+    (result_dir / "active_jobs_prelaunch.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "ok": True,
+                "active_job_count": 0,
+                "active_jobs": [],
+            }
+        )
+        + "\n"
+    )
+
+    def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        if _is_fa2_setup_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="fa2 setup ok\n")
+        if _is_preflight_command(cmd):
+            _write_success_preflight_report(
+                result_dir / "preflight_report.json",
+                lane="B",
+                mode="full",
+                run_id="lane_b_full_rootfs_launcher",
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        raise AssertionError(f"training must not start during a skip-run test: {cmd}")
+
+    def fake_check_active_jobs(output=None):
+        report = {
+            "schema_version": 1,
+            "ok": True,
+            "active_job_count": 0,
+            "active_jobs": [],
+            "ignored_match_count": 0,
+            "ignored_matches": [],
+            "scanner": "rootfs-launcher-test",
+        }
+        if output is not None:
+            run_speedrun._write_json_atomic(output, report)
+        return report
+
+    monkeypatch.setattr(run_speedrun, "check_active_jobs", fake_check_active_jobs)
+
+    exit_code = run_speedrun.run_attempt(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="full",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="triton",
+            verify_sha=True,
+            skip_run=True,
+            launch_authorization=run_speedrun.FULL_LAUNCH_AUTHORIZATION_TOKEN,
+            run_id="lane_b_full_rootfs_launcher",
+            attempt_id="lane_b_full_rootfs_launcher_attempt_001",
+            result_root=tmp_path / "results",
+        ),
+        command_runner=fake_runner,
+    )
+
+    assert exit_code == 0
+    assert (result_dir / "attempt.json").exists()
+    assert "[timestamp] rootfs prep" in (result_dir / "operator_launch.log").read_text()
+    active_jobs = json.loads((result_dir / "active_jobs.json").read_text())
+    assert active_jobs["scanner"] == "rootfs-launcher-test"
 
 
 def test_run_attempt_rejects_cache_directory_outside_result_dir(
@@ -1695,7 +1788,7 @@ def test_full_attempt_limits_setup_preflight_and_training_to_first_two_gpus(
             data_manifest=manifest,
             result_dir=result_dir,
             attention_backend="fa2",
-            mlp_backend="triton",
+            mlp_backend="torch",
             verify_sha=True,
             launch_authorization=run_speedrun.FULL_LAUNCH_AUTHORIZATION_TOKEN,
             result_root=tmp_path / "results",
@@ -1706,13 +1799,30 @@ def test_full_attempt_limits_setup_preflight_and_training_to_first_two_gpus(
     assert exit_code == 0
     assert [env["CUDA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 3
     assert [env["NVIDIA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 3
+    assert [env["MODDED_NANOGPT_COMPILE_FULLGRAPH"] for env in command_envs] == [
+        "0"
+    ] * 3
+    assert [env["TORCH_COMPILE_DISABLE"] for env in command_envs] == ["1"] * 3
+    assert [env["MODDED_NANOGPT_MLP_BACKEND"] for env in command_envs] == [
+        "torch"
+    ] * 3
     env_text = (result_dir / "command.env").read_text()
     assert "CUDA_VISIBLE_DEVICES=0,1" in env_text
     assert "NVIDIA_VISIBLE_DEVICES=0,1" in env_text
+    assert "MODDED_NANOGPT_COMPILE_FULLGRAPH=0" in env_text
+    assert "TORCH_COMPILE_DISABLE=1" in env_text
+    assert "MODDED_NANOGPT_MLP_BACKEND=torch" in env_text
     attempt_text = (result_dir / "attempt.json").read_text()
     attempt = json.loads(attempt_text)
+    classification = attempt["classification"]
+    assert classification["claim_label"] == "B200 prerequisite torch-MLP fallback"
+    assert classification["claim_eligible"] is False
     assert attempt["environment"]["CUDA_VISIBLE_DEVICES"] == "0,1"
     assert attempt["environment"]["NVIDIA_VISIBLE_DEVICES"] == "0,1"
+    assert attempt["environment"]["MODDED_NANOGPT_COMPILE_FULLGRAPH"] == "0"
+    assert attempt["environment"]["TORCH_COMPILE_DISABLE"] == "1"
+    assert attempt["environment"]["MODDED_NANOGPT_MLP_BACKEND"] == "torch"
+    assert attempt["command"]["mlp_backend"] == "torch"
 
 
 def test_full_skip_run_writes_launch_readiness_report(tmp_path: Path, monkeypatch):

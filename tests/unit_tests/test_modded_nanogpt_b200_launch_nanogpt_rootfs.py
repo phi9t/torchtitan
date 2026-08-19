@@ -194,7 +194,7 @@ def test_launch_nanogpt_2gpu_full_rootfs_uses_guarded_full_command_shape():
     assert "--verify-sha \\" in text
     assert "--launch-authorization=launch-full-b200 \\" in text
     assert "--attention-backend fa2" in text
-    assert "--mlp-backend triton" in text
+    assert "--mlp-backend torch" in text
     assert "--skip-run" not in text
     assert "--nproc_per_node=2" not in text
     assert "full_manifest_refresh_20260816T111021Z/data_manifest.json" in text
