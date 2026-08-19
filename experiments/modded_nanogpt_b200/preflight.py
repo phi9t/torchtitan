@@ -10,15 +10,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib
-from importlib import metadata
 import json
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import textwrap
 import time
+from importlib import metadata
+from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -34,6 +34,7 @@ EXPECTED_FINEWEB_SHARDS = 10
 SCHEMA_VERSION = 1
 DEFAULT_ENVIRONMENT_CLASS = "torchtitan-rootfs-b200"
 FULL_TRIAL_GPU_COUNT = 2
+SUPPORTED_GPU_COUNTS = (1, 2, 4, 8)
 SUBPROCESS_TIMEOUT_SECONDS = 180
 EXPECTED_TORCH_VERSION = "2.13.0+cu132"
 EXPECTED_CUDA_RUNTIME = "13.2"
@@ -50,7 +51,7 @@ DIRECT_RUNTIME_DEPENDENCIES = (
 FA3_RUNTIME_DEPENDENCY = ("kernels", "kernels")
 
 
-class CheckFailure(Exception):
+class CheckFailure(Exception):  # noqa: N818
     def __init__(self, message: str, *, detail: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.detail = detail
@@ -117,7 +118,10 @@ def check_rootfs() -> None:
         os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
         "must run inside scripts/rootfs/enter_rootfs.sh; TORCHTITAN_IN_ROOTFS=1 is missing",
     )
-    require(Path.cwd() == Path("/workspace/torchtitan"), f"expected rootfs workspace /workspace/torchtitan, found {Path.cwd()}")
+    require(
+        Path.cwd() == Path("/workspace/torchtitan"),
+        f"expected rootfs workspace /workspace/torchtitan, found {Path.cwd()}",
+    )
     executable = Path(sys.executable).resolve()
     require(
         str(executable).startswith(("/usr/", "/opt/", "/bin/")),
@@ -238,7 +242,9 @@ def check_gpu_inventory(expected_gpus: int, expected_name: str) -> list[dict[str
     torch, _ = load_torch()
     require(torch.cuda.is_available(), "torch.cuda.is_available() is false")
     count = torch.cuda.device_count()
-    require(count == expected_gpus, f"expected {expected_gpus} CUDA devices, found {count}")
+    require(
+        count == expected_gpus, f"expected {expected_gpus} CUDA devices, found {count}"
+    )
     devices = []
     for idx in range(count):
         name = torch.cuda.get_device_name(idx)
@@ -251,7 +257,9 @@ def check_gpu_inventory(expected_gpus: int, expected_name: str) -> list[dict[str
             capability >= (10, 0),
             f"device {idx} expected Blackwell/B200 capability >= (10, 0), found {capability}",
         )
-        devices.append({"index": idx, "name": name, "compute_capability": list(capability)})
+        devices.append(
+            {"index": idx, "name": name, "compute_capability": list(capability)}
+        )
     return devices
 
 
@@ -263,8 +271,12 @@ def check_torch_primitives() -> None:
     fp8 = torch.ones((16, 16), device=device, dtype=torch.float8_e4m3fn)
     require(fp8.dtype is torch.float8_e4m3fn, "FP8 tensor creation smoke failed")
     require(hasattr(torch, "_scaled_mm"), "torch._scaled_mm is missing")
-    a = torch.randn((16, 16), device=device, dtype=torch.bfloat16).to(torch.float8_e4m3fn)
-    b = torch.randn((16, 16), device=device, dtype=torch.bfloat16).to(torch.float8_e4m3fn)
+    a = torch.randn((16, 16), device=device, dtype=torch.bfloat16).to(
+        torch.float8_e4m3fn
+    )
+    b = torch.randn((16, 16), device=device, dtype=torch.bfloat16).to(
+        torch.float8_e4m3fn
+    )
     scale = torch.ones((), device=device, dtype=torch.float32)
     out = torch._scaled_mm(
         a,
@@ -274,7 +286,9 @@ def check_torch_primitives() -> None:
         scale_b=scale,
         use_fast_accum=True,
     )
-    require(out.shape == (16, 16), "torch._scaled_mm FP8 smoke returned the wrong shape")
+    require(
+        out.shape == (16, 16), "torch._scaled_mm FP8 smoke returned the wrong shape"
+    )
     torch.cuda.synchronize()
 
 
@@ -284,7 +298,9 @@ def run_nccl_worker() -> int:
 
     local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
-    dist.init_process_group(backend="cuda:nccl,cpu:gloo", device_id=torch.device("cuda", local_rank))
+    dist.init_process_group(
+        backend="cuda:nccl,cpu:gloo", device_id=torch.device("cuda", local_rank)
+    )
     x = torch.ones(1, device=f"cuda:{local_rank}") * (local_rank + 1)
     dist.all_reduce(x)
     expected = sum(range(1, dist.get_world_size() + 1))
@@ -305,17 +321,32 @@ def check_nccl(expected_gpus: int) -> None:
         "--_nccl-worker",
     ]
     proc = run_checked_subprocess(cmd, timeout_seconds=SUBPROCESS_TIMEOUT_SECONDS)
-    require(proc.returncode == 0, f"{expected_gpus}-rank NCCL all-reduce smoke failed:\n{proc.stdout}")
+    require(
+        proc.returncode == 0,
+        f"{expected_gpus}-rank NCCL all-reduce smoke failed:\n{proc.stdout}",
+    )
 
 
-def check_source(source: Path, lane: str, attention_backend: str, mlp_backend: str) -> str:
+def check_source(
+    source: Path, lane: str, attention_backend: str, mlp_backend: str
+) -> str:
     require(source.exists(), f"source directory does not exist: {source}")
     require((source / "train_gpt.py").exists(), f"missing train_gpt.py under {source}")
-    commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
-    require(commit == UPSTREAM_COMMIT, f"expected upstream commit {UPSTREAM_COMMIT}, found {commit}")
-    status = subprocess.check_output(["git", "-C", str(source), "status", "--short"], text=True)
+    commit = subprocess.check_output(
+        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True
+    ).strip()
+    require(
+        commit == UPSTREAM_COMMIT,
+        f"expected upstream commit {UPSTREAM_COMMIT}, found {commit}",
+    )
+    status = subprocess.check_output(
+        ["git", "-C", str(source), "status", "--short"], text=True
+    )
     if lane == "A":
-        require(status.strip() == "", f"Lane A requires clean upstream source; dirty status:\n{status}")
+        require(
+            status.strip() == "",
+            f"Lane A requires clean upstream source; dirty status:\n{status}",
+        )
     if lane == "B":
         require(
             (source / "triton_kernels.py").exists(),
@@ -332,7 +363,7 @@ def check_source(source: Path, lane: str, attention_backend: str, mlp_backend: s
             os.environ.get("MODDED_NANOGPT_CE_COMPUTE_CAPABILITY") == "100",
             "set MODDED_NANOGPT_CE_COMPUTE_CAPABILITY=100 before importing the variant on B200",
         )
-    if lane == "A" and "compute_capability=\"90\"" in triton_source:
+    if lane == "A" and 'compute_capability="90"' in triton_source:
         print(
             "warning: upstream source hardcodes the CE custom kernel for sm90; "
             "Lane A may fail after FA3 even if FA3 becomes available",
@@ -352,7 +383,7 @@ def check_source(source: Path, lane: str, attention_backend: str, mlp_backend: s
 
 
 def check_fa3_smoke() -> None:
-    code = r'''
+    code = r"""
 import torch
 from kernels import get_kernel
 
@@ -376,14 +407,16 @@ y = interface.flash_attn_varlen_func(
 torch.cuda.synchronize()
 assert y.shape == q.shape, y.shape
 print("fa3_smoke_ok")
-'''
-    proc = run_checked_subprocess([sys.executable, "-c", code], timeout_seconds=SUBPROCESS_TIMEOUT_SECONDS)
+"""
+    proc = run_checked_subprocess(
+        [sys.executable, "-c", code], timeout_seconds=SUBPROCESS_TIMEOUT_SECONDS
+    )
     if proc.returncode != 0:
         raise CheckFailure("FA3 varlen/window smoke failed:\n" + proc.stdout)
 
 
 def check_fa2_smoke() -> None:
-    code = r'''
+    code = r"""
 import torch
 from flash_attn.flash_attn_interface import flash_attn_varlen_func
 
@@ -406,8 +439,10 @@ y = flash_attn_varlen_func(
 torch.cuda.synchronize()
 assert y.shape == q.shape, y.shape
 print("fa2_smoke_ok")
-'''
-    proc = run_checked_subprocess([sys.executable, "-c", code], timeout_seconds=SUBPROCESS_TIMEOUT_SECONDS)
+"""
+    proc = run_checked_subprocess(
+        [sys.executable, "-c", code], timeout_seconds=SUBPROCESS_TIMEOUT_SECONDS
+    )
     if proc.returncode != 0:
         raise CheckFailure("FA2 varlen/window smoke failed:\n" + proc.stdout)
 
@@ -422,10 +457,14 @@ def check_attention(lane: str, attention_backend: str) -> None:
     elif attention_backend == "fa2":
         check_fa2_smoke()
     else:
-        raise CheckFailure(f"unsupported attention backend for full jobs: {attention_backend}")
+        raise CheckFailure(
+            f"unsupported attention backend for full jobs: {attention_backend}"
+        )
 
 
-def check_mlp_backend(source: Path, mlp_backend: str, allow_previous_stall: bool) -> dict[str, Any]:
+def check_mlp_backend(
+    source: Path, mlp_backend: str, allow_previous_stall: bool
+) -> dict[str, Any]:
     if mlp_backend == "triton":
         smoke_detail = _run_triton_mlp_smoke(source)
         return {"backend": "triton", "local_smoke": smoke_detail}
@@ -455,7 +494,7 @@ def check_mlp_backend(source: Path, mlp_backend: str, allow_previous_stall: bool
 
 
 def _triton_mlp_smoke_code(source: Path) -> str:
-    return rf'''
+    return rf"""
 import importlib
 import json
 import os
@@ -477,7 +516,7 @@ y.float().mean().backward()
 torch.cuda.synchronize()
 assert y.shape == x.shape, y.shape
 print(json.dumps({{"backend": "triton", "output_shape": list(y.shape)}}))
-'''
+"""
 
 
 def _triton_mlp_failure_detail(stdout: str, returncode: int) -> dict[str, Any]:
@@ -541,9 +580,15 @@ def _run_torch_mlp_smoke(source: Path) -> dict[str, Any]:
         importlib.invalidate_caches()
         module = importlib.import_module("triton_kernels")
         fn = module.FusedLinearReLUSquareFunction.apply
-        x = torch.randn(2, 16, 768, device="cuda", dtype=torch.bfloat16, requires_grad=True)
-        w1 = torch.randn(3072, 768, device="cuda", dtype=torch.bfloat16, requires_grad=True)
-        w2 = torch.randn(3072, 768, device="cuda", dtype=torch.bfloat16, requires_grad=True)
+        x = torch.randn(
+            2, 16, 768, device="cuda", dtype=torch.bfloat16, requires_grad=True
+        )
+        w1 = torch.randn(
+            3072, 768, device="cuda", dtype=torch.bfloat16, requires_grad=True
+        )
+        w2 = torch.randn(
+            3072, 768, device="cuda", dtype=torch.bfloat16, requires_grad=True
+        )
         y = fn(x, w1, w2)
         y.float().mean().backward()
         torch.cuda.synchronize()
@@ -559,12 +604,24 @@ def check_data_manifest(path: Path, *, mode: str, verify_sha: bool) -> dict[str,
     require(path.exists(), f"data manifest does not exist: {path}")
     data = json.loads(path.read_text())
     schema_version = data.get("schema_version")
-    require(schema_version == SCHEMA_VERSION, f"manifest schema_version must be {SCHEMA_VERSION}, found {schema_version!r}")
-    require(data.get("dataset") == "fineweb10B", f"manifest dataset must be fineweb10B, found {data.get('dataset')!r}")
+    require(
+        schema_version == SCHEMA_VERSION,
+        f"manifest schema_version must be {SCHEMA_VERSION}, found {schema_version!r}",
+    )
+    require(
+        data.get("dataset") == "fineweb10B",
+        f"manifest dataset must be fineweb10B, found {data.get('dataset')!r}",
+    )
     files = data.get("files")
-    require(isinstance(files, list) and files, "manifest must contain a non-empty files list")
+    require(
+        isinstance(files, list) and files,
+        "manifest must contain a non-empty files list",
+    )
     if mode == "full":
-        require(data.get("token_budget") == "900M", f"full runs require token_budget '900M', found {data.get('token_budget')!r}")
+        require(
+            data.get("token_budget") == "900M",
+            f"full runs require token_budget '900M', found {data.get('token_budget')!r}",
+        )
         require(
             len(files) == EXPECTED_FINEWEB_SHARDS,
             f"full runs require exactly {EXPECTED_FINEWEB_SHARDS} .bin shards, found {len(files)}",
@@ -573,7 +630,10 @@ def check_data_manifest(path: Path, *, mode: str, verify_sha: bool) -> dict[str,
             data.get("source", {}).get("commit") == UPSTREAM_COMMIT,
             f"full data manifest source commit must be {UPSTREAM_COMMIT}, found {data.get('source', {}).get('commit')!r}",
         )
-        require(isinstance(data.get("command"), list) and data["command"], "full data manifest must record preparation command")
+        require(
+            isinstance(data.get("command"), list) and data["command"],
+            "full data manifest must record preparation command",
+        )
         if verify_sha:
             require(
                 data.get("verified_sha") is True,
@@ -581,21 +641,39 @@ def check_data_manifest(path: Path, *, mode: str, verify_sha: bool) -> dict[str,
             )
     total = 0
     for item in files:
-        require(str(item.get("path", "")).endswith(".bin"), f"manifest shard is not a .bin file: {item.get('path')!r}")
+        require(
+            str(item.get("path", "")).endswith(".bin"),
+            f"manifest shard is not a .bin file: {item.get('path')!r}",
+        )
         require("bytes" in item, f"manifest shard missing bytes: {item}")
-        require("sha256" in item and item["sha256"], f"manifest shard missing sha256: {item.get('path')!r}")
+        require(
+            "sha256" in item and item["sha256"],
+            f"manifest shard missing sha256: {item.get('path')!r}",
+        )
         shard = Path(item["path"])
         require(shard.exists(), f"manifest shard missing: {shard}")
         size = shard.stat().st_size
-        require(size == item["bytes"], f"manifest size mismatch for {shard}: {size} != {item['bytes']}")
+        require(
+            size == item["bytes"],
+            f"manifest size mismatch for {shard}: {size} != {item['bytes']}",
+        )
         total += size
         if verify_sha:
             actual = sha256_file(shard)
-            require(actual == item["sha256"], f"sha256 mismatch for {shard}: {actual} != {item['sha256']}")
+            require(
+                actual == item["sha256"],
+                f"sha256 mismatch for {shard}: {actual} != {item['sha256']}",
+            )
     if mode == "full":
-        require(total == EXPECTED_FINEWEB_BYTES, f"expected FineWeb total {EXPECTED_FINEWEB_BYTES}, found {total}")
+        require(
+            total == EXPECTED_FINEWEB_BYTES,
+            f"expected FineWeb total {EXPECTED_FINEWEB_BYTES}, found {total}",
+        )
         manifest_total = data.get("total_bytes")
-        require(manifest_total == total, f"manifest total_bytes mismatch: {manifest_total} != {total}")
+        require(
+            manifest_total == total,
+            f"manifest total_bytes mismatch: {manifest_total} != {total}",
+        )
     return {
         "dataset": data.get("dataset"),
         "token_budget": data.get("token_budget"),
@@ -648,23 +726,41 @@ def check_mode_policy(args: argparse.Namespace) -> dict[str, Any]:
         "mlp_backend": args.mlp_backend,
     }
     if args.mode == "full":
-        require(not args.skip_nccl, "full preflight must include NCCL; --skip-nccl is diagnostic-only")
-        require(args.verify_sha, "full preflight requires --verify-sha so data preservation is proven")
-        require(not args.allow_previous_stall, "full preflight cannot use --allow-previous-stall")
         require(
-            args.expected_gpus == FULL_TRIAL_GPU_COUNT,
-            f"full preflight requires {FULL_TRIAL_GPU_COUNT} GPUs, found --expected-gpus={args.expected_gpus}",
+            not args.skip_nccl,
+            "full preflight must include NCCL; --skip-nccl is diagnostic-only",
         )
-        require(args.expected_name == "B200", f"full preflight requires expected GPU name B200, found {args.expected_name!r}")
+        require(
+            args.verify_sha,
+            "full preflight requires --verify-sha so data preservation is proven",
+        )
+        require(
+            not args.allow_previous_stall,
+            "full preflight cannot use --allow-previous-stall",
+        )
+        require(
+            args.expected_gpus in SUPPORTED_GPU_COUNTS,
+            "full preflight requires expected-gpus in [1, 2, 4, 8], "
+            f"found --expected-gpus={args.expected_gpus}",
+        )
+        require(
+            args.expected_name == "B200",
+            f"full preflight requires expected GPU name B200, found {args.expected_name!r}",
+        )
     if args.mode != "diagnostic":
         require(not args.skip_nccl, "--skip-nccl is allowed only for diagnostic mode")
-        require(not args.allow_previous_stall, "--allow-previous-stall is allowed only for diagnostic mode")
+        require(
+            not args.allow_previous_stall,
+            "--allow-previous-stall is allowed only for diagnostic mode",
+        )
     return policy
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", required=False, choices=["full", "smoke", "diagnostic"])
+    parser.add_argument(
+        "--mode", required=False, choices=["full", "smoke", "diagnostic"]
+    )
     parser.add_argument("--lane", choices=["A", "B"])
     parser.add_argument("--source", type=Path)
     parser.add_argument("--data-manifest", type=Path)
@@ -674,13 +770,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--claim-label")
     parser.add_argument("--evidence-tier")
     parser.add_argument("--environment-class", default=DEFAULT_ENVIRONMENT_CLASS)
-    parser.add_argument("--attention-backend", choices=["fa3", "fa2", "flex"], default=os.environ.get("MODDED_NANOGPT_ATTN_BACKEND", "fa3"))
-    parser.add_argument("--mlp-backend", choices=["triton", "torch"], default=os.environ.get("MODDED_NANOGPT_MLP_BACKEND", "triton"))
+    parser.add_argument(
+        "--attention-backend",
+        choices=["fa3", "fa2", "flex"],
+        default=os.environ.get("MODDED_NANOGPT_ATTN_BACKEND", "fa3"),
+    )
+    parser.add_argument(
+        "--mlp-backend",
+        choices=["triton", "torch"],
+        default=os.environ.get("MODDED_NANOGPT_MLP_BACKEND", "triton"),
+    )
     parser.add_argument("--expected-gpus", type=int, default=FULL_TRIAL_GPU_COUNT)
     parser.add_argument("--expected-name", default="B200")
-    parser.add_argument("--skip-nccl", action="store_true", help="only for local iteration, never before a full job")
-    parser.add_argument("--verify-sha", action="store_true", help="rehash all FineWeb shards")
-    parser.add_argument("--allow-previous-stall", action="store_true", help="permit known-stalled diagnostic configs")
+    parser.add_argument(
+        "--skip-nccl",
+        action="store_true",
+        help="only for local iteration, never before a full job",
+    )
+    parser.add_argument(
+        "--verify-sha", action="store_true", help="rehash all FineWeb shards"
+    )
+    parser.add_argument(
+        "--allow-previous-stall",
+        action="store_true",
+        help="permit known-stalled diagnostic configs",
+    )
     parser.add_argument("--report", type=Path)
     parser.add_argument("--_nccl-worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -720,7 +834,9 @@ def parse_args() -> argparse.Namespace:
 def main(*, enforce_rootfs: bool = False) -> int:
     args = parse_args()
     if enforce_rootfs:
-        guard_exit = cli_guard.guard_rootfs_cli("experiments/modded_nanogpt_b200/run_preflight.sh")
+        guard_exit = cli_guard.guard_rootfs_cli(
+            "experiments/modded_nanogpt_b200/run_preflight.sh"
+        )
         if guard_exit is not None:
             return guard_exit
     if args._nccl_worker:
@@ -784,28 +900,44 @@ def main(*, enforce_rootfs: bool = False) -> int:
                 attention_backend=args.attention_backend,
             ),
         )
-        report["gpus"] = checked("gpu_inventory", lambda: check_gpu_inventory(args.expected_gpus, args.expected_name))
+        report["gpus"] = checked(
+            "gpu_inventory",
+            lambda: check_gpu_inventory(args.expected_gpus, args.expected_name),
+        )
         checked("torch_primitives", check_torch_primitives)
         if not args.skip_nccl:
             checked("nccl_all_reduce", lambda: check_nccl(args.expected_gpus))
         else:
-            report["checks"].append({"name": "nccl_all_reduce", "ok": "skipped", "mode": args.mode})
+            report["checks"].append(
+                {"name": "nccl_all_reduce", "ok": "skipped", "mode": args.mode}
+            )
         checked(
             "source_policy",
             lambda: {
-                "status": check_source(args.source, args.lane, args.attention_backend, args.mlp_backend)
+                "status": check_source(
+                    args.source, args.lane, args.attention_backend, args.mlp_backend
+                )
             },
         )
-        checked("data_manifest", lambda: check_data_manifest(args.data_manifest, mode=args.mode, verify_sha=args.verify_sha))
-        checked("attention_backend", lambda: check_attention(args.lane, args.attention_backend))
-        mlp_detail = checked("mlp_backend", lambda: check_mlp_backend(args.source, args.mlp_backend, args.allow_previous_stall))
+        checked(
+            "data_manifest",
+            lambda: check_data_manifest(
+                args.data_manifest, mode=args.mode, verify_sha=args.verify_sha
+            ),
+        )
+        checked(
+            "attention_backend",
+            lambda: check_attention(args.lane, args.attention_backend),
+        )
+        mlp_detail = checked(
+            "mlp_backend",
+            lambda: check_mlp_backend(
+                args.source, args.mlp_backend, args.allow_previous_stall
+            ),
+        )
         report["ok"] = True
-        report["classification"]["claim_eligible"] = (
-            args.mode == "full"
-            and not (
-                isinstance(mlp_detail, dict)
-                and mlp_detail.get("claim_eligible") is False
-            )
+        report["classification"]["claim_eligible"] = args.mode == "full" and not (
+            isinstance(mlp_detail, dict) and mlp_detail.get("claim_eligible") is False
         )
         write_report(args.report, report)
         print(json.dumps(report, indent=2, sort_keys=True))
@@ -813,7 +945,9 @@ def main(*, enforce_rootfs: bool = False) -> int:
     except CheckFailure as exc:
         write_report(args.report, report)
         print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
-        print("\npreflight failed:\n" + textwrap.indent(str(exc), "  "), file=sys.stderr)
+        print(
+            "\npreflight failed:\n" + textwrap.indent(str(exc), "  "), file=sys.stderr
+        )
         return 21
     except Exception as exc:  # noqa: BLE001
         error = f"{type(exc).__name__}: {exc}"
@@ -821,7 +955,10 @@ def main(*, enforce_rootfs: bool = False) -> int:
         report["failures"].append({"name": "runtime_error", "error": error})
         write_report(args.report, report)
         print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
-        print("\npreflight runtime error:\n" + textwrap.indent(error, "  "), file=sys.stderr)
+        print(
+            "\npreflight runtime error:\n" + textwrap.indent(error, "  "),
+            file=sys.stderr,
+        )
         return 21
 
 

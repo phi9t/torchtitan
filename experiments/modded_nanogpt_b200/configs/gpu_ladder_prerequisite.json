@@ -1,0 +1,44 @@
+{
+  "arms": [
+    {
+      "name": "g1_prerequisite",
+      "num_gpus": 1
+    },
+    {
+      "name": "g2_prerequisite",
+      "num_gpus": 2
+    },
+    {
+      "name": "g4_prerequisite",
+      "num_gpus": 4
+    },
+    {
+      "name": "g8_prerequisite",
+      "num_gpus": 8,
+      "observability_profile": "eroica"
+    }
+  ],
+  "data_manifest": "experiments/modded_nanogpt_b200/results/full_manifest/data_manifest.json",
+  "defaults": {
+    "attention_backend": "fa2",
+    "ce_compute_capability": "100",
+    "compile_policy": "disabled_prerequisite",
+    "expected_gpu_name": "B200",
+    "experiment_kind": "prerequisite",
+    "legacy_lane": "B",
+    "mlp_backend": "torch",
+    "mode": "full",
+    "observability_profile": "byterobust",
+    "verify_sha": true
+  },
+  "description": "B200 prerequisite GPU-count ladder for modded NanoGPT",
+  "execution_policy": {
+    "active_job_policy": "fail_if_active",
+    "rootfs_required": true,
+    "sequential": true
+  },
+  "experiment_id": "gpu_ladder_prerequisite",
+  "result_root": "experiments/modded_nanogpt_b200/results",
+  "schema_version": 1,
+  "source": "experiments/modded_nanogpt_b200/sources/modded-nanogpt-b200-sdpa"
+}

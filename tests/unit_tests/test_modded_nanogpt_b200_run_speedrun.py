@@ -1803,9 +1803,7 @@ def test_full_attempt_limits_setup_preflight_and_training_to_first_two_gpus(
         "0"
     ] * 3
     assert [env["TORCH_COMPILE_DISABLE"] for env in command_envs] == ["1"] * 3
-    assert [env["MODDED_NANOGPT_MLP_BACKEND"] for env in command_envs] == [
-        "torch"
-    ] * 3
+    assert [env["MODDED_NANOGPT_MLP_BACKEND"] for env in command_envs] == ["torch"] * 3
     env_text = (result_dir / "command.env").read_text()
     assert "CUDA_VISIBLE_DEVICES=0,1" in env_text
     assert "NVIDIA_VISIBLE_DEVICES=0,1" in env_text
@@ -1823,6 +1821,110 @@ def test_full_attempt_limits_setup_preflight_and_training_to_first_two_gpus(
     assert attempt["environment"]["TORCH_COMPILE_DISABLE"] == "1"
     assert attempt["environment"]["MODDED_NANOGPT_MLP_BACKEND"] == "torch"
     assert attempt["command"]["mlp_backend"] == "torch"
+
+
+def test_full_attempt_honors_explicit_gpu_count_and_ids(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source"
+    _make_source(source)
+    manifest = tmp_path / "data_manifest.json"
+    shard_dir = source / "data" / "fineweb10B"
+    shard_dir.mkdir(parents=True)
+    train_shard = shard_dir / "fineweb_train_000000.bin"
+    val_shard = shard_dir / "fineweb_val_000000.bin"
+    train_shard.write_bytes(b"x")
+    val_shard.write_bytes(b"y")
+    subprocess.run(["git", "add", "data"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "add data fixture"],
+        cwd=source,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "dataset": "fineweb10B",
+                "token_budget": "900M",
+                "files": [
+                    {"path": str(train_shard), "bytes": 1, "sha256": "fixture"},
+                    {"path": str(val_shard), "bytes": 1, "sha256": "fixture"},
+                ],
+            }
+        )
+        + "\n"
+    )
+    result_dir = tmp_path / "results" / "lane_b_full_gpu_ids"
+    calls: list[list[str]] = []
+    command_envs: list[dict[str, str]] = []
+
+    def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        calls.append(cmd)
+        command_envs.append(dict(kwargs["env"]))
+        if _is_fa2_setup_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="fa2 setup ok\n")
+        if _is_preflight_command(cmd):
+            _write_success_preflight_report(
+                result_dir / "preflight_report.json",
+                lane="B",
+                mode="full",
+                run_id="lane_b_full_gpu_ids",
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        assert cmd == ["torchrun", "--standalone", "--nproc_per_node=4", "train_gpt.py"]
+        return run_speedrun.CommandResult(returncode=0, stdout="training ok\n")
+
+    def fake_check_active_jobs(output=None):
+        report = {
+            "schema_version": 1,
+            "ok": True,
+            "active_job_count": 0,
+            "active_jobs": [],
+            "ignored_match_count": 0,
+            "ignored_matches": [],
+        }
+        if output is not None:
+            run_speedrun._write_json_atomic(output, report)
+        return report
+
+    monkeypatch.setattr(run_speedrun, "_start_telemetry", lambda config: [])
+    monkeypatch.setattr(run_speedrun, "check_active_jobs", fake_check_active_jobs)
+
+    exit_code = run_speedrun.run_attempt(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="full",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="torch",
+            verify_sha=True,
+            launch_authorization=run_speedrun.FULL_LAUNCH_AUTHORIZATION_TOKEN,
+            num_gpus=4,
+            gpu_ids=(0, 2, 4, 6),
+            result_root=tmp_path / "results",
+        ),
+        command_runner=fake_runner,
+    )
+
+    assert exit_code == 0
+    expected_gpus_index = calls[1].index("--expected-gpus")
+    assert calls[1][expected_gpus_index + 1] == "4"
+    assert [env["CUDA_VISIBLE_DEVICES"] for env in command_envs] == ["0,2,4,6"] * 3
+    assert [env["NVIDIA_VISIBLE_DEVICES"] for env in command_envs] == ["0,2,4,6"] * 3
+    attempt = json.loads((result_dir / "attempt.json").read_text())
+    assert attempt["command"]["training_argv"] == [
+        "torchrun",
+        "--standalone",
+        "--nproc_per_node=4",
+        "train_gpt.py",
+    ]
+    assert attempt["gpu_topology"] == {
+        "num_gpus": 4,
+        "gpu_ids": [0, 2, 4, 6],
+        "visible_devices": "0,2,4,6",
+    }
 
 
 def test_full_skip_run_writes_launch_readiness_report(tmp_path: Path, monkeypatch):

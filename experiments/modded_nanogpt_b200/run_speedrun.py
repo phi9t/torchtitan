@@ -36,6 +36,7 @@ RESULT_ROOT = Path("experiments/modded_nanogpt_b200/results")
 NO_OUTPUT_TIMEOUT_EXIT_CODE = 124
 FULL_LAUNCH_AUTHORIZATION_TOKEN = "launch-full-b200"
 FULL_TRIAL_GPU_COUNT = 2
+SUPPORTED_GPU_COUNTS = (1, 2, 4, 8)
 ACTIVE_JOB_COMMANDS = ("torchrun", "train_gpt.py", "cached_fineweb10B.py")
 ACTIVE_JOB_SEARCH_COMMANDS = ("pgrep", "grep", "rg", "ripgrep", "ps")
 PRELAUNCH_RESULT_FILES = frozenset(
@@ -81,6 +82,8 @@ class RunConfig:
     run_id: str | None = None
     attempt_id: str | None = None
     arm: str | None = None
+    num_gpus: int = FULL_TRIAL_GPU_COUNT
+    gpu_ids: tuple[int, ...] | None = None
     result_root: Path = RESULT_ROOT
 
     def __post_init__(self) -> None:
@@ -97,6 +100,16 @@ class RunConfig:
             raise ValueError(
                 f"result-dir must be under {self.result_root}: {self.result_dir}"
             )
+        if self.num_gpus not in SUPPORTED_GPU_COUNTS:
+            raise ValueError(f"num-gpus must be one of {SUPPORTED_GPU_COUNTS}")
+        if 8 % self.num_gpus != 0:
+            raise ValueError("num-gpus must divide 8")
+        gpu_ids = self.gpu_ids or tuple(range(self.num_gpus))
+        if len(gpu_ids) != self.num_gpus:
+            raise ValueError("gpu-ids length must match num-gpus")
+        if len(set(gpu_ids)) != len(gpu_ids):
+            raise ValueError("gpu-ids must not contain duplicates")
+        object.__setattr__(self, "gpu_ids", tuple(gpu_ids))
 
 
 def _is_under_result_root(path: Path, result_root: Path) -> bool:
@@ -111,9 +124,7 @@ def _is_under_result_root(path: Path, result_root: Path) -> bool:
             return False
 
 
-def _claim_label(
-    lane: str, mode: str, attention_backend: str, mlp_backend: str
-) -> str:
+def _claim_label(lane: str, mode: str, attention_backend: str, mlp_backend: str) -> str:
     if mode == "smoke":
         return "smoke"
     if mode == "diagnostic":
@@ -362,14 +373,15 @@ def _source_data_path_blocker(
     return {"phase": "data_path", "message": "; ".join(missing)}
 
 
-def _full_trial_visible_devices() -> str:
-    return ",".join(str(index) for index in range(FULL_TRIAL_GPU_COUNT))
+def _visible_devices(config: RunConfig) -> str:
+    assert config.gpu_ids is not None
+    return ",".join(str(index) for index in config.gpu_ids)
 
 
 def _run_env(config: RunConfig) -> dict[str, str]:
     result_abs = config.result_dir.resolve()
     data_root = _data_root_from_manifest(config.data_manifest)
-    visible_devices = _full_trial_visible_devices()
+    visible_devices = _visible_devices(config)
     env = {
         "HF_HOME": str((Path.cwd() / ".cache/huggingface").resolve()),
         "HF_HUB_CACHE": str((Path.cwd() / ".cache/huggingface/hub").resolve()),
@@ -416,6 +428,20 @@ def _redacted_env(env: dict[str, str]) -> dict[str, str]:
     return redacted
 
 
+def _parse_gpu_ids(raw: str | None) -> tuple[int, ...] | None:
+    if raw is None:
+        return None
+    if not raw:
+        raise ValueError("--gpu-ids must not be empty")
+    parts = raw.split(",")
+    if any(part == "" for part in parts):
+        raise ValueError("--gpu-ids must be a comma-separated integer list")
+    try:
+        return tuple(int(item) for item in parts)
+    except ValueError as exc:
+        raise ValueError("--gpu-ids must be a comma-separated integer list") from exc
+
+
 def _write_data_manifest_pointer(config: RunConfig) -> None:
     _write_json_atomic(
         config.result_dir / "data_manifest.json",
@@ -427,11 +453,11 @@ def _write_data_manifest_pointer(config: RunConfig) -> None:
     )
 
 
-def _training_command() -> list[str]:
+def _training_command(config: RunConfig) -> list[str]:
     return [
         "torchrun",
         "--standalone",
-        f"--nproc_per_node={FULL_TRIAL_GPU_COUNT}",
+        f"--nproc_per_node={config.num_gpus}",
         "train_gpt.py",
     ]
 
@@ -468,6 +494,11 @@ def _attempt_command(config: RunConfig) -> list[str]:
         cmd.extend(["--attempt-id", config.attempt_id])
     if config.arm is not None:
         cmd.extend(["--arm", config.arm])
+    if config.num_gpus != FULL_TRIAL_GPU_COUNT:
+        cmd.extend(["--num-gpus", str(config.num_gpus)])
+    if config.gpu_ids != tuple(range(config.num_gpus)):
+        assert config.gpu_ids is not None
+        cmd.extend(["--gpu-ids", ",".join(str(index) for index in config.gpu_ids)])
     return cmd
 
 
@@ -663,7 +694,7 @@ def _preflight_command(
         "--report",
         str(config.result_dir / "preflight_report.json"),
         "--expected-gpus",
-        str(FULL_TRIAL_GPU_COUNT),
+        str(config.num_gpus),
     ]
     if config.verify_sha:
         cmd.append("--verify-sha")
@@ -697,11 +728,16 @@ def _write_attempt(
         "data_manifest": str(config.data_manifest),
         "command": {
             "argv": _attempt_command(config),
-            "training_argv": _training_command(),
+            "training_argv": _training_command(config),
             "skip_run": config.skip_run,
             "launch_authorization_present": config.launch_authorization is not None,
             "attention_backend": config.attention_backend,
             "mlp_backend": config.mlp_backend,
+        },
+        "gpu_topology": {
+            "num_gpus": config.num_gpus,
+            "gpu_ids": list(config.gpu_ids or ()),
+            "visible_devices": _visible_devices(config),
         },
         "environment": _redacted_env(env),
     }
@@ -1545,7 +1581,7 @@ def run_attempt(
             training_launched=True,
         )
         train = command_runner(
-            _training_command(),
+            _training_command(config),
             cwd=config.source,
             env=train_env,
             log_path=config.result_dir / "run.log",
@@ -1598,6 +1634,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-id")
     parser.add_argument("--attempt-id")
     parser.add_argument("--arm")
+    parser.add_argument("--num-gpus", type=int, default=FULL_TRIAL_GPU_COUNT)
+    parser.add_argument("--gpu-ids")
     return parser.parse_args()
 
 
@@ -1639,6 +1677,8 @@ def main(*, enforce_rootfs: bool = False) -> int:
             run_id=args.run_id,
             attempt_id=args.attempt_id,
             arm=args.arm,
+            num_gpus=args.num_gpus,
+            gpu_ids=_parse_gpu_ids(args.gpu_ids),
         )
         return run_attempt(config)
     except ValueError as exc:

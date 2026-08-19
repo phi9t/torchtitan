@@ -171,25 +171,64 @@ def test_main_checks_data_manifest_before_mlp_backend(monkeypatch, tmp_path):
     calls: list[str] = []
 
     monkeypatch.setattr(preflight, "parse_args", lambda: args)
-    monkeypatch.setattr(preflight, "check_mode_policy", lambda parsed: calls.append("mode_policy") or {})
-    monkeypatch.setattr(preflight, "check_rootfs", lambda: calls.append("rootfs") or None)
+    monkeypatch.setattr(
+        preflight, "check_mode_policy", lambda parsed: calls.append("mode_policy") or {}
+    )
+    monkeypatch.setattr(
+        preflight, "check_rootfs", lambda: calls.append("rootfs") or None
+    )
     monkeypatch.setattr(preflight, "collect_rootfs_detail", lambda: {})
-    monkeypatch.setattr(preflight, "collect_environment_detail", lambda: calls.append("torch_import") or {})
-    monkeypatch.setattr(preflight, "check_runtime_contract", lambda mode: calls.append("runtime_contract") or {})
+    monkeypatch.setattr(
+        preflight,
+        "collect_environment_detail",
+        lambda: calls.append("torch_import") or {},
+    )
+    monkeypatch.setattr(
+        preflight,
+        "check_runtime_contract",
+        lambda mode: calls.append("runtime_contract") or {},
+    )
     monkeypatch.setattr(
         preflight,
         "check_direct_runtime_dependencies",
-        lambda mode, lane, attention_backend: calls.append("direct_runtime_dependencies") or {},
+        lambda mode, lane, attention_backend: calls.append(
+            "direct_runtime_dependencies"
+        )
+        or {},
     )
-    monkeypatch.setattr(preflight, "check_gpu_inventory", lambda expected_gpus, expected_name: calls.append("gpu_inventory") or [])
-    monkeypatch.setattr(preflight, "check_torch_primitives", lambda: calls.append("torch_primitives") or None)
-    monkeypatch.setattr(preflight, "check_nccl", lambda expected_gpus: calls.append("nccl_all_reduce") or None)
-    monkeypatch.setattr(preflight, "check_source", lambda source, lane, attention_backend, mlp_backend: calls.append("source_policy") or "")
-    monkeypatch.setattr(preflight, "check_attention", lambda lane, attention_backend: calls.append("attention_backend") or None)
+    monkeypatch.setattr(
+        preflight,
+        "check_gpu_inventory",
+        lambda expected_gpus, expected_name: calls.append("gpu_inventory") or [],
+    )
+    monkeypatch.setattr(
+        preflight,
+        "check_torch_primitives",
+        lambda: calls.append("torch_primitives") or None,
+    )
+    monkeypatch.setattr(
+        preflight,
+        "check_nccl",
+        lambda expected_gpus: calls.append("nccl_all_reduce") or None,
+    )
+    monkeypatch.setattr(
+        preflight,
+        "check_source",
+        lambda source, lane, attention_backend, mlp_backend: calls.append(
+            "source_policy"
+        )
+        or "",
+    )
+    monkeypatch.setattr(
+        preflight,
+        "check_attention",
+        lambda lane, attention_backend: calls.append("attention_backend") or None,
+    )
     monkeypatch.setattr(
         preflight,
         "check_data_manifest",
-        lambda data_manifest, mode, verify_sha: calls.append("data_manifest") or {"verified_sha": True},
+        lambda data_manifest, mode, verify_sha: calls.append("data_manifest")
+        or {"verified_sha": True},
     )
 
     def fail_mlp(source, mlp_backend, allow_previous_stall):
@@ -205,6 +244,44 @@ def test_main_checks_data_manifest_before_mlp_backend(monkeypatch, tmp_path):
     written = report.read_text()
     assert '"name": "data_manifest"' in written
     assert '"name": "mlp_backend"' in written
+
+
+def test_full_mode_policy_allows_gpu_ladder_counts():
+    for expected_gpus in [1, 2, 4, 8]:
+        policy = preflight.check_mode_policy(
+            SimpleNamespace(
+                mode="full",
+                skip_nccl=False,
+                verify_sha=True,
+                allow_previous_stall=False,
+                expected_gpus=expected_gpus,
+                expected_name="B200",
+                attention_backend="fa2",
+                mlp_backend="torch",
+            )
+        )
+
+        assert policy["expected_gpus"] == expected_gpus
+
+
+def test_full_mode_policy_rejects_non_ladder_gpu_count():
+    try:
+        preflight.check_mode_policy(
+            SimpleNamespace(
+                mode="full",
+                skip_nccl=False,
+                verify_sha=True,
+                allow_previous_stall=False,
+                expected_gpus=3,
+                expected_name="B200",
+                attention_backend="fa2",
+                mlp_backend="torch",
+            )
+        )
+    except preflight.CheckFailure as exc:
+        assert "full preflight requires expected-gpus in [1, 2, 4, 8]" in str(exc)
+    else:
+        raise AssertionError("expected invalid GPU ladder failure")
 
 
 def test_main_writes_structured_runtime_contract_failure(monkeypatch, tmp_path):
@@ -240,7 +317,11 @@ def test_main_writes_structured_runtime_contract_failure(monkeypatch, tmp_path):
     def fail_runtime_contract(mode):
         raise preflight.CheckFailure(
             "runtime contract drift",
-            detail={"mismatches": {"torch": {"expected": "2.13.0+cu132", "actual": "2.13.0+cu131"}}},
+            detail={
+                "mismatches": {
+                    "torch": {"expected": "2.13.0+cu132", "actual": "2.13.0+cu131"}
+                }
+            },
         )
 
     monkeypatch.setattr(preflight, "check_runtime_contract", fail_runtime_contract)
@@ -379,9 +460,15 @@ def test_torch_mlp_full_policy_allows_compile_disabled_prerequisite(
 ):
     source = tmp_path / "source"
     source.mkdir()
-    (source / "triton_kernels.py").write_text("class FusedLinearReLUSquareFunction:\n    pass\n")
+    (source / "triton_kernels.py").write_text(
+        "class FusedLinearReLUSquareFunction:\n    pass\n"
+    )
 
-    monkeypatch.setattr(preflight, "_run_torch_mlp_smoke", lambda path: {"backend": "torch", "output_shape": [2, 16, 768]})
+    monkeypatch.setattr(
+        preflight,
+        "_run_torch_mlp_smoke",
+        lambda path: {"backend": "torch", "output_shape": [2, 16, 768]},
+    )
     monkeypatch.setenv("TORCH_COMPILE_DISABLE", "1")
 
     detail = preflight.check_mlp_backend(source, "torch", allow_previous_stall=False)
@@ -397,14 +484,18 @@ def test_torch_mlp_full_policy_allows_compile_disabled_prerequisite(
     }
 
 
-def test_torch_mlp_full_policy_blocks_without_compile_disabled(
-    monkeypatch, tmp_path
-):
+def test_torch_mlp_full_policy_blocks_without_compile_disabled(monkeypatch, tmp_path):
     source = tmp_path / "source"
     source.mkdir()
-    (source / "triton_kernels.py").write_text("class FusedLinearReLUSquareFunction:\n    pass\n")
+    (source / "triton_kernels.py").write_text(
+        "class FusedLinearReLUSquareFunction:\n    pass\n"
+    )
 
-    monkeypatch.setattr(preflight, "_run_torch_mlp_smoke", lambda path: {"backend": "torch", "output_shape": [2, 16, 768]})
+    monkeypatch.setattr(
+        preflight,
+        "_run_torch_mlp_smoke",
+        lambda path: {"backend": "torch", "output_shape": [2, 16, 768]},
+    )
     monkeypatch.delenv("TORCH_COMPILE_DISABLE", raising=False)
 
     try:
