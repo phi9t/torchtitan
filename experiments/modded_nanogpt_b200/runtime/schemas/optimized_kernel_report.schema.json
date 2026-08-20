@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_name",
+    "schema_digest",
+    "launch_eligible",
+    "selected_tuple",
+    "classification",
+    "environment",
+    "rootfs",
+    "source",
+    "rows",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema_name": { "const": "optimized_kernel_report" },
+    "schema_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "report_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256"],
+      "properties": {
+        "sha256": { "type": "string" }
+      }
+    },
+    "launch_eligible": { "type": "boolean" },
+    "selected_tuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attention_backend", "mlp_backend"],
+      "properties": {
+        "attention_backend": { "type": "string" },
+        "mlp_backend": { "type": "string" }
+      }
+    },
+    "classification": { "type": "object" },
+    "environment": { "type": "object" },
+    "rootfs": { "type": "object" },
+    "source": { "type": "object" },
+    "gpu_arch_evidence": { "type": "array" },
+    "generated_at_epoch": { "type": "number" },
+    "selected_backend_env": { "type": "object" },
+    "cache_directories": { "type": "object" },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "kind",
+          "role",
+          "requested",
+          "selected_for_launch",
+          "required_for_selected_launch",
+          "diagnostic_only",
+          "support_status",
+          "build_status",
+          "smoke_status",
+          "launch_eligible",
+          "blockers"
+        ],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "role": { "type": "string" },
+          "requested": { "type": "boolean" },
+          "selected_for_launch": { "type": "boolean" },
+          "required_for_selected_launch": { "type": "boolean" },
+          "diagnostic_only": { "type": "boolean" },
+          "support_status": { "type": "string" },
+          "build_status": { "type": "string" },
+          "smoke_status": { "type": "string" },
+          "launch_eligible": { "type": "boolean" },
+          "blockers": { "type": "array" },
+          "failure_class": { "type": "string" },
+          "detail": { "type": "object" },
+          "packages": { "type": "object" }
+        }
+      }
+    },
+    "blockers": { "type": "array" }
+  }
+}

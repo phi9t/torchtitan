@@ -296,8 +296,7 @@ def test_checkpoint_stage_save_load_summaries_from_artifact_rows():
         200,
     ]
     assert all(
-        row["calibration"] == "heuristic"
-        for row in summary["checkpoint_durations"]
+        row["calibration"] == "heuristic" for row in summary["checkpoint_durations"]
     )
 
 

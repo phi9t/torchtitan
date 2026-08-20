@@ -68,7 +68,9 @@ def test_active_planner_recommends_all_initial_probe_families_with_metadata():
     summary = _summary_for_all_probe_families()
 
     recommendations = recommend_probes(summary)
-    by_kind = {recommendation["kind"]: recommendation for recommendation in recommendations}
+    by_kind = {
+        recommendation["kind"]: recommendation for recommendation in recommendations
+    }
 
     assert {
         "local_compute_canary",
@@ -229,7 +231,9 @@ def _find(recommendations: list[dict[str, object]], kind: str) -> dict[str, obje
     )
 
 
-def _ranking_fields(recommendation: dict[str, object]) -> tuple[int, int, int, str, str]:
+def _ranking_fields(
+    recommendation: dict[str, object]
+) -> tuple[int, int, int, str, str]:
     return (
         {"high": 0, "medium": 1, "low": 2}[
             str(recommendation["expected_information_gain_class"])

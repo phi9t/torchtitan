@@ -12,6 +12,8 @@ fi
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 SCRIPT_REL="experiments/modded_nanogpt_b200/launch_nanogpt_2gpu_full_rootfs.sh"
+AUTH_ENV_NAME="MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION"
+FULL_LAUNCH_AUTHORIZATION_TOKEN="launch-full-b200"
 
 if [[ "${TORCHTITAN_IN_ROOTFS:-0}" == "1" && -n "${MODDED_NANOGPT_2GPU_FULL_RUN_ID:-}" ]]; then
   RUN_ID="${MODDED_NANOGPT_2GPU_FULL_RUN_ID}"
@@ -70,11 +72,16 @@ on_exit() {
 trap on_exit EXIT
 
 if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
+  inner_env="MODDED_NANOGPT_2GPU_FULL_RUN_ID='${RUN_ID}'"
+  if [[ "${!AUTH_ENV_NAME:-}" == "${FULL_LAUNCH_AUTHORIZATION_TOKEN}" ]]; then
+    inner_env="${inner_env} ${AUTH_ENV_NAME}='${FULL_LAUNCH_AUTHORIZATION_TOKEN}'"
+  fi
+
   log "rootfs prep: emitting bwrap launch plan"
   TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY=1 \
     TORCHTITAN_ROOTFS_PLAN_OUTPUT="${ROOTFS_PLAN}" \
     "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- \
-      /bin/bash -lc "MODDED_NANOGPT_2GPU_FULL_RUN_ID='${RUN_ID}' exec '${SCRIPT_REL}'"
+      /bin/bash -lc "${inner_env} exec '${SCRIPT_REL}'"
   log "rootfs prep: wrote ${ROOTFS_PLAN}"
 
   if [[ -f "${REPO_ROOT}/scripts/rootfs/verify_runtime_env.py" ]]; then
@@ -88,7 +95,7 @@ if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
 
   log "rootfs prep: entering bwrap runtime"
   exec "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- \
-    /bin/bash -lc "MODDED_NANOGPT_2GPU_FULL_RUN_ID='${RUN_ID}' exec '${SCRIPT_REL}'"
+    /bin/bash -lc "${inner_env} exec '${SCRIPT_REL}'"
 fi
 
 source "${SCRIPT_DIR}/rootfs_guard.sh"
@@ -99,6 +106,10 @@ cd "${REPO_ROOT}"
 log "rootfs runtime: workspace=$(pwd -P)"
 log "rootfs runtime: source=${SOURCE}"
 log "rootfs runtime: data_manifest=${DATA_MANIFEST}"
+if [[ "${!AUTH_ENV_NAME:-}" != "${FULL_LAUNCH_AUTHORIZATION_TOKEN}" ]]; then
+  log "launch authority: set ${AUTH_ENV_NAME}=${FULL_LAUNCH_AUTHORIZATION_TOKEN} only after the trusted user request contains launch-full-b200"
+  exit 21
+fi
 log "model bringup: checking active nanoGPT jobs before launch"
 experiments/modded_nanogpt_b200/check_active_jobs.sh \
   --active-jobs-output "${ACTIVE_JOBS_JSON}" \
@@ -125,9 +136,9 @@ experiments/modded_nanogpt_b200/run_speedrun.sh \
   --source "${SOURCE}" \
   --data-manifest "${DATA_MANIFEST}" \
   --attention-backend fa2 \
-  --mlp-backend torch \
+  --mlp-backend triton \
   --verify-sha \
-  --launch-authorization=launch-full-b200 \
+  --launch-authorization="${!AUTH_ENV_NAME}" \
   --result-dir "${RESULT_DIR}" \
   >>"${OPERATOR_LOG}" 2>&1
 launch_code="$?"

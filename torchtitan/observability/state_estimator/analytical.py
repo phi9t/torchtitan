@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Mapping, Sequence
+
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from torchtitan.observability.state_estimator.schema import SCHEMA_VERSION
 
@@ -225,8 +227,13 @@ def _collective_predictions_and_residuals(
         observed_duration_ns = _collective_observed_duration_ns(payload)
         if observed_duration_ns is None:
             continue
-        predicted_duration_ns = prediction["predicted_duration_ns"]
+        predicted_duration_ns = _number_or_none(prediction.get("predicted_duration_ns"))
+        if predicted_duration_ns is None:
+            continue
         sigma = _residual_sigma_ns(payload, predicted_duration_ns)
+        expected_sigma_ns = _number_or_none(sigma.get("expected_sigma_ns"))
+        if expected_sigma_ns is None:
+            continue
         residuals.append(
             {
                 "kind": "collective_duration_residual",
@@ -239,12 +246,12 @@ def _collective_predictions_and_residuals(
                 "global_rank": payload.get("global_rank"),
                 "observed_duration_ns": observed_duration_ns,
                 "predicted_duration_ns": predicted_duration_ns,
-                "expected_sigma_ns": sigma["expected_sigma_ns"],
+                "expected_sigma_ns": expected_sigma_ns,
                 "sigma_calibration": sigma["sigma_calibration"],
                 "normalized_residual": _normalized_residual(
                     observed_duration_ns,
                     predicted_duration_ns,
-                    sigma["expected_sigma_ns"],
+                    expected_sigma_ns,
                 ),
                 "advisory": _ADVISORY_RESIDUAL,
                 "source_evidence": [_observation_id(observation)],
@@ -259,7 +266,9 @@ def _collective_predictions_and_residuals(
 def _collective_symptoms(
     observations: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
-    groups: dict[tuple[str, int, int | None], list[Mapping[str, Any]]] = defaultdict(list)
+    groups: dict[tuple[str, int, int | None], list[Mapping[str, Any]]] = defaultdict(
+        list
+    )
     for observation in observations:
         payload = _payload(observation)
         if not _is_all_reduce_payload(payload):
@@ -394,7 +403,9 @@ def _residual_sigma_ns(
             "sigma_calibration": "workload_expected_sigma_ns",
         }
     return {
-        "expected_sigma_ns": _stable_number(max(abs(float(predicted_duration_ns)), 1.0)),
+        "expected_sigma_ns": _stable_number(
+            max(abs(float(predicted_duration_ns)), 1.0)
+        ),
         "sigma_calibration": "heuristic_predicted_duration_scale",
     }
 
@@ -459,15 +470,15 @@ def _observation_id(observation: Mapping[str, Any]) -> str:
 def _duration_sort_key(item: Mapping[str, Any]) -> tuple[str, int, str, int]:
     return (
         str(item.get("phase", "")),
-        item.get("step") if isinstance(item.get("step"), int) else -1,
+        _int_or_default(item.get("step")),
         str((item.get("process") or {}).get("id", "")),
-        item.get("duration_ns") if isinstance(item.get("duration_ns"), int) else -1,
+        _int_or_default(item.get("duration_ns")),
     )
 
 
 def _collective_sort_key(item: Mapping[str, Any]) -> tuple[int, str, str]:
     return (
-        item.get("step") if isinstance(item.get("step"), int) else -1,
+        _int_or_default(item.get("step")),
         str((item.get("process") or {}).get("id", "")),
         str(item.get("phase", "")),
     )
@@ -476,9 +487,17 @@ def _collective_sort_key(item: Mapping[str, Any]) -> tuple[int, str, str]:
 def _residual_sort_key(item: Mapping[str, Any]) -> tuple[str, int, str]:
     return (
         str(item.get("kind", "")),
-        item.get("step") if isinstance(item.get("step"), int) else -1,
+        _int_or_default(item.get("step")),
         str((item.get("process") or {}).get("id", "")),
     )
+
+
+def _int_or_default(value: object, default: int = -1) -> int:
+    return value if isinstance(value, int) else default
+
+
+def _number_or_none(value: object) -> int | float | None:
+    return value if isinstance(value, int | float) else None
 
 
 def _stable_number(value: int | float) -> int | float:

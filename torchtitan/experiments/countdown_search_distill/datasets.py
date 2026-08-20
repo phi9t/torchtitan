@@ -13,12 +13,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from torchtitan.experiments.countdown_search_distill.countdown import (
-    CountdownProblem,
-)
-from torchtitan.experiments.countdown_search_distill.evaluate import (
-    ProblemEvaluation,
-)
+from torchtitan.experiments.countdown_search_distill.countdown import CountdownProblem
+from torchtitan.experiments.countdown_search_distill.evaluate import ProblemEvaluation
 
 
 @dataclass(frozen=True)
@@ -167,7 +163,9 @@ def build_training_examples(
     return examples
 
 
-def write_training_jsonl(examples: Sequence[TrainingExample], output_path: Path) -> None:
+def write_training_jsonl(
+    examples: Sequence[TrainingExample], output_path: Path
+) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w") as f:
         for example in examples:
@@ -208,7 +206,10 @@ def _shortest_success(evaluation: ProblemEvaluation):
     ]
     if not successful:
         return None
-    return min(successful, key=lambda rollout: (rollout.verification.steps_consumed, rollout.sample_index))
+    return min(
+        successful,
+        key=lambda rollout: (rollout.verification.steps_consumed, rollout.sample_index),
+    )
 
 
 def _rollout_id(problem_id: str, sample_index: int) -> str:

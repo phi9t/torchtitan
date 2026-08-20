@@ -7,19 +7,18 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 
 import pytest
 
-from torchtitan.observability.state_estimator.features import (
-    extract_feature_segments,
-)
+from torchtitan.observability.state_estimator.features import extract_feature_segments
 from torchtitan.observability.state_estimator.learned import (
     FaultModePrior,
     LikelihoodFactor,
-    TraceSegment,
-    load_learned_factor_bundle,
     load_learned_extension,
+    load_learned_factor_bundle,
+    TraceSegment,
 )
 from torchtitan.observability.state_estimator.observation import (
     ClockQuality,
@@ -143,8 +142,31 @@ def _write_bundle(tmp_path, data: dict):
     return path
 
 
+def _loaded_forbidden_default_imports(import_statement: str) -> list[str]:
+    script = f"""
+import json
+import sys
+
+FORBIDDEN_DEFAULT_IMPORTS = {FORBIDDEN_DEFAULT_IMPORTS!r}
+{import_statement}
+print(json.dumps([
+    name for name in FORBIDDEN_DEFAULT_IMPORTS if name in sys.modules
+]))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
+
+
 def test_learned_schemas_serialize_without_torch_dependency():
-    assert not any(name in sys.modules for name in FORBIDDEN_DEFAULT_IMPORTS)
+    loaded_forbidden = _loaded_forbidden_default_imports(
+        "from torchtitan.observability.state_estimator.learned import "
+        "LikelihoodFactor, TraceSegment"
+    )
 
     segment = TraceSegment(
         id="segment-1",
@@ -162,6 +184,7 @@ def test_learned_schemas_serialize_without_torch_dependency():
         metadata={"model": "null"},
     )
 
+    assert loaded_forbidden == []
     assert segment.to_json()["modality"] == "structured_events"
     assert factor.to_json()["calibration"] == "heuristic"
 
@@ -358,7 +381,9 @@ def test_loaded_factors_remain_advisory_and_exclude_control_decision_terms(tmp_p
         lambda data: data["factors"][0].update({"target_state": "retry"}),
         lambda data: data["factors"][0].update({"target_state": "transaction_safety"}),
         lambda data: data["factors"][0].update({"target_state": "transaction_control"}),
-        lambda data: data["factors"][0].update({"target_state": "transaction_decision"}),
+        lambda data: data["factors"][0].update(
+            {"target_state": "transaction_decision"}
+        ),
         lambda data: data["factors"][0].update({"target_state": "checkpoint_valid"}),
         lambda data: data["factors"][0].update({"target_state": "checkpoint validity"}),
         lambda data: data["factors"][0].update({"metadata": {"should_commit": True}}),
@@ -374,8 +399,8 @@ def test_factor_bundle_rejects_control_decision_outputs(tmp_path, unsafe_update)
 
 
 def test_default_learned_imports_do_not_load_ml_or_gpu_dependencies():
-    loaded_forbidden = [
-        name for name in FORBIDDEN_DEFAULT_IMPORTS if name in sys.modules
-    ]
+    loaded_forbidden = _loaded_forbidden_default_imports(
+        "import torchtitan.observability.state_estimator.learned"
+    )
 
     assert loaded_forbidden == []

@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Synthetic modular recurrence problems for scaffold-to-policy transfer."""
 
@@ -289,7 +292,9 @@ def pass_at_k(
     for k in ks:
         solved = 0
         for evaluation in evaluations:
-            solved_at = evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            solved_at = (
+                evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            )
             if solved_at is not None and solved_at <= k:
                 solved += 1
         results[k] = solved / len(evaluations)
@@ -315,7 +320,8 @@ def summarize_evaluations(
         "total_rollouts": total_rollouts,
         "pass_at_k": {str(k): value for k, value in pass_at_k(evaluations, ks).items()},
         "strict_format_pass_at_k": {
-            str(k): value for k, value in pass_at_k(evaluations, ks, strict=True).items()
+            str(k): value
+            for k, value in pass_at_k(evaluations, ks, strict=True).items()
         },
         "bucket_counts": buckets,
         "failure_breakdown": errors,
@@ -537,7 +543,9 @@ def load_evaluations(path: Path) -> list[ModularProblemEvaluation]:
                 ModularProblemEvaluation(problem=problem, rollouts=tuple(rollouts))
             )
         except Exception as exc:
-            raise ValueError(f"invalid evaluation at {path}:{line_number}: {exc}") from exc
+            raise ValueError(
+                f"invalid evaluation at {path}:{line_number}: {exc}"
+            ) from exc
     return evaluations
 
 
@@ -688,10 +696,7 @@ def _is_win(
 ) -> bool:
     adapter_solved_at = adapter.solved_at()
     base_solved_at = base.solved_at()
-    return (
-        adapter_solved_at == 1
-        and (base_solved_at is None or base_solved_at > 1)
-    )
+    return adapter_solved_at == 1 and (base_solved_at is None or base_solved_at > 1)
 
 
 def _is_regression(

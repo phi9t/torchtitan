@@ -140,7 +140,9 @@ def stable_problem_id(problem: CountdownProblem) -> str:
     return f"cd-{numbers}-t{problem.target}"
 
 
-def pass_at_k(evaluations: Sequence[ProblemEvaluation], ks: Sequence[int]) -> dict[int, float]:
+def pass_at_k(
+    evaluations: Sequence[ProblemEvaluation], ks: Sequence[int]
+) -> dict[int, float]:
     if not evaluations:
         return {k: 0.0 for k in ks}
     results: dict[int, float] = {}
@@ -261,9 +263,11 @@ def validity_breakdown(evaluations: Sequence[ProblemEvaluation]) -> dict[str, in
     counts: dict[str, int] = {}
     for evaluation in evaluations:
         for rollout in evaluation.rollouts:
-            key = "success" if rollout.verification.success else (
-                rollout.verification.first_invalid or {}
-            ).get("reason", "unknown")
+            key = (
+                "success"
+                if rollout.verification.success
+                else (rollout.verification.first_invalid or {}).get("reason", "unknown")
+            )
             counts[str(key)] = counts.get(str(key), 0) + 1
     return counts
 
@@ -428,4 +432,3 @@ def write_summary_md(summary_path: Path, output_path: Path) -> None:
         lines.append(f"- {bucket}: {count}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n")
-

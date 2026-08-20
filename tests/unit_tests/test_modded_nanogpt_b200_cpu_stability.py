@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from experiments.modded_nanogpt_b200 import cpu_stability
 
 
@@ -104,7 +102,9 @@ def test_cpu_stability_runs_multiple_isolated_attempts_with_telemetry(tmp_path):
     written = json.loads((tmp_path / "stability_summary.json").read_text())
     assert written == summary
     assert "repeat=1/3" in (tmp_path / "run.log").read_text()
-    telemetry = json.loads((tmp_path / "telemetry" / "stability_status.json").read_text())
+    telemetry = json.loads(
+        (tmp_path / "telemetry" / "stability_status.json").read_text()
+    )
     assert telemetry["ok"] is True
     assert telemetry["completed_repeats"] == 3
 

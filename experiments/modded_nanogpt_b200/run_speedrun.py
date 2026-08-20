@@ -11,32 +11,39 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
 import selectors
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast, Protocol, TextIO
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from experiments.modded_nanogpt_b200 import cli_guard, parse_log
+from experiments.modded_nanogpt_b200.runtime import schema_validation, verify_runtime
 
 
 SCHEMA_VERSION = 1
 DEFAULT_ENVIRONMENT_CLASS = "torchtitan-rootfs-b200"
 RESULT_ROOT = Path("experiments/modded_nanogpt_b200/results")
 NO_OUTPUT_TIMEOUT_EXIT_CODE = 124
+PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS = 240
+TRAINING_NO_OUTPUT_TIMEOUT_SECONDS = 600
 FULL_LAUNCH_AUTHORIZATION_TOKEN = "launch-full-b200"
 FULL_TRIAL_GPU_COUNT = 2
 SUPPORTED_GPU_COUNTS = (1, 2, 4, 8)
+CANONICAL_RUNTIME_PYTHON = "/project/venvs/b200-runtime/bin/python"
 ACTIVE_JOB_COMMANDS = ("torchrun", "train_gpt.py", "cached_fineweb10B.py")
 ACTIVE_JOB_SEARCH_COMMANDS = ("pgrep", "grep", "rg", "ripgrep", "ps")
 PRELAUNCH_RESULT_FILES = frozenset(
@@ -53,6 +60,28 @@ PRELAUNCH_RESULT_FILES = frozenset(
 COMPILE_WORKER_CPU_PROGRESS_THRESHOLD = 0.1
 
 
+JsonObject = MutableMapping[str, Any]
+
+
+class TelemetryProc(Protocol):
+    @property
+    def pid(self) -> int:
+        ...
+
+    @property
+    def returncode(self) -> int | None:
+        ...
+
+    def terminate(self) -> None:
+        ...
+
+    def wait(self, timeout: float | None = None) -> int:
+        ...
+
+    def kill(self) -> None:
+        ...
+
+
 @dataclass(frozen=True)
 class CommandResult:
     returncode: int
@@ -62,7 +91,7 @@ class CommandResult:
 @dataclass
 class TelemetryProcess:
     name: str
-    proc: subprocess.Popen
+    proc: TelemetryProc
     output: Path
 
 
@@ -176,7 +205,7 @@ def _classification(config: RunConfig) -> dict[str, object]:
     }
 
 
-def _write_json_atomic(path: Path, data: dict[str, object]) -> None:
+def _write_json_atomic(path: Path, data: JsonObject) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
@@ -394,6 +423,14 @@ def _run_env(config: RunConfig) -> dict[str, str]:
         "TRITON_CACHE_DIR": str(result_abs / "triton_cache"),
         "MODDED_NANOGPT_ATTN_BACKEND": config.attention_backend,
         "MODDED_NANOGPT_MLP_BACKEND": config.mlp_backend,
+        "TORCHTITAN_IN_ROOTFS": os.environ.get("TORCHTITAN_IN_ROOTFS", ""),
+        "TORCHTITAN_ROOTFS_PROJECT": os.environ.get(
+            "TORCHTITAN_ROOTFS_PROJECT", "/workspace/torchtitan"
+        ),
+        "TORCHTITAN_ROOTFS_NETWORK": os.environ.get(
+            "TORCHTITAN_ROOTFS_NETWORK", "offline"
+        ),
+        "PYTHON": os.environ.get("PYTHON", CANONICAL_RUNTIME_PYTHON),
     }
     if config.lane == "B":
         env["MODDED_NANOGPT_CE_COMPUTE_CAPABILITY"] = "100"
@@ -404,10 +441,68 @@ def _run_env(config: RunConfig) -> dict[str, str]:
 
 
 def _write_env(path: Path, env: dict[str, str]) -> None:
-    lines = []
+    lines: list[str] = []
     for key, value in sorted(_redacted_env(env).items()):
         lines.append(f"{key}={value}")
     path.write_text("\n".join(lines) + "\n")
+
+
+def _json_digest(data: object) -> dict[str, str]:
+    payload = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return {"algorithm": "sha256", "sha256": hashlib.sha256(payload).hexdigest()}
+
+
+def _command_env_record(config: RunConfig, env: dict[str, str]) -> dict[str, object]:
+    redacted_env = _redacted_env(env)
+    digest = _json_digest(redacted_env)
+    record: dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "command_environment",
+        "run_id": config.run_id or config.result_dir.name,
+        "attempt_id": config.attempt_id or f"{config.result_dir.name}_attempt_001",
+        "environment": redacted_env,
+        "environment_digest": digest,
+    }
+    return record
+
+
+def _write_command_env_json(
+    config: RunConfig, env: dict[str, str]
+) -> dict[str, object]:
+    record = _command_env_record(config, env)
+    schema_validation.validate_and_write(
+        config.result_dir / "command.env.json", "command_env", record
+    )
+    return record
+
+
+def _write_command_argv_json(config: RunConfig) -> dict[str, object]:
+    argv = _attempt_command(config)
+    record: dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "command_argv",
+        "run_id": config.run_id or config.result_dir.name,
+        "attempt_id": config.attempt_id or f"{config.result_dir.name}_attempt_001",
+        "argv": argv,
+        "training_argv": _training_command(config),
+        "argv_digest": _json_digest(argv),
+    }
+    schema_validation.validate_and_write(
+        config.result_dir / "command.argv.json", "command_argv", record
+    )
+    return record
+
+
+def _write_runtime_verification(
+    config: RunConfig, command_env_record: dict[str, object]
+) -> None:
+    runtime_dir = config.result_dir / "runtime"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    verify_runtime.verify_attempt_runtime(
+        command_env_path=config.result_dir / "command.env.json",
+        report_path=runtime_dir / "runtime_verification.json",
+        require_training_launch_allowed=True,
+    )
 
 
 def _redacted_env(env: dict[str, str]) -> dict[str, str]:
@@ -509,13 +604,15 @@ def _default_runner(cmd: list[str], **kwargs) -> CommandResult:
     if log_path is not None:
         log_path = Path(log_path)
         log_path.parent.mkdir(parents=True, exist_ok=True)
+        popen_kwargs = dict(kwargs)
+        popen_kwargs.setdefault("start_new_session", True)
         with log_path.open("a") as log:
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                **kwargs,
+                **popen_kwargs,
             )
             assert proc.stdout is not None
             selector = selectors.DefaultSelector()
@@ -538,19 +635,15 @@ def _default_runner(cmd: list[str], **kwargs) -> CommandResult:
                         )
                         log.write(message)
                         log.flush()
-                        proc.terminate()
-                        try:
-                            proc.wait(timeout=10)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=10)
+                        _terminate_logged_command(proc)
                         selector.close()
                         return CommandResult(
                             returncode=NO_OUTPUT_TIMEOUT_EXIT_CODE, stdout=""
                         )
                     continue
                 for key, _ in events:
-                    line = key.fileobj.readline()
+                    stream = cast(TextIO, key.fileobj)
+                    line = stream.readline()
                     if line:
                         log.write(line)
                         log.flush()
@@ -568,6 +661,25 @@ def _default_runner(cmd: list[str], **kwargs) -> CommandResult:
         **kwargs,
     )
     return CommandResult(returncode=proc.returncode, stdout=proc.stdout)
+
+
+def _terminate_logged_command(proc: subprocess.Popen) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except OSError:
+        proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        except OSError:
+            proc.kill()
+        proc.wait(timeout=10)
 
 
 def _compile_worker_progress_active() -> bool:
@@ -619,9 +731,9 @@ def _is_search_only_active_job_match(args: str) -> bool:
     return True
 
 
-def _active_job_report(ps_output: str) -> dict[str, object]:
-    active_jobs = []
-    ignored_matches = []
+def _active_job_report(ps_output: str) -> JsonObject:
+    active_jobs: list[dict[str, int | str]] = []
+    ignored_matches: list[dict[str, int | str]] = []
     for line in ps_output.splitlines():
         stripped = line.strip()
         if not stripped:
@@ -649,7 +761,7 @@ def _active_job_report(ps_output: str) -> dict[str, object]:
     }
 
 
-def check_active_jobs(output: Path | None = None) -> dict[str, object]:
+def check_active_jobs(output: Path | None = None) -> JsonObject:
     proc = subprocess.run(
         ["ps", "-eo", "pid=,args="],
         stdout=subprocess.PIPE,
@@ -693,6 +805,8 @@ def _preflight_command(
         config.mlp_backend,
         "--report",
         str(config.result_dir / "preflight_report.json"),
+        "--progress",
+        str(config.result_dir / "preflight_progress.json"),
         "--expected-gpus",
         str(config.num_gpus),
     ]
@@ -701,6 +815,30 @@ def _preflight_command(
     if config.allow_previous_stall:
         cmd.append("--allow-previous-stall")
     return cmd
+
+
+def _kernel_cert_command(
+    config: RunConfig, classification: dict[str, object]
+) -> list[str]:
+    return [
+        "experiments/modded_nanogpt_b200/certify_optimized_kernels.sh",
+        "--source",
+        str(config.source),
+        "--attention-backend",
+        config.attention_backend,
+        "--mlp-backend",
+        config.mlp_backend,
+        "--output",
+        str(config.result_dir / "runtime" / "optimized_kernel_report.json"),
+        "--run-id",
+        str(classification["run_id"]),
+        "--attempt-id",
+        str(classification["attempt_id"]),
+        "--environment-class",
+        DEFAULT_ENVIRONMENT_CLASS,
+        "--expected-gpus",
+        str(config.num_gpus),
+    ]
 
 
 def _requires_flash_attention_setup(config: RunConfig) -> bool:
@@ -863,6 +1001,25 @@ def _write_flash_attention_setup_blocker(
 
 
 def _preflight_failure_blocker(report_path: Path, returncode: int) -> dict[str, str]:
+    if returncode == NO_OUTPUT_TIMEOUT_EXIT_CODE:
+        progress = _read_json_object(report_path.with_name("preflight_progress.json"))
+        active_check = progress.get("active_check")
+        if isinstance(active_check, str) and active_check:
+            return {
+                "phase": active_check,
+                "message": (
+                    "preflight produced no output for "
+                    f"{PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS} seconds "
+                    f"while running {active_check}"
+                ),
+            }
+        return {
+            "phase": "preflight",
+            "message": (
+                "preflight produced no output for "
+                f"{PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS} seconds"
+            ),
+        }
     try:
         report = json.loads(report_path.read_text())
     except (OSError, json.JSONDecodeError):
@@ -922,6 +1079,103 @@ def _read_preflight_report(path: Path) -> dict[str, object]:
     return {}
 
 
+def _read_json_object(path: Path) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def _read_optimized_kernel_report(path: Path) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def _read_command_env_record(path: Path) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def _read_runtime_verification(path: Path) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def _runtime_verification_blocker(config: RunConfig) -> dict[str, str] | None:
+    command_env_record = _read_command_env_record(
+        config.result_dir / "command.env.json"
+    )
+    expected_digest = command_env_record.get("environment_digest")
+    if not isinstance(expected_digest, dict):
+        return {
+            "phase": "runtime_verification",
+            "message": "command environment digest is missing",
+        }
+
+    runtime_path = config.result_dir / "runtime" / "runtime_verification.json"
+    if not runtime_path.exists():
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification report is missing",
+        }
+    try:
+        runtime_verification = json.loads(runtime_path.read_text())
+    except json.JSONDecodeError:
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification report is not valid JSON",
+        }
+    if not isinstance(runtime_verification, dict):
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification report is not a JSON object",
+        }
+    if runtime_verification.get("schema_version") != SCHEMA_VERSION:
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification report has stale schema_version",
+        }
+    if runtime_verification.get("kind") != "runtime_verification":
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification report has wrong kind",
+        }
+    if runtime_verification.get("ok") is not True:
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification did not pass",
+        }
+    if runtime_verification.get("command_env_digest") != expected_digest:
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification command env digest does not match",
+        }
+    if runtime_verification.get("training_launch_allowed") is not True:
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification did not allow training launch",
+        }
+    return None
+
+
 def _write_preflight_sidecars(config: RunConfig) -> None:
     preflight_report = _read_preflight_report(
         config.result_dir / "preflight_report.json"
@@ -976,6 +1230,14 @@ def _write_launch_readiness(
         "manifest_num_files": data_detail.get("num_files"),
         "manifest_total_bytes": data_detail.get("total_bytes"),
     }
+    optimized_kernel_report = _read_optimized_kernel_report(
+        config.result_dir / "runtime" / "optimized_kernel_report.json"
+    )
+    optimized_kernel_certified = optimized_kernel_report.get("launch_eligible")
+    if optimized_kernel_report:
+        full_mode_gates["optimized_kernel_certified"] = (
+            optimized_kernel_certified is True
+        )
     blocked_by = list(extra_blocked_by or [])
     if preflight_returncode not in {0, None}:
         blocker = _preflight_failure_blocker(
@@ -987,7 +1249,11 @@ def _write_launch_readiness(
             blocked_by.append(
                 {"phase": "mode_policy", "message": "full mode requires --verify-sha"}
             )
-        if preflight_ran and full_mode_gates["nccl_checked"] is not True:
+        if (
+            preflight_ran
+            and preflight_report
+            and full_mode_gates["nccl_checked"] is not True
+        ):
             blocked_by.append(
                 {
                     "phase": "nccl_all_reduce",
@@ -1005,6 +1271,14 @@ def _write_launch_readiness(
                     "message": "full mode requires SHA-verified data manifest",
                 }
             )
+        if preflight_ran and optimized_kernel_report:
+            if optimized_kernel_certified is not True:
+                blocked_by.append(
+                    {
+                        "phase": "optimized_kernel_certification",
+                        "message": "full mode requires launch-eligible optimized kernels",
+                    }
+                )
     ready_to_launch = preflight_returncode == 0 and not blocked_by
     launch_authority_required = config.mode == "full" and not training_launched
     report = {
@@ -1034,7 +1308,35 @@ def _write_launch_readiness(
         "full_mode_gates": full_mode_gates,
         "blocked_by": blocked_by,
     }
-    _write_json_atomic(config.result_dir / "launch_readiness.json", report)
+    if optimized_kernel_report:
+        report["optimized_kernel_report"] = {
+            "path": str(config.result_dir / "runtime" / "optimized_kernel_report.json"),
+            "launch_eligible": optimized_kernel_certified is True,
+            "report_digest": optimized_kernel_report.get("report_digest"),
+            "schema_digest": optimized_kernel_report.get("schema_digest"),
+        }
+    command_env_record = _read_command_env_record(
+        config.result_dir / "command.env.json"
+    )
+    command_env_digest = command_env_record.get("environment_digest")
+    if isinstance(command_env_digest, dict):
+        report["command_env_digest"] = command_env_digest
+    runtime_verification = _read_runtime_verification(
+        config.result_dir / "runtime" / "runtime_verification.json"
+    )
+    if runtime_verification:
+        report["runtime_verification"] = {
+            "path": str(config.result_dir / "runtime" / "runtime_verification.json"),
+            "ok": runtime_verification.get("ok") is True,
+            "training_launch_allowed": runtime_verification.get(
+                "training_launch_allowed"
+            )
+            is True,
+            "command_env_digest": runtime_verification.get("command_env_digest"),
+        }
+    schema_validation.validate_and_write(
+        config.result_dir / "launch_readiness.json", "launch_readiness", report
+    )
     blocked = (
         "none"
         if not blocked_by
@@ -1053,6 +1355,7 @@ def _write_launch_readiness(
         f"- preflight_ok: {report['preflight_ok']}",
         f"- verify_sha: {config.verify_sha}",
         f"- nccl_checked: {full_mode_gates['nccl_checked']}",
+        f"- optimized_kernel_certified: {full_mode_gates.get('optimized_kernel_certified')}",
         f"- manifest_checked: {full_mode_gates['data_manifest_checked']}",
         f"- manifest_token_budget: {full_mode_gates['manifest_token_budget']}",
         f"- manifest_num_files: {full_mode_gates['manifest_num_files']}",
@@ -1062,6 +1365,31 @@ def _write_launch_readiness(
         "",
     ]
     (config.result_dir / "launch_readiness.md").write_text("\n".join(lines))
+
+
+def _post_preflight_classification(
+    config: RunConfig, classification: dict[str, object]
+) -> dict[str, object]:
+    preflight_report = _read_preflight_report(
+        config.result_dir / "preflight_report.json"
+    )
+    reported = preflight_report.get("classification")
+    if not isinstance(reported, dict):
+        return classification
+    identity_keys = ("lane", "mode", "arm", "run_id", "attempt_id")
+    for key in identity_keys:
+        if reported.get(key) != classification.get(key):
+            return classification
+    updated = dict(classification)
+    for key in (
+        "claim_label",
+        "evidence_tier",
+        "environment_class",
+        "claim_eligible",
+    ):
+        if key in reported:
+            updated[key] = reported[key]
+    return updated
 
 
 def _full_launch_authorized(config: RunConfig) -> bool:
@@ -1082,7 +1410,7 @@ def _write_launch_authority_blocker(config: RunConfig) -> None:
     _write_blocker(config.result_dir, "launch_authority", message)
 
 
-def _active_jobs_blocker_message(report: dict[str, object]) -> str:
+def _active_jobs_blocker_message(report: JsonObject) -> str:
     scan_error = report.get("scan_error")
     if isinstance(scan_error, str) and scan_error:
         return "active-job scan failed: " + scan_error
@@ -1103,9 +1431,7 @@ def _active_jobs_blocker_message(report: dict[str, object]) -> str:
     return "active training or data-prep jobs found: " + ", ".join(parts)
 
 
-def _write_active_jobs_blocker(
-    config: RunConfig, report: dict[str, object]
-) -> dict[str, str]:
+def _write_active_jobs_blocker(config: RunConfig, report: JsonObject) -> dict[str, str]:
     message = _active_jobs_blocker_message(report)
     _append_run_log(config.result_dir, message + "\n")
     _write_watcher_status(config, "not_started", "active_jobs")
@@ -1113,6 +1439,83 @@ def _write_active_jobs_blocker(
     _write_exit_code(config.result_dir, 21, "active_jobs")
     _write_blocker(config.result_dir, "active_jobs", message)
     return {"phase": "active_jobs", "message": message}
+
+
+def _run_kernel_certification(
+    config: RunConfig,
+    classification: dict[str, object],
+    command_runner: Callable[..., CommandResult],
+    env: dict[str, str],
+) -> int:
+    kernel_cert = command_runner(
+        _kernel_cert_command(config, classification), env={**os.environ, **env}
+    )
+    _append_run_log(config.result_dir, kernel_cert.stdout)
+    optimized_kernel_report = _read_optimized_kernel_report(
+        config.result_dir / "runtime" / "optimized_kernel_report.json"
+    )
+    if (
+        kernel_cert.returncode == 0
+        and optimized_kernel_report.get("launch_eligible") is not True
+    ):
+        return 21
+    return kernel_cert.returncode
+
+
+def _write_kernel_certification_blocker(
+    config: RunConfig,
+    classification: dict[str, object],
+    *,
+    preflight_returncode: int,
+    cert_returncode: int,
+    start: float,
+) -> None:
+    blocker = {
+        "phase": "optimized_kernel_certification",
+        "message": (
+            "optimized kernel certification failed with exit code " f"{cert_returncode}"
+        ),
+    }
+    _write_launch_readiness(
+        config,
+        classification,
+        preflight_returncode=preflight_returncode,
+        training_launched=False,
+        extra_blocked_by=[blocker],
+    )
+    _write_watcher_status(
+        config, "not_started", "optimized_kernel_certification_failed"
+    )
+    _capture_source_after(config)
+    _write_wall_clock(config.result_dir, start, time.time())
+    _write_exit_code(
+        config.result_dir,
+        cert_returncode,
+        "optimized_kernel_certification",
+    )
+    _write_blocker(config.result_dir, blocker["phase"], blocker["message"])
+
+
+def _write_runtime_verification_blocker(
+    config: RunConfig,
+    classification: dict[str, object],
+    *,
+    preflight_returncode: int,
+    blocker: dict[str, str],
+    start: float,
+) -> None:
+    _write_launch_readiness(
+        config,
+        classification,
+        preflight_returncode=preflight_returncode,
+        training_launched=False,
+        extra_blocked_by=[blocker],
+    )
+    _write_watcher_status(config, "not_started", "runtime_verification")
+    _capture_source_after(config)
+    _write_wall_clock(config.result_dir, start, time.time())
+    _write_exit_code(config.result_dir, 21, "runtime_verification")
+    _write_blocker(config.result_dir, blocker["phase"], blocker["message"])
 
 
 def _telemetry_dir(config: RunConfig) -> Path:
@@ -1410,9 +1813,12 @@ def run_attempt(
     _write_attempt(config, classification, env)
     _write_operator_notes(config, classification)
     _write_env(config.result_dir / "command.env", env)
+    command_env_record = _write_command_env_json(config, env)
+    _write_runtime_verification(config, command_env_record)
     (config.result_dir / "command.argv").write_text(
         shlex.join(_attempt_command(config)) + "\n"
     )
+    _write_command_argv_json(config)
     _write_data_manifest_pointer(config)
     _write_rootfs_environment(config, env)
     _write_dcgm_status(config)
@@ -1464,7 +1870,10 @@ def run_attempt(
             return setup.returncode
 
     preflight = command_runner(
-        _preflight_command(config, classification), env={**os.environ, **env}
+        _preflight_command(config, classification),
+        env={**os.environ, **env},
+        log_path=config.result_dir / "run.log",
+        no_output_timeout_seconds=PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS,
     )
     _append_run_log(config.result_dir, preflight.stdout)
     _write_preflight_sidecars(config)
@@ -1491,6 +1900,7 @@ def run_attempt(
         _write_blocker(config.result_dir, blocker["phase"], blocker["message"])
         _parse_summary(config, classification)
         return preflight_returncode
+    classification = _post_preflight_classification(config, classification)
 
     active_jobs_report = None
     if config.mode == "full":
@@ -1509,6 +1919,20 @@ def run_attempt(
             return 21
 
     if config.skip_run:
+        if config.mode == "full":
+            cert_returncode = _run_kernel_certification(
+                config, classification, command_runner, env
+            )
+            if cert_returncode != 0:
+                _write_kernel_certification_blocker(
+                    config,
+                    classification,
+                    preflight_returncode=preflight_returncode,
+                    cert_returncode=cert_returncode,
+                    start=start,
+                )
+                _parse_summary(config, classification)
+                return cert_returncode
         _write_launch_readiness(
             config,
             classification,
@@ -1571,6 +1995,33 @@ def run_attempt(
         _parse_summary(config, classification)
         return 21
 
+    if config.mode == "full":
+        cert_returncode = _run_kernel_certification(
+            config, classification, command_runner, env
+        )
+        if cert_returncode != 0:
+            _write_kernel_certification_blocker(
+                config,
+                classification,
+                preflight_returncode=preflight_returncode,
+                cert_returncode=cert_returncode,
+                start=start,
+            )
+            _parse_summary(config, classification)
+            return cert_returncode
+
+    runtime_blocker = _runtime_verification_blocker(config)
+    if runtime_blocker is not None:
+        _write_runtime_verification_blocker(
+            config,
+            classification,
+            preflight_returncode=preflight_returncode,
+            blocker=runtime_blocker,
+            start=start,
+        )
+        _parse_summary(config, classification)
+        return 21
+
     train_env = {**os.environ, **env}
     telemetry_processes = _start_telemetry(config)
     try:
@@ -1585,7 +2036,7 @@ def run_attempt(
             cwd=config.source,
             env=train_env,
             log_path=config.result_dir / "run.log",
-            no_output_timeout_seconds=600,
+            no_output_timeout_seconds=TRAINING_NO_OUTPUT_TIMEOUT_SECONDS,
             progress_probe=_compile_worker_progress_active,
         )
     finally:
@@ -1599,7 +2050,10 @@ def run_attempt(
             config, reason="no_output_timeout", exit_code=train.returncode
         )
         _write_blocker(
-            config.result_dir, "stall", "training produced no output for 600 seconds"
+            config.result_dir,
+            "stall",
+            "training produced no output for "
+            f"{TRAINING_NO_OUTPUT_TIMEOUT_SECONDS} seconds",
         )
     elif train.returncode != 0:
         _capture_stop_snapshot(

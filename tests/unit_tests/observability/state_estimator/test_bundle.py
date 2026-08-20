@@ -10,8 +10,8 @@ import pytest
 
 from torchtitan.observability.state_estimator.bundle import load_bundle
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
 )
 
 

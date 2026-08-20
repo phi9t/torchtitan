@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """External harness smoke metadata and ingestion helpers."""
 
@@ -700,7 +703,8 @@ def build_report_input(
             for value in installed_preflight_values
         ),
         "installed_preflight_versions_match": all(
-            value["checks"]["all_versions_match"] for value in installed_preflight_values
+            value["checks"]["all_versions_match"]
+            for value in installed_preflight_values
         ),
         "task_score_smokes_succeeded": all(
             value["metric"]["num_tasks"] > 0 and value["metric"]["score"] >= 1.0
@@ -739,7 +743,9 @@ def build_report_input(
         "no model, adapter, or harness capability claim",
     ]
     if scaffold_type == "task_score_smoke":
-        limitations.append("fixture trajectory only; external benchmark agent was not run")
+        limitations.append(
+            "fixture trajectory only; external benchmark agent was not run"
+        )
     elif mode_counts.get("task_execution_probe", 0):
         limitations.append("task execution probe may be blocker evidence if score is 0")
     else:
@@ -911,9 +917,7 @@ def _summarize_harbor_terminal_result(
     result = json.loads(result_json.read_text())
     stats = result.get("stats") or {}
     evals = stats.get("evals") or {}
-    eval_summaries = [
-        value for value in evals.values() if isinstance(value, dict)
-    ]
+    eval_summaries = [value for value in evals.values() if isinstance(value, dict)]
     num_trials = sum(int(value.get("n_trials", 0) or 0) for value in eval_summaries)
     num_errors = sum(int(value.get("n_errors", 0) or 0) for value in eval_summaries)
     metric_values = []

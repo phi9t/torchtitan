@@ -11,8 +11,8 @@ from torchtitan.observability.state_estimator.data_collection import (
     build_data_collection_plan,
 )
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
 )
 
 

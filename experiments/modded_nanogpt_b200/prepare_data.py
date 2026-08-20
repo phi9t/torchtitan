@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Prepare or manifest FineWeb shards for the modded-nanogpt B200 harness."""
 
@@ -10,9 +13,9 @@ import argparse
 import hashlib
 import json
 import platform
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -94,7 +97,9 @@ def build_manifest(
                 f"full manifest requires total_bytes {EXPECTED_FINEWEB_BYTES}, found {total_bytes}"
             )
         if source_commit != UPSTREAM_COMMIT:
-            raise ValueError(f"full manifest source commit must be {UPSTREAM_COMMIT}, found {source_commit}")
+            raise ValueError(
+                f"full manifest source commit must be {UPSTREAM_COMMIT}, found {source_commit}"
+            )
     return {
         "schema_version": SCHEMA_VERSION,
         "dataset": "fineweb10B",
@@ -138,7 +143,9 @@ def write_manifest(
 
 
 def _source_commit(source: Path) -> str:
-    return subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    return subprocess.check_output(
+        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True
+    ).strip()
 
 
 def parse_args() -> argparse.Namespace:
@@ -155,7 +162,9 @@ def parse_args() -> argparse.Namespace:
 def main(*, enforce_rootfs: bool = False) -> int:
     args = parse_args()
     if enforce_rootfs:
-        guard_exit = cli_guard.guard_rootfs_cli("experiments/modded_nanogpt_b200/prepare_data.sh")
+        guard_exit = cli_guard.guard_rootfs_cli(
+            "experiments/modded_nanogpt_b200/prepare_data.sh"
+        )
         if guard_exit is not None:
             return guard_exit
     count_arg = "9" if args.token_budget == "900M" else "1"

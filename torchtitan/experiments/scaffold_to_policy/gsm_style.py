@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """GSM-style final-answer normalization for reasoning evaluations."""
 
@@ -214,7 +217,9 @@ def pass_at_k(
     for k in ks:
         solved = 0
         for evaluation in evaluations:
-            solved_at = evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            solved_at = (
+                evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            )
             if solved_at is not None and solved_at <= k:
                 solved += 1
         results[k] = solved / len(evaluations)
@@ -240,7 +245,8 @@ def summarize_evaluations(
         "total_rollouts": total_rollouts,
         "pass_at_k": {str(k): value for k, value in pass_at_k(evaluations, ks).items()},
         "strict_format_pass_at_k": {
-            str(k): value for k, value in pass_at_k(evaluations, ks, strict=True).items()
+            str(k): value
+            for k, value in pass_at_k(evaluations, ks, strict=True).items()
         },
         "bucket_counts": buckets,
         "failure_breakdown": errors,

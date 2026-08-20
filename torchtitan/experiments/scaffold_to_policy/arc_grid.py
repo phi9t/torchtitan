@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """ARC-style exact grid evaluation for scaffold-to-policy reasoning smokes."""
 
@@ -61,7 +64,9 @@ class ARCGridVerification:
     def to_json(self) -> dict[str, object]:
         return {
             "success": self.success,
-            "final_grid": None if self.final_grid is None else _grid_to_lists(self.final_grid),
+            "final_grid": None
+            if self.final_grid is None
+            else _grid_to_lists(self.final_grid),
             "strict_final": self.strict_final,
             "error": self.error,
         }
@@ -276,7 +281,9 @@ def pass_at_k(
     for k in ks:
         solved = 0
         for evaluation in evaluations:
-            solved_at = evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            solved_at = (
+                evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            )
             if solved_at is not None and solved_at <= k:
                 solved += 1
         results[k] = solved / len(evaluations)
@@ -302,7 +309,8 @@ def summarize_evaluations(
         "total_rollouts": total_rollouts,
         "pass_at_k": {str(k): value for k, value in pass_at_k(evaluations, ks).items()},
         "strict_format_pass_at_k": {
-            str(k): value for k, value in pass_at_k(evaluations, ks, strict=True).items()
+            str(k): value
+            for k, value in pass_at_k(evaluations, ks, strict=True).items()
         },
         "bucket_counts": buckets,
         "failure_breakdown": errors,

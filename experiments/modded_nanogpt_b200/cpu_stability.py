@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Repeat the CPU-only NanoGPT smoke and aggregate stability telemetry."""
 
@@ -9,13 +12,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import platform
 import resource
 import sys
 import time
 import traceback
-from typing import Any, Callable
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -115,9 +119,7 @@ def run_cpu_stability(
     process_started_at = time.process_time()
 
     with run_log.open("w") as log:
-        log.write(
-            f"cpu_stability run_id={run_id} repeats={repeats} steps={steps}\n"
-        )
+        log.write(f"cpu_stability run_id={run_id} repeats={repeats} steps={steps}\n")
         for attempt_index in range(1, repeats + 1):
             attempt_dir = result_dir / f"attempt_{attempt_index:03d}"
             attempt_run_id = f"{run_id}_attempt_{attempt_index:03d}"

@@ -79,7 +79,9 @@ def build_split_registry(
     occurrences: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for split, path in split_paths.items():
         problems = load_problems(path)
-        keys = tuple(_problem_key_to_string(problem_key(problem)) for problem in problems)
+        keys = tuple(
+            _problem_key_to_string(problem_key(problem)) for problem in problems
+        )
         entries.append(
             SplitRegistryEntry(
                 split=split,
@@ -109,7 +111,9 @@ def write_split_registry(
     output_path: Path,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(validation.to_json(), indent=2, sort_keys=True) + "\n")
+    output_path.write_text(
+        json.dumps(validation.to_json(), indent=2, sort_keys=True) + "\n"
+    )
 
 
 def _problem_key_to_string(key: tuple[tuple[int, ...], int]) -> str:
@@ -125,4 +129,3 @@ def _hash_problem_keys(keys: tuple[str, ...]) -> str:
 def _problem_id(problem: CountdownProblem) -> str:
     numbers = "-".join(str(number) for number in problem.numbers)
     return f"cd-{numbers}-t{problem.target}"
-

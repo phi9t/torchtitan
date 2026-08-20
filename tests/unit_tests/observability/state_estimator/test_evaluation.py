@@ -11,16 +11,16 @@ import json
 import pytest
 
 from torchtitan.observability.state_estimator.evaluation import (
+    compute_calibration_metrics,
     CpuFakeBackendEvaluationCase,
+    evaluate_case,
+    evaluate_manifest,
     EvaluationCase,
     EvaluationManifest,
     EvaluationMetricSummary,
     InjectedFaultEvaluationCase,
     RealSmallRunEvaluationCase,
     SyntheticEvaluationCase,
-    compute_calibration_metrics,
-    evaluate_case,
-    evaluate_manifest,
     write_calibration_report,
     write_evaluation_report,
 )
@@ -400,9 +400,7 @@ def _summary(
         "inference": {"mode_scores": modes},
         "probe_recommendations": [{"kind": probe} for probe in probes],
         "root_cause_candidates": root_causes or [],
-        "observability_warnings": [
-            {"kind": warning} for warning in (warnings or [])
-        ],
+        "observability_warnings": [{"kind": warning} for warning in (warnings or [])],
         "detected_time_ns": detected_time_ns,
         "artifact_bytes": artifact_bytes,
         "overhead_metrics": overhead_metrics or {},

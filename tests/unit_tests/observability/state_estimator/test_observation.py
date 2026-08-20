@@ -9,17 +9,17 @@ from __future__ import annotations
 from dataclasses import replace
 
 from torchtitan.observability.state_estimator.bundle import (
-    RunEvidenceBundle,
     load_bundle,
+    RunEvidenceBundle,
 )
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
 )
 from torchtitan.observability.state_estimator.observation import (
     ClockQuality,
-    ObservationKind,
     normalize_bundle_observations,
+    ObservationKind,
 )
 from torchtitan.observability.state_estimator.schema import canonical_json
 

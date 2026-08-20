@@ -26,6 +26,7 @@ fi
 
 source "${SCRIPT_DIR}/rootfs_guard.sh"
 require_modded_nanogpt_rootfs "${SCRIPT_REL}"
+PYTHON_BIN="$(select_modded_nanogpt_python)"
 
 cd "${REPO_ROOT}"
 
@@ -48,7 +49,7 @@ die() {
 [[ -f "${CUDA_HOME}/lib/libcudart.so.13" ]] || die "missing ${CUDA_HOME}/lib/libcudart.so.13"
 
 flash_attn_health_probe() {
-  python - <<'PY'
+  "${PYTHON_BIN}" - <<'PY'
 import importlib.metadata as metadata
 import os
 import sys
@@ -130,7 +131,7 @@ if [[ "${FLASH_ATTN_FORCE_REBUILD}" != "1" ]] && flash_attn_health_probe; then
   exit 0
 fi
 
-python -m pip install \
+"${PYTHON_BIN}" -m pip install \
   --break-system-packages \
   --no-deps \
   --force-reinstall \
@@ -144,7 +145,7 @@ python -m pip install \
 ln -sf libcudart.so.13 "${CUDA_HOME}/lib/libcudart.so"
 
 flash_attn_install=(
-  python -m pip install
+  "${PYTHON_BIN}" -m pip install
   --break-system-packages \
   --no-deps \
   --no-build-isolation \

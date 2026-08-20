@@ -13,7 +13,8 @@ state.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from torchtitan.observability.state_estimator.schema import SCHEMA_VERSION
 
@@ -329,13 +330,18 @@ def _anomaly_observations(
         event = payload.get("event") or payload.get("incident_type")
         severity = payload.get("severity")
         outcome = payload.get("outcome")
-        if record_type == "incident" or isinstance(event, str) and event in {
-            "rank_death",
-            "nonfinite_loss",
-            "checkpoint_corruption",
-            "checkpoint_interruption",
-            "collective_hang",
-        }:
+        if (
+            record_type == "incident"
+            or isinstance(event, str)
+            and event
+            in {
+                "rank_death",
+                "nonfinite_loss",
+                "checkpoint_corruption",
+                "checkpoint_interruption",
+                "collective_hang",
+            }
+        ):
             anomalies.append(observation)
         elif severity in {"error", "fatal", "critical"} or outcome == "failed":
             anomalies.append(observation)
@@ -349,7 +355,9 @@ def _anomaly_step(observation: Mapping[str, Any]) -> int | None:
 
 
 def _has_checkpoint_evidence(observations: Sequence[Mapping[str, Any]]) -> bool:
-    return any(_is_checkpoint_payload(_payload(observation)) for observation in observations)
+    return any(
+        _is_checkpoint_payload(_payload(observation)) for observation in observations
+    )
 
 
 def _checkpoint_evidence(observations: Sequence[Mapping[str, Any]]) -> list[str]:

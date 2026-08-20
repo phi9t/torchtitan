@@ -43,6 +43,7 @@ FULL_MANIFEST_NUM_FILES = 10
 FULL_MANIFEST_TOTAL_BYTES = 2_000_010_240
 FULL_LAUNCH_AUTHORIZATION_TOKEN = "launch-full-b200"
 FULL_TRIAL_GPU_COUNT = 2
+CANONICAL_RUNTIME_PYTHON = "/project/venvs/b200-runtime/bin/python"
 UPSTREAM_COMMIT = "ecbb586296d3dac36fd206211f25d63bad4a6b35"
 MAX_STALE_OR_DEMOTED_ARTIFACTS = 20
 STALE_OR_DEMOTED_OPERATOR_ACTION = (
@@ -163,6 +164,61 @@ def _has_clean_active_job_scan(value: Any) -> bool:
     )
 
 
+def _runtime_verification_exclusion(summary_path: Path) -> dict[str, str] | None:
+    result_dir = summary_path.parent
+    command_env, command_env_error = _load_json_sidecar(result_dir / "command.env.json")
+    if command_env_error is not None or command_env is None:
+        return {
+            "phase": "runtime_verification",
+            "message": "missing current runtime verification evidence",
+        }
+    environment = command_env.get("environment")
+    if not isinstance(environment, dict):
+        return {
+            "phase": "runtime_verification",
+            "message": "command environment is missing runtime environment evidence",
+        }
+    required_env = {
+        "TORCHTITAN_IN_ROOTFS": "1",
+        "TORCHTITAN_ROOTFS_PROJECT": "/workspace/torchtitan",
+        "TORCHTITAN_ROOTFS_NETWORK": "offline",
+        "PYTHON": CANONICAL_RUNTIME_PYTHON,
+    }
+    for key, expected in required_env.items():
+        if environment.get(key) != expected:
+            return {
+                "phase": "runtime_verification",
+                "message": f"command environment {key} must be {expected}",
+            }
+
+    runtime_verification, runtime_error = _load_json_sidecar(
+        result_dir / "runtime" / "runtime_verification.json"
+    )
+    if runtime_error is not None or runtime_verification is None:
+        return {
+            "phase": "runtime_verification",
+            "message": "missing current runtime verification evidence",
+        }
+    if runtime_verification.get("ok") is not True:
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification must be ok",
+        }
+    if runtime_verification.get("training_launch_allowed") is not True:
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification must allow training launch",
+        }
+    if runtime_verification.get("command_env_digest") != command_env.get(
+        "environment_digest"
+    ):
+        return {
+            "phase": "runtime_verification",
+            "message": "runtime verification command-env digest does not match",
+        }
+    return None
+
+
 def _malformed_summary_attempt(path: Path, exc: Exception) -> dict[str, Any]:
     blocker = {"phase": "summary", "message": str(exc)}
     return {
@@ -274,6 +330,10 @@ def _baseline_evidence_error(
     exit_code, exit_code_error = _load_json_sidecar(path.parent / "exit_code.json")
     if exit_code_error is not None:
         return exit_code_error
+    if exit_code is None:
+        return _summary_shape_error(
+            path.parent / "exit_code.json", "exit_code.json", "JSON object"
+        )
     if exit_code.get("phase") != "training" or exit_code.get("exit_code") != 0:
         return _summary_shape_error(
             path.parent / "exit_code.json",
@@ -522,7 +582,10 @@ def _launch_readiness_exclusion(attempt: dict[str, Any]) -> dict[str, str] | Non
     classification = attempt.get("classification")
     launch_readiness = attempt.get("launch_readiness")
     if not isinstance(classification, dict) or not isinstance(launch_readiness, dict):
-        return {"phase": "launch_readiness", "message": "missing launch-readiness evidence"}
+        return {
+            "phase": "launch_readiness",
+            "message": "missing launch-readiness evidence",
+        }
     for field in ("run_id", "attempt_id", "lane", "mode"):
         if not _sidecar_field_matches(classification, launch_readiness, field):
             return {
@@ -589,6 +652,9 @@ def _launch_readiness_exclusion(attempt: dict[str, Any]) -> dict[str, str] | Non
             "phase": "active_jobs",
             "message": "summary is missing clean active-job scan evidence",
         }
+    runtime_exclusion = _runtime_verification_exclusion(summary_path)
+    if runtime_exclusion is not None:
+        return runtime_exclusion
     blocked_by = launch_readiness.get("blocked_by")
     if blocked_by:
         return {"phase": "launch_readiness", "message": "launch-readiness has blockers"}
@@ -684,9 +750,7 @@ def _launch_readiness_exclusion_stats(
         phase = exclusion.get("phase")
         if not isinstance(phase, str) or not phase:
             phase = "unknown"
-        phase_stats = by_phase.setdefault(
-            phase, {"count": 0, "example_summaries": []}
-        )
+        phase_stats = by_phase.setdefault(phase, {"count": 0, "example_summaries": []})
         phase_stats["count"] += 1
         summary = attempt.get("summary")
         if isinstance(summary, str) and len(phase_stats["example_summaries"]) < 3:
@@ -791,9 +855,7 @@ def build_index(results_root: Path) -> dict[str, Any]:
         "baseline_stats": _baseline_stats(attempts),
         "groups": groups,
         "diagnostic_or_failed_attempts": diagnostic_or_failed,
-        "stale_or_demoted_artifacts": _stale_or_demoted_artifacts(
-            diagnostic_or_failed
-        ),
+        "stale_or_demoted_artifacts": _stale_or_demoted_artifacts(diagnostic_or_failed),
         "launch_readiness_exclusion_stats": _launch_readiness_exclusion_stats(
             diagnostic_or_failed
         ),

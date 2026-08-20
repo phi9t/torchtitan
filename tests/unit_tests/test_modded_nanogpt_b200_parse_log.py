@@ -246,7 +246,8 @@ def test_final_metrics_parse_speedrun_ms_and_mib_format(tmp_path: Path):
 
 
 def test_data_manifest_pointer_resolves_repo_relative_path(
-    tmp_path: Path, monkeypatch,
+    tmp_path: Path,
+    monkeypatch,
 ):
     repo_root = tmp_path / "repo"
     monkeypatch.setattr(parse_log, "REPO_ROOT", repo_root)
@@ -296,7 +297,8 @@ def test_data_manifest_pointer_resolves_repo_relative_path(
 
 
 def test_full_attempt_accepts_repo_relative_launch_manifest_path(
-    tmp_path: Path, monkeypatch,
+    tmp_path: Path,
+    monkeypatch,
 ):
     repo_root = tmp_path / "repo"
     monkeypatch.setattr(parse_log, "REPO_ROOT", repo_root)
@@ -1155,8 +1157,7 @@ def test_data_manifest_summary_propagates_verified_sha_from_resolved_pointer_tar
     assert manifest_summary["num_files"] == 10
     assert manifest_summary["total_bytes"] == 2000010240
     assert (
-        manifest_summary["source_commit"]
-        == "ecbb586296d3dac36fd206211f25d63bad4a6b35"
+        manifest_summary["source_commit"] == "ecbb586296d3dac36fd206211f25d63bad4a6b35"
     )
     analysis = (tmp_path / "analysis.md").read_text()
     assert "- manifest_verified_sha: True" in analysis

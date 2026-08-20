@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
 )
 
 

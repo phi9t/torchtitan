@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """MATH-style exact-answer normalization for reasoning evaluations."""
 
@@ -250,7 +253,9 @@ def pass_at_k(
     for k in ks:
         solved = 0
         for evaluation in evaluations:
-            solved_at = evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            solved_at = (
+                evaluation.strict_solved_at() if strict else evaluation.solved_at()
+            )
             if solved_at is not None and solved_at <= k:
                 solved += 1
         results[k] = solved / len(evaluations)
@@ -276,7 +281,8 @@ def summarize_evaluations(
         "total_rollouts": total_rollouts,
         "pass_at_k": {str(k): value for k, value in pass_at_k(evaluations, ks).items()},
         "strict_format_pass_at_k": {
-            str(k): value for k, value in pass_at_k(evaluations, ks, strict=True).items()
+            str(k): value
+            for k, value in pass_at_k(evaluations, ks, strict=True).items()
         },
         "bucket_counts": buckets,
         "failure_breakdown": errors,
@@ -370,7 +376,9 @@ def import_aime_rows(
         if normalized_answer is None:
             raise ValueError(f"could not normalize AIME answer {answer!r}")
         solution_value = row.get("solution") or row.get("Solution")
-        problem_id = str(row.get("id") or row.get("ID") or _problem_id(source, problem, answer))
+        problem_id = str(
+            row.get("id") or row.get("ID") or _problem_id(source, problem, answer)
+        )
         if not problem_id.startswith("AIME/"):
             problem_id = f"AIME/{problem_id}"
         problems.append(

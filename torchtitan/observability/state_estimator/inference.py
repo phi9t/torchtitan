@@ -8,8 +8,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from torchtitan.observability.state_estimator.schema import SCHEMA_VERSION
 
@@ -305,7 +307,9 @@ def _score_network(
             symptom_score = max(symptom_score, min(skew / 1_000_000_000, 1.0) * 0.5)
     if not collective_residuals:
         return min(1.0, symptom_score)
-    return min(1.0, _robust_residual_score(collective_residuals) * 0.8 + symptom_score * 0.4)
+    return min(
+        1.0, _robust_residual_score(collective_residuals) * 0.8 + symptom_score * 0.4
+    )
 
 
 def _score_host_data(
@@ -354,10 +358,7 @@ def _score_by_terms(
         score = 0.0
     for residual in residuals:
         text = _residual_text(residual)
-        if (
-            any(term in text for term in terms)
-            and _numeric_residual(residual) is None
-        ):
+        if any(term in text for term in terms) and _numeric_residual(residual) is None:
             score = max(score, 0.25)
     for finding in quality:
         text = _quality_text(finding)
@@ -428,9 +429,7 @@ def _state_from_quality(finding: Mapping[str, Any]) -> str | None:
 
 def _state_from_residuals(rows: Sequence[Mapping[str, Any]]) -> str:
     values = [
-        value
-        for value in (_numeric_residual(row) for row in rows)
-        if value is not None
+        value for value in (_numeric_residual(row) for row in rows) if value is not None
     ]
     if len(values) >= 2 and sum(values) / len(values) >= 2.5:
         return "biased"
@@ -451,9 +450,7 @@ def _observability_warnings(
     if len(candidate_modes) < 2:
         return []
     non_compute_candidates = [
-        mode
-        for mode in candidate_modes
-        if mode != "compute_degradation"
+        mode for mode in candidate_modes if mode != "compute_degradation"
     ]
     if len(non_compute_candidates) >= 2:
         candidate_modes = non_compute_candidates

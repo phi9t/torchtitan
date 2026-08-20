@@ -8,8 +8,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 
 _INFO_GAIN_RANK = {"high": 0, "medium": 1, "low": 2}
@@ -77,7 +78,9 @@ def _peer_skew_recommendations(
     for finding in summary.get("peer_skew_findings", []):
         if not isinstance(finding, Mapping):
             continue
-        candidates = tuple(str(candidate) for candidate in finding.get("candidate_modes", []))
+        candidates = tuple(
+            str(candidate) for candidate in finding.get("candidate_modes", [])
+        )
         if (
             finding.get("root_cause") == "ambiguous"
             and "network_degradation" in candidates
@@ -206,7 +209,10 @@ def _peer_skew_recommendations(
                 _make_recommendation(
                     "stopped_job_nccl_tests",
                     target_entities=target_entities,
-                    competing_hypotheses=("network_degradation", "collective_desynchronization"),
+                    competing_hypotheses=(
+                        "network_degradation",
+                        "collective_desynchronization",
+                    ),
                     information_target="fabric health after training process teardown",
                     expected_information_gain_class="medium",
                     cost_class="medium",
@@ -227,7 +233,11 @@ def _peer_skew_recommendations(
                 _make_recommendation(
                     "stopped_job_superbench_or_eud",
                     target_entities=target_entities,
-                    competing_hypotheses=("network_degradation", "memory_fault", "compute_degradation"),
+                    competing_hypotheses=(
+                        "network_degradation",
+                        "memory_fault",
+                        "compute_degradation",
+                    ),
                     information_target="hardware health outside the failed training process",
                     expected_information_gain_class="low",
                     cost_class="high",
@@ -348,7 +358,10 @@ def _fault_hypothesis_recommendations(
                 _make_recommendation(
                     "local_compute_canary",
                     target_entities=targets,
-                    competing_hypotheses=("compute_degradation", "normal_workload_skew"),
+                    competing_hypotheses=(
+                        "compute_degradation",
+                        "normal_workload_skew",
+                    ),
                     information_target="local compute throughput versus expected device baseline",
                     expected_information_gain_class="medium",
                     cost_class="low",
@@ -372,7 +385,10 @@ def _fault_hypothesis_recommendations(
                 _make_recommendation(
                     "bf16_fp32_replay_numerical_instability",
                     target_entities=targets,
-                    competing_hypotheses=("numerical_corruption", "precision_instability"),
+                    competing_hypotheses=(
+                        "numerical_corruption",
+                        "precision_instability",
+                    ),
                     information_target="BF16 versus FP32 divergence for the suspected sample",
                     expected_information_gain_class="medium",
                     cost_class="medium",
@@ -443,9 +459,7 @@ def _transaction_recommendations(
     if "checkpoint_restore_validation_absent" in kinds:
         hypotheses.append("restore_validation_gap")
     source_evidence = _stable_unique(
-        evidence
-        for advisory in advisories
-        for evidence in _source_evidence(advisory)
+        evidence for advisory in advisories for evidence in _source_evidence(advisory)
     )
     return [
         _make_recommendation(
@@ -516,7 +530,10 @@ def _deduplicate(
             continue
         by_kind[recommendation.kind] = _make_recommendation(
             recommendation.kind,
-            target_entities=(*existing.target_entities, *recommendation.target_entities),
+            target_entities=(
+                *existing.target_entities,
+                *recommendation.target_entities,
+            ),
             competing_hypotheses=(
                 *existing.competing_hypotheses,
                 *recommendation.competing_hypotheses,
@@ -569,7 +586,9 @@ def _normalize_hypotheses(candidates: Iterable[str]) -> tuple[str, ...]:
     aliases = {
         "host_or_data_stall": "host_data_stall",
     }
-    return tuple(_stable_unique(aliases.get(candidate, candidate) for candidate in candidates))
+    return tuple(
+        _stable_unique(aliases.get(candidate, candidate) for candidate in candidates)
+    )
 
 
 def _target_entities_from_finding(finding: Mapping[str, Any]) -> tuple[str, ...]:

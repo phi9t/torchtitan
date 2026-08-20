@@ -545,9 +545,7 @@ def _telemetry_signs(
 ) -> dict[str, Any]:
     temperature = ranges.get("temperature_celsius")
     sm_clock = ranges.get("sm_clock_mhz")
-    max_temperature = (
-        temperature.get("max") if isinstance(temperature, dict) else None
-    )
+    max_temperature = temperature.get("max") if isinstance(temperature, dict) else None
     min_sm_clock = sm_clock.get("min") if isinstance(sm_clock, dict) else None
     thermal_reasons = []
     if isinstance(max_temperature, int | float) and max_temperature >= 85:
@@ -1003,21 +1001,24 @@ def _claim_validation(
         if not passed:
             gates["first_blocker"] = message
             break
-    gates["successful_b200_reproduction"] = all(
-        bool(gates[name])
-        for name in (
-            "mode_full",
-            "lane_a",
-            "preflight_ok",
-            "nccl_checked",
-            "sha_verified",
-            "source_clean",
-            "final_validation_reached",
-            "val_loss_within_target",
-            "train_time_reported",
-            "shell_wall_clock_reported",
+    gates["successful_b200_reproduction"] = (
+        all(
+            bool(gates[name])
+            for name in (
+                "mode_full",
+                "lane_a",
+                "preflight_ok",
+                "nccl_checked",
+                "sha_verified",
+                "source_clean",
+                "final_validation_reached",
+                "val_loss_within_target",
+                "train_time_reported",
+                "shell_wall_clock_reported",
+            )
         )
-    ) and full_attempt_evidence_blocker is None
+        and full_attempt_evidence_blocker is None
+    )
     return gates
 
 
@@ -1166,6 +1167,12 @@ def _metric_text(value: object) -> str:
     if value is None:
         return "null"
     return str(value)
+
+
+def _dict_metric_text(mapping: object, key: str) -> str:
+    if not isinstance(mapping, dict):
+        return "null"
+    return _metric_text(mapping.get(key))
 
 
 def _one_line_text(value: object) -> str:
@@ -1370,13 +1377,13 @@ def analysis_markdown(summary: dict[str, Any]) -> str:
         f"- memory_used_mib_peak: {_metric_text(memory_used_mib_peak)}",
         f"- process_peak_rss_mib: {_metric_text(process_watch.get('peak_rss_mib'))}",
         f"- process_peak_cpu_percent: {_metric_text(process_watch.get('peak_cpu_percent'))}",
-        f"- thermal_or_clock_throttling_signs: {_metric_text(telemetry_signs.get('thermal_or_clock_throttling') if isinstance(telemetry_signs, dict) else None)}",
-        f"- thermal_or_clock_throttling_reason: {_metric_text(telemetry_signs.get('thermal_or_clock_throttling_reason') if isinstance(telemetry_signs, dict) else None)}",
-        f"- cpu_or_rss_bottleneck_signs: {_metric_text(telemetry_signs.get('cpu_or_rss_bottleneck') if isinstance(telemetry_signs, dict) else None)}",
-        f"- cpu_or_rss_bottleneck_reason: {_metric_text(telemetry_signs.get('cpu_or_rss_bottleneck_reason') if isinstance(telemetry_signs, dict) else None)}",
+        f"- thermal_or_clock_throttling_signs: {_dict_metric_text(telemetry_signs, 'thermal_or_clock_throttling')}",
+        f"- thermal_or_clock_throttling_reason: {_dict_metric_text(telemetry_signs, 'thermal_or_clock_throttling_reason')}",
+        f"- cpu_or_rss_bottleneck_signs: {_dict_metric_text(telemetry_signs, 'cpu_or_rss_bottleneck')}",
+        f"- cpu_or_rss_bottleneck_reason: {_dict_metric_text(telemetry_signs, 'cpu_or_rss_bottleneck_reason')}",
         f"- disk_result_size_peak_bytes: {_metric_text(disk_watch.get('max_result_size_bytes'))}",
         f"- disk_data_size_peak_bytes: {_metric_text(disk_watch.get('max_data_size_bytes'))}",
-        f"- artifact_total_known_bytes: {_metric_text(artifact_sizes.get('total_known_bytes') if isinstance(artifact_sizes, dict) else None)}",
+        f"- artifact_total_known_bytes: {_dict_metric_text(artifact_sizes, 'total_known_bytes')}",
         f"- stop_snapshot_reason: {stop_snapshot.get('reason') if isinstance(stop_snapshot, dict) else None}",
         f"- stop_snapshot_exit_code: {stop_snapshot.get('exit_code') if isinstance(stop_snapshot, dict) else None}",
         f"- stop_snapshot_command_count: {stop_snapshot_command_count}",
@@ -1398,18 +1405,18 @@ def analysis_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Claim Validation",
         "",
-        f"- successful_b200_reproduction: {_metric_text(claim_validation.get('successful_b200_reproduction') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_mode_full: {_metric_text(claim_validation.get('mode_full') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_lane_a: {_metric_text(claim_validation.get('lane_a') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_preflight_ok: {_metric_text(claim_validation.get('preflight_ok') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_nccl_checked: {_metric_text(claim_validation.get('nccl_checked') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_sha_verified: {_metric_text(claim_validation.get('sha_verified') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_source_clean: {_metric_text(claim_validation.get('source_clean') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_final_validation_reached: {_metric_text(claim_validation.get('final_validation_reached') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_val_loss_within_target: {_metric_text(claim_validation.get('val_loss_within_target') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_train_time_reported: {_metric_text(claim_validation.get('train_time_reported') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_shell_wall_clock_reported: {_metric_text(claim_validation.get('shell_wall_clock_reported') if isinstance(claim_validation, dict) else None)}",
-        f"- claim_first_blocker: {_metric_text(claim_validation.get('first_blocker') if isinstance(claim_validation, dict) else None)}",
+        f"- successful_b200_reproduction: {_dict_metric_text(claim_validation, 'successful_b200_reproduction')}",
+        f"- claim_mode_full: {_dict_metric_text(claim_validation, 'mode_full')}",
+        f"- claim_lane_a: {_dict_metric_text(claim_validation, 'lane_a')}",
+        f"- claim_preflight_ok: {_dict_metric_text(claim_validation, 'preflight_ok')}",
+        f"- claim_nccl_checked: {_dict_metric_text(claim_validation, 'nccl_checked')}",
+        f"- claim_sha_verified: {_dict_metric_text(claim_validation, 'sha_verified')}",
+        f"- claim_source_clean: {_dict_metric_text(claim_validation, 'source_clean')}",
+        f"- claim_final_validation_reached: {_dict_metric_text(claim_validation, 'final_validation_reached')}",
+        f"- claim_val_loss_within_target: {_dict_metric_text(claim_validation, 'val_loss_within_target')}",
+        f"- claim_train_time_reported: {_dict_metric_text(claim_validation, 'train_time_reported')}",
+        f"- claim_shell_wall_clock_reported: {_dict_metric_text(claim_validation, 'shell_wall_clock_reported')}",
+        f"- claim_first_blocker: {_dict_metric_text(claim_validation, 'first_blocker')}",
         "",
     ]
     if isinstance(variant_patch, dict) and isinstance(variant_patch.get("files"), list):

@@ -1,6 +1,6 @@
 # Modded NanoGPT B200 Speedrun Harness
 
-Status: ready-for-implementation
+Status: implemented-through-non-launch-foundation
 
 ## Intent
 
@@ -35,22 +35,57 @@ Authority order:
 
 Current implementation files:
 
-- `experiments/modded_nanogpt_b200/preflight.py`
-- `experiments/modded_nanogpt_b200/run_preflight.sh`
-- `experiments/modded_nanogpt_b200/setup_flash_attention.sh`
-- `experiments/modded_nanogpt_b200/parse_log.py`
-- `experiments/modded_nanogpt_b200/parse_log.sh`
-- `experiments/modded_nanogpt_b200/summarize.py`
-- `experiments/modded_nanogpt_b200/summarize.sh`
-- `experiments/modded_nanogpt_b200/verify_static.py`
-- `experiments/modded_nanogpt_b200/run_speedrun.py`
-- `experiments/modded_nanogpt_b200/run_speedrun.sh`
-- `experiments/modded_nanogpt_b200/check_active_jobs.sh`
-- `experiments/modded_nanogpt_b200/fetch_upstream.py`
-- `experiments/modded_nanogpt_b200/fetch_upstream.sh`
-- `experiments/modded_nanogpt_b200/prepare_data.py`
-- `experiments/modded_nanogpt_b200/prepare_data.sh`
-- `AGENTS.md`, which is a symlink to `.claude/CLAUDE.md`
+- Core harness:
+  - `experiments/modded_nanogpt_b200/check_active_jobs.sh`
+  - `experiments/modded_nanogpt_b200/cli_guard.py`
+  - `experiments/modded_nanogpt_b200/fetch_upstream.py`
+  - `experiments/modded_nanogpt_b200/fetch_upstream.sh`
+  - `experiments/modded_nanogpt_b200/parse_log.py`
+  - `experiments/modded_nanogpt_b200/parse_log.sh`
+  - `experiments/modded_nanogpt_b200/preflight.py`
+  - `experiments/modded_nanogpt_b200/prepare_data.py`
+  - `experiments/modded_nanogpt_b200/prepare_data.sh`
+  - `experiments/modded_nanogpt_b200/rootfs_guard.sh`
+  - `experiments/modded_nanogpt_b200/run_preflight.sh`
+  - `experiments/modded_nanogpt_b200/run_speedrun.py`
+  - `experiments/modded_nanogpt_b200/run_speedrun.sh`
+  - `experiments/modded_nanogpt_b200/setup_flash_attention.sh`
+  - `experiments/modded_nanogpt_b200/summarize.py`
+  - `experiments/modded_nanogpt_b200/summarize.sh`
+  - `experiments/modded_nanogpt_b200/verify_static.py`
+- Runtime and schema foundation:
+  - `experiments/modded_nanogpt_b200/runtime/mise.toml`
+  - `experiments/modded_nanogpt_b200/runtime/pyproject.toml`
+  - `experiments/modded_nanogpt_b200/runtime/requirements.direct.txt`
+  - `experiments/modded_nanogpt_b200/runtime/requirements.lock`
+  - `experiments/modded_nanogpt_b200/runtime/schema_validation.py`
+  - `experiments/modded_nanogpt_b200/runtime/schemas/*.schema.json`
+  - `experiments/modded_nanogpt_b200/runtime/sync_python_env.sh`
+  - `experiments/modded_nanogpt_b200/runtime/sync_tools.sh`
+  - `experiments/modded_nanogpt_b200/runtime/verify_runtime.py`
+- RSI-control and diagnostic tools:
+  - `experiments/modded_nanogpt_b200/certify_optimized_kernels.sh`
+  - `experiments/modded_nanogpt_b200/configs/gpu_ladder_prerequisite.json`
+  - `experiments/modded_nanogpt_b200/cpu_smoke.py`
+  - `experiments/modded_nanogpt_b200/cpu_stability.py`
+  - `experiments/modded_nanogpt_b200/diagnose_mlp_backend.py`
+  - `experiments/modded_nanogpt_b200/diagnose_mlp_backend.sh`
+  - `experiments/modded_nanogpt_b200/experiment_config.py`
+  - `experiments/modded_nanogpt_b200/optimized_kernel_certifier.py`
+  - `experiments/modded_nanogpt_b200/optimized_kernel_report.schema.json`
+  - `experiments/modded_nanogpt_b200/performance_probe.py`
+  - `experiments/modded_nanogpt_b200/run_cpu_smoke.sh`
+  - `experiments/modded_nanogpt_b200/run_cpu_stability.sh`
+  - `experiments/modded_nanogpt_b200/run_experiment_matrix.py`
+  - `experiments/modded_nanogpt_b200/run_experiment_matrix.sh`
+  - `experiments/modded_nanogpt_b200/run_performance_probe.sh`
+- Operator launch shims:
+  - `experiments/modded_nanogpt_b200/launch_nanogpt_rootfs.sh`
+  - `experiments/modded_nanogpt_b200/launch_nanogpt_2gpu_full_rootfs.sh`
+- Tests:
+  - `tests/unit_tests/test_modded_nanogpt_b200_*.py`
+- Repository guidance:
+  - `AGENTS.md`, which is a symlink to `.claude/CLAUDE.md`
 
 Pinned upstream:
 
@@ -91,12 +126,50 @@ Full source/data preparation and short preflight/diagnostic GPU probes are
 allowed when they run through the bwrap rootfs and preserve generated artifacts
 under ignored paths.
 
-Blocked-state policy: the current harness state is blocked on explicit
-`launch-full-b200` authorization. Until that authorization is supplied or a
+Blocked-state policy: the current harness state is blocked until the trusted
+user request contains `launch-full-b200`. Until that token is present or a
 material input changes, do not re-run equivalent clean-context audits,
 summarizer refreshes, preflights, GPU probes, or launch-readiness checks merely
 to reconfirm the same blocked state. Future agents should cite the latest
-recorded evidence and stop at the authorization boundary.
+recorded evidence and stop at the authorization boundary. The no-argument
+two-GPU convenience launcher is not an authority source: it must require
+`MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION=launch-full-b200` before passing
+the lower-level `--launch-authorization` token, and that environment marker may
+only be set after the trusted request itself includes `launch-full-b200`.
+
+## Implementation State
+
+The v1 non-launch foundation is implemented and verified through the current
+two-GPU Lane B FA2/Triton prerequisite path. The harness now has rootfs-aware
+source, data, preflight, runtime-verification, launch-readiness, parsing,
+summary, matrix, optimized-kernel, and performance-probe surfaces. It records
+schema-governed command environment, runtime verification, active-job, rootfs,
+data-manifest, optimized-kernel, and conservative claim-classification evidence.
+
+The current prerequisite artifact is
+`experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z`.
+It is a non-launch prerequisite only: `ready_to_launch=true`, `skip_run=true`,
+`training_launched=false`, `blocked_by=[]`, runtime verification allows launch,
+and the required launch token is `launch-full-b200`. The current run index has
+zero non-skip launch-ready rows and zero baseline rows.
+
+Fresh continuation verification recorded in
+`.scratch/modded-nanogpt-b200/completion_audit.md` reported the combined
+NanoGPT/rootfs non-launch owner suite as `410 passed, 2 skipped`.
+The focused tracker guard now reports `49 passed`. Focused
+optimized-kernel and diagnostic performance-probe tests reported
+`13 passed in 3.03s`. The current strict prerequisite artifact validation
+reported `ok=true`, 24 sidecars, and zero failed sidecars; active-job scan
+reported `ok=true`, `active_job_count=0`, and `ignored_match_count=0`. The
+current in-memory run index still reports `total_attempts=63`,
+`baseline_stats.count=0`, `launch_prerequisite_attempts.count=4`, and
+`launch_ready_attempts.count=0`. The latest strict runtime-env prerequisite row
+remains the current validated handoff artifact; older prerequisite rows are
+historical skip-run dry gates. Prior explicit-file Pyrefly over the
+31-file static Python surface reported `0 errors`. Static verification
+now reports `Static verification passed for 114 file(s)`. A later rootfs
+all-files pre-commit run passed with only the protected-branch hook skipped:
+`SKIP=no-commit-to-branch pre-commit run --all-files`.
 
 ## Rootfs Contract
 
@@ -138,16 +211,24 @@ require_modded_nanogpt_rootfs "${SCRIPT_REL}"
 The current approved wrappers are:
 
 - `experiments/modded_nanogpt_b200/check_active_jobs.sh`
+- `experiments/modded_nanogpt_b200/certify_optimized_kernels.sh`
 - `experiments/modded_nanogpt_b200/diagnose_mlp_backend.sh`
 - `experiments/modded_nanogpt_b200/fetch_upstream.sh`
 - `experiments/modded_nanogpt_b200/parse_log.sh`
 - `experiments/modded_nanogpt_b200/prepare_data.sh`
+- `experiments/modded_nanogpt_b200/run_cpu_smoke.sh`
+- `experiments/modded_nanogpt_b200/run_cpu_stability.sh`
+- `experiments/modded_nanogpt_b200/run_experiment_matrix.sh`
+- `experiments/modded_nanogpt_b200/run_performance_probe.sh`
 - `experiments/modded_nanogpt_b200/run_preflight.sh`
 - `experiments/modded_nanogpt_b200/run_speedrun.sh`
+- `experiments/modded_nanogpt_b200/runtime/sync_python_env.sh`
+- `experiments/modded_nanogpt_b200/runtime/sync_tools.sh`
 - `experiments/modded_nanogpt_b200/setup_flash_attention.sh`
 - `experiments/modded_nanogpt_b200/summarize.sh`
 
-Future wrappers must follow the same shape before they run Python or CUDA work.
+Future wrappers and rootfs setup scripts must follow the same shape before they
+run Python, package-manager, tool-manager, or CUDA work.
 
 Wrappers and verifiers must prove the rootfs boundary rather than trusting only
 the marker variable. Shell wrappers source `rootfs_guard.sh` so a forged host
@@ -190,6 +271,13 @@ without echoing a supplied token back into immutable attempt metadata.
   }
 }
 ```
+
+These `claim_label` values are the v1 legacy emitted strings. For RSI planning,
+map `B200 compatibility patchset` and `B200 systems-only` to the semantic
+`B200-compatible local setup` category, `B200 ML variant` to `B200 local
+variant`, `B200 upstream reproduction` to `Faithful upstream reproduction`, and
+`diagnostic` to `Diagnostic`. Do not rename emitted labels without a separate
+schema compatibility migration.
 
 `claim_eligible` means only that the attempt is structurally allowed to support
 a claim. Post-run validity still requires final validation, valid source state,
@@ -284,6 +372,66 @@ Required:
 - every arm is classified as `competition-comparable`, `B200 systems-only`, or
   `B200 ML variant`.
 
+### Diagnostic Performance Probe Ladder
+
+The current no-output failure must be diagnosed before launching another
+claim-bearing baseline or Lane C ablation. Performance probes are prerequisite
+diagnostics, not optimization ablations:
+
+- every probe uses `mode=diagnostic` or `experiment_kind=diagnostic`;
+- every probe records `claim_eligible=false`;
+- every probe runs through rootfs-aware wrappers before Python, CUDA, NCCL,
+  package, parser, summarizer, or training work;
+- probes may use `--allow-previous-stall` only when revisiting the named
+  no-output blocker;
+- probes must preserve the B200-compatible source, manifest, backend, and GPU
+  allocation context unless the probe name declares the single variable being
+  changed;
+- probes must not report `val_loss`, `train_time`, or `step_avg` as baseline
+  evidence unless final validation actually completes under full launch rules.
+
+The v1 probe ladder answers one question: whether the latest launched
+B200-compatible attempt stalled, silently compiled or warmed kernels, blocked
+on data/runtime setup, or spent material time in observability and wrapper
+overhead before the first training output.
+
+Required probe phases:
+
+- static wrapper/preflight timing: rootfs entry, source verification, manifest
+  validation, SHA verification, NCCL check, active-job scan, and environment
+  capture;
+- import and construction timing: torch import, CUDA context creation,
+  distributed initialization, model import, model construction, and first
+  selected backend import;
+- one-GPU microstep timing: first forward, first backward, optimizer step,
+  first compile trigger if present, and steady microstep timing after warmup;
+- two-GPU microstep timing: the same phase timings with the declared two-rank
+  NCCL world size over exactly two visible B200 GPUs;
+- watchdog heartbeat calibration: structured progress output before and during
+  compile and warmup so a no-output timeout can be distinguished from a real
+  hang;
+- observability overhead control: compare Tier 0 evidence with the selected
+  richer profile while preserving the same diagnostic workload.
+
+Every probe artifact must include:
+
+- schema version and common classification fields;
+- source commit, source variant, manifest pointer, selected attention backend,
+  selected MLP backend, GPU IDs, and declared world size;
+- phase timestamps from a monotonic clock;
+- first CUDA operation time;
+- first compile time when observable;
+- first training-output time when reached;
+- steady microstep median when reached;
+- max GPU memory when CUDA work runs;
+- result artifact byte size;
+- blocker phase and message when the probe fails or times out.
+
+The probe ladder is complete when it can make a concrete launch recommendation:
+keep the watchdog threshold, raise it with measured compile evidence, repair a
+specific warmup/backend/data/runtime issue, or stop because the selected tuple
+cannot pass the two-GPU microstep prerequisite.
+
 ## Artifact Layout
 
 Tracked source and docs:
@@ -332,17 +480,17 @@ results/<run-id>/
   source.json
   data_manifest.json            # copy or pointer record
   variant_patch.diff            # Lane B/C only
-  command.env
-  command.argv                  # replayable run_speedrun.sh invocation
+  command.env.json
+  command.argv.json             # replayable run_speedrun.sh and training argv
   run.log
   summary.json
 ```
 
 `attempt.json["command"]["argv"]` mirrors the replayable wrapper invocation in
-`command.argv`. `attempt.json["command"]["training_argv"]` records the inner
+`command.argv.json`. `attempt.json["command"]["training_argv"]` records the inner
 `torchrun` command that will run from the selected source directory after
 preflight and launch authorization gates pass.
-`command.env` and `attempt.json["environment"]` persist only redacted
+`command.env.json` and `attempt.json["environment"]` persist only redacted
 environment metadata. The runner still passes the real environment to preflight
 and training subprocesses, but artifacted metadata replaces key, token, secret,
 password, credential, and authorization-like values with `<REDACTED>`.
@@ -963,7 +1111,8 @@ Purpose:
 
 Required behavior:
 
-- inspect only `.py`, `.sh`, and `.md` candidate files;
+- inspect only `.py`, `.sh`, `.md`, `.json`, `.toml`, `.txt`, and `.lock`
+  candidate files;
 - exclude generated or ignored trees, including `.scratch/trae-pytest-tmp`,
   experiment `data/`, `results/`, and `sources/`, and `__pycache__`;
 - fail on trailing whitespace;
@@ -971,7 +1120,10 @@ Required behavior:
 - fail on Python compile errors for `.py` files;
 - fail on shell syntax errors for `.sh` files via `bash -n`;
 - support `--list-files` for candidate-file inspection;
-- support `--json` for machine-readable candidate and check results;
+- support `--json` for machine-readable candidate and check results with
+  top-level `ok`, `files`, and `errors`;
+- make `--json` run validation, return `0` when `ok=true`, and return nonzero
+  while still printing JSON when validation fails;
 - avoid launch, GPU, training, preflight, data-prep, download, pip, CUDA,
   NCCL, `torchrun`, full-launch, and result-artifact mutation.
 
@@ -982,7 +1134,10 @@ Minimum tests or command checks:
   is otherwise not enough to expose the file through a plain diff check;
 - generated and ignored paths are excluded;
 - Python compile failures and shell syntax failures are reported;
-- `--list-files` and `--json` report the same candidate set.
+- `--list-files` and `--json` report the same ordered candidate file list.
+- runtime dependency input and lock files, including
+  `experiments/modded_nanogpt_b200/runtime/requirements.direct.txt` and
+  `experiments/modded_nanogpt_b200/runtime/requirements.lock`, are included.
 
 ## Current Known Runtime Facts
 
@@ -992,7 +1147,9 @@ Observed on 2026-08-15:
 - Torch: `2.13.0+cu132`;
 - CUDA runtime: `13.2`;
 - Triton: `3.7.1`;
-- hardware: 8x `NVIDIA B200`, compute capability `(10, 0)`;
+- historical host inventory has included 8x `NVIDIA B200`, compute capability
+  `(10, 0)`; the active RSI foundation launch allocation is exactly 2 visible
+  B200 GPUs;
 - upstream FA3 failed on B200 with `no kernel image is available for execution
   on the device`;
 - FA2 `flash-attn==2.8.3.post1` source-builds cleanly in rootfs with CUDA
@@ -1011,7 +1168,7 @@ full reproduction.
 
 ## Acceptance Criteria
 
-The v1 harness is complete when:
+The v1 non-launch harness foundation is complete when:
 
 - repo-local rootfs wrappers exist for source prep, data prep, preflight,
   speedrun launch, parsing, and summarization;
@@ -1031,6 +1188,11 @@ The v1 harness is complete when:
 - result classifications are conservative and match the lane model;
 - generated artifacts remain untracked.
 
+The full B200-compatible baseline is not complete until Task 10 runs a
+trusted-authorized, non-skip, two-visible-B200 FA2/Triton full attempt to
+classification. That launch remains blocked until the trusted user request
+contains `launch-full-b200`.
+
 ## Child Tickets
 
 Implementation tickets:
@@ -1039,13 +1201,16 @@ Implementation tickets:
 - `issues/02-data-and-manifest.md`
 - `issues/03-reproduction-wrapper-and-parser.md`
 - `issues/04-b200-ablation-matrix.md`
+- `issues/14-nanogpt-performance-probe-ladder.md`
 
 Recommended additional ticket split:
 
 - `issues/05-harness-summary-and-run-index.md`
 - `issues/06-lane-b-compatibility-baseline.md`
 
-Ticket `01` is partly implemented in the current working tree through
-`preflight.py`, `run_preflight.sh`, `setup_flash_attention.sh`, and
-`preflight_checklist.md`. Remaining tickets should treat those files as current
-source, not as final immutable design.
+Tickets `01`, `02`, `03`, `05`, `07`, `08`, `10`, `11`, `12`, `13`, `14`, and
+`15` have been implemented or resolved through the non-launch foundation
+boundary. Tickets `04`, `06`, and `09` remain blocked by the same explicit
+full-launch authorization boundary. Remaining work should treat the checked-in
+harness, runtime, and tracker files as current source, not as final immutable
+design.

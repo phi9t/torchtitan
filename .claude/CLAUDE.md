@@ -108,25 +108,24 @@ second configuration path.
 Core training is launched through `run_train.sh`, which invokes `torchrun`:
 
 ```bash
-MODULE=llama3 CONFIG=llama3_debugmodel NGPU=8 ./run_train.sh
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && MODULE=llama3 CONFIG=llama3_debugmodel NGPU=8 ./run_train.sh'
 ```
 
 Use the communication modes documented in `run_train.sh` for cheap config and
 distributed-logic checks:
 
 ```bash
-MODULE=llama3 CONFIG=llama3_debugmodel NGPU=8 COMM_MODE=fake_backend ./run_train.sh
-MODULE=llama3 CONFIG=llama3_debugmodel NGPU=8 COMM_MODE=local_tensor ./run_train.sh
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && MODULE=llama3 CONFIG=llama3_debugmodel NGPU=8 COMM_MODE=fake_backend ./run_train.sh'
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && MODULE=llama3 CONFIG=llama3_debugmodel NGPU=8 COMM_MODE=local_tensor ./run_train.sh'
 ```
 
 Online RL is launched directly; its entrypoint provisions actor meshes itself,
 so do not wrap it in `torchrun`:
 
 ```bash
-export PYTHONPATH="$PWD:${PYTHONPATH:-}"
-python -m torchtitan.experiments.rl.train \
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && export PYTHONPATH="$PWD:${PYTHONPATH:-}" && python -m torchtitan.experiments.rl.train \
   --module alphabet_sort \
-  --config rl_grpo_qwen3_0_6b_varlen
+  --config rl_grpo_qwen3_0_6b_varlen'
 ```
 
 RL dependencies and checkpoint setup change independently of core. Read
@@ -261,11 +260,43 @@ proof.
 
 ## Repo-Local Experiment Discipline
 
-Real generation, training, export, evaluation, and benchmark-harness work for
-Countdown, scaffold-to-policy, and the RL batch-invariance reference program
-must use their repo-local shell runners, which re-enter
-`scripts/rootfs/enter_rootfs.sh`. Run the experiment's preflight before spending
-a GPU budget. Host-side unit tests and static checks may run directly.
+Real generation, training, export, evaluation, benchmark-harness work, and
+Python-based validation for repo-local research programs must use their
+repo-local shell runners or `scripts/rootfs/enter_rootfs.sh`. Run the
+experiment's preflight before spending a GPU budget.
+
+For research, modeling, PyTorch, GPU, analyzer, and repo-local experiment work,
+enforce the bwrap rootfs boundary strictly:
+
+- Host shell is only for orchestration: create ignored result directories, set
+  environment variables for wrappers, call repo-local shell wrappers, and
+  inspect git status or generated logs.
+- The only code that should run outside the rootfs is code that builds,
+  verifies, or launches the bwrap rootfs itself.
+- Python business logic runs inside the rootfs: PyTorch/modeling code,
+  tests, static Python checks, data preparation, dataset download, validation,
+  log parsing, summarization, analyzers, `torchrun`, training, evaluation, and
+  CUDA/FlashAttention/Triton/NCCL probes must run after
+  `TORCHTITAN_IN_ROOTFS=1` is present.
+- Do not invoke host-side Python for setup, preflight, data preparation,
+  training, evaluation, parsing, or summarization of real GPU runs.
+- When a run encounters missing Python packages, install them inside the rootfs
+  with `uv`, using the repo-local environment convention for that program.
+  When a run encounters missing non-Python runtimes, compilers, CLIs, or tools,
+  install or pin them with `mise` unless the repo already has a more specific
+  rootfs provisioning script.
+- New experiment entrypoints must re-enter `scripts/rootfs/enter_rootfs.sh`
+  before any Python or CUDA work. If a step has no rootfs-aware wrapper yet,
+  add the wrapper first.
+- Full-job preflights must not skip distributed or CUDA gates unless the run is
+  explicitly diagnostic and the result artifact says so.
+- For `experiments/modded_nanogpt_b200`, every attempt artifact must record the
+  common `lane`, `mode`, `arm`, `claim_label`, `evidence_tier`, `run_id`,
+  `attempt_id`, and `environment_class` schema. Full jobs require rootfs
+  sentinel evidence, NCCL, the declared B200 allocation, a full 900M FineWeb
+  manifest, SHA verification, and no known-stall override. The active RSI
+  foundation trial requires exactly two visible B200 GPUs; 8x B200 evidence is
+  reserved for a separately authorized broader reproduction campaign.
 
 For Countdown or scaffold-to-policy work, read the relevant top-level README
 and the ADRs under `docs/adr/` before changing a promotion gate. Preserve these
@@ -287,42 +318,43 @@ tests, registries, compact summaries, and reports.
 
 ## Build and Test
 
-Install core development dependencies:
+Install core development dependencies inside the bwrap rootfs. Prefer `uv` for
+Python packages and `mise` for missing runtimes or command-line tools.
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && uv pip install -r requirements.txt -r requirements-dev.txt'
 ```
 
 Run the narrowest relevant test first, then the owning suite. Typical commands:
 
 ```bash
 # Core unit tests
-pytest -q tests/unit_tests/test_config_manager.py
-pytest tests/unit_tests/ -x
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && pytest -q tests/unit_tests/test_config_manager.py'
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && pytest tests/unit_tests/ -x'
 
 # Core GPU integration tests
-python -m tests.integration_tests.run_tests <output_dir> \
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && python -m tests.integration_tests.run_tests "$OUTPUT_DIR" \
   --module llama3 --config llama3_debugmodel \
-  --test_suite features --test_name <name> --ngpu 8
+  --test_suite features --test_name <name> --ngpu 8'
 
 # RL focused tests; requires the optional RL environment
-pytest -q torchtitan/experiments/rl/tests/test_async_controller.py
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && pytest -q torchtitan/experiments/rl/tests/test_async_controller.py'
 
 # RL end-to-end tests; the runner launches Monarch, not torchrun
-python -m torchtitan.experiments.rl.tests.integration_tests \
-  <output_dir> --test_name <name> --ngpu 8 \
-  --hf_assets_path <checkpoint>
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && python -m torchtitan.experiments.rl.tests.integration_tests \
+  "$OUTPUT_DIR" --test_name <name> --ngpu 8 \
+  --hf_assets_path <checkpoint>'
 
 # Repo-local offline research tests
-pytest -q tests/unit_tests/test_countdown_search_distill.py
-pytest -q tests/unit_tests/test_scaffold_to_policy.py
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && pytest -q tests/unit_tests/test_countdown_search_distill.py'
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && pytest -q tests/unit_tests/test_scaffold_to_policy.py'
 ```
 
 Before handoff, run lint on the changed files and broaden to the repository when
 the change warrants it:
 
 ```bash
-pre-commit run --all-files
+scripts/rootfs/enter_rootfs.sh -- bash -lc 'cd /workspace/torchtitan && pre-commit run --all-files'
 ```
 
 GPU integration cases and optional experiments have separate dependencies.
@@ -440,4 +472,11 @@ A change is ready for review when:
 building, fixing, or changing code, read and follow
 `docs/agents/agentic-engineering.md`. Direct user instructions and more specific
 repository guidance take precedence.
+Default to the clean-context subagent execution rule in that workflow for
+discrete implementation, audit, and verification tasks.
+For implementation-plan work, the main agent should behave as an orchestrator:
+dispatch a fresh task subagent with precise context, dispatch a separate review
+subagent for that task, then dispatch a finalizer subagent to inspect both
+execution traces, identify challenges/issues/bottlenecks, propose plan or
+task-skill improvements, and decide whether the task must be rerun.
 <!-- ultron-agentic-workflow:end -->

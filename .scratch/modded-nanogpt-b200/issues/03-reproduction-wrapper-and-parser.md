@@ -84,12 +84,14 @@ Excluded:
     `launch_authority_required`, full-mode SHA/NCCL/manifest gates, and
     `blocked_by` without treating an operator dry run or missing launch token as
     a baseline.
-    Full-mode launches require explicit `--launch-authorization=launch-full-b200`
-    after preflight passes; without it, the runner writes exit code `21`,
-    `blocker.phase=launch_authority`, preserves the launch-readiness report, and
-    stops before invoking `torchrun`. The launch-readiness JSON and Markdown
-    also expose `launch_authorization_required_token=launch-full-b200` so
-    downstream tooling does not have to parse blocker prose.
+    Full-mode launches require the trusted user request itself to contain
+    `launch-full-b200`; only after that may the lower-level
+    `--launch-authorization=launch-full-b200` marker be supplied. Without the
+    marker, the runner writes exit code `21`, `blocker.phase=launch_authority`,
+    preserves the launch-readiness report, and stops before invoking `torchrun`.
+    The launch-readiness JSON and Markdown also expose
+    `launch_authorization_required_token=launch-full-b200` so downstream
+    tooling does not have to parse blocker prose.
     Authorized full launches also run the structured active-job scanner after
     preflight and before telemetry/training. If another `torchrun`,
     `train_gpt.py`, or `cached_fineweb10B.py` job is active, the runner writes
@@ -271,8 +273,10 @@ Excluded:
   `phase=training` and `exit_code=0`, rootfs sentinel evidence is present, NCCL
   and SHA-verified full 900M manifest evidence passed, the data source commit
   is pinned, `launch_readiness.data_manifest` matches either the result-local
-  manifest pointer or its resolved manifest target when present, and the GPU
-  inventory is exactly 8x B200. Focused regressions first proved a final-metric
+  manifest pointer or its resolved manifest target when present, and the
+  visible GPU inventory matches the declared B200 allocation. The active RSI
+  foundation trial requires exactly 2x B200; 8x B200 remains a separate broader
+  reproduction claim. Focused regressions first proved a final-metric
   full summary with no launch/rootfs/data sidecars was incorrectly accepted,
   then proved a copied launch-readiness sidecar with a mismatched data-manifest
   path was incorrectly accepted, and now prove an otherwise valid full attempt
@@ -322,19 +326,22 @@ Excluded:
   the rootfs and the analysis includes explicit null telemetry range fields for
   the intentionally not-started watchers plus separate attempt-source and
   data-source commit fields.
-- Fresh wrapper-owned diagnostic skip-run evidence:
+- Historical wrapper-owned diagnostic skip-run evidence:
   `experiments/modded_nanogpt_b200/results/wrapper_diag_skip_env_20260815T232745Z/`
-  records the same required bundle shape, re-ran rootfs preflight without
-  launching training, records `flash_attention: 2.8.3.post1`, 8x B200 GPU
-  inventory, shell wall-clock, and `failure_category: not_launched`, and remains
-  excluded from baseline stats.
-- Fresh DCGM-aware wrapper-owned diagnostic skip-run evidence:
+  recorded the then-required bundle shape, re-ran rootfs preflight without
+  launching training, recorded `flash_attention: 2.8.3.post1`, historical 8x
+  B200 GPU inventory, shell wall-clock, and `failure_category: not_launched`,
+  and remains excluded from baseline stats. It is superseded as current handoff
+  evidence by the later two-GPU runtime-env prerequisite artifact.
+- Historical DCGM-aware wrapper-owned diagnostic skip-run evidence:
   `experiments/modded_nanogpt_b200/results/wrapper_diag_skip_dcgm_20260815T233425Z/`
-  re-ran rootfs preflight without launching training and records
+  re-ran rootfs preflight without launching training and recorded
   `telemetry/dcgm_status.json` with `state=unavailable`,
   `reason="no rootfs-friendly DCGM command found"`, and checked commands
   `dcgmi` plus `dcgmproftester`. Its `summary.json` embeds the DCGM status
   under `telemetry.dcgm`, `analysis.md` renders `dcgm_state` and `dcgm_reason`,
-  `rootfs_marker: 1`, `flash_attention: 2.8.3.post1`, 8x B200 inventory,
-  `manifest_verified_sha: null`, `preflight_verified_sha: False`, null final
-  metrics, and `failure_category: not_launched`.
+  `rootfs_marker: 1`, `flash_attention: 2.8.3.post1`, historical 8x B200
+  inventory, `manifest_verified_sha: null`, `preflight_verified_sha: False`,
+  null final metrics, and `failure_category: not_launched`. It is superseded as
+  current handoff evidence by the later two-GPU runtime-env prerequisite
+  artifact.

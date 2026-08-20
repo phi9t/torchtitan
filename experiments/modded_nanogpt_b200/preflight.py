@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Preflight gates for the modded-nanogpt B200 experiment.
 
 Run this inside scripts/rootfs/enter_rootfs.sh. The checks intentionally fail
@@ -13,6 +19,7 @@ import importlib
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import textwrap
@@ -36,6 +43,7 @@ DEFAULT_ENVIRONMENT_CLASS = "torchtitan-rootfs-b200"
 FULL_TRIAL_GPU_COUNT = 2
 SUPPORTED_GPU_COUNTS = (1, 2, 4, 8)
 SUBPROCESS_TIMEOUT_SECONDS = 180
+NCCL_SUBPROCESS_TIMEOUT_SECONDS = 90
 EXPECTED_TORCH_VERSION = "2.13.0+cu132"
 EXPECTED_CUDA_RUNTIME = "13.2"
 EXPECTED_TRITON_VERSION = "3.7.1"
@@ -82,10 +90,12 @@ def run_checked_subprocess(
     *,
     timeout_seconds: int = SUBPROCESS_TIMEOUT_SECONDS,
     cwd: Path | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     proc = subprocess.Popen(
         cmd,
         cwd=str(cwd) if cwd else None,
+        env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -108,7 +118,8 @@ def run_checked_subprocess(
             stdout, _ = proc.communicate()
         output = stdout or ""
         raise CheckFailure(
-            f"subprocess timed out after {timeout_seconds}s: {' '.join(cmd)}\n{output}"
+            f"subprocess timed out after {timeout_seconds}s: {' '.join(cmd)}\n{output}",
+            detail={"timeout_seconds": timeout_seconds, "output": output},
         ) from exc
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout, None)
 
@@ -313,14 +324,45 @@ def run_nccl_worker() -> int:
 
 
 def check_nccl(expected_gpus: int) -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        master_port = sock.getsockname()[1]
     cmd = [
         "torchrun",
-        "--standalone",
         f"--nproc_per_node={expected_gpus}",
+        "--master-addr=127.0.0.1",
+        f"--master-port={master_port}",
         str(Path(__file__).resolve()),
         "--_nccl-worker",
     ]
-    proc = run_checked_subprocess(cmd, timeout_seconds=SUBPROCESS_TIMEOUT_SECONDS)
+    env = {
+        **os.environ,
+        "NCCL_DEBUG": os.environ.get("NCCL_DEBUG", "INFO"),
+        "TORCH_NCCL_ASYNC_ERROR_HANDLING": os.environ.get(
+            "TORCH_NCCL_ASYNC_ERROR_HANDLING", "1"
+        ),
+        "TORCH_NCCL_BLOCKING_WAIT": os.environ.get("TORCH_NCCL_BLOCKING_WAIT", "1"),
+        "MASTER_ADDR": "127.0.0.1",
+        "MASTER_PORT": str(master_port),
+    }
+    try:
+        proc = run_checked_subprocess(
+            cmd,
+            timeout_seconds=NCCL_SUBPROCESS_TIMEOUT_SECONDS,
+            env=env,
+        )
+    except CheckFailure as exc:
+        detail = exc.detail if isinstance(exc.detail, dict) else {}
+        timeout_seconds = detail.get("timeout_seconds", NCCL_SUBPROCESS_TIMEOUT_SECONDS)
+        output = detail.get("output", "")
+        raise CheckFailure(
+            f"NCCL all-reduce smoke timed out after {timeout_seconds}s",
+            detail={
+                "timeout_seconds": timeout_seconds,
+                "expected_gpus": expected_gpus,
+                "output": output,
+            },
+        ) from exc
     require(
         proc.returncode == 0,
         f"{expected_gpus}-rank NCCL all-reduce smoke failed:\n{proc.stdout}",
@@ -614,7 +656,7 @@ def check_data_manifest(path: Path, *, mode: str, verify_sha: bool) -> dict[str,
     )
     files = data.get("files")
     require(
-        isinstance(files, list) and files,
+        bool(isinstance(files, list) and files),
         "manifest must contain a non-empty files list",
     )
     if mode == "full":
@@ -693,6 +735,32 @@ def write_report(report_path: Path | None, report: dict[str, Any]) -> None:
     tmp.replace(report_path)
 
 
+def write_progress(
+    progress_path: Path | None,
+    *,
+    active_check: str | None,
+    checks: list[dict[str, Any]],
+) -> None:
+    if progress_path is None:
+        return
+    completed_checks = [
+        str(item["name"])
+        for item in checks
+        if item.get("ok") is True and item.get("name") is not None
+    ]
+    record = {
+        "schema_version": SCHEMA_VERSION,
+        "active_check": active_check,
+        "completed_checks": completed_checks,
+        "checks": checks,
+        "timestamp_epoch": time.time(),
+    }
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = progress_path.with_suffix(progress_path.suffix + ".tmp")
+    tmp.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    tmp.replace(progress_path)
+
+
 def derive_claim_label(
     lane: str, mode: str, attention_backend: str, mlp_backend: str
 ) -> str:
@@ -715,7 +783,7 @@ def derive_evidence_tier(mode: str) -> str:
     return mode
 
 
-def check_mode_policy(args: argparse.Namespace) -> dict[str, Any]:
+def check_mode_policy(args: Any) -> dict[str, Any]:
     policy: dict[str, Any] = {
         "mode": args.mode,
         "skip_nccl": args.skip_nccl,
@@ -796,6 +864,7 @@ def parse_args() -> argparse.Namespace:
         help="permit known-stalled diagnostic configs",
     )
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--progress", type=Path)
     parser.add_argument("--_nccl-worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args._nccl_worker:
@@ -861,25 +930,30 @@ def main(*, enforce_rootfs: bool = False) -> int:
     }
 
     def checked(name: str, fn):
+        progress_path = getattr(args, "progress", None)
+        write_progress(progress_path, active_check=name, checks=report["checks"])
         try:
             value = fn()
         except CheckFailure as exc:
-            item = {"name": name, "ok": False, "error": str(exc)}
+            item: dict[str, Any] = {"name": name, "ok": False, "error": str(exc)}
             if exc.detail is not None:
                 item["detail"] = exc.detail
             report["checks"].append(item)
             report["failures"].append({"name": name, "error": str(exc)})
+            write_progress(progress_path, active_check=name, checks=report["checks"])
             raise
         except Exception as exc:  # noqa: BLE001
             error = f"{type(exc).__name__}: {exc}"
             report["checks"].append({"name": name, "ok": False, "error": error})
             report["failures"].append({"name": name, "error": error})
+            write_progress(progress_path, active_check=name, checks=report["checks"])
             raise CheckFailure(error) from exc
         else:
-            item = {"name": name, "ok": True}
+            item: dict[str, Any] = {"name": name, "ok": True}
             if value is not None:
                 item["detail"] = value
             report["checks"].append(item)
+            write_progress(progress_path, active_check=None, checks=report["checks"])
             return value
 
     def check_torch_import() -> dict[str, Any]:

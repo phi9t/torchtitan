@@ -20,9 +20,10 @@ fails.
 The requested result is a B200 upstream reproduction or a clearly labeled B200
 compatibility/diagnostic result. It is not an official upstream record claim.
 
-The production target is at least 10 successful non-skip full B200 attempts
-with auditable run-index evidence. Fewer than 10 full jobs is acceptable only
-when a gate or runtime condition blocks further progress and the blocker is
+The active RSI foundation target is one authorized, sequential, non-skip
+two-GPU Lane B full attempt after the current dry prerequisite gate. Broader 8x
+reproduction, repeatability, ablation, or a 10-run production campaign is
+superseded until that first trial is stopped, parsed, summarized, and
 classified from preserved evidence.
 
 ## Mandatory Sources
@@ -71,11 +72,15 @@ Authority order for this effort:
   with `skip_run=true` is prerequisite evidence only.
 - Do not count a run in baseline or production evidence unless the run index
   and the attempt artifacts prove `training_launched=true`, non-skip execution,
-  final validation metrics, exit code `0`, rootfs sentinel evidence, 8x B200,
-  NCCL, and SHA-verified 900M data.
+  final validation metrics, exit code `0`, rootfs sentinel evidence, the
+  declared GPU allocation, NCCL over that declared world size, and SHA-verified
+  900M data.
 - Report upstream `train_time` separately from shell wall-clock.
-- Full jobs require 8x B200, NCCL, full 900M FineWeb manifest, SHA
-  verification, rootfs sentinel evidence, and no known-stall override.
+- The active small-scale RSI foundation trial uses exactly two visible B200
+  GPUs. A broader 8x B200 reproduction or production baseline still requires
+  explicit authorization and must not be inferred from a two-GPU prerequisite.
+  Full jobs require NCCL, full 900M FineWeb manifest, SHA verification, rootfs
+  sentinel evidence, and no known-stall override.
 - Diagnostic runs must be labeled diagnostic and excluded from successful
   baseline statistics.
 - Commit, push, and PR creation require explicit user authorization.
@@ -91,7 +96,8 @@ These facts may be stale; verify cheaply before relying on them.
   - Torch `2.13.0+cu132`
   - CUDA runtime `13.2`
   - Triton `3.7.1`
-  - 8x `NVIDIA B200`, compute capability `(10, 0)`
+  - host inventory has included 8x `NVIDIA B200`, compute capability `(10, 0)`;
+    the active RSI foundation launch allocation is exactly 2 visible B200 GPUs
 - FA2 has previously built and smoked successfully in rootfs:
   `flash-attn==2.8.3.post1`, CUDA build wheels `13.2.86`,
   `TORCH_CUDA_ARCH_LIST=10.0`.
@@ -133,9 +139,17 @@ Every artifact that represents an attempt must include:
 }
 ```
 
-`claim_eligible` may become true only when the full-mode preflight passes.
-Post-run claim validity still requires final validation, valid source state,
-valid data, and valid metrics.
+These `claim_label` values are v1 legacy emitted strings. For RSI planning,
+map `B200 compatibility patchset` and `B200 systems-only` to
+`B200-compatible local setup`, `B200 ML variant` to `B200 local variant`,
+`B200 upstream reproduction` to `Faithful upstream reproduction`, and
+`diagnostic` to `Diagnostic`. Do not rename emitted labels without a separate
+schema compatibility migration.
+
+`claim_eligible` means only that the attempt or materialized plan is
+structurally allowed to support a claim. Post-run claim validity still requires
+successful full-mode preflight, final validation, valid source state, valid
+data, and valid metrics.
 
 ## Execution Mode Selection
 
@@ -199,9 +213,10 @@ From the host shell:
    - `experiments/modded_nanogpt_b200/results/`
 4. Check for active jobs with the rootfs-aware structured scanner:
    `experiments/modded_nanogpt_b200/check_active_jobs.sh --active-jobs-output experiments/modded_nanogpt_b200/results/<run_id>/active_jobs.json`.
-5. Confirm the current run index does not already contain 10 successful
-   non-skip full attempts. If it does, verify the summaries and stop with the
-   production evidence list instead of launching more jobs.
+5. Confirm the current run index does not already contain an accepted non-skip
+   two-GPU Lane B full attempt for the active RSI foundation gate. If it does,
+   verify the summary and stop with the evidence list instead of launching more
+   jobs.
 
 Stop before launching a job if another process is using the target GPUs and the
 user has not authorized sharing the machine.
@@ -224,9 +239,11 @@ or package installation fails.
    - source/data manifest contract failure.
 3. Fix only the minimal rootfs or wrapper issue needed for the current gate.
 4. Install Python packages only inside rootfs, using
-   `python -m pip install --break-system-packages ...`.
-5. Avoid Torch replacement. If a package tries to pull Torch, stop and install
-   with `--no-deps` or pin direct non-Torch dependencies.
+   `experiments/modded_nanogpt_b200/runtime/sync_python_env.sh` for normal
+   runtime sync.
+5. Avoid Torch replacement. If a package tries to pull Torch, stop and update
+   the direct non-Torch runtime lock through the networked-rootfs diagnostic
+   path instead of running a broad upstream requirements install.
 6. After repair, rerun the exact failing rootfs command and preserve the before
    and after evidence in the result directory.
 
@@ -263,8 +280,8 @@ mkdir -p "${RESULT_DIR}"
 Before any expensive step, create or capture:
 
 - `attempt.json` with the common classification schema;
-- `command.env` with redacted environment variables;
-- `command.argv` with the exact command planned;
+- `command.env.json` with schema-valid redacted environment variables;
+- `command.argv.json` with the exact wrapper and training commands planned;
 - `operator_notes.md` with the Phase 0 resume note, current known blockers, and
   the intended lane/mode.
 
@@ -334,16 +351,24 @@ Full-mode runs require a schema-versioned 900M FineWeb manifest:
 - per-shard byte sizes;
 - per-shard SHA256 checksums.
 
-Run upstream data preparation from the pinned source directory under rootfs:
+Run or refresh data preparation through the repo-local rootfs-aware helper:
 
 ```bash
-python data/cached_fineweb10B.py 9
+experiments/modded_nanogpt_b200/prepare_data.sh \
+  --source "${SOURCE}" \
+  --data-dir "${DATA_DIR}" \
+  --output "${MANIFEST}" \
+  --token-budget 900M \
+  --freshness fresh
 ```
 
-If a schema-valid manifest is missing, create it through a rootfs-aware helper
-or one-off rootfs Python command and write it atomically. Do not mutate an old
-result manifest in place; write a new manifest in the current result directory
-or a clearly named generated data-manifest path.
+The helper records the upstream source command
+`python data/cached_fineweb10B.py 9` as manifest provenance for full manifests.
+Do not run that upstream command directly from the host. If a schema-valid
+manifest is missing, create it through a rootfs-aware helper or one-off rootfs
+Python command and write it atomically. Do not mutate an old result manifest in
+place; write a new manifest in the current result directory or a clearly named
+generated data-manifest path.
 
 Before a full job, run preflight with `--verify-sha`. Expect this to take time;
 preserve duration as data-verification wall-clock.
@@ -377,7 +402,8 @@ experiments/modded_nanogpt_b200/run_preflight.sh \
   --report "${RESULT_DIR}/preflight_report.json"
 ```
 
-Lane B diagnostic shape for the current FA2/PyTorch-MLP investigation:
+Historical Lane B diagnostic shape for the FA2/PyTorch-MLP fallback
+investigation:
 
 ```bash
 MODDED_NANOGPT_CE_COMPUTE_CAPABILITY=100 \
@@ -403,10 +429,11 @@ Do not launch a full job unless full preflight exits `0`. If preflight fails,
 preserve `preflight_report.json`, classify the blocker, and stop or repair the
 failing prerequisite before retrying.
 
-For the current Lane B production candidate, prefer the full-mode gate shape
-that exercises FA2 and Triton MLP unless trace analysis proves a different
-backend is the next blocker. PyTorch MLP is diagnostic unless its patch class
-and metric impact are explicitly classified.
+For the current Lane B production candidate, use the full-mode gate shape that
+exercises FA2 and Triton MLP unless new trace evidence proves a different
+backend is the next blocker. PyTorch MLP is diagnostic-only fallback evidence;
+do not use it for the next full launch unless its patch class and metric impact
+are explicitly classified.
 
 ## Phase 8: Telemetry Capture Plan
 
@@ -418,8 +445,8 @@ Required artifacts:
 - `attempt.json`
 - `source.json`
 - `data_manifest.json` or pointer record
-- `command.env`
-- `command.argv`
+- `command.env.json`
+- `command.argv.json`
 - `run.log`
 - `wall_clock.json`
 - `telemetry/`
@@ -474,6 +501,10 @@ not.
 
 Lane B full production candidate shape:
 
+Use this non-skip template only after the trusted user request contains
+`launch-full-b200`; otherwise use the dry-gate form below without launch
+authorization.
+
 ```bash
 experiments/modded_nanogpt_b200/run_speedrun.sh \
   --mode full \
@@ -492,7 +523,8 @@ experiments/modded_nanogpt_b200/run_speedrun.sh \
 
 For a prerequisite dry gate, add `--skip-run` and omit launch authorization.
 Dry gates are useful only as prerequisite evidence; they do not count toward the
-10 full-job target.
+active two-GPU RSI foundation result. The older 10 full-job campaign target is
+historical and requires separate authorization.
 
 Before launch:
 
@@ -542,12 +574,13 @@ On a stop condition:
 6. Do not relaunch until the root cause is classified or the run is explicitly
    reclassified diagnostic.
 
-If one full attempt succeeds, continue launching additional full attempts until
-the run index contains 10 successful non-skip full B200 attempts, a repeated
-runtime failure identifies a blocker, or the user changes the budget. Between
-attempts, keep source, data, rootfs, and backend settings fixed unless the
-previous attempt failed and the repair requires a change. Record every material
-change in `operator_notes.md` and in the attempt classification.
+If one full attempt succeeds, stop after parsing, summarizing, refreshing the
+run index, and classifying the result. Do not start repeatability, ablation, 8x
+reproduction, or a 10-run production campaign until the user explicitly
+authorizes that next phase. Keep source, data, rootfs, and backend settings
+fixed unless the completed attempt failed and the repair requires a change.
+Record every material change in `operator_notes.md` and in the attempt
+classification.
 
 ## Phase 10: Post-Run Collection
 
@@ -622,18 +655,21 @@ Only call a run a successful B200 reproduction if all are true:
 For Lane B, use `B200 compatibility patchset`, `B200 systems-only`, or
 `B200 ML variant` according to the patch classes and metric validity.
 
-Only call the system productionized when all are true:
+Only call the active RSI foundation ready for its next phase when all are true:
 
-- run index `baseline_stats.count >= 10`;
-- every counted attempt is Lane A or Lane B full mode, non-skip, on 8x B200;
-- every counted attempt has rootfs sentinel evidence, NCCL checked, SHA-verified
-  900M manifest evidence, source provenance, exit code `0`, and final
-  validation metrics;
-- every counted attempt reports `val_loss <= 3.28`;
-- Lane B counted attempts include `variant_patch.diff` and patch
+- the first authorized two-GPU Lane B full attempt has stopped and been parsed;
+- the refreshed run index records the attempt with non-skip
+  `training_launched=true`, rootfs sentinel evidence, NCCL checked,
+  SHA-verified 900M manifest evidence, source provenance, exit code `0`, and
+  final validation metrics, or records a concrete blocker with preserved
+  evidence;
+- any successful Lane B counted attempt includes `variant_patch.diff` and patch
   classification;
-- the final report lists all counted result directories and any excluded
-  attempts that looked close but failed an evidence gate.
+- the final report lists the counted or blocked result directory and any
+  excluded attempts that looked close but failed an evidence gate.
+
+A future broader production campaign may reinstate a 10-successful-run target,
+but that is not the active small-scale RSI foundation gate.
 
 ## Phase 12: Final Response
 
@@ -659,12 +695,13 @@ say that directly and explain which gate prevented it.
 
 The session is complete when one of these is true:
 
-- The refreshed run index contains at least 10 successful non-skip full B200
-  attempts, all counted attempts are listed, and the production evidence is
-  summarized.
+- The refreshed run index contains the first accepted non-skip two-GPU Lane B
+  full attempt for the active RSI foundation gate, the counted attempt is
+  listed, and the evidence is summarized.
 - A full Lane A attempt reaches final validation and the result directory has
-  preflight, logs, telemetry, summary, and analysis, but fewer than 10 full
-  jobs were authorized or possible; the reason is explicit.
+  preflight, logs, telemetry, summary, and analysis, but a broader reproduction
+  or repeatability campaign was not authorized or possible; the reason is
+  explicit.
 - A Lane B diagnostic or compatibility attempt reaches its authorized endpoint,
   the result directory has preflight, logs, telemetry, summary, and analysis,
   and either the next full job is ready to launch or the next blocker is stated.

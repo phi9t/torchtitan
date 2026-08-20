@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Fetch or verify the pinned modded-nanogpt source checkout."""
 
@@ -8,9 +11,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -99,7 +102,9 @@ def parse_args() -> argparse.Namespace:
 def main(*, enforce_rootfs: bool = False) -> int:
     args = parse_args()
     if enforce_rootfs:
-        guard_exit = cli_guard.guard_rootfs_cli("experiments/modded_nanogpt_b200/fetch_upstream.sh")
+        guard_exit = cli_guard.guard_rootfs_cli(
+            "experiments/modded_nanogpt_b200/fetch_upstream.sh"
+        )
         if guard_exit is not None:
             return guard_exit
     try:

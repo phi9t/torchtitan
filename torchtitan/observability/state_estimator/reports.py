@@ -8,23 +8,25 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from torchtitan.observability.state_estimator.bundle import load_bundle
 from torchtitan.observability.state_estimator.estimators import estimate_belief
 from torchtitan.observability.state_estimator.evaluation import (
+    evaluate_manifest,
     EvaluationCase,
     EvaluationManifest,
-    evaluate_manifest,
 )
 from torchtitan.observability.state_estimator.graph import build_evidence_graph
 from torchtitan.observability.state_estimator.probes import recommend_probes
 from torchtitan.observability.state_estimator.schema import (
-    SCHEMA_VERSION,
     read_json_object,
+    SCHEMA_VERSION,
     write_json_atomic,
 )
 from torchtitan.observability.state_estimator.timeline import build_incident_timeline
@@ -102,9 +104,7 @@ def analyze_run_report(run_path: Path, output_dir: Path) -> dict[str, Any]:
         },
     }
     write_json_atomic(output_dir / "run_summary.json", run_summary)
-    (output_dir / "run_report.md").write_text(
-        "\n".join(_run_report_lines(run_summary))
-    )
+    (output_dir / "run_report.md").write_text("\n".join(_run_report_lines(run_summary)))
     return {
         "ok": True,
         "command": "analyze-run",
@@ -129,10 +129,12 @@ def compare_attempt_reports(
     identities = [
         _read_attempt_identity(attempt_path) for attempt_path in attempt_paths
     ]
-    use_run_attempt_keys = (
-        len({identity["attempt_id"] for identity in identities}) != len(identities)
-        or len({attempt_path.name for attempt_path in attempt_paths})
-        != len(attempt_paths)
+    use_run_attempt_keys = len(
+        {identity["attempt_id"] for identity in identities}
+    ) != len(identities) or len(
+        {attempt_path.name for attempt_path in attempt_paths}
+    ) != len(
+        attempt_paths
     )
     comparisons: dict[str, dict[str, Any]] = {}
     attempt_artifacts: dict[str, dict[str, str]] = {}
@@ -202,7 +204,9 @@ def evaluate_report(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
     }
 
 
-def _build_attempt_analysis(attempt_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+def _build_attempt_analysis(
+    attempt_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     try:
         load_bundle(attempt_path)
     except json.JSONDecodeError as exc:
@@ -335,9 +339,7 @@ def _operator_report_lines(
     ]
 
 
-def _mode_score_lines(
-    summary: Mapping[str, Any], inference: Any
-) -> list[str]:
+def _mode_score_lines(summary: Mapping[str, Any], inference: Any) -> list[str]:
     lines = [
         f"- {item.get('mode')}: {item.get('score')}"
         for item in summary.get("fault_hypotheses", [])
@@ -365,8 +367,7 @@ def _root_cause_lines(summary: Mapping[str, Any]) -> list[str]:
             if isinstance(item, Mapping)
         ]
     return [
-        f"- {item.get('candidate')}: {item.get('score')}"
-        for item in candidates
+        f"- {item.get('candidate')}: {item.get('score')}" for item in candidates
     ] or ["- none"]
 
 

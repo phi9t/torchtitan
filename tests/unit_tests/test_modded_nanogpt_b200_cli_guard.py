@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -97,6 +97,57 @@ import pytest
                 "triton",
                 "--output",
                 "experiments/modded_nanogpt_b200/results/direct_mlp_fixture/mlp_diagnostic.json",
+            ],
+        ),
+        (
+            "experiments/modded_nanogpt_b200/performance_probe.py",
+            "experiments/modded_nanogpt_b200/run_performance_probe.sh",
+            [
+                "--probe-name",
+                "direct_probe_fixture",
+                "--probe-kind",
+                "static_wrapper_preflight",
+                "--result-dir",
+                "experiments/modded_nanogpt_b200/results/direct_probe_fixture",
+                "--source",
+                "experiments/modded_nanogpt_b200/sources/modded-nanogpt-b200-sdpa",
+                "--data-manifest",
+                "experiments/modded_nanogpt_b200/results/full_manifest_refresh_20260816T000342Z/data_manifest.json",
+                "--attention-backend",
+                "fa2",
+                "--mlp-backend",
+                "triton",
+                "--run-id",
+                "direct_probe_fixture",
+                "--attempt-id",
+                "direct_probe_fixture_attempt_001",
+                "--gpu-ids",
+                "0,1",
+                "--world-size",
+                "2",
+            ],
+        ),
+        (
+            "experiments/modded_nanogpt_b200/optimized_kernel_certifier.py",
+            "experiments/modded_nanogpt_b200/certify_optimized_kernels.sh",
+            [
+                "--source",
+                "experiments/modded_nanogpt_b200/sources/modded-nanogpt-b200-sdpa",
+                "--attention-backend",
+                "fa2",
+                "--mlp-backend",
+                "triton",
+                "--output",
+                "experiments/modded_nanogpt_b200/results/direct_kernel_cert_fixture/runtime/optimized_kernel_report.json",
+            ],
+        ),
+        (
+            "experiments/modded_nanogpt_b200/run_experiment_matrix.py",
+            "experiments/modded_nanogpt_b200/run_experiment_matrix.sh",
+            [
+                "--config",
+                "experiments/modded_nanogpt_b200/configs/gpu_ladder_prerequisite.json",
+                "--dry-run",
             ],
         ),
         (
@@ -196,8 +247,8 @@ def test_flash_attention_setup_probes_health_before_install_commands():
     text = script.read_text()
 
     probe_def = text.index("flash_attn_health_probe()")
-    fast_path = text.index('flash_attn_health_probe; then')
-    cuda_install = text.index("python -m pip install")
+    fast_path = text.index("flash_attn_health_probe; then")
+    cuda_install = text.index('"${PYTHON_BIN}" -m pip install')
     flash_install = text.index("flash_attn_install=(")
 
     assert probe_def < fast_path < cuda_install < flash_install

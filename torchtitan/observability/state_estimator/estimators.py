@@ -9,23 +9,25 @@
 from __future__ import annotations
 
 from collections import defaultdict
+
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from torchtitan.observability.state_estimator.analytical import build_analytical_summary
 from torchtitan.observability.state_estimator.graph import build_evidence_graph
 from torchtitan.observability.state_estimator.inference import score_fault_modes
 from torchtitan.observability.state_estimator.probes import recommend_probes
-from torchtitan.observability.state_estimator.timeline import build_incident_timeline
-from torchtitan.observability.state_estimator.transactions import (
-    summarize_transaction_state,
-)
 from torchtitan.observability.state_estimator.schema import (
     DerivedPaths,
     EntityRef,
     QualityFinding,
     SCHEMA_VERSION,
     write_json_atomic,
+)
+from torchtitan.observability.state_estimator.timeline import build_incident_timeline
+from torchtitan.observability.state_estimator.transactions import (
+    summarize_transaction_state,
 )
 
 
@@ -37,7 +39,9 @@ def _process_liveness(graph: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
             continue
         process_id = edge["source"]
         outcome_id = edge["target"]
-        outcome = entities.get(outcome_id, {}).get("attrs", {}).get("outcome", "unknown")
+        outcome = (
+            entities.get(outcome_id, {}).get("attrs", {}).get("outcome", "unknown")
+        )
         liveness[process_id] = {"outcome": outcome}
     return liveness
 
@@ -56,11 +60,11 @@ def _peer_skew_findings(
             groups[(phase, step)].append(observation)
     findings: list[dict[str, Any]] = []
     for (phase, step), rows in sorted(groups.items()):
-        times = [
-            row.get("event_time_ns")
-            for row in rows
-            if isinstance(row.get("event_time_ns"), int)
-        ]
+        times: list[int] = []
+        for row in rows:
+            event_time_ns = row.get("event_time_ns")
+            if isinstance(event_time_ns, int):
+                times.append(event_time_ns)
         if len(times) < 2:
             continue
         skew_ns = max(times) - min(times)
@@ -99,7 +103,14 @@ def _phase_event_state(payload: Mapping[str, Any]) -> str | None:
         normalized = value.lower()
         if normalized in {"start", "started", "begin", "began"}:
             return "start"
-        if normalized in {"end", "ended", "finish", "finished", "complete", "completed"}:
+        if normalized in {
+            "end",
+            "ended",
+            "finish",
+            "finished",
+            "complete",
+            "completed",
+        }:
             return "end"
     message = payload.get("message")
     if isinstance(message, str):
@@ -111,7 +122,9 @@ def _phase_event_state(payload: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _phase_time(payload: Mapping[str, Any], observation: Mapping[str, Any]) -> tuple[str, int] | None:
+def _phase_time(
+    payload: Mapping[str, Any], observation: Mapping[str, Any]
+) -> tuple[str, int] | None:
     monotonic_ns = payload.get("monotonic_ns")
     if isinstance(monotonic_ns, int):
         return ("monotonic_ns", monotonic_ns)
@@ -271,7 +284,11 @@ def _phase_duration_summaries(
         step = payload.get("step")
         entity = observation.get("entity", {})
         process_id = entity.get("id") if isinstance(entity, Mapping) else None
-        if isinstance(phase, str) and isinstance(step, int) and isinstance(process_id, str):
+        if (
+            isinstance(phase, str)
+            and isinstance(step, int)
+            and isinstance(process_id, str)
+        ):
             groups[(phase, step, process_id)].append(observation)
             continue
         missing_fields = _phase_duration_missing_fields(payload, observation)
@@ -317,7 +334,9 @@ def _phase_duration_summaries(
                         "process": end_row.get("entity") or start_row.get("entity"),
                         "global_rank": payload.get("global_rank"),
                         "duration_ns": end_time_ns - start_time_ns,
-                        "clock": "monotonic_ns" if "monotonic_ns" in clocks else "wall_time_ns",
+                        "clock": "monotonic_ns"
+                        if "monotonic_ns" in clocks
+                        else "wall_time_ns",
                         "start_time_ns": start_time_ns,
                         "end_time_ns": end_time_ns,
                         "calibration": "heuristic",
@@ -382,7 +401,7 @@ def estimate_belief(
             QualityFinding(
                 kind="process_outcome_failed",
                 severity="error",
-                evidence_state="failed",
+                evidence_state="present",
                 message="process outcome reported failed",
                 source_path="process_outcome",
                 entity=EntityRef(kind="process", id=process_id),
@@ -470,10 +489,7 @@ def write_belief_summary(attempt_path: Path) -> DerivedPaths:
         "",
         "## Incident Timeline",
         "",
-        *(
-            f"- {row['relative_time_ns']} ns: {row.get('id')}"
-            for row in timeline[:20]
-        ),
+        *(f"- {row['relative_time_ns']} ns: {row.get('id')}" for row in timeline[:20]),
         "",
         "## Probe Recommendations",
         "",

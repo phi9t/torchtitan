@@ -168,6 +168,46 @@ def _launch_readiness(
     result_dir.joinpath("launch_readiness.json").write_text(json.dumps(report) + "\n")
 
 
+def _runtime_evidence(
+    result_dir: Path, *, training_launch_allowed: bool = True
+) -> None:
+    command_env = {
+        "schema_version": 1,
+        "kind": "command_environment",
+        "run_id": result_dir.name,
+        "attempt_id": f"{result_dir.name}_attempt_001",
+        "environment": {
+            "TORCHTITAN_IN_ROOTFS": "1",
+            "TORCHTITAN_ROOTFS_PROJECT": "/workspace/torchtitan",
+            "TORCHTITAN_ROOTFS_NETWORK": "offline",
+            "PYTHON": "/project/venvs/b200-runtime/bin/python",
+        },
+        "environment_digest": {"algorithm": "sha256", "sha256": "0" * 64},
+    }
+    result_dir.joinpath("command.env.json").write_text(json.dumps(command_env) + "\n")
+    runtime_dir = result_dir / "runtime"
+    runtime_dir.mkdir(exist_ok=True)
+    runtime_dir.joinpath("runtime_verification.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "runtime_verification",
+                "run_id": result_dir.name,
+                "attempt_id": f"{result_dir.name}_attempt_001",
+                "ok": True,
+                "training_launch_allowed": training_launch_allowed,
+                "command_env_path": str(result_dir / "command.env.json"),
+                "command_env_digest": {
+                    "algorithm": "sha256",
+                    "sha256": "0" * 64,
+                },
+                "blockers": [],
+            }
+        )
+        + "\n"
+    )
+
+
 def _make_valid_baseline_evidence(result_dir: Path) -> None:
     summary_path = result_dir / "summary.json"
     summary = json.loads(summary_path.read_text())
@@ -582,6 +622,7 @@ def test_run_index_surfaces_launch_ready_prerequisite_attempts(tmp_path: Path):
         training_launched=False,
         launch_authority_required=True,
     )
+    _runtime_evidence(result_dir)
     summary_path = result_dir / "summary.json"
     summary = json.loads(summary_path.read_text())
     summary["classification"]["claim_eligible"] = True
@@ -624,6 +665,7 @@ def test_run_index_separates_skip_run_prerequisites_from_launch_ready_attempts(
         launch_authority_required=True,
         skip_run=True,
     )
+    _runtime_evidence(dry_gate_dir)
     dry_summary_path = dry_gate_dir / "summary.json"
     dry_summary = json.loads(dry_summary_path.read_text())
     dry_summary["classification"]["claim_eligible"] = True
@@ -648,6 +690,7 @@ def test_run_index_separates_skip_run_prerequisites_from_launch_ready_attempts(
         training_launched=False,
         launch_authority_required=True,
     )
+    _runtime_evidence(authority_gate_dir)
     authority_summary_path = authority_gate_dir / "summary.json"
     authority_summary = json.loads(authority_summary_path.read_text())
     authority_summary["classification"]["claim_eligible"] = True
@@ -668,6 +711,77 @@ def test_run_index_separates_skip_run_prerequisites_from_launch_ready_attempts(
         index["launch_ready_attempts"][0]["launch_readiness"].get("skip_run")
         is not True
     )
+
+
+def test_run_index_launch_prerequisites_require_current_runtime_evidence(
+    tmp_path: Path,
+):
+    stale_dir = tmp_path / "lane_b_full_stale_runtime_gate"
+    _summary(
+        result_dir=stale_dir,
+        run_id="lane_b_full_stale_runtime_gate",
+        lane="B",
+        mode="full",
+        train_time=None,
+        included=False,
+        blocker={
+            "phase": "not_launched",
+            "message": "skip-run requested; training was not launched",
+        },
+    )
+    _launch_readiness(
+        result_dir=stale_dir,
+        ready_to_launch=True,
+        training_launched=False,
+        launch_authority_required=True,
+        skip_run=True,
+    )
+    stale_summary_path = stale_dir / "summary.json"
+    stale_summary = json.loads(stale_summary_path.read_text())
+    stale_summary["classification"]["claim_eligible"] = True
+    stale_summary_path.write_text(json.dumps(stale_summary) + "\n")
+
+    current_dir = tmp_path / "lane_b_full_current_runtime_gate"
+    _summary(
+        result_dir=current_dir,
+        run_id="lane_b_full_current_runtime_gate",
+        lane="B",
+        mode="full",
+        train_time=None,
+        included=False,
+        blocker={
+            "phase": "not_launched",
+            "message": "skip-run requested; training was not launched",
+        },
+    )
+    _launch_readiness(
+        result_dir=current_dir,
+        ready_to_launch=True,
+        training_launched=False,
+        launch_authority_required=True,
+        skip_run=True,
+    )
+    _runtime_evidence(current_dir)
+    current_summary_path = current_dir / "summary.json"
+    current_summary = json.loads(current_summary_path.read_text())
+    current_summary["classification"]["claim_eligible"] = True
+    current_summary_path.write_text(json.dumps(current_summary) + "\n")
+
+    index = summarize.build_index(tmp_path)
+
+    prerequisite_summaries = {
+        attempt["summary"] for attempt in index["launch_prerequisite_attempts"]
+    }
+    assert prerequisite_summaries == {str(current_summary_path)}
+    exclusions = {
+        attempt["summary"]: attempt["launch_readiness_exclusion"]
+        for attempt in index["diagnostic_or_failed_attempts"]
+        if "launch_readiness_exclusion" in attempt
+    }
+    assert exclusions[str(stale_summary_path)] == {
+        "phase": "runtime_verification",
+        "message": "missing current runtime verification evidence",
+    }
 
 
 def test_run_index_uses_embedded_launch_readiness_when_sidecar_is_absent(
@@ -714,8 +828,12 @@ def test_run_index_uses_embedded_launch_readiness_when_sidecar_is_absent(
     attempt = index["diagnostic_or_failed_attempts"][0]
     assert attempt["launch_readiness"]["ready_to_launch"] is True
     assert attempt["launch_readiness"]["training_launched"] is False
-    assert len(index["launch_ready_attempts"]) == 1
-    assert index["launch_ready_attempts"][0]["summary"] == str(summary_path)
+    assert index["launch_prerequisite_attempts"] == []
+    assert index["launch_ready_attempts"] == []
+    assert attempt["launch_readiness_exclusion"] == {
+        "phase": "runtime_verification",
+        "message": "missing current runtime verification evidence",
+    }
 
 
 def test_run_index_launch_ready_attempts_are_full_mode_only(tmp_path: Path):
@@ -1703,9 +1821,7 @@ def test_stale_artifacts_include_malformed_summary_failed_attempt(tmp_path: Path
     index = summarize.build_index(tmp_path)
 
     assert len(index["diagnostic_or_failed_attempts"]) == 1
-    assert index["diagnostic_or_failed_attempts"][0]["summary"] == str(
-        broken_summary
-    )
+    assert index["diagnostic_or_failed_attempts"][0]["summary"] == str(broken_summary)
     assert index["diagnostic_or_failed_attempts"][0]["classification"]["mode"] == (
         "malformed"
     )

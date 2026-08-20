@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Contest-style stdin/stdout code evaluation helpers."""
 
@@ -312,16 +315,22 @@ def import_livecodebench_rows(
         tests = _livecodebench_tests(row.get("public_test_cases"))
         if not tests:
             raise ValueError("LiveCodeBench row has no public stdin/stdout tests")
-        question_id = str(row.get("question_id") or _problem_id(source, str(row["question_content"])))
+        question_id = str(
+            row.get("question_id") or _problem_id(source, str(row["question_content"]))
+        )
         problems.append(
             ContestCodeProblem(
                 problem_id=f"LiveCodeBench/{question_id}",
                 source=source,
                 title=str(row.get("question_title") or question_id),
                 prompt=str(row["question_content"]),
-                starter_code="" if row.get("starter_code") is None else str(row["starter_code"]),
+                starter_code=""
+                if row.get("starter_code") is None
+                else str(row["starter_code"]),
                 public_tests=tuple(tests),
-                difficulty=None if row.get("difficulty") is None else str(row.get("difficulty")),
+                difficulty=None
+                if row.get("difficulty") is None
+                else str(row.get("difficulty")),
             )
         )
     return problems
@@ -433,7 +442,9 @@ def _problem_from_json(row: dict[str, object]) -> ContestCodeProblem:
         prompt=str(row["prompt"]),
         starter_code=str(row.get("starter_code") or ""),
         public_tests=tests,
-        difficulty=None if row.get("difficulty") is None else str(row.get("difficulty")),
+        difficulty=None
+        if row.get("difficulty") is None
+        else str(row.get("difficulty")),
     )
 
 

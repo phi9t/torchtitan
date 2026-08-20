@@ -58,13 +58,18 @@ The summarizer must:
     environment/hardware sidecar preservation, and atomic index writes.
 - Demonstrate that diagnostic attempts are excluded from successful baseline
   statistics.
-  - `experiments/modded_nanogpt_b200/results/run_index.json` currently reports
-    `total_attempts=24`, `baseline_stats.count=0`,
+  - Current Task 9 strict runtime-env refresh supersedes the earlier
+    2026-08-16, runtime-refresh, and IPv4 NCCL index snapshots. The active
+    `experiments/modded_nanogpt_b200/results/run_index.json` reports
+    `total_attempts=63`, `baseline_stats.count=0`,
     `len(launch_prerequisite_attempts)=1`, and
-    `len(launch_ready_attempts)=0`; diagnostic attempts remain excluded from
-    baseline stats. The single prerequisite row points to
-    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_refresh_20260816T111056Z/summary.json`
-    and is not a non-skip launch-ready row because `skip_run=true`.
+    `len(launch_ready_attempts)=0` when rebuilt with the stricter current
+    runtime-evidence predicate; diagnostic attempts and skip-run
+    prerequisites remain excluded from baseline stats. The latest prerequisite
+    row points to
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z/summary.json`
+    and is not a non-skip launch-ready row because `skip_run=true` and
+    `training_launched=false`.
   - Malformed or truncated `summary.json` files are preserved as failed
     attempt records instead of aborting the entire index. A focused regression
     covers one valid diagnostic summary beside one corrupted summary: the index
@@ -95,8 +100,10 @@ The summarizer must:
     evidence. The run index also rechecks the summary evidence before counting
     a baseline row: it must come from a launched, non-skip,
     non-stall-override full attempt with rootfs sentinel evidence,
-    SHA-verified 900M manifest gate evidence, NCCL evidence, and 8x B200
-    inventory. A focused regression covers a stale full-mode summary with
+    SHA-verified 900M manifest gate evidence, NCCL evidence, and the declared
+    B200 GPU allocation. The active RSI foundation trial requires exactly 2x
+    B200; 8x B200 remains a separate broader reproduction claim. A focused
+    regression covers a stale full-mode summary with
     `ok=true`, `included_in_baseline_stats=true`, and good metrics but no
     launch/rootfs sidecars; the attempt is preserved with
     `baseline_evidence_error` and contributes zero global or grouped baseline
@@ -130,8 +137,9 @@ The summarizer must:
     `experiments/modded_nanogpt_b200/summarize.sh --results-root experiments/modded_nanogpt_b200/results --output experiments/modded_nanogpt_b200/results/run_index.json`,
     which exited `0`. It did not run launch, GPU, training, preflight,
     data-prep, download, pip, CUDA, NCCL, `torchrun`, or full-launch commands.
-    Historical refreshed facts, now superseded by the
-    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh:
+    Historical refreshed facts, later superseded by the
+    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh and no longer
+    current after the strict runtime-env refresh:
     `total_attempts=23`, `baseline_count=0`, `launch_prerequisite_count=0`,
     `launch_ready_count=0`, `launch_readiness_exclusion_stats.count=20`,
     `by_phase.data_manifest_summary.verified_sha.count=11`,
@@ -167,9 +175,10 @@ The summarizer must:
     content separately. Clean-context review found no blocking issues and
     confirmed summarize fail-closed gates remain intact.
   - After the parser fix, the real ignored index was refreshed again through
-    the approved rootfs-aware summarizer. Historical refreshed facts, now
+    the approved rootfs-aware summarizer. Historical refreshed facts, later
     superseded by the `lane_b_full_skiprun_refresh_20260816T111056Z` index
-    refresh: `total_attempts=23`, `baseline_count=0`,
+    refresh and no longer current after the strict runtime-env refresh:
+    `total_attempts=23`, `baseline_count=0`,
     `launch_prerequisite_count=0`, `launch_ready_count=0`, `stale_count=20`,
     and `launch_readiness_exclusion_stats.count=20`.
     Exclusion phases were `data_manifest_summary.verified_sha=11`,
@@ -184,8 +193,8 @@ The summarizer must:
     command was run. The overall objective remains incomplete: no full Lane A/B
     baseline exists. The later refreshed index now has one skip-run
     prerequisite row, no non-skip launch-ready row, and full launch still
-    requires explicit authorization.
-  - The latest non-launch Lane B full-mode artifact refresh used
+    requires the trusted user request to contain `launch-full-b200`.
+  - The historical non-launch Lane B full-mode artifact refresh used
     `experiments/modded_nanogpt_b200/results/full_manifest_refresh_20260816T111021Z/data_manifest.json`,
     whose top-level manifest state records `verified_sha=true`,
     `token_budget=900M`, `num_files=10`, and
@@ -204,14 +213,15 @@ The summarizer must:
     and `command.argv` include `--skip-run` and do not include
     `--launch-authorization=launch-full-b200`.
   - After that refresh, the ignored real index was regenerated through the
-    rootfs-aware summarizer and now reports `total_attempts=24`,
+    rootfs-aware summarizer and reported `total_attempts=24`,
     `len(launch_prerequisite_attempts)=1`,
     `len(launch_ready_attempts)=0`, and `baseline_stats.count=0`. The
     prerequisite row points to
     `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_refresh_20260816T111056Z/summary.json`.
-    No full Lane A/B baseline exists, no non-skip launch-ready row exists, no
-    training launch occurred, and a full Lane B launch still requires explicit
-    `launch-full-b200` authorization.
+    No full Lane A/B baseline existed, no non-skip launch-ready row existed, no
+    training launch occurred, and a full Lane B launch still required explicit
+    `launch-full-b200` authorization. This state is superseded by the Task 9
+    runtime-refresh row above.
   - Run-index baseline aggregation now also repeats the parser's training-exit
     evidence gate before counting any baseline row. A focused regression covers
     a stale full-mode summary with otherwise valid launch/rootfs/NCCL/GPU/data
@@ -269,13 +279,13 @@ The summarizer must:
     attempt records and exposes ready-but-not-launched prerequisite gates
     through `launch_prerequisite_attempts`. The narrower
     `launch_ready_attempts` list excludes `skip_run=true` dry gates, so it only
-    contains non-skip rows that could launch after adding the explicit
-    full-launch authorization token. A focused regression covers one dry
-    prerequisite and one authority-guard prerequisite: both remain preserved in
-    `launch_prerequisite_attempts`, but only the non-skip row enters
-    `launch_ready_attempts`.
-  - The current real index has one launch-prerequisite attempt and zero
-    non-skip launch-ready rows. The prerequisite is the refreshed full-mode
+    contains non-skip rows that could launch after the trusted user request
+    contains `launch-full-b200` and the lower-level launch marker is supplied. A
+    focused regression covers one dry prerequisite and one authority-guard
+    prerequisite: both remain preserved in `launch_prerequisite_attempts`, but
+    only the non-skip row enters `launch_ready_attempts`.
+  - The historical real index at this point had one launch-prerequisite attempt
+    and zero non-skip launch-ready rows. The prerequisite was the refreshed full-mode
     Lane B skip-run artifact
     `lane_b_full_skiprun_refresh_20260816T111056Z`; older ready-ish Lane B full
     artifacts are preserved as failed/diagnostic history because their
@@ -337,11 +347,15 @@ The summarizer must:
     `data_manifest_summary`; it is preserved but excluded from
     `launch_ready_attempts`. Launch-ready rows require the full 900M
     `data_manifest_summary` shape and pinned data source commit.
-  - Launch-ready indexing also requires parsed 8x B200 GPU evidence from the
-    summary. A focused regression covers a sidecar-ready full attempt whose
-    summary has only two B200 GPU rows; it is preserved but excluded from
-    `launch_ready_attempts`. Launch-ready rows now require `gpu_count=8` and
-    eight GPU entries whose names include `B200`.
+  - Launch-ready indexing for the earlier production reproduction policy
+    required parsed 8x B200 GPU evidence from the summary. A focused regression
+    covered a sidecar-ready full attempt whose summary had only two B200 GPU
+    rows; it was preserved but excluded from `launch_ready_attempts` under that
+    older 8x policy. Current Task 9 policy supersedes this for the active RSI
+    foundation trial: the active prerequisite and baseline gates now require the
+    declared two-GPU B200 allocation, not eight GPUs. Current two-GPU evidence
+    is recorded in the later Task 9 note below and must not be conflated with
+    the historical 8x reproduction gate.
   - Launch-ready indexing also requires parsed rootfs sentinel evidence from
     the summary. A focused regression covers a sidecar-ready full attempt whose
     summary lacks `telemetry.rootfs`; it is preserved but excluded from
@@ -380,7 +394,7 @@ The summarizer must:
   rootfs-aware wrapper when running the summarizer against real results.
   - `experiments/modded_nanogpt_b200/summarize.sh` re-enters
     `scripts/rootfs/enter_rootfs.sh` before invoking summarizer Python.
-  - Latest refresh used `experiments/modded_nanogpt_b200/summarize.sh` against
+  - Historical refresh used `experiments/modded_nanogpt_b200/summarize.sh` against
     `experiments/modded_nanogpt_b200/results/` with
     `--output experiments/modded_nanogpt_b200/results/run_index.json`; the
     index now reports
@@ -405,14 +419,14 @@ The summarizer must:
     total bytes, missing parsed manifest summary, wrong GPU count, non-B200
     GPU names, missing rootfs sentinel evidence, stale source commit, missing
     Lane B patch-classification evidence, missing active-job evidence, failed
-    active-job scans, or nonzero active-job counts in the current artifact set.
+    active-job scans, or nonzero active-job counts in that artifact set.
     Older ready-but-not-launched rows without per-attempt `active_jobs` evidence
     are preserved under diagnostic/failed attempts; the refreshed
     `lane_b_full_skiprun_refresh_20260816T111056Z` row is surfaced as the one
-    current skip-run prerequisite. The refreshed index now records top-level
+    historical skip-run prerequisite. The refreshed index recorded top-level
     `launch_readiness_exclusion_stats.count=20`; its `by_phase` entries are
     objects with `count` plus bounded `example_summaries` lists, capped at
-    three examples per phase by `summarize.py`. The current real index records
+    three examples per phase by `summarize.py`. That historical real index recorded
     examples for `active_jobs` (including
     `experiments/modded_nanogpt_b200/results/lane_b_full_patch_class_guard_20260816T012032Z/summary.json`,
     `experiments/modded_nanogpt_b200/results/lane_b_full_prelaunch_patch_guard_20260816T012647Z/summary.json`,
@@ -428,7 +442,7 @@ The summarizer must:
     `experiments/modded_nanogpt_b200/results/lane_b_full_authority_guard_20260816T010926Z/summary.json`,
     and
     `experiments/modded_nanogpt_b200/results/lane_b_full_gate_20260816T000411Z/summary.json`).
-    The phase counts remain 4 `active_jobs`, 7 `launch_readiness`, and
+    The phase counts were 4 `active_jobs`, 7 `launch_readiness`, and
     9 `variant_patch_classification`, plus per-attempt
     `launch_readiness_exclusion` rows, so an operator can see the demotion
     distribution, bounded examples, and first demotion reason from
@@ -438,19 +452,41 @@ The summarizer must:
     `telemetry_signs` fields in attempt records, so final reporting can audit
     claim blockers, telemetry bottleneck signs, and launch-readiness demotions
     from the index without reopening every result directory.
-    The newest sidecar-backed attempt record is
+    The newest sidecar-backed attempt record in that historical refresh was
     `lane_b_full_skiprun_refresh_20260816T111056Z`, with
     `environment_sidecar.kind=preflight_environment`,
     `hardware_sidecar.kind=preflight_gpus`, `gpu_count=8`,
     `claim_validation.successful_b200_reproduction=false`,
     `telemetry_signs.thermal_or_clock_throttling=false`,
     `ready_to_launch=true`, `training_launched=false`, and `skip_run=true`.
+    That 8-GPU skip-run row is historical and is superseded for the active
+    two-GPU RSI foundation path by
+    `lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z`.
   - Static verifier work and the documentation audit update did not run
     launch, GPU, training, preflight, data-prep, download, pip, CUDA, NCCL,
     `torchrun`, full-launch, or artifact-mutating commands. The overall goal
     remains incomplete: no full Lane A/B baseline exists, one skip-run
     prerequisite row exists, no non-skip launch-ready row exists, and full
-    launch still requires explicit authorization.
+    launch still requires the trusted user request to contain
+    `launch-full-b200`.
+  - Current Task 9 runtime-verification hardening refreshed the real ignored
+    index through the rootfs-managed path and produced the active non-launch
+    prerequisite
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_refresh_20260819T082841Z/summary.json`.
+    A later IPv4 NCCL rendezvous repair refreshed a non-launch prerequisite as
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_ipv4_nccl_refresh_20260819T105321Z/summary.json`.
+    The later strict runtime-env refresh supersedes it as current handoff
+    evidence:
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z/summary.json`.
+    A fresh rebuilt index records `total_attempts=63`,
+    `baseline_stats.count=0`, `len(launch_prerequisite_attempts)=1`, and
+    `len(launch_ready_attempts)=0`. The latest prerequisite records
+    `ready_to_launch=true`, `training_launched=false`, `skip_run=true`,
+    `blocked_by=[]`, `nccl_checked=true`, rootfs-critical command-env fields,
+    and
+    `runtime_verification.training_launch_allowed=true`; it is prerequisite
+    evidence only and still requires the trusted user request to contain
+    `launch-full-b200` before any non-skip full launch.
   - Clean-context early active-job evidence capture hardening changed the
     runner contract; the later non-launch Lane B full-mode refresh regenerated
     `run_index.json` with current active-job evidence. Full-mode attempts
@@ -470,18 +506,18 @@ The summarizer must:
     preflight, GPU, data-prep, download, pip, CUDA, NCCL, Triton,
     FlashAttention, `torchrun`, training, artifact-generating summarization, or
     full-launch command was run for this documentation update. The overall
-    objective remains incomplete: no full Lane A/B baseline exists, the
-    current index has one skip-run launch-prerequisite row and zero non-skip
-    launch-ready rows, and full launch still requires the explicit
-    authorization token
-    `launch-full-b200`.
+    objective remains incomplete: no full Lane A/B baseline exists, the fresh
+    rebuilt index has one current strict launch-prerequisite row, zero non-skip
+    launch-ready rows, and full launch still requires the trusted user request
+    to contain `launch-full-b200`.
   - The real ignored index was refreshed again through the approved
     rootfs-aware summarizer:
     `experiments/modded_nanogpt_b200/summarize.sh --results-root experiments/modded_nanogpt_b200/results --output experiments/modded_nanogpt_b200/results/run_index.json`,
     which exited `0`. No launch, GPU, training, preflight, data-prep,
     download, pip, CUDA, NCCL, `torchrun`, or full-launch command was run.
-    Historical refreshed facts, now superseded by the
-    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh:
+    Historical refreshed facts, later superseded by the
+    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh and no longer
+    current after the strict runtime-env refresh:
     `total_attempts=23`, `baseline_count=0`, `launch_prerequisite_count=0`,
     `launch_ready_count=0`, `len(stale_or_demoted_artifacts)=20`, and the
     boundedness check `len(stale_or_demoted_artifacts) <= 20` returned true.
@@ -499,4 +535,5 @@ The summarizer must:
     with `preflight_data_manifest.verified_sha must be true`. The overall
     objective remains incomplete: no full Lane A/B baseline exists, the later
     refreshed index has one skip-run launch-prerequisite row and zero non-skip
-    launch-ready rows, and full launch still requires explicit authorization.
+    launch-ready rows, and full launch still requires the trusted user request
+    to contain `launch-full-b200`.

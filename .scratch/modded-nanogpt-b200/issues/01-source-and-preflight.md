@@ -42,11 +42,13 @@ The preflight must verify or record:
 - common schema fields: `schema_version`, `lane`, `mode`, `arm`,
   `claim_label`, `evidence_tier`, `run_id`, `attempt_id`, and
   `environment_class`;
-- mode policy: full jobs require NCCL, 8x B200, full data manifest,
-  `--verify-sha`, and no known-stall overrides;
+- mode policy: full jobs require NCCL, the declared B200 allocation, full data
+  manifest, `--verify-sha`, and no known-stall overrides. The active RSI
+  foundation trial requires exactly 2 visible B200 GPUs; 8x B200 remains a
+  separate broader reproduction claim;
 - upstream source path and commit, expected
   `ecbb586296d3dac36fd206211f25d63bad4a6b35`;
-- 8 visible CUDA devices;
+- visible CUDA device count matches the declared allocation;
 - every visible device matches the expected B200 device class unless overridden;
 - PyTorch, CUDA, Triton, and NCCL version evidence where available;
 - BF16 allocation smoke;

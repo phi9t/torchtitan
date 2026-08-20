@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """CPU-only end-to-end smoke for the modded-nanogpt harness.
 
@@ -13,10 +16,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import platform
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -59,8 +62,8 @@ def run_cpu_smoke(
         raise ValueError("embed_dim must be divisible by num_heads")
 
     import torch
-    from torch import nn
     import torch.nn.functional as F
+    from torch import nn
 
     class TinyGPT(nn.Module):
         def __init__(
@@ -90,9 +93,9 @@ def run_cpu_smoke(
 
         def forward(self, tokens: torch.Tensor) -> torch.Tensor:
             batch, current_seq_len = tokens.shape
-            positions = torch.arange(
-                current_seq_len, device=tokens.device
-            ).expand(batch, current_seq_len)
+            positions = torch.arange(current_seq_len, device=tokens.device).expand(
+                batch, current_seq_len
+            )
             x = self.token_embedding(tokens) + self.position_embedding(positions)
             mask = torch.triu(
                 torch.ones(current_seq_len, current_seq_len, device=tokens.device),
@@ -148,7 +151,9 @@ def run_cpu_smoke(
             optimizer.step()
             loss_value = float(loss.detach())
             losses.append(loss_value)
-            log.write(f"cpu_smoke step={step + 1}/{steps} train_loss={loss_value:.6f}\n")
+            log.write(
+                f"cpu_smoke step={step + 1}/{steps} train_loss={loss_value:.6f}\n"
+            )
 
         model.eval()
         with torch.no_grad():
@@ -255,7 +260,9 @@ def main() -> int:
     if guard is not None:
         return guard
     args = parse_args()
-    run_id = args.run_id or time.strftime("nanogpt_cpu_smoke_%Y%m%dT%H%M%SZ", time.gmtime())
+    run_id = args.run_id or time.strftime(
+        "nanogpt_cpu_smoke_%Y%m%dT%H%M%SZ", time.gmtime()
+    )
     result_dir = args.result_dir or DEFAULT_RESULT_ROOT / run_id
     result = run_cpu_smoke(
         result_dir=result_dir,
@@ -270,7 +277,16 @@ def main() -> int:
         mlp_dim=args.mlp_dim,
         seed=args.seed,
     )
-    print(json.dumps({"ok": True, "summary": str(result_dir / "summary.json"), "validation_loss": result["validation_loss"]}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "summary": str(result_dir / "summary.json"),
+                "validation_loss": result["validation_loss"],
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 

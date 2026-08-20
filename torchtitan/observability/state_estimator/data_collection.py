@@ -12,7 +12,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from torchtitan.observability.state_estimator.bundle import RunEvidenceBundle
-from torchtitan.observability.state_estimator.schema import EvidenceState, SCHEMA_VERSION
+from torchtitan.observability.state_estimator.schema import (
+    EvidenceState,
+    SCHEMA_VERSION,
+)
 
 
 @dataclass(frozen=True, slots=True)

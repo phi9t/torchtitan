@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Deterministic tau2 agent registration for rootfs execution probes."""
 
@@ -35,12 +38,11 @@ class _StaticUserState:
 def register_tau2_probe_agent() -> None:
     from tau2.agent.base_agent import HalfDuplexAgent
     from tau2.agent.llm_agent import LLMSoloAgent
-    from tau2.data_model.message import AssistantMessage, ToolCall
-    from tau2.data_model.message import UserMessage
+    from tau2.data_model.message import AssistantMessage, ToolCall, UserMessage
     from tau2.data_model.tasks import Task
     from tau2.environment.tool import Tool
     from tau2.registry import registry
-    from tau2.user.user_simulator_base import STOP, HalfDuplexUser
+    from tau2.user.user_simulator_base import HalfDuplexUser, STOP
 
     if AGENT_NAME in registry.get_agents():
         agent_registered = True
@@ -98,7 +100,10 @@ def register_tau2_probe_agent() -> None:
                     arguments=dict(action.arguments or {}),
                     requestor="assistant",
                 )
-                return AssistantMessage.text(content=None, tool_calls=[tool_call]), state
+                return (
+                    AssistantMessage.text(content=None, tool_calls=[tool_call]),
+                    state,
+                )
             state.done_sent = True
             return AssistantMessage.text(content=self.STOP_TOKEN), state
 
@@ -169,7 +174,10 @@ def register_tau2_probe_agent() -> None:
                             arguments=arguments,
                             requestor="assistant",
                         )
-                        return AssistantMessage.text(content=None, tool_calls=[tool_call]), state
+                        return (
+                            AssistantMessage.text(content=None, tool_calls=[tool_call]),
+                            state,
+                        )
             state.done_sent = True
             content = str(decision.get("content") or self.STOP_TOKEN)
             if self.STOP_TOKEN not in content:
@@ -336,27 +344,35 @@ def _generate_qwen_tau2_action(
     latest_message: Any,
     turn_index: int,
 ) -> dict[str, Any]:
-    model_path = os.environ.get("SCAFFOLD_TO_POLICY_TAU2_MODEL", "./assets/hf/Qwen3-1.7B")
+    model_path = os.environ.get(
+        "SCAFFOLD_TO_POLICY_TAU2_MODEL", "./assets/hf/Qwen3-1.7B"
+    )
     dumped_latest_message = _model_dump(latest_message)
     recent_messages = _compact_recent_messages(dumped_latest_message)
     payload = {
         "domain_policy": domain_policy,
         "tools": [_compact_tool(tool) for tool in tools],
-        "latest_message": recent_messages[-1] if isinstance(recent_messages, list) else recent_messages,
+        "latest_message": recent_messages[-1]
+        if isinstance(recent_messages, list)
+        else recent_messages,
         "recent_messages": recent_messages,
         "turn_index": turn_index,
         "model_path": model_path,
         "gpu_memory_utilization": float(
             os.environ.get("SCAFFOLD_TO_POLICY_TAU2_GPU_MEMORY_UTILIZATION", "0.05")
         ),
-        "max_model_len": int(os.environ.get("SCAFFOLD_TO_POLICY_TAU2_MAX_MODEL_LEN", "2048")),
+        "max_model_len": int(
+            os.environ.get("SCAFFOLD_TO_POLICY_TAU2_MAX_MODEL_LEN", "2048")
+        ),
         "max_tokens": int(os.environ.get("SCAFFOLD_TO_POLICY_TAU2_MAX_TOKENS", "512")),
-        "temperature": float(os.environ.get("SCAFFOLD_TO_POLICY_TAU2_TEMPERATURE", "0.2")),
+        "temperature": float(
+            os.environ.get("SCAFFOLD_TO_POLICY_TAU2_TEMPERATURE", "0.2")
+        ),
         "attention_backend": os.environ.get(
             "SCAFFOLD_TO_POLICY_TAU2_ATTENTION_BACKEND", "TRITON_ATTN"
         ),
     }
-    script = r'''
+    script = r"""
 import json
 import os
 import sys
@@ -415,10 +431,12 @@ if output_path:
     Path(output_path).write_text(result)
 else:
     print(result)
-'''
+"""
     env = os.environ.copy()
     env.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
-    with tempfile.NamedTemporaryFile("r", suffix=".json", delete=False) as output_handle:
+    with tempfile.NamedTemporaryFile(
+        "r", suffix=".json", delete=False
+    ) as output_handle:
         output_path = output_handle.name
     try:
         env["SCAFFOLD_TO_POLICY_TAU2_GENERATION_OUTPUT"] = output_path
@@ -429,7 +447,9 @@ else:
             text=True,
             capture_output=True,
             check=False,
-            timeout=int(os.environ.get("SCAFFOLD_TO_POLICY_TAU2_GENERATE_TIMEOUT", "180")),
+            timeout=int(
+                os.environ.get("SCAFFOLD_TO_POLICY_TAU2_GENERATE_TIMEOUT", "180")
+            ),
         )
         if completed.returncode != 0:
             return {

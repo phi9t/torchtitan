@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "classification",
+    "source",
+    "data_manifest",
+    "command",
+    "gpu_topology",
+    "environment"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "classification": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "source": { "type": "string" },
+    "data_manifest": { "type": "string" },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "argv",
+        "training_argv",
+        "skip_run",
+        "launch_authorization_present",
+        "attention_backend",
+        "mlp_backend"
+      ],
+      "properties": {
+        "argv": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "training_argv": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skip_run": { "type": "boolean" },
+        "launch_authorization_present": { "type": "boolean" },
+        "attention_backend": { "type": "string" },
+        "mlp_backend": { "type": "string" }
+      }
+    },
+    "gpu_topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["num_gpus", "gpu_ids", "visible_devices"],
+      "properties": {
+        "num_gpus": { "type": "integer" },
+        "gpu_ids": {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "visible_devices": { "type": "string" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

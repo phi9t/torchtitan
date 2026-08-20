@@ -10,8 +10,8 @@ from dataclasses import replace
 
 from torchtitan.observability.state_estimator.bundle import load_bundle
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
     write_artifact_index,
     write_structured_events,
 )
@@ -19,8 +19,8 @@ from torchtitan.observability.state_estimator.observation import (
     normalize_bundle_observations,
 )
 from torchtitan.observability.state_estimator.topology import (
-    GraphLayer,
     build_topology_snapshot,
+    GraphLayer,
 )
 
 
@@ -169,8 +169,7 @@ def test_topology_snapshot_extracts_known_relationships_without_guessing(tmp_pat
     snapshot = build_topology_snapshot(_topology_bundle(tmp_path)).to_json()
     layer_edges = {
         layer["name"]: {
-            (edge["kind"], edge["source"], edge["target"])
-            for edge in layer["edges"]
+            (edge["kind"], edge["source"], edge["target"]) for edge in layer["edges"]
         }
         for layer in snapshot["layers"]
     }
@@ -249,11 +248,9 @@ def test_topology_snapshot_orders_entities_edges_and_epochs_deterministically(tm
             entity["id"] for entity in layer["entities"]
         )
         assert [
-            (edge["kind"], edge["source"], edge["target"])
-            for edge in layer["edges"]
+            (edge["kind"], edge["source"], edge["target"]) for edge in layer["edges"]
         ] == sorted(
-            (edge["kind"], edge["source"], edge["target"])
-            for edge in layer["edges"]
+            (edge["kind"], edge["source"], edge["target"]) for edge in layer["edges"]
         )
     assert first["topology_epochs"] == [
         {
@@ -275,7 +272,7 @@ def test_topology_snapshot_orders_entities_edges_and_epochs_deterministically(tm
             "start_time_ns": 20,
             "end_time_ns": 20,
             "source_record_ids": [bundle.row_record_ids[id(bundle.event_rows[0])]],
-        }
+        },
     ]
 
 

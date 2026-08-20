@@ -7,14 +7,21 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = REPO_ROOT / "experiments/modded_nanogpt_b200/launch_nanogpt_rootfs.sh"
 FULL_LAUNCHER = (
     REPO_ROOT / "experiments/modded_nanogpt_b200/launch_nanogpt_2gpu_full_rootfs.sh"
+)
+RESULT_ROOT = REPO_ROOT / "experiments/modded_nanogpt_b200/results"
+TEST_CLEANUP_PREFIXES = (
+    "nanogpt_rootfs_smoke_",
+    "nanogpt_2gpu_full_",
+    "unit_forged_rootfs_",
+    "unit_missing_wrapper_authority",
 )
 
 
@@ -25,6 +32,23 @@ def _minimal_rootfs(tmp_path: Path) -> Path:
     bash.write_text("#!/usr/bin/env bash\n")
     bash.chmod(0o755)
     return rootfs
+
+
+def _remove_tree(path: Path) -> None:
+    if not path.exists():
+        return
+    resolved = path.resolve()
+    result_root = RESULT_ROOT.resolve()
+    if resolved.parent != result_root or not resolved.name.startswith(
+        TEST_CLEANUP_PREFIXES
+    ):
+        raise AssertionError(f"refusing to remove non-test result path: {path}")
+    for child in sorted(path.rglob("*"), reverse=True):
+        if child.is_file() or child.is_symlink():
+            child.unlink()
+        else:
+            child.rmdir()
+    path.rmdir()
 
 
 def test_launch_nanogpt_rootfs_rejects_arguments():
@@ -55,8 +79,7 @@ def test_launch_nanogpt_2gpu_full_rootfs_rejects_arguments():
 
 def test_launch_nanogpt_rootfs_outer_path_emits_plan_for_launcher(tmp_path: Path):
     rootfs = _minimal_rootfs(tmp_path)
-    result_root = REPO_ROOT / "experiments/modded_nanogpt_b200/results"
-    before = {path.name for path in result_root.glob("nanogpt_rootfs_smoke_*")}
+    before = {path.name for path in RESULT_ROOT.glob("nanogpt_rootfs_smoke_*")}
 
     proc = subprocess.run(
         ["bash", str(LAUNCHER)],
@@ -72,28 +95,29 @@ def test_launch_nanogpt_rootfs_outer_path_emits_plan_for_launcher(tmp_path: Path
         stderr=subprocess.STDOUT,
     )
 
-    after = {path.name for path in result_root.glob("nanogpt_rootfs_smoke_*")}
+    after = {path.name for path in RESULT_ROOT.glob("nanogpt_rootfs_smoke_*")}
     created = sorted(after - before)
     assert proc.returncode == 0, proc.stdout
     assert len(created) == 1
-    result_dir = result_root / created[0]
+    result_dir = RESULT_ROOT / created[0]
     plan = json.loads((result_dir / "rootfs_plan.json").read_text())
     assert plan["inner_argv"][:2] == ["/bin/bash", "-lc"]
     assert "experiments/modded_nanogpt_b200/launch_nanogpt_rootfs.sh" in (
         plan["inner_argv"][2]
     )
     assert f"MODDED_NANOGPT_ROOTFS_RUN_ID='{created[0]}'" in plan["inner_argv"][2]
-    assert "rootfs prep: emitting bwrap launch plan" in (
-        result_dir / "operator_launch.log"
-    ).read_text()
+    assert (
+        "rootfs prep: emitting bwrap launch plan"
+        in (result_dir / "operator_launch.log").read_text()
+    )
+    _remove_tree(result_dir)
 
 
 def test_launch_nanogpt_2gpu_full_rootfs_outer_path_emits_plan_for_launcher(
     tmp_path: Path,
 ):
     rootfs = _minimal_rootfs(tmp_path)
-    result_root = REPO_ROOT / "experiments/modded_nanogpt_b200/results"
-    before = {path.name for path in result_root.glob("nanogpt_2gpu_full_*")}
+    before = {path.name for path in RESULT_ROOT.glob("nanogpt_2gpu_full_*")}
 
     proc = subprocess.run(
         ["bash", str(FULL_LAUNCHER)],
@@ -109,23 +133,96 @@ def test_launch_nanogpt_2gpu_full_rootfs_outer_path_emits_plan_for_launcher(
         stderr=subprocess.STDOUT,
     )
 
-    after = {path.name for path in result_root.glob("nanogpt_2gpu_full_*")}
+    after = {path.name for path in RESULT_ROOT.glob("nanogpt_2gpu_full_*")}
     created = sorted(after - before)
     assert proc.returncode == 0, proc.stdout
     assert len(created) == 1
-    result_dir = result_root / created[0]
+    result_dir = RESULT_ROOT / created[0]
     plan = json.loads((result_dir / "rootfs_plan.json").read_text())
     assert plan["inner_argv"][:2] == ["/bin/bash", "-lc"]
     assert "experiments/modded_nanogpt_b200/launch_nanogpt_2gpu_full_rootfs.sh" in (
         plan["inner_argv"][2]
     )
     assert f"MODDED_NANOGPT_2GPU_FULL_RUN_ID='{created[0]}'" in plan["inner_argv"][2]
-    assert "rootfs prep: emitting bwrap launch plan" in (
-        result_dir / "operator_launch.log"
-    ).read_text()
+    assert "MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION" not in plan["inner_argv"][2]
+    assert (
+        "rootfs prep: emitting bwrap launch plan"
+        in (result_dir / "operator_launch.log").read_text()
+    )
+    _remove_tree(result_dir)
+
+
+def test_launch_nanogpt_2gpu_full_rootfs_preserves_explicit_authorization_in_plan(
+    tmp_path: Path,
+):
+    rootfs = _minimal_rootfs(tmp_path)
+    before = {path.name for path in RESULT_ROOT.glob("nanogpt_2gpu_full_*")}
+
+    proc = subprocess.run(
+        ["bash", str(FULL_LAUNCHER)],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(tmp_path / "outer_plan.json"),
+            "TORCHTITAN_ROOTFS_DIR": str(rootfs),
+            "MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION": "launch-full-b200",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    after = {path.name for path in RESULT_ROOT.glob("nanogpt_2gpu_full_*")}
+    created = sorted(after - before)
+    assert proc.returncode == 0, proc.stdout
+    assert len(created) == 1
+    result_dir = RESULT_ROOT / created[0]
+    plan = json.loads((result_dir / "rootfs_plan.json").read_text())
+    assert (
+        "MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION='launch-full-b200'"
+        in plan["inner_argv"][2]
+    )
+    _remove_tree(result_dir)
+
+
+def test_launch_nanogpt_2gpu_full_rootfs_drops_wrong_authorization_in_plan(
+    tmp_path: Path,
+):
+    rootfs = _minimal_rootfs(tmp_path)
+    before = {path.name for path in RESULT_ROOT.glob("nanogpt_2gpu_full_*")}
+
+    proc = subprocess.run(
+        ["bash", str(FULL_LAUNCHER)],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(tmp_path / "outer_plan.json"),
+            "TORCHTITAN_ROOTFS_DIR": str(rootfs),
+            "MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION": "wrong-token",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    after = {path.name for path in RESULT_ROOT.glob("nanogpt_2gpu_full_*")}
+    created = sorted(after - before)
+    assert proc.returncode == 0, proc.stdout
+    assert len(created) == 1
+    result_dir = RESULT_ROOT / created[0]
+    plan = json.loads((result_dir / "rootfs_plan.json").read_text())
+    assert "wrong-token" not in plan["inner_argv"][2]
+    assert "MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION" not in plan["inner_argv"][2]
+    _remove_tree(result_dir)
 
 
 def test_launch_nanogpt_rootfs_rejects_forged_rootfs_on_host(tmp_path: Path):
+    run_id = "unit_forged_rootfs_smoke"
+    result_dir = RESULT_ROOT / run_id
+    _remove_tree(result_dir)
+
     proc = subprocess.run(
         ["bash", str(LAUNCHER)],
         cwd=tmp_path,
@@ -134,6 +231,7 @@ def test_launch_nanogpt_rootfs_rejects_forged_rootfs_on_host(tmp_path: Path):
             "TORCHTITAN_IN_ROOTFS": "1",
             "CUDA_HOME": "/opt/cuda-synth",
             "CUDA_PATH": "/opt/cuda-synth",
+            "MODDED_NANOGPT_ROOTFS_RUN_ID": run_id,
         },
         text=True,
         stdout=subprocess.PIPE,
@@ -143,11 +241,16 @@ def test_launch_nanogpt_rootfs_rejects_forged_rootfs_on_host(tmp_path: Path):
     assert proc.returncode == 21
     assert "expected rootfs workspace /workspace/torchtitan" in proc.stdout
     assert "run_speedrun.sh --mode smoke" not in proc.stdout
+    _remove_tree(result_dir)
 
 
 def test_launch_nanogpt_2gpu_full_rootfs_rejects_forged_rootfs_on_host(
     tmp_path: Path,
 ):
+    run_id = "unit_forged_rootfs_2gpu_full"
+    result_dir = RESULT_ROOT / run_id
+    _remove_tree(result_dir)
+
     proc = subprocess.run(
         ["bash", str(FULL_LAUNCHER)],
         cwd=tmp_path,
@@ -156,6 +259,7 @@ def test_launch_nanogpt_2gpu_full_rootfs_rejects_forged_rootfs_on_host(
             "TORCHTITAN_IN_ROOTFS": "1",
             "CUDA_HOME": "/opt/cuda-synth",
             "CUDA_PATH": "/opt/cuda-synth",
+            "MODDED_NANOGPT_2GPU_FULL_RUN_ID": run_id,
         },
         text=True,
         stdout=subprocess.PIPE,
@@ -165,13 +269,45 @@ def test_launch_nanogpt_2gpu_full_rootfs_rejects_forged_rootfs_on_host(
     assert proc.returncode == 21
     assert "expected rootfs workspace /workspace/torchtitan" in proc.stdout
     assert "run_speedrun.sh --mode full" not in proc.stdout
+    _remove_tree(result_dir)
+
+
+def test_launch_nanogpt_2gpu_full_rootfs_requires_authorization_before_work():
+    run_id = "unit_missing_wrapper_authority"
+    result_dir = RESULT_ROOT / run_id
+    _remove_tree(result_dir)
+
+    proc = subprocess.run(
+        ["bash", str(FULL_LAUNCHER)],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_IN_ROOTFS": "1",
+            "MODDED_NANOGPT_2GPU_FULL_RUN_ID": run_id,
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 21
+    operator_log = result_dir / "operator_launch.log"
+    assert operator_log.exists()
+    log_text = operator_log.read_text()
+    assert (
+        "set MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION=launch-full-b200" in log_text
+    )
+    assert "model bringup: checking active nanoGPT jobs before launch" not in log_text
+    assert not (result_dir / "active_jobs_prelaunch.json").exists()
+    assert not (result_dir / "run.log").exists()
+    _remove_tree(result_dir)
 
 
 def test_launch_nanogpt_rootfs_uses_guarded_smoke_command_shape():
     text = LAUNCHER.read_text()
 
     assert "experiments/modded_nanogpt_b200/check_active_jobs.sh \\" in text
-    assert "--active-jobs-output \"${ACTIVE_JOBS_JSON}\"" in text
+    assert '--active-jobs-output "${ACTIVE_JOBS_JSON}"' in text
     assert "experiments/modded_nanogpt_b200/run_speedrun.sh \\" in text
     assert "--mode smoke \\" in text
     assert "--lane B \\" in text
@@ -187,14 +323,23 @@ def test_launch_nanogpt_2gpu_full_rootfs_uses_guarded_full_command_shape():
 
     assert FULL_LAUNCHER.stat().st_mode & 0o111
     assert "experiments/modded_nanogpt_b200/check_active_jobs.sh \\" in text
-    assert "--active-jobs-output \"${ACTIVE_JOBS_JSON}\"" in text
+    assert '--active-jobs-output "${ACTIVE_JOBS_JSON}"' in text
     assert "experiments/modded_nanogpt_b200/run_speedrun.sh \\" in text
     assert "--mode full \\" in text
     assert "--lane B \\" in text
     assert "--verify-sha \\" in text
-    assert "--launch-authorization=launch-full-b200 \\" in text
+    assert (
+        "MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION='launch-full-b200'" not in text
+    )
+    assert (
+        "set ${AUTH_ENV_NAME}=${FULL_LAUNCH_AUTHORIZATION_TOKEN} "
+        "only after the trusted user request contains launch-full-b200" in text
+    )
+    assert '--launch-authorization="${!AUTH_ENV_NAME}" \\' in text
+    assert "--launch-authorization=launch-full-b200 \\" not in text
     assert "--attention-backend fa2" in text
-    assert "--mlp-backend torch" in text
+    assert "--mlp-backend triton" in text
+    assert "--mlp-backend torch" not in text
     assert "--skip-run" not in text
     assert "--nproc_per_node=2" not in text
     assert "full_manifest_refresh_20260816T111021Z/data_manifest.json" in text

@@ -8,7 +8,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from torchtitan.observability.state_estimator.learned import TraceSegment
 from torchtitan.observability.state_estimator.observation import (
@@ -211,7 +212,9 @@ def _feature_values(
 def _segment_id(
     modality: str, envelope: ObservationEnvelope, observation_id: str
 ) -> str:
-    entity_id = envelope.process_id or envelope.actor_id or envelope.host_name or "unknown"
+    entity_id = (
+        envelope.process_id or envelope.actor_id or envelope.host_name or "unknown"
+    )
     step = envelope.step if envelope.step is not None else "unknown_step"
     return f"{modality}:{entity_id}:{step}:{observation_id}"
 

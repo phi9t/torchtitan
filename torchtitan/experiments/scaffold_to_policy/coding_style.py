@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Executable-code evaluation helpers for scaffold-to-policy coding smokes."""
 
@@ -658,7 +661,9 @@ def _entry_point_from_asserts(test_list: Sequence[str]) -> str:
             raise ValueError(f"could not infer MBPP entry point from test: {test}")
         names.extend(test_names)
     if len(set(names)) != 1:
-        raise ValueError(f"MBPP tests reference multiple entry points: {sorted(set(names))}")
+        raise ValueError(
+            f"MBPP tests reference multiple entry points: {sorted(set(names))}"
+        )
     return names[0]
 
 
@@ -668,8 +673,12 @@ def _entry_point_from_code(code: str, test_list: Sequence[str]) -> str:
     except SyntaxError as exc:
         raise ValueError("could not parse MBPP canonical code") from exc
 
-    function_names = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
-    tested_names = {name for test in test_list for name in _call_names_from_assert(test)}
+    function_names = {
+        node.name for node in tree.body if isinstance(node, ast.FunctionDef)
+    }
+    tested_names = {
+        name for test in test_list for name in _call_names_from_assert(test)
+    }
     matching_names = sorted(function_names & tested_names)
     if len(matching_names) != 1:
         raise ValueError(
@@ -775,9 +784,7 @@ def _result_bearing_children(node: ast.AST) -> list[ast.expr]:
         return list(node.elts)
     if isinstance(node, ast.Dict):
         return [
-            item
-            for item in list(node.keys) + list(node.values)
-            if item is not None
+            item for item in list(node.keys) + list(node.values) if item is not None
         ]
     if isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
         return [node.elt]
@@ -805,7 +812,9 @@ def _signature_from_first_assert(test: str, entry_point: str) -> str:
     args = match.group(2).strip()
     if not args:
         return ""
-    return ", ".join(f"arg{index}" for index, _ in enumerate(_split_call_args(args), start=1))
+    return ", ".join(
+        f"arg{index}" for index, _ in enumerate(_split_call_args(args), start=1)
+    )
 
 
 def _split_call_args(args: str) -> list[str]:
@@ -893,11 +902,7 @@ def _rewrite_mbpp_assert_call(test: str, entry_point: str) -> str:
     ):
         start = _absolute_offset(test, line_starts, call.func)
         end = _absolute_end_offset(test, line_starts, call.func)
-        rewritten = (
-            rewritten[:start]
-            + "candidate"
-            + rewritten[end:]
-        )
+        rewritten = rewritten[:start] + "candidate" + rewritten[end:]
     return rewritten
 
 
@@ -914,7 +919,9 @@ def _absolute_offset(text: str, line_starts: Sequence[int], node: ast.AST) -> in
 
 
 def _absolute_end_offset(text: str, line_starts: Sequence[int], node: ast.AST) -> int:
-    return _absolute_source_offset(text, line_starts, node.end_lineno, node.end_col_offset)
+    return _absolute_source_offset(
+        text, line_starts, node.end_lineno, node.end_col_offset
+    )
 
 
 def _absolute_source_offset(

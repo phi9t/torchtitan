@@ -16,6 +16,8 @@
 
 ROOTFS_TARGET_REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROOTFS_OWNERSHIP_MARKER_NAME=".torchtitan-rootfs-owner"
+ROOTFS_OWNERSHIP_MARKER_VALUE="torchtitan-rootfs"
+ROOTFS_BUILD_MANIFEST_FILENAME="build_manifest.json"
 
 # The F0 allowlist: canonical real paths that may be built or replaced.
 rootfs_allowlist() {
@@ -102,7 +104,21 @@ rootfs_ownership_marker_path() {
 rootfs_write_ownership_marker() {
   local dest="$1"
   [[ -d "${dest}" ]] || rootfs_die "cannot mark non-directory: ${dest}"
-  printf '%s\n' "torchtitan-rootfs" > "$(rootfs_ownership_marker_path "${dest}")"
+  printf '%s\n' "${ROOTFS_OWNERSHIP_MARKER_VALUE}" > "$(rootfs_ownership_marker_path "${dest}")"
+}
+
+rootfs_validate_ownership_marker() {
+  local dest="$1"
+  local marker
+  marker="$(rootfs_ownership_marker_path "${dest}")"
+  if [[ ! -f "${marker}" ]]; then
+    rootfs_die "rootfs lacks an ownership marker: ${dest}"
+  fi
+  local value
+  value="$(sed -n '1p' "${marker}")"
+  if [[ "${value}" != "${ROOTFS_OWNERSHIP_MARKER_VALUE}" ]]; then
+    rootfs_die "rootfs ownership marker has unexpected value: ${dest}"
+  fi
 }
 
 # Refuse to remove or replace a directory unless its exact, non-symlink path
@@ -123,6 +139,7 @@ rootfs_assert_removable() {
   if [[ ! -f "${marker}" ]]; then
     rootfs_die "refusing to remove rootfs without ownership marker: ${dest}"
   fi
+  rootfs_validate_ownership_marker "${dest}"
 }
 
 # F3 selection-record resolver (runtime_preflight_roadmap.md Section 8.2). The
@@ -148,6 +165,43 @@ rootfs_selection_store_id() {
     rootfs_die "selection record has no store_id: ${selection}"
   fi
   printf '%s\n' "${store_id}"
+}
+
+rootfs_manifest_path() {
+  printf '%s/%s\n' "$1" "${ROOTFS_BUILD_MANIFEST_FILENAME}"
+}
+
+rootfs_manifest_store_id() {
+  local rootfs="$1"
+  local manifest
+  manifest="$(rootfs_manifest_path "${rootfs}")"
+  [[ -f "${manifest}" ]] || rootfs_die "rootfs manifest missing: ${manifest}"
+  local store_id
+  store_id="$(sed -n 's/.*"store_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "${manifest}" | head -n 1)"
+  if [[ -z "${store_id}" ]]; then
+    rootfs_die "rootfs manifest has no store_id: ${manifest}"
+  fi
+  printf '%s\n' "${store_id}"
+}
+
+rootfs_manifest_requires_nonmutable() {
+  local rootfs="$1"
+  local manifest
+  manifest="$(rootfs_manifest_path "${rootfs}")"
+  [[ -f "${manifest}" ]] || rootfs_die "rootfs manifest missing: ${manifest}"
+  grep -Eq '"kind"[[:space:]]*:[[:space:]]*"rootfs_build_manifest"' "${manifest}" \
+    || rootfs_die "rootfs manifest kind is not rootfs_build_manifest: ${manifest}"
+  grep -Eq '"mutable_rootfs_allowed"[[:space:]]*:[[:space:]]*false' "${manifest}" \
+    || rootfs_die "rootfs manifest must set mutable_rootfs_allowed=false: ${manifest}"
+}
+
+rootfs_assert_manifested_nonmutable() {
+  local rootfs="$1"
+  [[ -L "${rootfs}" || ! -d "${rootfs}" ]] \
+    && rootfs_die "rootfs is not a real directory: ${rootfs}"
+  rootfs_validate_ownership_marker "${rootfs}"
+  rootfs_manifest_requires_nonmutable "${rootfs}"
 }
 
 # Resolve a store root to the canonical selected content directory. Prints the
@@ -194,5 +248,7 @@ rootfs_resolve_selected_dir() {
   if [[ ! -f "${marker}" ]]; then
     rootfs_die "selected entry lacks an ownership marker: ${canonical_entry}"
   fi
+  rootfs_validate_ownership_marker "${canonical_entry}"
+  rootfs_manifest_requires_nonmutable "${canonical_entry}"
   printf '%s\n' "${canonical_entry}"
 }

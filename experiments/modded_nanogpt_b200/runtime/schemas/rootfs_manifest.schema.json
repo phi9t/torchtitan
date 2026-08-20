@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "store_id"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "type": "string" },
+    "store_id": { "type": "string" },
+    "base_image": { "type": "string" },
+    "image_tag": { "type": "string" },
+    "image_id": { "type": "string" },
+    "exported_rootfs_digest": { "type": "string" },
+    "mise_version": { "type": "string" },
+    "mutable_rootfs_allowed": { "type": "boolean" }
+  }
+}

@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """CLI tools for scaffold-to-policy reasoning tasks."""
 
@@ -12,13 +15,25 @@ import importlib.util
 import json
 import os
 import platform
-from pathlib import Path
 import shutil
 import sys
-from typing import Callable
+from collections.abc import Callable
+from pathlib import Path
 from urllib.request import Request, urlopen
 
 from torchtitan.experiments.execution.preflight import report_attach
+from torchtitan.experiments.scaffold_to_policy import (
+    arc_grid,
+    coding_style,
+    contest_code,
+    evaluation_audit,
+    external_harness,
+    gsm_style,
+    math_style,
+    modular_sequences,
+    multiple_choice,
+    report_artifacts,
+)
 from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
     ArithmeticWordProblem,
     build_report_input,
@@ -34,16 +49,6 @@ from torchtitan.experiments.scaffold_to_policy.arithmetic_words import (
 from torchtitan.experiments.scaffold_to_policy.modular_sequences import (
     ModularSequenceProblem,
 )
-from torchtitan.experiments.scaffold_to_policy import arc_grid
-from torchtitan.experiments.scaffold_to_policy import coding_style
-from torchtitan.experiments.scaffold_to_policy import contest_code
-from torchtitan.experiments.scaffold_to_policy import evaluation_audit
-from torchtitan.experiments.scaffold_to_policy import external_harness
-from torchtitan.experiments.scaffold_to_policy import gsm_style
-from torchtitan.experiments.scaffold_to_policy import math_style
-from torchtitan.experiments.scaffold_to_policy import modular_sequences
-from torchtitan.experiments.scaffold_to_policy import multiple_choice
-from torchtitan.experiments.scaffold_to_policy import report_artifacts
 
 
 def generate_arithmetic_words(args: argparse.Namespace) -> None:
@@ -60,7 +65,9 @@ def generate_modular_sequences(args: argparse.Namespace) -> None:
         min_modulus=args.min_modulus,
         max_modulus=args.max_modulus,
     )
-    modular_sequences.write_jsonl(args.output, [problem.to_json() for problem in problems])
+    modular_sequences.write_jsonl(
+        args.output, [problem.to_json() for problem in problems]
+    )
 
 
 def prepare_gsm_style_split(args: argparse.Namespace) -> None:
@@ -180,10 +187,7 @@ def _augment_public_provenance(
 
 def import_gsm8k_split(args: argparse.Namespace) -> None:
     rows, row_source = _load_public_rows(args)
-    source = (
-        f"{args.dataset}:{args.subset}:{args.revision}:"
-        f"{args.source_split}"
-    )
+    source = f"{args.dataset}:{args.subset}:{args.revision}:" f"{args.source_split}"
     problems = gsm_style.import_public_rows(
         rows,
         source=source,
@@ -215,10 +219,7 @@ def import_gsm8k_split(args: argparse.Namespace) -> None:
 
 def import_math_split(args: argparse.Namespace) -> None:
     rows, row_source = _load_public_rows(args)
-    source = (
-        f"{args.dataset}:{args.subset}:{args.revision}:"
-        f"{args.source_split}"
-    )
+    source = f"{args.dataset}:{args.subset}:{args.revision}:" f"{args.source_split}"
     problems = math_style.import_public_rows(
         rows,
         source=source,
@@ -1189,9 +1190,7 @@ def doctor_runtime_contract(args: argparse.Namespace) -> None:
     runtime["summary"] = {
         "num_clauses": len(clauses),
         "num_selected": sum(1 for clause in clauses if clause["selected"]),
-        "failed": [
-            clause["name"] for clause in clauses if not clause["selected"]
-        ],
+        "failed": [clause["name"] for clause in clauses if not clause["selected"]],
     }
     arc_grid.write_json(args.output, runtime)
     if args.require_selected and not runtime["selected"]:
@@ -1228,7 +1227,10 @@ def _runtime_contract_clauses(
     add_clause(
         "rootfs_active",
         (not args.require_rootfs) or bool(rootfs.get("active")),
-        requirement="real experiment setup, generation, training, evaluation, and external harness work must run inside scripts/rootfs/enter_rootfs.sh",
+        requirement=(
+            "real experiment setup, generation, training, evaluation, and "
+            "external harness work must run inside scripts/rootfs/enter_rootfs.sh"
+        ),
         details=rootfs,
     )
 
@@ -1500,7 +1502,9 @@ def _runtime_model_metadata(model: str) -> dict[str, object]:
 def write_blocker_report_input(args: argparse.Namespace) -> None:
     artifact_paths = _parse_split_paths(args.artifact)
     blocker_payloads = report_artifacts.load_json_files(artifact_paths)
-    runtime = report_artifacts.load_json(args.runtime) if args.runtime is not None else None
+    runtime = (
+        report_artifacts.load_json(args.runtime) if args.runtime is not None else None
+    )
     artifact_details = report_artifacts.describe_artifacts(
         artifact_paths,
         run_id=args.run_id,
@@ -1531,7 +1535,9 @@ def write_blocker_report_input(args: argparse.Namespace) -> None:
     execution_section = None
     if args.blocker_type == "execution_preflight_blocked":
         if len(blocker_payloads) != 1:
-            raise ValueError("execution_preflight_blocked requires exactly one artifact")
+            raise ValueError(
+                "execution_preflight_blocked requires exactly one artifact"
+            )
         extra_checks, execution_section = report_attach.to_report_sections(
             next(iter(blocker_payloads.values()))
         )
@@ -1860,8 +1866,7 @@ def evaluate_coding_style_vllm_splits(args: argparse.Namespace) -> None:
         raise ValueError("--problems, --output, and --summary must name same splits")
 
     problems_by_split = {
-        split: coding_style.load_problems(path)
-        for split, path in problem_paths.items()
+        split: coding_style.load_problems(path) for split, path in problem_paths.items()
     }
     all_prompts = []
     prompt_index: list[tuple[str, coding_style.CodingStyleProblem]] = []
@@ -1931,8 +1936,7 @@ def evaluate_contest_code_vllm_splits(args: argparse.Namespace) -> None:
         raise ValueError("--problems, --output, and --summary must name same splits")
 
     problems_by_split = {
-        split: contest_code.load_problems(path)
-        for split, path in problem_paths.items()
+        split: contest_code.load_problems(path) for split, path in problem_paths.items()
     }
     all_prompts = []
     prompt_index: list[tuple[str, contest_code.ContestCodeProblem]] = []
@@ -2093,9 +2097,7 @@ def build_arithmetic_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"arithmetic report input failed: {', '.join(failed)}")
 
 
@@ -2116,9 +2118,7 @@ def build_modular_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     modular_sequences.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"modular report input failed: {', '.join(failed)}")
 
 
@@ -2136,9 +2136,7 @@ def build_gsm_style_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     gsm_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"gsm-style report input failed: {', '.join(failed)}")
 
 
@@ -2156,9 +2154,7 @@ def build_math_style_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     math_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"math-style report input failed: {', '.join(failed)}")
 
 
@@ -2180,9 +2176,7 @@ def build_coding_style_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     coding_style.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"coding-style report input failed: {', '.join(failed)}")
 
 
@@ -2200,9 +2194,7 @@ def build_contest_code_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     contest_code.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"contest-code report input failed: {', '.join(failed)}")
 
 
@@ -2220,9 +2212,7 @@ def build_multiple_choice_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     multiple_choice.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"multiple-choice report input failed: {', '.join(failed)}")
 
 
@@ -2244,9 +2234,7 @@ def build_arc_grid_report_input(args: argparse.Namespace) -> None:
     _attach_execution_preflight(report_input, args.execution_preflight)
     arc_grid.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
         raise SystemExit(f"arc-grid report input failed: {', '.join(failed)}")
 
 
@@ -2365,12 +2353,8 @@ def build_external_harness_report_input(args: argparse.Namespace) -> None:
     )
     external_harness.write_json(args.output, report_input)
     if args.require_selected and not all(report_input["checks"].values()):
-        failed = [
-            name for name, passed in report_input["checks"].items() if not passed
-        ]
-        raise SystemExit(
-            f"external-harness report input failed: {', '.join(failed)}"
-        )
+        failed = [name for name, passed in report_input["checks"].items() if not passed]
+        raise SystemExit(f"external-harness report input failed: {', '.join(failed)}")
 
 
 def rescore_math_style_evaluations(args: argparse.Namespace) -> None:
@@ -2529,7 +2513,10 @@ def _build_modular_vllm_prompts(
                         "FINAL: <integer>."
                     ),
                 },
-                {"role": "user", "content": modular_sequences.prompt_for_problem(problem)},
+                {
+                    "role": "user",
+                    "content": modular_sequences.prompt_for_problem(problem),
+                },
             ],
             tokenize=False,
             add_generation_prompt=True,
@@ -3087,9 +3074,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_public_import_cache_args(mbpp_import_parser)
     mbpp_import_parser.set_defaults(func=import_mbpp_split)
 
-    bigcodebench_import_parser = subparsers.add_parser(
-        "import-bigcodebench-split"
-    )
+    bigcodebench_import_parser = subparsers.add_parser("import-bigcodebench-split")
     bigcodebench_import_parser.add_argument("--output", type=Path, required=True)
     bigcodebench_import_parser.add_argument("--provenance", type=Path)
     bigcodebench_import_parser.add_argument(
@@ -3104,9 +3089,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_public_import_cache_args(bigcodebench_import_parser)
     bigcodebench_import_parser.set_defaults(func=import_bigcodebench_split)
 
-    livecodebench_import_parser = subparsers.add_parser(
-        "import-livecodebench-split"
-    )
+    livecodebench_import_parser = subparsers.add_parser("import-livecodebench-split")
     livecodebench_import_parser.add_argument("--output", type=Path, required=True)
     livecodebench_import_parser.add_argument("--provenance", type=Path)
     livecodebench_import_parser.add_argument(
@@ -3186,9 +3169,7 @@ def build_parser() -> argparse.ArgumentParser:
     contest_eval_parser.add_argument("--timeout-seconds", type=float, default=5.0)
     contest_eval_parser.set_defaults(func=evaluate_contest_code_fixture)
 
-    coding_preflight_parser = subparsers.add_parser(
-        "preflight-coding-style-canonical"
-    )
+    coding_preflight_parser = subparsers.add_parser("preflight-coding-style-canonical")
     coding_preflight_parser.add_argument("--problems", type=Path, required=True)
     coding_preflight_parser.add_argument("--output", type=Path, required=True)
     coding_preflight_parser.add_argument("--timeout-seconds", type=float, default=5.0)
@@ -3246,9 +3227,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     arc_preflight_parser.set_defaults(func=preflight_arc_grid_prompts)
 
-    vllm_memory_preflight_parser = subparsers.add_parser(
-        "preflight-vllm-gpu-memory"
-    )
+    vllm_memory_preflight_parser = subparsers.add_parser("preflight-vllm-gpu-memory")
     vllm_memory_preflight_parser.add_argument("--output", type=Path, required=True)
     vllm_memory_preflight_parser.add_argument(
         "--gpu-memory-utilization",
@@ -3278,7 +3257,9 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_parser.add_argument("--gpu-memory-utilization", type=float)
     runtime_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     runtime_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3320,7 +3301,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     doctor_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     doctor_parser.add_argument(
         "--use-flashinfer-sampler",
@@ -3375,7 +3358,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vllm_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     vllm_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3417,7 +3402,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     modular_vllm_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     modular_vllm_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3463,7 +3450,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     gsm_vllm_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     gsm_vllm_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3505,7 +3494,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     math_vllm_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     math_vllm_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3548,7 +3539,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     coding_vllm_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     coding_vllm_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3593,7 +3586,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     coding_vllm_splits_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     coding_vllm_splits_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3625,7 +3620,9 @@ def build_parser() -> argparse.ArgumentParser:
     contest_vllm_splits_parser.add_argument("--temperature", type=float, default=0.2)
     contest_vllm_splits_parser.add_argument("--top-p", type=float, default=0.95)
     contest_vllm_splits_parser.add_argument("--max-new-tokens", type=int, default=1024)
-    contest_vllm_splits_parser.add_argument("--timeout-seconds", type=float, default=5.0)
+    contest_vllm_splits_parser.add_argument(
+        "--timeout-seconds", type=float, default=5.0
+    )
     contest_vllm_splits_parser.add_argument(
         "--prompt-variant",
         choices=["plain", "chat"],
@@ -3638,7 +3635,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     contest_vllm_splits_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     contest_vllm_splits_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3680,7 +3679,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     multiple_choice_vllm_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     multiple_choice_vllm_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3738,7 +3739,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     arc_vllm_parser.add_argument(
         "--attention-backend",
-        default=os.environ.get("SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+        default=os.environ.get(
+            "SCAFFOLD_TO_POLICY_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"
+        ),
     )
     arc_vllm_parser.add_argument(
         "--enable-flashinfer-autotune",
@@ -3902,7 +3905,9 @@ def build_parser() -> argparse.ArgumentParser:
         "build-multiple-choice-report-input"
     )
     multiple_choice_report_parser.add_argument("--data-root", type=Path, required=True)
-    multiple_choice_report_parser.add_argument("--results-root", type=Path, required=True)
+    multiple_choice_report_parser.add_argument(
+        "--results-root", type=Path, required=True
+    )
     multiple_choice_report_parser.add_argument("--run-id", required=True)
     multiple_choice_report_parser.add_argument(
         "--split-registry",
@@ -3919,9 +3924,7 @@ def build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=True,
     )
-    multiple_choice_report_parser.set_defaults(
-        func=build_multiple_choice_report_input
-    )
+    multiple_choice_report_parser.set_defaults(func=build_multiple_choice_report_input)
 
     arc_report_parser = subparsers.add_parser("build-arc-grid-report-input")
     arc_report_parser.add_argument("--data-root", type=Path, required=True)
@@ -4041,9 +4044,7 @@ def build_parser() -> argparse.ArgumentParser:
     tau2_score_parser.add_argument("--output", type=Path, required=True)
     tau2_score_parser.set_defaults(func=write_tau2_mock_score_smoke)
 
-    terminal_result_parser = subparsers.add_parser(
-        "write-terminal-bench-result-smoke"
-    )
+    terminal_result_parser = subparsers.add_parser("write-terminal-bench-result-smoke")
     terminal_result_parser.add_argument("--run-id", required=True)
     terminal_result_parser.add_argument("--task-id", default="headless-terminal")
     terminal_result_parser.add_argument("--output", type=Path, required=True)

@@ -1,6 +1,6 @@
 # Bwrap Rootfs Runtime Environment Spec
 
-Status: draft-ready-for-review
+Status: implemented-through-non-launch-foundation
 
 ## Intent
 
@@ -74,19 +74,26 @@ The current modded-nanogpt wrappers:
 - rely on rootfs-installed Torch `2.13.0+cu132`, CUDA runtime `13.2`, and
   Triton `3.7.1`.
 
-Main gaps to close:
+Closed non-launch foundation gaps:
 
-- rootfs mutability is implicit because the rootfs is mounted writable;
-- `HOME`, `TMPDIR`, `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `PIP_CACHE_DIR`,
-  `TORCH_HOME`, and `MPLCONFIGDIR` are not centrally owned;
-- uv is present in the image but no rootfs-local package lock/sync contract is
-  defined for this experiment;
-- mise is not yet part of this checkout's authored runtime contract;
-- networked preparation and offline full training are not separated at the
-  bwrap entrypoint level;
-- `/dev/shm` capacity and scratch capacity are not explicit;
-- package installs can mutate the shared rootfs rather than a project-owned
-  environment.
+- `scripts/rootfs/runtime_env.sh` centrally owns the rootfs runtime environment
+  policy, writable project state, cache roots, and offline/networked mode.
+- `enter_rootfs.sh`, `build_rootfs.sh`, and `rootfs_target.sh` use the shared
+  runtime policy and managed rootfs store helpers.
+- `experiments/modded_nanogpt_b200/runtime/` defines the experiment Python and
+  tool sync contracts, schema files, and runtime verifier.
+- Package and tool sync wrappers re-enter the rootfs, reject forged rootfs
+  sentinels, and write project-owned state under `/project`.
+- Full launch readiness is gated on schema-validated runtime verification and
+  canonical command-environment evidence.
+
+Closed networked setup gap:
+
+- `requirements.lock` is now populated by a networked rootfs setup phase using
+  `uv pip compile --no-deps --generate-hashes`. The lock is direct-only by
+  design: Torch, Triton, CUDA, and NVIDIA runtime packages remain owned by the
+  rootfs stack and are forbidden in the experiment runtime lock. Offline sync
+  still fails closed if a future edit removes hash-locked package entries.
 
 ## Configuration Model
 
@@ -276,44 +283,37 @@ scripts/rootfs/
   build_rootfs.sh
   enter_rootfs.sh
   rootfs_target.sh
-  runtime_env.sh                 # proposed: common env and mount policy
-  verify_runtime_env.py          # proposed: structured runtime verifier
+  runtime_env.sh                 # shared env and mount policy
+  verify_runtime_env.py          # structured runtime verifier
 
 experiments/modded_nanogpt_b200/
   *.sh                           # rootfs re-entry wrappers
   *.py                           # harness, preflight, parser, summarizer
   runtime/
-    declared-runtime.yaml        # proposed: portable logical runtime policy
-    local-environment.example.yaml
-    profiles/*.yaml              # proposed: diagnostic/full backend profiles
-    pyproject.toml               # proposed: experiment direct deps, no torch
-    uv.lock                      # proposed: resolved Python dependency lock
-    requirements.direct.txt      # proposed: allowlisted direct installs
-    requirements.lock            # proposed: hash-pinned install input
-    mise.toml                    # proposed: non-Python tool declarations
-    env_contract.json            # proposed: expected versions and paths
-    materialize_runtime.py       # proposed: declared+local -> per-run config
+    pyproject.toml               # experiment direct deps, no torch
+    requirements.direct.txt      # allowlisted direct installs
+    requirements.lock            # hash-pinned direct install input
+    mise.toml                    # non-Python tool declarations
+    schema_validation.py         # lightweight schema validator
+    sync_python_env.sh           # rootfs-aware Python env sync
+    sync_tools.sh                # rootfs-aware tool env sync
+    verify_runtime.py            # launch-governing runtime verifier
     schemas/
-      declared_runtime.schema.json
-      local_environment.schema.json
-      materialized_runtime.schema.json
-      bwrap_plan.schema.json
-      rootfs_manifest.schema.json
-      runtime_env.schema.json
-      python_env_report.schema.json
-      tool_env_report.schema.json
+      attempt.schema.json
+      command_argv.schema.json
+      command_env.schema.json
       filesystem_report.schema.json
       launch_prerequisites.schema.json
-      runtime_verification.schema.json
-      attempt.schema.json
-      preflight_report.schema.json
       launch_readiness.schema.json
-      command_env.schema.json
-      command_argv.schema.json
       nanogpt_component_manifest.schema.json
       optimized_kernel_report.schema.json
+      preflight_report.schema.json
+      python_env_report.schema.json
+      rootfs_manifest.schema.json
+      runtime_env.schema.json
+      runtime_verification.schema.json
       summary.schema.json
-    verify_runtime.py            # proposed: pre-launch runtime verifier
+      tool_env_report.schema.json
 ```
 
 The `runtime/pyproject.toml` must list only experiment-owned direct Python
@@ -571,10 +571,15 @@ missing-authorization paths. Use these booleans consistently:
   supplied launch authorization.
 - `authorization_ok`: the required full-launch authorization is present, or the
   selected mode does not require it.
-- `training_launch_allowed`: `prerequisites_satisfied` and `authorization_ok`
-  are both true, and `skip_run` is false.
-- `ready_to_launch`: reserved for the final launch-readiness artifact and has
-  the same meaning as `training_launch_allowed`.
+- `training_launch_allowed`: the runtime verifier found no blockers for the
+  selected command environment and the caller requested launch-permission
+  validation. The runner must still honor `skip_run=true` by not launching
+  training.
+- `ready_to_launch`: reserved for the final launch-readiness artifact. It means
+  the launch-governing gates passed for the attempt envelope. A skip-run
+  artifact may record `ready_to_launch=true` as prerequisite evidence, but it
+  still records `training_launched=false` and remains excluded from baseline
+  stats and non-skip launch-ready rows.
 
 A launch wrapper may write `ready_to_launch=true` only after the runtime
 verifier has written a current-version `runtime_verification.json` with
@@ -646,7 +651,7 @@ The same reports may also be copied to `/project/logs` for reusable environment
 setup commands, but the attempt-local copies are the launch authority.
 
 `bwrap_plan.json` must be emitted by `scripts/rootfs/enter_rootfs.sh` before any
-payload process starts. The proposed control is:
+payload process starts. The implemented emit-plan control is:
 
 ```text
 TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY=1
@@ -1356,14 +1361,18 @@ uv pip install \
   -r experiments/modded_nanogpt_b200/runtime/requirements.lock
 ```
 
-If hash-pinned wheels are not ready yet, the temporary fallback is:
+For an explicit networked setup refresh, regenerate the direct-only lock with:
 
 ```bash
-uv pip install \
-  --python /project/venvs/b200-runtime/bin/python \
-  --no-deps \
-  -r experiments/modded_nanogpt_b200/runtime/requirements.direct.txt
+TORCHTITAN_ROOTFS_NETWORK=networked scripts/rootfs/enter_rootfs.sh -- bash -lc \
+  'cd /workspace/torchtitan && uv pip compile --no-deps --generate-hashes \
+    --python-platform x86_64-manylinux_2_39 --python-version 3.12 \
+    --output-file experiments/modded_nanogpt_b200/runtime/requirements.lock \
+    experiments/modded_nanogpt_b200/runtime/requirements.direct.txt'
 ```
+
+The fallback direct install path exists only for networked setup diagnostics;
+full-mode offline sync uses the hash-locked file.
 
 The direct dependency set must include the modded-nanogpt non-Torch runtime
 packages:
@@ -1682,7 +1691,10 @@ The launcher must record:
 - runtime verifier report digests;
 - the effective environment digest used by the training subprocess, matched
   against `runtime_verification.json` and `command.env.json`;
-- `command.env` without secret or authorization-token values.
+- `command.env.json` with redacted environment metadata and no secret or
+  authorization-token values;
+- optional legacy text `command.env` compatibility output with the same
+  redaction boundary, which must not replace `command.env.json`.
 
 The launcher must refuse to start `torchrun` when any current-version verifier
 report is missing, schema-invalid, stale for the current `run_id`/`attempt_id`,
@@ -1710,8 +1722,10 @@ Unit tests should cover:
 - mise config path and data/cache dirs are under `/project`;
 - preflight reports capacity failures with distinct phases;
 - launch readiness cannot go green without `runtime_verification.ok=true`;
-- `ready_to_launch=true` is impossible when authorization is missing or
-  `skip_run=true`, even if `prerequisites_satisfied=true`;
+- missing authorization keeps a non-skip full attempt out of
+  `launch_ready_attempts`; explicit `skip_run=true` may still produce
+  `ready_to_launch=true` prerequisite evidence, but it remains excluded from
+  baseline stats and non-skip launch-ready rows;
 - run summaries reject full attempts missing rootfs runtime evidence.
 
 Integration checks should run through the rootfs wrapper:
@@ -1724,26 +1738,56 @@ experiments/modded_nanogpt_b200/runtime/sync_tools.sh --dry-run
 
 Full GPU checks remain authority-gated by the existing B200 launch policy.
 
-## Open Implementation Tickets
+## Implementation Ticket State
 
-Recommended ticket split:
+The recommended ticket split below is implemented for the non-launch
+foundation, with the remaining package-lock population and any full-launch
+runtime repairs deferred to the authority-gated launch path:
 
-1. Add `scripts/rootfs/runtime_env.sh` and rootfs state-root mounts.
+1. Add `scripts/rootfs/runtime_env.sh` and rootfs state-root mounts. Done.
 2. Add managed rootfs store support to `build_rootfs.sh` and
    `rootfs_target.sh`, including `--store`, `--activate`, selected-rootfs
    resolution, rootfs manifests, pinned uv/mise installs, and pre-created
-   read-only bind targets.
+   read-only bind targets. Done for the tested rootfs store surface.
 3. Add checked-in schema files under
    `experiments/modded_nanogpt_b200/runtime/schemas/` plus schema-version tests.
+   Done.
 4. Add runtime verifier for env, mount, cache, scratch, `/dev/shm`, and network
-   mode evidence.
-5. Add uv-managed experiment Python environment files and sync wrapper.
-6. Add mise to the rootfs build and experiment tool sync wrapper.
+   mode evidence. Done for the launch-governing runtime and command-env
+   evidence used by the active harness.
+5. Add uv-managed experiment Python environment files and sync wrapper. Done;
+   the direct-only runtime lock is hash-populated, and offline mode rejects any
+   future placeholder or hashless lock before invoking uv.
+6. Add mise to the rootfs build and experiment tool sync wrapper. Done for the
+   project-owned tool environment contract and `shellcheck=0.10.0` pin.
 7. Wire `run_preflight.sh` and `run_speedrun.py` to the canonical runtime env
-   and `${PYTHON}`.
+   and `${PYTHON}`. Done.
 8. Gate launch readiness and `torchrun` on current-version verifier reports.
-9. Extend preflight and summarization evidence requirements.
-10. Add offline rootfs mode and require it for full attempts.
+   Done.
+9. Extend preflight and summarization evidence requirements. Done for the
+   active two-GPU RSI foundation prerequisite and run-index surfacing.
+10. Add offline rootfs mode and require it for full attempts. Done at the
+   wrapper/policy level; the networked setup phase has populated the runtime
+   lock required by offline package sync.
+
+Fresh continuation verification recorded in
+`.scratch/modded-nanogpt-b200/completion_audit.md` reported the combined
+NanoGPT/rootfs non-launch owner suite as `410 passed, 2 skipped`.
+The focused tracker guard now reports `49 passed`. Focused
+optimized-kernel and diagnostic performance-probe tests reported
+`13 passed in 3.03s`. The current strict prerequisite artifact validation
+reported `ok=true`, 24 sidecars, and zero failed sidecars; active-job scan
+reported `ok=true`, `active_job_count=0`, and `ignored_match_count=0`. The
+current in-memory run index still reports `total_attempts=63`,
+`baseline_stats.count=0`, `launch_prerequisite_attempts.count=4`, and
+`launch_ready_attempts.count=0`. The latest strict runtime-env prerequisite row
+remains the current validated handoff artifact; older prerequisite rows are
+historical skip-run dry gates. Prior explicit-file Pyrefly over the
+31-file static Python surface reported `0 errors`, text/lock hygiene for
+runtime dependency files passed, and static verification reported
+`Static verification passed for 114 file(s)`. A later rootfs all-files
+pre-commit run passed with only the protected-branch hook skipped:
+`SKIP=no-commit-to-branch pre-commit run --all-files`.
 
 ## Non-Goals
 

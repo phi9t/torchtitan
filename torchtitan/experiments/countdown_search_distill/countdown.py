@@ -331,7 +331,9 @@ def verify_solution(
                 error=error,
             )
 
-        result = _result_for(Fraction(operation.left), Fraction(operation.right), operation.op)
+        result = _result_for(
+            Fraction(operation.left), Fraction(operation.right), operation.op
+        )
         if result is None:
             error = f"division is not exact: {line}"
             return _verification_result(
@@ -425,9 +427,7 @@ def verify_solution(
         if (
             compute_recoverability
             and first_unreachable is None
-            and not _target_reachable_from_state(
-                available, problem.target
-            )
+            and not _target_reachable_from_state(available, problem.target)
         ):
             first_unreachable = {
                 "line_number": line_number,
@@ -857,7 +857,9 @@ def _reachable_targets(
     return reachable
 
 
-def _reachable_targets_for_subset(numbers: tuple[int, ...]) -> dict[int, SolutionCandidate]:
+def _reachable_targets_for_subset(
+    numbers: tuple[int, ...]
+) -> dict[int, SolutionCandidate]:
     state_cache: dict[tuple[Fraction, ...], dict[Fraction, SolutionCandidate]] = {}
 
     def solve_state(state: tuple[Fraction, ...]) -> dict[Fraction, SolutionCandidate]:
@@ -891,7 +893,9 @@ def _reachable_targets_for_subset(numbers: tuple[int, ...]) -> dict[int, Solutio
         return best
 
     reachable: dict[int, SolutionCandidate] = {}
-    for value, candidate in solve_state(tuple(Fraction(number) for number in numbers)).items():
+    for value, candidate in solve_state(
+        tuple(Fraction(number) for number in numbers)
+    ).items():
         if value.denominator == 1 and value > 0:
             reachable[value.numerator] = candidate
     return reachable
@@ -899,4 +903,3 @@ def _reachable_targets_for_subset(numbers: tuple[int, ...]) -> dict[int, Solutio
 
 def problem_key(problem: CountdownProblem) -> tuple[tuple[int, ...], int]:
     return tuple(sorted(problem.numbers)), problem.target
-

@@ -18,13 +18,22 @@ from experiments.modded_nanogpt_b200 import fetch_upstream
 def _make_repo(path: Path) -> str:
     path.mkdir(parents=True)
     subprocess.run(["git", "init"], cwd=path, check=True, stdout=subprocess.DEVNULL)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=path, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=path, check=True)
     (path / "train_gpt.py").write_text("print('fixture')\n")
     (path / "triton_kernels.py").write_text("# fixture\n")
     subprocess.run(["git", "add", "."], cwd=path, check=True)
-    subprocess.run(["git", "commit", "-m", "fixture"], cwd=path, check=True, stdout=subprocess.DEVNULL)
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=path, text=True).strip()
+    subprocess.run(
+        ["git", "commit", "-m", "fixture"],
+        cwd=path,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=path, text=True
+    ).strip()
 
 
 def test_existing_clean_source_writes_source_json(tmp_path: Path):
@@ -73,4 +82,9 @@ def test_missing_source_clones_from_local_remote(tmp_path: Path):
 
     assert source.exists()
     assert record["commit"] == commit
-    assert subprocess.check_output(["git", "-C", str(source), "status", "--short"], text=True) == ""
+    assert (
+        subprocess.check_output(
+            ["git", "-C", str(source), "status", "--short"], text=True
+        )
+        == ""
+    )

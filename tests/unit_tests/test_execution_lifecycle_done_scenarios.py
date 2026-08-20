@@ -4,9 +4,6 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
 """Wave F1 done-scenario integration tests (roadmap Section 19 / F1).
 
 F1 is done when a fake multi-stage run, a blocked run, a failed run, and an

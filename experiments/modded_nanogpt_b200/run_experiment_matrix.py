@@ -45,9 +45,22 @@ def run_matrix(spec_path: Path, *, dry_run: bool = False) -> int:
             arm_record = {
                 **arm_plan.to_dict(),
                 "status": "planned",
+                "claim_status": "planned",
                 "exit_code": None,
             }
             matrix_arms.append(arm_record)
+            continue
+
+        if exit_code != 0:
+            matrix_arms.append(
+                {
+                    **arm_plan.to_dict(),
+                    "status": "skipped",
+                    "claim_status": "skipped",
+                    "exit_code": None,
+                    "skip_reason": "previous_arm_failed",
+                }
+            )
             continue
 
         config = _run_config_from_arm(arm, arm_plan)
@@ -59,12 +72,15 @@ def run_matrix(spec_path: Path, *, dry_run: bool = False) -> int:
             summary_path=config.result_dir / "summary.json",
             exit_code=arm_exit,
         )
+        summary_path = config.result_dir / "summary.json"
+        summary = _read_json(summary_path)
         matrix_arms.append(
             {
                 **arm_plan.to_dict(),
                 "status": "passed" if arm_exit == 0 else "failed",
+                "claim_status": _claim_status(arm_exit, summary),
                 "exit_code": arm_exit,
-                "summary": str(config.result_dir / "summary.json"),
+                "summary": str(summary_path),
                 "observability_summary": observability_summary,
             }
         )
@@ -81,6 +97,7 @@ def run_matrix(spec_path: Path, *, dry_run: bool = False) -> int:
         "spec_path": str(spec_path),
         "dry_run": dry_run,
         "status": "planned" if dry_run else ("passed" if exit_code == 0 else "failed"),
+        "claim_status": _matrix_claim_status(matrix_arms),
         "generated_epoch": time.time(),
         "arms": matrix_arms,
         "run_index": run_index,
@@ -121,7 +138,7 @@ def _observability_summary(
 ) -> dict[str, Any]:
     summary = _read_json(summary_path)
     feature_status = _feature_status(arm_plan.observability.features, summary)
-    result = {
+    result: dict[str, Any] = {
         "profile": arm_plan.observability.profile,
         "feature_status": feature_status,
         "missing_evidence": [
@@ -147,7 +164,12 @@ def _feature_status(
     statuses: dict[str, str] = {}
     for feature, declared in features.items():
         if declared == "observed":
-            statuses[feature] = "observed" if summary is not None else "missing"
+            if summary is None:
+                statuses[feature] = "missing"
+            elif summary.get("ok") is True:
+                statuses[feature] = "observed"
+            else:
+                statuses[feature] = "stale"
         else:
             statuses[feature] = declared
     return dict(sorted(statuses.items()))
@@ -162,7 +184,11 @@ def _semantic_timeline(
     exit_record = (
         summary.get("exit_code") if isinstance(summary.get("exit_code"), dict) else {}
     )
-    center = "incident" if exit_code != 0 or blocker else "completion"
+    center = (
+        "completion"
+        if exit_code == 0 and summary.get("ok") is True and not blocker
+        else "incident"
+    )
     return {
         "status": "advisory",
         "center": center,
@@ -171,6 +197,10 @@ def _semantic_timeline(
                 "kind": "exit_code",
                 "phase": exit_record.get("phase", "unknown"),
                 "exit_code": exit_record.get("exit_code", exit_code),
+            },
+            {
+                "kind": "summary_ok",
+                "ok": summary.get("ok"),
             },
             {
                 "kind": "blocker",
@@ -210,6 +240,16 @@ def _diagnostic_recommendations(
                 "risk": "none",
             },
         ]
+    if summary.get("ok") is not True:
+        return [
+            {
+                "action": "inspect_claim_validation",
+                "reason": blocker.get("message")
+                or "summary parser did not mark the attempted result ok",
+                "launches_probe": False,
+                "risk": "none",
+            }
+        ]
     return [
         {
             "action": "compare_arm_metrics",
@@ -220,35 +260,94 @@ def _diagnostic_recommendations(
     ]
 
 
+def _claim_status(exit_code: int, summary: dict[str, Any] | None) -> str:
+    if exit_code != 0:
+        return "failed"
+    if summary is None:
+        return "missing_summary"
+    return "accepted" if summary.get("ok") is True else "rejected"
+
+
+def _matrix_claim_status(matrix_arms: list[dict[str, Any]]) -> str:
+    statuses = [arm.get("claim_status") for arm in matrix_arms]
+    if not statuses or all(status == "planned" for status in statuses):
+        return "planned"
+    if any(status == "failed" for status in statuses):
+        return "failed"
+    if any(status == "missing_summary" for status in statuses):
+        return "missing_summary"
+    if any(status == "rejected" for status in statuses):
+        return "rejected"
+    if any(status == "skipped" for status in statuses):
+        return "partial"
+    if all(status == "accepted" for status in statuses):
+        return "accepted"
+    return "mixed"
+
+
 def _rsi_evidence(matrix_arms: list[dict[str, Any]]) -> dict[str, Any]:
     training_metrics = []
     blockers = []
+    claim_rejections = []
     observability_warnings = []
+    planned_arms = []
+    skipped_arms = []
+    successful_arm_count = 0
     for arm in matrix_arms:
+        if arm.get("status") == "planned":
+            planned_arms.append(
+                {
+                    "run_id": arm.get("run_id"),
+                    "reason": "dry_run",
+                }
+            )
+            continue
+        if arm.get("status") == "skipped":
+            skipped_arms.append(
+                {
+                    "run_id": arm.get("run_id"),
+                    "reason": arm.get("skip_reason", "skipped"),
+                }
+            )
+            continue
         summary = _read_json(Path(str(arm.get("summary", ""))))
         if summary is None:
             observability_warnings.append(
                 {"run_id": arm.get("run_id"), "warning": "missing summary.json"}
             )
             continue
-        metrics = (
-            summary.get("metrics") if isinstance(summary.get("metrics"), dict) else {}
+        arm_succeeded = (
+            arm.get("status") == "passed"
+            and arm.get("exit_code") == 0
+            and summary.get("ok") is True
         )
-        if metrics:
+        if arm_succeeded:
+            successful_arm_count += 1
+        metrics = _summary_training_metrics(summary)
+        if arm_succeeded and metrics:
             training_metrics.append({"run_id": arm.get("run_id"), **metrics})
         blocker = (
             summary.get("blocker") if isinstance(summary.get("blocker"), dict) else None
         )
         if blocker is not None:
             blockers.append({"run_id": arm.get("run_id"), **blocker})
+        elif arm.get("claim_status") == "rejected":
+            claim_rejections.append(
+                {
+                    "run_id": arm.get("run_id"),
+                    "summary_ok": summary.get("ok"),
+                    "reason": "summary parser did not mark the attempted result ok",
+                }
+            )
     return {
         "status": "advisory",
         "arm_count": len(matrix_arms),
-        "successful_arm_count": sum(
-            1 for arm in matrix_arms if arm.get("exit_code") == 0
-        ),
+        "successful_arm_count": successful_arm_count,
         "training_metrics": training_metrics,
         "blockers": blockers,
+        "claim_rejections": claim_rejections,
+        "planned_arms": planned_arms,
+        "skipped_arms": skipped_arms,
         "observability_warnings": observability_warnings,
         "recommendation_quality_inputs": {
             "detection": "advisory",
@@ -258,6 +357,16 @@ def _rsi_evidence(matrix_arms: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "excluded_authority": _excluded_authority(),
     }
+
+
+def _summary_training_metrics(summary: dict[str, Any]) -> dict[str, Any]:
+    final_metrics = summary.get("final_metrics")
+    if isinstance(final_metrics, dict):
+        return final_metrics
+    legacy_metrics = summary.get("metrics")
+    if isinstance(legacy_metrics, dict):
+        return legacy_metrics
+    return {}
 
 
 def _excluded_authority() -> list[str]:
@@ -287,7 +396,7 @@ def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--config",
@@ -296,8 +405,23 @@ def parse_args() -> argparse.Namespace:
             "experiments/modded_nanogpt_b200/configs/gpu_ladder_prerequisite.json"
         ),
     )
-    parser.add_argument("--dry-run", action="store_true")
-    return parser.parse_args()
+    execute = parser.add_mutually_exclusive_group()
+    execute.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=True,
+        help="Materialize plan/report artifacts without running arms. This is the default.",
+    )
+    execute.add_argument(
+        "--execute",
+        dest="dry_run",
+        action="store_false",
+        help="Run matrix arms sequentially through the guarded harness.",
+    )
+    args = parser.parse_args(argv)
+    args.execute = not args.dry_run
+    return args
 
 
 def main(*, enforce_rootfs: bool = False) -> int:

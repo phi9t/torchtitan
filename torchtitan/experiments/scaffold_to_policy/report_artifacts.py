@@ -4,9 +4,6 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
 """Run-artifact provenance helpers for scaffold-to-policy reports."""
 
 from __future__ import annotations

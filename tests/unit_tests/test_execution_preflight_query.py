@@ -156,4 +156,3 @@ def test_report_attach_rejects_malformed_semantic_check():
 
     with pytest.raises(ValueError, match=r"semantic_checks\[0\]"):
         report_attach.to_report_sections(preflight)
-

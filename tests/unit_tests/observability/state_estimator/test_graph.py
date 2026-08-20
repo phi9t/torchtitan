@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
     write_structured_events,
 )
 from torchtitan.observability.state_estimator.graph import (
@@ -148,9 +148,7 @@ def test_graph_preserves_v1_device_fields_on_process_and_device_entities(tmp_pat
     assert process["attrs"]["device_type"] == "cuda"
     assert process["attrs"]["device_uuid"] == "GPU-fixture-uuid"
 
-    device = next(
-        entity for entity in graph["entities"] if entity["id"] == "device:1"
-    )
+    device = next(entity for entity in graph["entities"] if entity["id"] == "device:1")
     assert device["attrs"] == {
         "device_index": 1,
         "device_type": "cuda",

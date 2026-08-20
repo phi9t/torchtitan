@@ -2,7 +2,7 @@
 
 Type: task
 Status: complete
-Blocked by: 10, 11, 12
+Blocked by: -
 
 ## Requirement
 

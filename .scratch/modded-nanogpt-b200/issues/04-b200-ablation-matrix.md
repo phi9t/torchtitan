@@ -2,12 +2,16 @@
 
 Type: task
 Status: blocked
-Blocked by: 06
+Blocked by: Lane A or Lane B non-skip baseline; active Lane B path requires
+  trusted user request containing `launch-full-b200`
 
 ## Requirement
 
 Add the B200 optimization matrix only after the faithful reproduction or minimal
-compatibility baseline is available.
+compatibility baseline is available. The current RSI foundation path treats the
+two-GPU Lane B FA2/Triton full attempt as the active minimal compatibility
+baseline candidate, but that attempt has not launched yet because the trusted
+request does not contain `launch-full-b200`.
 
 Use `.scratch/modded-nanogpt-b200/spec.md` as the canonical spec.
 
@@ -44,3 +48,20 @@ Excluded:
   launch.
 - Claims below 3.28 validation loss are replicated enough for their stated
   evidence tier.
+
+## Current State
+
+Issue `04` remains intentionally blocked. The current strict prerequisite
+artifact is
+`experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z/summary.json`;
+it is a full-mode Lane B skip-run gate with `ready_to_launch=true`,
+`training_launched=false`, `skip_run=true`, `blocked_by=[]`,
+`runtime_verification.training_launch_allowed=true`, and the required
+`launch_authorization_required_token=launch-full-b200`. The refreshed
+`run_index.json` records `baseline_stats.count=0`, four skip-run
+launch-prerequisite rows, and zero non-skip launch-ready rows.
+
+Do not run ablation arms, matrix execution, or additional readiness refreshes
+just to reconfirm this blocked state. The next material input is a successful
+non-skip Lane A/B baseline; for the active two-GPU Lane B path, that requires
+the trusted user request itself to contain `launch-full-b200`.

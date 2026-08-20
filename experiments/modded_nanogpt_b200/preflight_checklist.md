@@ -21,6 +21,32 @@ document is stricter than the script: it also defines launch hygiene, claim
 boundaries, required artifacts, and no-go conditions that must be recorded in
 the run summary.
 
+Current operator state, last updated 2026-08-20:
+
+- Execute experiments sequentially. Do not start another NanoGPT attempt until
+  the previous attempt has finished, been parsed, been summarized, and been
+  classified from preserved evidence.
+- The selected next full-mode compatibility tuple is Lane B, arm `B0`, FA2
+  attention, and Triton MLP.
+- The active trial allocation is exactly two visible B200 GPUs. A future 8x
+  reproduction or production campaign must update the declared launch
+  allocation before using this checklist for an 8-GPU claim.
+- The selected tuple has diagnostic performance-probe evidence and a
+  launch-eligible optimized-kernel certification report at
+  `experiments/modded_nanogpt_b200/results/issue08_kernel_cert_fa2_triton_20260819T083000Z/runtime/optimized_kernel_report.json`.
+- The latest strict launch-prerequisite bundle is
+  `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z`;
+  read-only artifact validation reported `ok=true`, 24 sidecars, and zero
+  failed sidecars.
+- The torch MLP fallback is diagnostic-only blocked on B200 and must not be
+  used for the next full launch.
+- The latest active-job scan reported `ok=true`, `active_job_count=0`, and
+  `ignored_match_count=0`.
+- `baseline_stats.count=0`; diagnostic probes, skip-run gates, and
+  launch-readiness sidecars are not baseline or reproduction evidence.
+- The next non-skip full launch requires the trusted user request itself to
+  contain `launch-full-b200`.
+
 Authority order:
 
 1. `.scratch/modded-nanogpt-b200/spec.md` is the canonical implementation spec.
@@ -36,6 +62,7 @@ Authority order:
 - All Python setup, dependency installation, data preparation, preflight,
   training, log parsing, and summarization must run through the bwrap rootfs.
   Prefer repo-local wrappers such as
+  `experiments/modded_nanogpt_b200/runtime/sync_python_env.sh`,
   `experiments/modded_nanogpt_b200/setup_flash_attention.sh` and
   `experiments/modded_nanogpt_b200/run_preflight.sh`; they re-enter
   `scripts/rootfs/enter_rootfs.sh` automatically.
@@ -84,14 +111,21 @@ Everything else must happen after `TORCHTITAN_IN_ROOTFS=1` is present:
 The approved wrappers for this experiment are:
 
 - `experiments/modded_nanogpt_b200/check_active_jobs.sh`
+- `experiments/modded_nanogpt_b200/certify_optimized_kernels.sh`
 - `experiments/modded_nanogpt_b200/diagnose_mlp_backend.sh`
 - `experiments/modded_nanogpt_b200/fetch_upstream.sh`
 - `experiments/modded_nanogpt_b200/parse_log.sh`
 - `experiments/modded_nanogpt_b200/prepare_data.sh`
-- `experiments/modded_nanogpt_b200/run_speedrun.sh`
-- `experiments/modded_nanogpt_b200/summarize.sh`
-- `experiments/modded_nanogpt_b200/setup_flash_attention.sh`
+- `experiments/modded_nanogpt_b200/run_cpu_smoke.sh`
+- `experiments/modded_nanogpt_b200/run_cpu_stability.sh`
+- `experiments/modded_nanogpt_b200/run_experiment_matrix.sh`
+- `experiments/modded_nanogpt_b200/run_performance_probe.sh`
 - `experiments/modded_nanogpt_b200/run_preflight.sh`
+- `experiments/modded_nanogpt_b200/run_speedrun.sh`
+- `experiments/modded_nanogpt_b200/runtime/sync_python_env.sh`
+- `experiments/modded_nanogpt_b200/runtime/sync_tools.sh`
+- `experiments/modded_nanogpt_b200/setup_flash_attention.sh`
+- `experiments/modded_nanogpt_b200/summarize.sh`
 
 If a new executable step is added, give it the same rootfs re-entry shape before
 using it in a real run. Shell wrappers must source `rootfs_guard.sh` after the
@@ -125,6 +159,13 @@ Every attempt must record this common classification schema in
   }
 }
 ```
+
+These `claim_label` values are v1 legacy emitted strings. For RSI planning,
+map `B200 compatibility patchset` and `B200 systems-only` to
+`B200-compatible local setup`, `B200 ML variant` to `B200 local variant`,
+`B200 upstream reproduction` to `Faithful upstream reproduction`, and
+`diagnostic` to `Diagnostic`. Do not rename emitted labels without a separate
+schema compatibility migration.
 
 `claim_eligible` may be true only for `mode=full`; final success still requires
 the post-run validity checks.
@@ -190,10 +231,10 @@ No-go conditions:
 - A patch silently changes ML semantics while the result is presented as
   source-equivalent or competition-comparable.
 - The selected full-job backend is listed as a live no-go in the current
-  checklist, or the full launch lacks the explicit authorization token and
-  full-mode gates required by this checklist. Historical backend blockers do
-  not block the current Lane B full dry gate unless they remain listed as live
-  no-go conditions.
+  checklist, or the full launch lacks the trusted-message `launch-full-b200`
+  authority and full-mode gates required by this checklist. Historical backend
+  blockers do not block the current Lane B full dry gate unless they remain
+  listed as live no-go conditions.
 
 Result label:
 
@@ -348,28 +389,25 @@ No-go conditions:
 Do not install upstream `requirements.txt`. The upstream file currently includes
 `torch==2.10`, which can replace the rootfs B200-capable Torch stack.
 
-Allowed direct runtime dependencies:
+Allowed runtime dependency setup:
 
-- always allowed: `numpy`, `tqdm`, `huggingface-hub`, `datasets`, `tiktoken`,
-  `typing-extensions`, and `setuptools`;
+- normal setup: `experiments/modded_nanogpt_b200/runtime/sync_python_env.sh`
+  installs the hash-pinned direct runtime lock with `uv` inside rootfs;
 - Lane A or FA3-only: `kernels`;
 - Lane B FA2: use `experiments/modded_nanogpt_b200/setup_flash_attention.sh`
   for FlashAttention and its pinned CUDA build wheels.
 
-Safe install pattern inside rootfs:
+Normal runtime sync:
 
 ```bash
-scripts/rootfs/enter_rootfs.sh -- /bin/bash -lc '
-  set -euo pipefail
-  python -m pip install --break-system-packages --no-deps \
-    numpy tqdm huggingface-hub datasets tiktoken typing-extensions setuptools
-'
+experiments/modded_nanogpt_b200/runtime/sync_python_env.sh
 ```
 
-For Lane A or any FA3 diagnostic, add `kernels` with the same `--no-deps`
-pattern. If a package reports a missing transitive import, add only the named
-non-Torch package after confirming the pip plan will not install or downgrade
-`torch`, `triton`, CUDA runtime packages, or FlashAttention.
+For Lane A, FA3 diagnostics, or a missing transitive import, use a networked
+rootfs diagnostic setup only after confirming the install plan will not install
+or downgrade `torch`, `triton`, CUDA runtime packages, or FlashAttention.
+Regenerate the direct runtime lock rather than running a broad upstream
+requirements install.
 
 Import check:
 
@@ -534,7 +572,7 @@ No-go conditions:
 
 For the supported full launch path, do not manually override `DATA_PATH`.
 `run_speedrun.sh` reads the manifest shard paths, derives the upstream-compatible
-root, writes it to `command.env`, and verifies source-visible train and
+root, writes it to `command.env.json`, and verifies source-visible train and
 validation globs before `torchrun`.
 
 Common required variables:
@@ -551,10 +589,20 @@ export TRITON_CACHE_DIR="${RESULT_DIR}/triton_cache"
 `train_gpt.py` appends `data/fineweb10B/fineweb_{train,val}_*.bin` to
 `DATA_PATH`. Therefore the runner-derived `DATA_PATH` must point to the
 directory that contains `data/`, not to the `data/` directory itself. Verify the
-recorded value after the runner writes `command.env`:
+recorded value after the runner writes `command.env.json`:
 
 ```bash
-DATA_PATH="$(awk -F= '$1 == "DATA_PATH" {print substr($0, index($0, "=") + 1)}' "${RESULT_DIR}/command.env")"
+DATA_PATH="$(
+  python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+result_dir = Path(os.environ["RESULT_DIR"])
+record = json.loads((result_dir / "command.env.json").read_text())
+print(record["environment"]["DATA_PATH"])
+PY
+)"
 test -n "${DATA_PATH}"
 test -f "${DATA_PATH}/data/fineweb10B/fineweb_val_000000.bin"
 test -n "$(find "${DATA_PATH}/data/fineweb10B" -maxdepth 1 -name 'fineweb_train_*.bin' -print -quit)"
@@ -588,7 +636,7 @@ export MODDED_NANOGPT_MLP_BACKEND=<triton-or-torch>
 Pass criteria:
 
 - Cache directories are result-local or repo-local.
-- `command.env` records the runner-derived `DATA_PATH`.
+- `command.env.json` records the runner-derived `DATA_PATH`.
 - The recorded `DATA_PATH` points to the intended upstream-compatible root that
   contains `data/fineweb10B/`.
 - Both upstream train and validation globs match before launch:
@@ -615,7 +663,8 @@ The executable preflight checks the actual device path.
 
 Pass criteria:
 
-- Exactly 8 CUDA devices are visible.
+- Exactly the declared full-run CUDA device count is visible. For the active
+  RSI foundation gate, this means exactly two visible B200 GPUs.
 - Every device name contains `B200`.
 - Every visible device reports compute capability at least `(10, 0)`.
 - `torch.cuda.is_available()` is true.
@@ -626,7 +675,8 @@ Pass criteria:
 
 No-go conditions:
 
-- Fewer or more than 8 CUDA devices are visible for a full 8-GPU run.
+- Fewer or more CUDA devices are visible than the declared full-run launch
+  allocation.
 - Any visible device is not a B200.
 - Any visible device reports capability below `(10, 0)`.
 - BF16, FP8, or `_scaled_mm` fails.
@@ -635,7 +685,9 @@ No-go conditions:
 
 Pass criteria:
 
-- `torchrun --standalone --nproc_per_node=8` starts 8 ranks.
+- The distributed smoke starts one rank per declared visible GPU. For the
+  active RSI foundation gate, this is a two-rank NCCL smoke over the selected
+  B200 pair.
 - NCCL initializes on all ranks.
 - A one-value all-reduce returns the expected sum on every rank.
 - The preflight is run without `--skip-nccl` before any full job.
@@ -831,21 +883,46 @@ Important: the command above is a non-launch full dry gate. It must not include
 `--launch-authorization=launch-full-b200`, and it is not a baseline because
 `--skip-run` preserves `training_launched=false`.
 
-One prior fresh Lane B full dry gate was:
+The current Lane B full dry gate is:
 
-- `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_refresh_20260816T111056Z`
+- `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z`
 - manifest:
   `experiments/modded_nanogpt_b200/results/full_manifest_refresh_20260816T111021Z/data_manifest.json`
 - manifest facts: `verified_sha=true`, `token_budget=900M`, `num_files=10`,
   `total_bytes=2000010240`
-- run-index facts: `total_attempts=24`, `launch_prerequisite_attempts=1`,
-  `launch_ready_attempts=0`, `baseline_stats.count=0`
+- rebuilt run-index facts: `total_attempts=63`,
+  `launch_prerequisite_attempts=4`, `launch_ready_attempts=0`,
+  `baseline_stats.count=0`; only the latest strict runtime-env row is the
+  current validated prerequisite handoff artifact
+- strict artifact-validation fact: the ignored generated run index preserves
+  four prerequisite rows for history, but only
+  `lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z` currently passes
+  the current strict attempt-bundle validator. Treat older prerequisite rows as
+  historical/superseded evidence unless explicitly diagnosing their original
+  blocker.
+- launch-readiness facts: 2x B200, `ready_to_launch=true`,
+  `training_launched=false`, `skip_run=true`, `blocked_by=[]`,
+  `optimized_kernel_certified=true`, and matching command-environment/runtime
+  verification digests, including
+  `runtime_verification.training_launch_allowed=true`.
+- latest non-launch verification: the rootfs NanoGPT unit surface reported
+  `410 passed, 2 skipped`; the focused
+  optimized-kernel and diagnostic performance-probe tests reported
+  `13 passed in 3.03s`; the focused tracker guard now reports
+  `49 passed`; prior explicit-file Pyrefly over the
+  31-file static Python surface reported `0 errors`; `verify_static.py` reported
+  `Static verification passed for 114 file(s)`; shell syntax, touched JSON/TOML
+  parsing, text/lock hygiene for runtime dependency files inside rootfs, and
+  `git diff --check` all exited `0`. A later rootfs all-files pre-commit run
+  passed with only the protected-branch hook skipped:
+  `SKIP=no-commit-to-branch pre-commit run --all-files`.
 
-`launch_ready_attempts=0` is intentional for this state: the only current
-prerequisite row is a `--skip-run` artifact. A non-skip full launch still needs
-explicit operator authorization by adding
-`--launch-authorization=launch-full-b200` to a full `run_speedrun.sh` command.
-Agents must not infer that authorization from a passing dry gate.
+`launch_ready_attempts=0` is intentional for this state: the current
+prerequisite rows are `--skip-run` artifacts. A non-skip full launch still needs
+the trusted user request itself to contain `launch-full-b200`; only after that
+may an operator add `--launch-authorization=launch-full-b200` to a full
+`run_speedrun.sh` command. Agents must not infer that authorization from a
+passing dry gate.
 
 A full-job preflight must include NCCL; do not pass `--skip-nccl`. If a wrapper
 smoke must skip NCCL, set `MODDED_NANOGPT_ALLOW_SKIP_NCCL=1` and record the run
@@ -870,7 +947,8 @@ operator-visible prerequisite gates as passed:
 - source-visible train and validation data globs through `DATA_PATH`;
 - active-job scan showing no concurrent `torchrun`, `train_gpt.py`, or
   `cached_fineweb10B.py` work;
-- explicit `--launch-authorization=launch-full-b200` for non-skip full launch.
+- trusted user request containing `launch-full-b200`, followed by explicit
+  `--launch-authorization=launch-full-b200` for the non-skip full launch.
 
 ## Phase 11: Launch Approval Record
 
@@ -895,9 +973,18 @@ No full job is approved if any item is unknown.
 
 Full launch authority is separate from preflight readiness. A non-skip
 `run_speedrun.sh --mode full` command must stop before `torchrun` unless the
-operator explicitly supplies `--launch-authorization=launch-full-b200`. Do not
-add that token to a command unless the user has authorized the full B200 launch
-in the current session.
+trusted user request itself contains `launch-full-b200` and the operator then
+supplies `--launch-authorization=launch-full-b200`. Do not add that CLI token to
+a command unless the trusted request has authorized the full B200 launch in the
+current session.
+
+The no-argument convenience wrapper
+`experiments/modded_nanogpt_b200/launch_nanogpt_2gpu_full_rootfs.sh` does not
+grant this authority by itself. It exits before active-job scan or
+`run_speedrun.sh` unless the operator environment contains
+`MODDED_NANOGPT_2GPU_FULL_LAUNCH_AUTHORIZATION=launch-full-b200`; set that
+environment marker only after the trusted request itself includes
+`launch-full-b200`.
 
 ## Phase 12: Post-Run Validity Checks
 
@@ -942,11 +1029,11 @@ Immediately after any run attempt:
   It remains a historical diagnostic path, not the current recommended Lane B
   full dry-gate backend.
 - Full Lane B baseline: no completed full baseline exists yet. The next
-  non-skip full Lane B launch is blocked by missing explicit full-launch
-  authorization. The fresh dry gate is a launch prerequisite only; it did not
-  run training.
+  non-skip full Lane B launch is blocked until the trusted user request itself
+  contains `launch-full-b200`. The fresh dry gate is a launch prerequisite only;
+  it did not run training.
 - Lane C: blocked until a Lane A or Lane B baseline exists.
 
-Until explicit full-launch authorization is granted, a non-skip full run should
-stop before training rather than spend GPU time. Diagnostic launches must say
-exactly which historical blocker or new hypothesis they are revisiting.
+Until the trusted user request contains `launch-full-b200`, a non-skip full run
+should stop before training rather than spend GPU time. Diagnostic launches must
+say exactly which historical blocker or new hypothesis they are revisiting.

@@ -14,6 +14,7 @@ fi
 
 source "${SCRIPT_DIR}/rootfs_guard.sh"
 require_modded_nanogpt_rootfs "${SCRIPT_REL}"
+PYTHON_BIN="$(select_modded_nanogpt_python)"
 
 cd "${REPO_ROOT}"
 
@@ -26,4 +27,4 @@ export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-${REPO_ROOT}/experiments/modded_nan
 
 mkdir -p "${TORCHINDUCTOR_CACHE_DIR}" "${TRITON_CACHE_DIR}"
 
-exec python experiments/modded_nanogpt_b200/diagnose_mlp_backend.py "$@"
+exec "${PYTHON_BIN}" experiments/modded_nanogpt_b200/diagnose_mlp_backend.py "$@"

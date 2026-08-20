@@ -52,9 +52,9 @@ def test_scores_all_modes_with_uncalibrated_calibration_state():
     )
 
     assert [score["mode"] for score in inference["mode_scores"]] == list(MODE_LABELS)
-    assert {
-        score["calibration"] for score in inference["mode_scores"]
-    } == {"heuristic_uncalibrated"}
+    assert {score["calibration"] for score in inference["mode_scores"]} == {
+        "heuristic_uncalibrated"
+    }
     assert all(score["advisory"] for score in inference["mode_scores"])
     assert inference["mode_scores"][0]["mode"] == "nominal"
 
@@ -62,7 +62,10 @@ def test_scores_all_modes_with_uncalibrated_calibration_state():
 def test_single_outlier_is_capped_by_robust_residual_scoring():
     baseline = score_fault_modes(
         _summary_with_residuals(
-            [_residual(value, evidence=f"weak-{idx}") for idx, value in enumerate([1.0, 1.1, 0.9])]
+            [
+                _residual(value, evidence=f"weak-{idx}")
+                for idx, value in enumerate([1.0, 1.1, 0.9])
+            ]
         )
     )
     with_outlier = score_fault_modes(
@@ -74,7 +77,10 @@ def test_single_outlier_is_capped_by_robust_residual_scoring():
         )
     )
 
-    assert with_outlier["metadata"]["robust_residual_scoring"]["method"] == "winsorized_abs_residual_mean"
+    assert (
+        with_outlier["metadata"]["robust_residual_scoring"]["method"]
+        == "winsorized_abs_residual_mean"
+    )
     assert with_outlier["metadata"]["robust_residual_scoring"]["cap"] == 6.0
     compute_baseline = _mode_score(baseline, "compute_degradation")
     compute_outlier = _mode_score(with_outlier, "compute_degradation")
@@ -113,9 +119,11 @@ def test_label_specific_mode_scoring_is_robust_to_one_extreme_residual():
     )
 
     assert _mode_score(baseline, "memory_fault") > 0.0
-    assert _mode_score(with_outlier, "memory_fault") - _mode_score(
-        baseline, "memory_fault"
-    ) < 0.35
+    assert (
+        _mode_score(with_outlier, "memory_fault")
+        - _mode_score(baseline, "memory_fault")
+        < 0.35
+    )
     assert _mode_score(with_outlier, "numerical_corruption") < 0.35
 
 
@@ -126,7 +134,10 @@ def test_repeated_weak_residuals_accumulate_cusum_score():
     )
 
     assert repeated_weak["persistent_degradation"]["method"] == "positive_cusum"
-    assert repeated_weak["persistent_degradation"]["score"] > one_weak["persistent_degradation"]["score"]
+    assert (
+        repeated_weak["persistent_degradation"]["score"]
+        > one_weak["persistent_degradation"]["score"]
+    )
     assert _mode_score(repeated_weak, "compute_degradation") > _mode_score(
         one_weak, "compute_degradation"
     )
@@ -168,9 +179,7 @@ def test_sensor_health_states_include_healthy_delayed_biased_stuck_and_missing()
         )
     )
 
-    states = {
-        item["sensor_id"]: item["state"] for item in inference["sensor_health"]
-    }
+    states = {item["sensor_id"]: item["state"] for item in inference["sensor_health"]}
     assert set(states.values()) >= {"healthy", "delayed", "biased", "stuck", "missing"}
     assert states["rank0"] == "healthy"
     assert states["rank1"] == "biased"
@@ -188,9 +197,7 @@ def test_repeated_near_zero_residuals_do_not_imply_stuck_sensor_health():
         )
     )
 
-    states = {
-        item["sensor_id"]: item["state"] for item in inference["sensor_health"]
-    }
+    states = {item["sensor_id"]: item["state"] for item in inference["sensor_health"]}
     assert states["rank0"] == "healthy"
 
 
@@ -211,9 +218,7 @@ def test_explicit_quality_evidence_marks_sensor_stuck():
         )
     )
 
-    states = {
-        item["sensor_id"]: item["state"] for item in inference["sensor_health"]
-    }
+    states = {item["sensor_id"]: item["state"] for item in inference["sensor_health"]}
     assert states["rank0"] == "stuck"
 
 
@@ -322,4 +327,6 @@ def test_ambiguity_warnings_cover_required_non_nominal_modes():
 
 
 def _mode_score(inference, mode):
-    return next(score["score"] for score in inference["mode_scores"] if score["mode"] == mode)
+    return next(
+        score["score"] for score in inference["mode_scores"] if score["mode"] == mode
+    )

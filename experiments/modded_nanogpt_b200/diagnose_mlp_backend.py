@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Run a bounded MLP backend diagnostic under the TorchTitan rootfs."""
 
@@ -8,16 +11,15 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from experiments.modded_nanogpt_b200 import preflight
-from experiments.modded_nanogpt_b200 import cli_guard
+from experiments.modded_nanogpt_b200 import cli_guard, preflight
 
 
 SCHEMA_VERSION = 1
@@ -75,7 +77,9 @@ def parse_args() -> argparse.Namespace:
 def main(*, enforce_rootfs: bool = False) -> int:
     args = parse_args()
     if enforce_rootfs:
-        guard_exit = cli_guard.guard_rootfs_cli("experiments/modded_nanogpt_b200/diagnose_mlp_backend.sh")
+        guard_exit = cli_guard.guard_rootfs_cli(
+            "experiments/modded_nanogpt_b200/diagnose_mlp_backend.sh"
+        )
         if guard_exit is not None:
             return guard_exit
     report = _base_report(args)
@@ -90,7 +94,11 @@ def main(*, enforce_rootfs: bool = False) -> int:
         report["ok"] = True
     except preflight.CheckFailure as exc:
         report["error"] = str(exc)
-        report["failure_class"] = "rootfs" if "TORCHTITAN_IN_ROOTFS" in str(exc) or "rootfs" in str(exc) else "mlp_diagnostic"
+        report["failure_class"] = (
+            "rootfs"
+            if "TORCHTITAN_IN_ROOTFS" in str(exc) or "rootfs" in str(exc)
+            else "mlp_diagnostic"
+        )
         if exc.detail:
             report["detail"] = exc.detail
             if exc.detail.get("failure_class"):

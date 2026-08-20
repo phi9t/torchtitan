@@ -21,9 +21,7 @@ from torchtitan.observability.state_estimator.schema import (
     SCHEMA_VERSION,
     write_json_atomic,
 )
-from torchtitan.observability.state_estimator.topology import (
-    build_topology_snapshot,
-)
+from torchtitan.observability.state_estimator.topology import build_topology_snapshot
 
 
 def _entity(kind: str, id: str, **attrs: Any) -> dict[str, Any]:

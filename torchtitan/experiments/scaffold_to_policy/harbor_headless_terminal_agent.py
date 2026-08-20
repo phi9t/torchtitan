@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Task-specific Harbor agent for the Terminal-Bench headless-terminal smoke.
 
@@ -23,12 +26,11 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 
-_FENCED_CODE_RE = re.compile(
-    r"```(?:python|py)?\s*(.*?)```", re.DOTALL | re.IGNORECASE
-)
+_FENCED_CODE_RE = re.compile(r"```(?:python|py)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 
-_HEADLESS_TERMINAL_IMPL = dedent(
-    """
+_HEADLESS_TERMINAL_IMPL = (
+    dedent(
+        """
     import subprocess
     import time
     import uuid
@@ -55,7 +57,9 @@ _HEADLESS_TERMINAL_IMPL = dedent(
             )
             time.sleep(wait_sec)
     """
-).strip() + "\n"
+    ).strip()
+    + "\n"
+)
 
 _MODEL_PROMPT = dedent(
     """
@@ -248,7 +252,9 @@ def _generate_headless_terminal_code() -> tuple[str, str]:
     )
     env = os.environ.copy()
     env.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
-    with tempfile.NamedTemporaryFile("r", suffix=".json", delete=False) as output_handle:
+    with tempfile.NamedTemporaryFile(
+        "r", suffix=".json", delete=False
+    ) as output_handle:
         output_path = output_handle.name
     try:
         env["SCAFFOLD_TO_POLICY_HARBOR_GENERATION_OUTPUT"] = output_path

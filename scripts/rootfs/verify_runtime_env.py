@@ -18,11 +18,28 @@ from typing import Any
 SCHEMA_VERSION = 1
 WORKSPACE = "/workspace/torchtitan"
 REQUIRED_ENV = {
-    "PATH": "/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
+    "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
     "CUDA_HOME": "/opt/cuda-synth",
     "CUDA_PATH": "/opt/cuda-synth",
     "TORCHTITAN_IN_ROOTFS": "1",
-    "HOME": "/root",
+    "TORCHTITAN_ROOTFS_ENV": "modded_nanogpt_b200",
+    "TORCHTITAN_ROOTFS_PROJECT": WORKSPACE,
+    "TORCHTITAN_ROOTFS_LOG_DIR": "/project/logs",
+    "HOME": "/project/home",
+    "XDG_CACHE_HOME": "/project/xdg-cache",
+    "UV_CACHE_DIR": "/project/uv-cache",
+    "PIP_CACHE_DIR": "/project/pip-cache",
+    "MISE_DATA_DIR": "/project/mise/data",
+    "MISE_CACHE_DIR": "/project/mise/cache",
+    "MISE_CONFIG_DIR": f"{WORKSPACE}/experiments/modded_nanogpt_b200/runtime",
+    "PYTHON": "/project/venvs/b200-runtime/bin/python",
+    "TMPDIR": "/project/tmp",
+    "TEMP": "/project/tmp",
+    "TMP": "/project/tmp",
+    "HF_HOME": f"{WORKSPACE}/.cache/huggingface",
+    "HF_HUB_CACHE": f"{WORKSPACE}/.cache/huggingface/hub",
+    "TORCH_HOME": f"{WORKSPACE}/.cache/torch",
+    "MPLCONFIGDIR": "/project/xdg-cache/matplotlib",
 }
 
 
@@ -50,7 +67,7 @@ def _mount_targets(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for item in _as_list(plan.get("mounts"), "mounts"):
         _require(isinstance(item, dict), "mount entries must be objects")
         target = item.get("target")
-        _require(isinstance(target, str) and target, "mount target is required")
+        _require(bool(isinstance(target, str) and target), "mount target is required")
         mounts[target] = item
     return mounts
 
@@ -77,11 +94,16 @@ def validate_bwrap_plan(plan: dict[str, Any]) -> dict[str, Any]:
     _require(plan.get("schema_version") == SCHEMA_VERSION, "unsupported schema_version")
     rootfs = _as_mapping(plan.get("rootfs"), "rootfs")
     rootfs_path = rootfs.get("path")
-    _require(isinstance(rootfs_path, str) and rootfs_path, "rootfs.path is required")
-    _require(plan.get("cwd") == WORKSPACE, f"cwd must be {WORKSPACE}")
-    _require(plan.get("network_mode") in {"shared", "isolated"}, "invalid network_mode")
     _require(
-        isinstance(plan.get("inner_argv"), list) and plan["inner_argv"],
+        bool(isinstance(rootfs_path, str) and rootfs_path),
+        "rootfs.path is required",
+    )
+    _require(plan.get("cwd") == WORKSPACE, f"cwd must be {WORKSPACE}")
+    _require(
+        plan.get("network_mode") in {"offline", "networked"}, "invalid network_mode"
+    )
+    _require(
+        bool(isinstance(plan.get("inner_argv"), list) and plan["inner_argv"]),
         "inner_argv must be a non-empty list",
     )
 
@@ -93,7 +115,7 @@ def validate_bwrap_plan(plan: dict[str, Any]) -> dict[str, Any]:
     )
     repo_mount = _validate_required_mount(mounts, target=WORKSPACE, kind="bind")
     _require(
-        isinstance(repo_mount.get("source"), str) and repo_mount["source"],
+        bool(isinstance(repo_mount.get("source"), str) and repo_mount["source"]),
         f"{WORKSPACE} mount source is required",
     )
     _validate_required_mount(mounts, target="/proc", kind="proc")
@@ -106,6 +128,15 @@ def validate_bwrap_plan(plan: dict[str, Any]) -> dict[str, Any]:
             environment.get(key) == expected,
             f"{key} expected {expected!r}, found {environment.get(key)!r}",
         )
+    rootfs_store_id = rootfs.get("store_id")
+    _require(
+        bool(isinstance(rootfs_store_id, str) and rootfs_store_id),
+        "rootfs.store_id is required",
+    )
+    _require(
+        environment.get("TORCHTITAN_ROOTFS_STORE_ID") == rootfs_store_id,
+        "TORCHTITAN_ROOTFS_STORE_ID must match rootfs.store_id",
+    )
     _require(
         "NVIDIA_VISIBLE_DEVICES" in environment,
         "NVIDIA_VISIBLE_DEVICES is required",

@@ -112,8 +112,13 @@ def test_legacy_lane_alias_maps_to_experiment_kind(tmp_path: Path):
     ("arm_patch", "message"),
     [
         ({"num_gpus": 3}, "num_gpus must be one of"),
+        ({"num_gpus": True}, "num_gpus must be an integer"),
         ({"num_gpus": 2, "gpu_ids": [0]}, "gpu_ids length"),
         ({"num_gpus": 2, "gpu_ids": [0, 0]}, "duplicate gpu_ids"),
+        ({"num_gpus": 2, "gpu_ids": [0, True]}, "gpu_ids must contain integers"),
+        ({"num_gpus": 2, "gpu_ids": [0, "1"]}, "gpu_ids must contain integers"),
+        ({"num_gpus": 2, "gpu_ids": [-1, 0]}, "gpu_ids must be between 0 and 7"),
+        ({"num_gpus": 2, "gpu_ids": [0, 8]}, "gpu_ids must be between 0 and 7"),
     ],
 )
 def test_rejects_invalid_gpu_ladder_arms(tmp_path: Path, arm_patch: dict, message: str):
@@ -123,6 +128,19 @@ def test_rejects_invalid_gpu_ladder_arms(tmp_path: Path, arm_patch: dict, messag
     _write_spec(spec_path, data)
 
     with pytest.raises(experiment_config.SchemaValidationError, match=message):
+        experiment_config.load_experiment_spec(spec_path)
+
+
+def test_rejects_boolean_schema_version(tmp_path: Path):
+    data = _base_spec()
+    data["schema_version"] = True
+    spec_path = tmp_path / "bad_schema_version.json"
+    _write_spec(spec_path, data)
+
+    with pytest.raises(
+        experiment_config.SchemaValidationError,
+        match="schema_version must be an integer",
+    ):
         experiment_config.load_experiment_spec(spec_path)
 
 
@@ -136,6 +154,99 @@ def test_rejects_duplicate_arm_names(tmp_path: Path):
     _write_spec(spec_path, data)
 
     with pytest.raises(experiment_config.SchemaValidationError, match="duplicate arm"):
+        experiment_config.load_experiment_spec(spec_path)
+
+
+@pytest.mark.parametrize("arms", [[], {"name": "not-a-list"}])
+def test_rejects_missing_or_non_list_arms(tmp_path: Path, arms):
+    data = _base_spec()
+    data["arms"] = arms
+    spec_path = tmp_path / "bad_arms.json"
+    _write_spec(spec_path, data)
+
+    with pytest.raises(
+        experiment_config.SchemaValidationError, match="arms must be a non-empty list"
+    ):
+        experiment_config.load_experiment_spec(spec_path)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["source", "data_manifest", "result_root"],
+)
+def test_rejects_missing_top_level_path_fields(tmp_path: Path, field: str):
+    data = _base_spec()
+    data.pop(field)
+    spec_path = tmp_path / f"missing_{field}.json"
+    _write_spec(spec_path, data)
+
+    with pytest.raises(
+        experiment_config.SchemaValidationError,
+        match=f"{field} must be a non-empty string",
+    ):
+        experiment_config.load_experiment_spec(spec_path)
+
+
+@pytest.mark.parametrize(
+    ("policy_patch", "message"),
+    [
+        ({"rootfs_required": "yes"}, "rootfs_required must be a boolean"),
+        ({"sequential": "yes"}, "sequential must be a boolean"),
+        ({"active_job_policy": "warn"}, "unsupported active_job_policy"),
+    ],
+)
+def test_rejects_invalid_execution_policy_values(
+    tmp_path: Path, policy_patch: dict, message: str
+):
+    data = _base_spec()
+    data["execution_policy"].update(policy_patch)
+    spec_path = tmp_path / "bad_policy.json"
+    _write_spec(spec_path, data)
+
+    with pytest.raises(experiment_config.SchemaValidationError, match=message):
+        experiment_config.load_experiment_spec(spec_path)
+
+
+def test_rejects_unsupported_mode(tmp_path: Path):
+    data = _base_spec()
+    data["defaults"]["mode"] = "benchmark"
+    spec_path = tmp_path / "bad_mode.json"
+    _write_spec(spec_path, data)
+
+    with pytest.raises(
+        experiment_config.SchemaValidationError, match="unsupported mode"
+    ):
+        experiment_config.load_experiment_spec(spec_path)
+
+
+@pytest.mark.parametrize(
+    ("default_patch", "message"),
+    [
+        ({"attention_backend": "sdpa"}, "unsupported attention_backend"),
+        ({"mlp_backend": "cutlass"}, "unsupported mlp_backend"),
+    ],
+)
+def test_rejects_unsupported_backend_values(
+    tmp_path: Path, default_patch: dict, message: str
+):
+    data = _base_spec()
+    data["defaults"].update(default_patch)
+    spec_path = tmp_path / "bad_backend.json"
+    _write_spec(spec_path, data)
+
+    with pytest.raises(experiment_config.SchemaValidationError, match=message):
+        experiment_config.load_experiment_spec(spec_path)
+
+
+def test_rejects_unsupported_compile_policy(tmp_path: Path):
+    data = _base_spec()
+    data["defaults"]["compile_policy"] = "enable_compile"
+    spec_path = tmp_path / "bad_compile_policy.json"
+    _write_spec(spec_path, data)
+
+    with pytest.raises(
+        experiment_config.SchemaValidationError, match="unsupported compile_policy"
+    ):
         experiment_config.load_experiment_spec(spec_path)
 
 
@@ -237,3 +348,83 @@ def test_materialize_plan_derives_harness_values_for_gpu_arm(tmp_path: Path):
     }
     assert arm_plan.to_dict()["observability"]["profile"] == "byterobust"
     json.dumps(plan.to_dict(), sort_keys=True)
+
+
+def test_materialize_plan_marks_active_two_gpu_b200_compatibility_arm_claim_eligible(
+    tmp_path: Path,
+):
+    spec_path = tmp_path / "gpu_ladder.json"
+    data = _base_spec()
+    data["defaults"]["experiment_kind"] = "b200_compatibility"
+    data["defaults"]["mlp_backend"] = "triton"
+    data["arms"] = [
+        {
+            "name": "g2_active",
+            "num_gpus": 2,
+            "gpu_ids": [0, 1],
+        }
+    ]
+    _write_spec(spec_path, data)
+
+    spec = experiment_config.load_experiment_spec(spec_path)
+    arm_plan = experiment_config.materialize_experiment_plan(spec).arms[0]
+
+    assert arm_plan.claim_label == "B200 compatibility patchset"
+    assert arm_plan.claim_eligible is True
+
+
+def test_materialize_plan_keeps_torch_mlp_fallback_claim_ineligible(tmp_path: Path):
+    spec_path = tmp_path / "gpu_ladder.json"
+    data = _base_spec()
+    data["defaults"]["experiment_kind"] = "b200_compatibility"
+    data["defaults"]["mlp_backend"] = "torch"
+    data["arms"] = [
+        {
+            "name": "g2_torch_fallback",
+            "num_gpus": 2,
+            "gpu_ids": [0, 1],
+        }
+    ]
+    _write_spec(spec_path, data)
+
+    spec = experiment_config.load_experiment_spec(spec_path)
+    arm_plan = experiment_config.materialize_experiment_plan(spec).arms[0]
+
+    assert arm_plan.claim_label == "B200 prerequisite torch-MLP fallback"
+    assert arm_plan.claim_eligible is False
+
+
+def test_checked_in_gpu_ladder_config_tracks_current_safe_prerequisite_tuple():
+    spec_path = Path(
+        "experiments/modded_nanogpt_b200/configs/gpu_ladder_prerequisite.json"
+    )
+
+    spec = experiment_config.load_experiment_spec(spec_path)
+    plan = experiment_config.materialize_experiment_plan(spec)
+
+    assert (
+        spec.data_manifest
+        == "experiments/modded_nanogpt_b200/results/full_manifest_refresh_20260816T111021Z/data_manifest.json"
+    )
+    assert spec.execution_policy.rootfs_required is True
+    assert spec.execution_policy.sequential is True
+    assert spec.execution_policy.active_job_policy == "fail_if_active"
+    assert spec.defaults["mode"] == "full"
+    assert spec.defaults["experiment_kind"] == "prerequisite"
+    assert spec.defaults["legacy_lane"] == "B"
+    assert spec.defaults["attention_backend"] == "fa2"
+    assert spec.defaults["mlp_backend"] == "triton"
+    assert spec.defaults["verify_sha"] is True
+    assert [arm.num_gpus for arm in spec.arms] == [1, 2, 4, 8]
+    assert [arm.world_size for arm in spec.arms] == [1, 2, 4, 8]
+    assert spec.arms[1].name == "g2_prerequisite"
+    assert spec.arms[1].legacy_lane == "B"
+    assert spec.arms[1].values["mode"] == "full"
+    assert spec.arms[1].values["attention_backend"] == "fa2"
+    assert spec.arms[1].values["mlp_backend"] == "triton"
+    assert spec.arms[1].values["verify_sha"] is True
+    assert plan.arms[1].visible_devices == "0,1"
+    assert plan.arms[1].torchrun_nproc_per_node == 2
+    assert plan.arms[1].preflight_expected_gpus == 2
+    assert plan.arms[1].claim_label == "B200 compatibility patchset"
+    assert plan.arms[1].claim_eligible is True

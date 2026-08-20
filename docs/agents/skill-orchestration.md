@@ -92,8 +92,9 @@ lasting decisions only in ephemeral material.
 1. Discover skills, then let `ask-matt` confirm the short path and durable
    intent location.
 2. Explore and design to the combined approval criteria; approve the test seam.
-3. Implement visible red-green slices in the current context unless isolation
-   is otherwise required.
+3. Implement visible red-green slices through separately prompted clean-context
+   subagents by default; keep work in the primary context only when the slice is
+   too small to separate or cannot be bounded safely.
 4. Run two-axis review, inspect the diff, and collect fresh completion evidence.
 5. Stop before any Git action that lacks explicit authorization and before
    merge in all cases.
@@ -142,6 +143,8 @@ lasting decisions only in ephemeral material.
 ## Context boundaries
 
 At every phase boundary, `ask-matt` chooses whether to continue, compact, hand
-off, or start a fresh isolated context. Prefer fresh contexts for gated tickets
-and independent review. Context boundaries reduce contamination; they never
-erase durable intent or loosen acceptance criteria.
+off, or start a fresh isolated context. Clean-context subagents are the default
+for discrete implementation, audit, and verification tasks; gated tickets and
+independent review always need an explicit context-boundary decision. Context
+boundaries reduce contamination; they never erase durable intent or loosen
+acceptance criteria.

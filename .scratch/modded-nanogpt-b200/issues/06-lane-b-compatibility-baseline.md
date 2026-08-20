@@ -2,7 +2,7 @@
 
 Type: task
 Status: blocked
-Blocked by: explicit user authorization for full Lane B launch
+Blocked by: trusted user request containing `launch-full-b200`
 
 ## Requirement
 
@@ -23,7 +23,8 @@ Allowed:
 - use repo-local FA2 from `setup_flash_attention.sh`;
 - preserve a `variant_patch.diff`;
 - run diagnostic and smoke attempts through `run_speedrun.sh`;
-- run a full attempt only when explicitly authorized by the user.
+- run a full attempt only when the trusted user request contains
+  `launch-full-b200`.
 
 Excluded:
 
@@ -46,8 +47,9 @@ The Lane B baseline must:
   variants;
 - use `MODDED_NANOGPT_ATTN_BACKEND=fa2` only after the FA2 setup script passes;
 - block `flex` attention for full jobs;
-- require Triton MLP and PyTorch MLP to pass local forward/backward smoke before
-  any full job, and keep PyTorch MLP blocked for full jobs until its known
+- require the selected Triton MLP path to pass local forward/backward smoke
+  before the next full job;
+- keep PyTorch MLP diagnostic-only and blocked for full jobs until its known
   full-job blockers have verified fixes;
 - record whether an attempt is smoke, diagnostic, or full.
 - produce an explicit baseline artifact path before ticket 04 can launch any
@@ -88,14 +90,17 @@ The Lane B baseline must:
   `launch_readiness.json` and `launch_readiness.md`; those artifacts identify
   whether SHA/NCCL/manifest gates are launch-ready while preserving
   `training_launched=false` and excluding the attempt from baseline stats.
-  - `experiments/modded_nanogpt_b200/results/lane_b_full_gate_20260816T001547Z/`
+  - Historical superseded 8x dry gate:
+    `experiments/modded_nanogpt_b200/results/lane_b_full_gate_20260816T001547Z/`
     is a full-mode `--skip-run` gate attempt. It records rootfs, Torch/CUDA,
-    FlashAttention, 8x B200 inventory, Torch primitives, NCCL all-reduce,
-    source policy, full data-manifest SHA verification, and FA2 attention
-    passing. It stops before launch at `mlp_backend`; `launch_readiness.json`
-    records `ready_to_launch=false`, `training_launched=false`,
-    `nccl_checked=true`, `data_manifest_checked=true`, `verified_sha=true`, and
-    `blocked_by=[mlp_backend]`.
+    FlashAttention, historical 8x B200 inventory, Torch primitives, NCCL
+    all-reduce, source policy, full data-manifest SHA verification, and FA2
+    attention passing. It stops before launch at `mlp_backend`;
+    `launch_readiness.json` records `ready_to_launch=false`,
+    `training_launched=false`, `nccl_checked=true`,
+    `data_manifest_checked=true`, `verified_sha=true`, and
+    `blocked_by=[mlp_backend]`. It is not the current active two-GPU
+    prerequisite.
   - The latest `preflight_report.json` preserves the successful local PyTorch
     MLP smoke separately from the full-mode policy block:
     `local_smoke.output_shape=[2, 16, 768]` and
@@ -108,14 +113,16 @@ The Lane B baseline must:
     detail: `backend=triton`, `blocked_kernel=linear_relu_square_kernel`,
     `blocked_arch=sm100`, `failure_class=triton_compile`, and
     `compiler_pass=TritonNvidiaGPUOptimizeTMemLayoutsPass`.
-  - `experiments/modded_nanogpt_b200/results/lane_b_full_gate_triton_20260816T005014Z/`
-    is the current paired full-mode `--skip-run` gate for `mlp_backend=triton`.
-    It records the same rootfs, Torch/CUDA, FlashAttention, 8x B200, Torch
-    primitive, NCCL, source policy, full manifest, and SHA gates as the PyTorch
-    gate, and now also passes the Triton MLP local smoke with
-    `local_smoke.output_shape=[2, 16, 768]`. It stops only because `--skip-run`
-    was requested; `launch_readiness.json` records `ready_to_launch=true`,
-    `training_launched=false`, `launch_authority_required=true`, and
+  - Historical superseded 8x Triton dry gate:
+    `experiments/modded_nanogpt_b200/results/lane_b_full_gate_triton_20260816T005014Z/`
+    was the paired full-mode `--skip-run` gate for `mlp_backend=triton`.
+    It records the same rootfs, Torch/CUDA, FlashAttention, historical 8x B200
+    inventory, Torch primitive, NCCL, source policy, full manifest, and SHA
+    gates as the PyTorch gate, and also passed the Triton MLP local smoke with
+    `local_smoke.output_shape=[2, 16, 768]`. It stopped only because
+    `--skip-run` was requested; `launch_readiness.json` records
+    `ready_to_launch=true`, `training_launched=false`,
+    `launch_authority_required=true`, and
     `blocked_by=[]`.
   - `experiments/modded_nanogpt_b200/results/lane_b_full_authority_guard_20260816T010926Z/`
     reran the same full-mode Triton preflight without `--skip-run` and without
@@ -123,8 +130,9 @@ The Lane B baseline must:
     `ready_to_launch=true`, `training_launched=false`, exit code `21`,
     `blocker.phase=launch_authority`,
     `launch_authorization_required_token=launch-full-b200`, and proves the
-    runner stops before `torchrun` unless
-    `--launch-authorization=launch-full-b200` is present.
+    runner stops before `torchrun` unless the trusted user request contains
+    `launch-full-b200` and the lower-level
+    `--launch-authorization=launch-full-b200` marker is supplied.
   - `experiments/modded_nanogpt_b200/results/lane_b_full_patch_class_guard_20260816T012032Z/`
     reran the same full-mode Triton authority guard after adding structured
     Lane B patch classification. It records the same launch-ready/no-training
@@ -184,9 +192,14 @@ The Lane B baseline must:
     passed, and `python experiments/modded_nanogpt_b200/verify_static.py`
     reported `Static verification passed for 39 file(s).` The overall
     objective remains incomplete: no full Lane A/B baseline exists and full
-    launch still requires explicit user authorization with `launch-full-b200`.
-  - The latest non-launch Lane B full-mode refresh is
-    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_refresh_20260816T111056Z`.
+    launch still requires the trusted user request to contain
+    `launch-full-b200`.
+  - Historical non-launch Lane B full-mode refresh
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_refresh_20260816T111056Z`
+    was superseded for intermediate preflight evidence by
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_ipv4_nccl_refresh_20260819T105321Z`.
+    The strict runtime-env refresh remains the current handoff prerequisite
+    artifact.
     Its summary records `preflight_ok=true`,
     `launch_readiness.ready_to_launch=true`,
     `launch_readiness.training_launched=false`,
@@ -199,27 +212,45 @@ The Lane B baseline must:
     and training was not launched. `attempt.json["command"]["argv"]` and
     `command.argv` include `--skip-run` and do not include
     `--launch-authorization=launch-full-b200`.
-  - The current audit snapshot of
+  - The historical audit snapshot of
     `experiments/modded_nanogpt_b200/results/run_index.json` records
     `total_attempts=24`, `baseline_stats.count=0`,
     `len(launch_prerequisite_attempts)=1`, and
     `len(launch_ready_attempts)=0`. The single prerequisite row points to
     `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_refresh_20260816T111056Z/summary.json`.
-    No full Lane A or Lane B baseline exists, no non-skip launch-ready row
-    exists, no training launch occurred, and a full launch still requires
-    explicit user authorization.
-  - Blocked-state policy: until `launch-full-b200` authorization is supplied or
-    a material input changes, do not re-run equivalent audits, summarizer
-    refreshes, preflights, GPU probes, or launch-readiness checks merely to
-    reconfirm this same blocked state. Cite the latest recorded evidence above
-    and stop at the authorization boundary.
+    No full Lane A or Lane B baseline existed, no non-skip launch-ready row
+    existed, no training launch occurred, and a full launch still required the
+    trusted user request to contain `launch-full-b200`.
+  - Current Task 9 runtime-verification hardening refreshed the non-launch
+    Lane B full-mode prerequisite as
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_refresh_20260819T082841Z/summary.json`.
+    A later IPv4 NCCL rendezvous repair refreshed a non-launch prerequisite as
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_ipv4_nccl_refresh_20260819T105321Z/summary.json`.
+    The later strict runtime-env refresh supersedes it as current handoff
+    evidence:
+    `experiments/modded_nanogpt_b200/results/lane_b_full_skiprun_runtime_env_refresh_20260819T131652Z/summary.json`.
+    A fresh rebuilt run index records `total_attempts=63`,
+    `baseline_stats.count=0`, `len(launch_prerequisite_attempts)=1`, and
+    `len(launch_ready_attempts)=0` under the stricter current runtime-evidence
+    predicate. The latest prerequisite remains
+    prelaunch-only: `ready_to_launch=true`, `training_launched=false`,
+    `skip_run=true`, `blocked_by=[]`, `nccl_checked=true`,
+    rootfs-critical command-env fields, and
+    `runtime_verification.training_launch_allowed=true`. It does not establish
+    a Lane B baseline or authorize the next full launch.
+  - Blocked-state policy: until the trusted user request contains
+    `launch-full-b200` or a material input changes, do not re-run equivalent
+    audits, summarizer refreshes, preflights, GPU probes, or launch-readiness
+    checks merely to reconfirm this same blocked state. Cite the latest
+    recorded evidence above and stop at the authorization boundary.
   - A clean-context subagent later refreshed the ignored real run index through
     the approved rootfs-aware summarizer:
     `experiments/modded_nanogpt_b200/summarize.sh --results-root experiments/modded_nanogpt_b200/results --output experiments/modded_nanogpt_b200/results/run_index.json`,
     which exited `0`. It did not run launch, GPU, training, preflight,
     data-prep, download, pip, CUDA, NCCL, `torchrun`, or full-launch commands.
-    Historical refreshed facts, now superseded by the
-    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh:
+    Historical refreshed facts, later superseded by the
+    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh and no longer
+    current after the strict runtime-env refresh:
     `total_attempts=23`, `baseline_count=0`, `launch_prerequisite_count=0`,
     `launch_ready_count=0`, `launch_readiness_exclusion_stats.count=20`,
     `by_phase.data_manifest_summary.verified_sha.count=11`,
@@ -253,9 +284,10 @@ The Lane B baseline must:
     found no blocking issues, confirmed summarize fail-closed gates remain
     intact, and confirmed `verified_sha` is not inferred from shard hashes.
     After the parser fix, the ignored real index was refreshed through the
-    approved rootfs-aware summarizer. Historical refreshed facts, now
+    approved rootfs-aware summarizer. Historical refreshed facts, later
     superseded by the `lane_b_full_skiprun_refresh_20260816T111056Z` index
-    refresh: `total_attempts=23`, `baseline_count=0`,
+    refresh and no longer current after the strict runtime-env refresh:
+    `total_attempts=23`, `baseline_count=0`,
     `launch_prerequisite_count=0`, `launch_ready_count=0`, `stale_count=20`,
     and `launch_readiness_exclusion_stats.count=20`. Exclusion phases were
     `data_manifest_summary.verified_sha=11`, `launch_readiness=7`, and
@@ -263,7 +295,7 @@ The Lane B baseline must:
     rows with no `launch_readiness_exclusion` phase. Existing resolved
     manifests still lacked top-level `verified_sha`, so those demotions did
     not clear during that historical refresh. The later
-    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh now surfaces
+    `lane_b_full_skiprun_refresh_20260816T111056Z` index refresh surfaced
     one skip-run launch-prerequisite row while keeping
     `launch_ready_attempts` empty. This does not establish a Lane B baseline or
     runtime launch readiness; no launch, GPU, training, preflight, data-prep,

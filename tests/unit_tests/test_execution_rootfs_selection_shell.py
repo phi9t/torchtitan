@@ -45,6 +45,14 @@ def _make_store(root: Path, store_id: str, *, with_marker: bool = True) -> Path:
     entry.mkdir(parents=True)
     if with_marker:
         (entry / MARKER_NAME).write_text(MARKER_VALUE + "\n")
+    (entry / "build_manifest.json").write_text(
+        "{\n"
+        '  "schema_version": 1,\n'
+        '  "kind": "rootfs_build_manifest",\n'
+        f'  "store_id": "{store_id}",\n'
+        '  "mutable_rootfs_allowed": false\n'
+        "}\n"
+    )
     (root / "selected.json").write_text(
         '{\n  "kind": "rootfs_selection",\n' f'  "store_id": "{store_id}"\n}}\n'
     )
@@ -92,6 +100,14 @@ def test_symlinked_entry_is_refused(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / MARKER_NAME).write_text(MARKER_VALUE + "\n")
+    (outside / "build_manifest.json").write_text(
+        "{\n"
+        '  "schema_version": 1,\n'
+        '  "kind": "rootfs_build_manifest",\n'
+        '  "store_id": "rootfs-evil",\n'
+        '  "mutable_rootfs_allowed": false\n'
+        "}\n"
+    )
     link = store / "content" / "rootfs-evil"
     link.symlink_to(outside)
     (store / "selected.json").write_text('{"store_id": "rootfs-evil"}\n')

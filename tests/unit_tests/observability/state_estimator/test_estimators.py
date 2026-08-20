@@ -13,8 +13,8 @@ from torchtitan.observability.state_estimator.estimators import (
     write_belief_summary,
 )
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
     write_artifact_index,
 )
 
@@ -149,9 +149,9 @@ def test_estimator_exposes_advisory_inference_summary():
 
     assert summary["inference"]["claim_calibration"] == "heuristic_uncalibrated"
     assert summary["inference"]["mode_scores"][0]["mode"] == "nominal"
-    assert {
-        score["calibration"] for score in summary["inference"]["mode_scores"]
-    } == {"heuristic_uncalibrated"}
+    assert {score["calibration"] for score in summary["inference"]["mode_scores"]} == {
+        "heuristic_uncalibrated"
+    }
     assert summary["analytical"]["residuals"][0]["normalized_residual"] == 7.9
     assert summary["process_liveness"] == {}
 

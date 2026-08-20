@@ -56,6 +56,11 @@ LEGACY_LANE_TO_EXPERIMENT_KIND = {
     "C": "optimization_ablation",
 }
 OBSERVABILITY_PROFILES = {"tier0", "byterobust", "mycroft", "argus", "eroica"}
+SUPPORTED_ACTIVE_JOB_POLICIES = {"fail_if_active"}
+SUPPORTED_ATTENTION_BACKENDS = {"fa2", "fa3", "flex"}
+SUPPORTED_COMPILE_POLICIES = {"disabled_prerequisite"}
+SUPPORTED_MLP_BACKENDS = {"torch", "triton"}
+SUPPORTED_MODES = {"diagnostic", "full", "smoke"}
 
 
 class SchemaValidationError(ValueError):
@@ -224,6 +229,11 @@ def load_experiment_spec(path: Path) -> ExperimentSpec:
             "full training experiment specs require rootfs_required"
         )
 
+    experiment_id = _require_str(raw, "experiment_id")
+    description = _require_str(raw, "description")
+    source = _require_str(raw, "source")
+    data_manifest = _require_str(raw, "data_manifest")
+    result_root = _require_str(raw, "result_root")
     defaults = _require_mapping(raw, "defaults")
     arms_raw = raw.get("arms")
     if not isinstance(arms_raw, list) or not arms_raw:
@@ -242,19 +252,19 @@ def load_experiment_spec(path: Path) -> ExperimentSpec:
             _parse_arm(
                 raw_arm=raw_arm,
                 defaults=defaults,
-                spec_source=str(raw["source"]),
-                spec_data_manifest=str(raw["data_manifest"]),
-                spec_result_root=str(raw["result_root"]),
+                spec_source=source,
+                spec_data_manifest=data_manifest,
+                spec_result_root=result_root,
             )
         )
 
     return ExperimentSpec(
         schema_version=schema_version,
-        experiment_id=_require_str(raw, "experiment_id"),
-        description=_require_str(raw, "description"),
-        source=_require_str(raw, "source"),
-        data_manifest=_require_str(raw, "data_manifest"),
-        result_root=_require_str(raw, "result_root"),
+        experiment_id=experiment_id,
+        description=description,
+        source=source,
+        data_manifest=data_manifest,
+        result_root=result_root,
         execution_policy=execution_policy,
         defaults=_canonicalize_mapping(defaults),
         arms=tuple(arms),
@@ -315,20 +325,38 @@ def _claim_label(
 
 def _claim_eligible(arm: ExperimentArm) -> bool:
     mode = str(arm.values.get("mode", "full"))
+    attention_backend = str(arm.values.get("attention_backend", "fa3"))
+    mlp_backend = str(arm.values.get("mlp_backend", "triton"))
+    if mode != "full":
+        return False
+    if arm.experiment_kind == "upstream_reproduction":
+        return arm.world_size == 8
+    supported_lane_b_size = (
+        arm.experiment_kind == "b200_compatibility" and arm.world_size in {2, 8}
+    ) or (arm.experiment_kind == "prerequisite" and arm.world_size == 2)
     return (
-        arm.experiment_kind in {"upstream_reproduction", "b200_compatibility"}
-        and arm.world_size == 8
-        and mode == "full"
+        supported_lane_b_size and attention_backend == "fa2" and mlp_backend == "triton"
     )
 
 
 def _parse_execution_policy(raw: Any) -> ExecutionPolicy:
     if not isinstance(raw, dict):
         raise SchemaValidationError("execution_policy must be a JSON object")
+    rootfs_required = raw.get("rootfs_required")
+    if not isinstance(rootfs_required, bool):
+        raise SchemaValidationError("rootfs_required must be a boolean")
+    sequential = raw.get("sequential", True)
+    if not isinstance(sequential, bool):
+        raise SchemaValidationError("sequential must be a boolean")
+    active_job_policy = raw.get("active_job_policy", "fail_if_active")
+    if active_job_policy not in SUPPORTED_ACTIVE_JOB_POLICIES:
+        raise SchemaValidationError(
+            f"unsupported active_job_policy: {active_job_policy}"
+        )
     return ExecutionPolicy(
-        rootfs_required=bool(raw.get("rootfs_required")),
-        sequential=bool(raw.get("sequential", True)),
-        active_job_policy=str(raw.get("active_job_policy", "fail_if_active")),
+        rootfs_required=rootfs_required,
+        sequential=sequential,
+        active_job_policy=active_job_policy,
     )
 
 
@@ -364,6 +392,25 @@ def _parse_arm(
     values["gpu_ids"] = list(gpu_ids)
     values["world_size"] = num_gpus
     values["grad_accum_steps"] = 8 // num_gpus
+
+    mode = str(values.get("mode", "full"))
+    if mode not in SUPPORTED_MODES:
+        raise SchemaValidationError(f"unsupported mode: {mode}")
+    values["mode"] = mode
+    attention_backend = str(values.get("attention_backend", "fa3"))
+    if attention_backend not in SUPPORTED_ATTENTION_BACKENDS:
+        raise SchemaValidationError(
+            f"unsupported attention_backend: {attention_backend}"
+        )
+    values["attention_backend"] = attention_backend
+    mlp_backend = str(values.get("mlp_backend", "triton"))
+    if mlp_backend not in SUPPORTED_MLP_BACKENDS:
+        raise SchemaValidationError(f"unsupported mlp_backend: {mlp_backend}")
+    values["mlp_backend"] = mlp_backend
+    compile_policy = str(values.get("compile_policy", "disabled_prerequisite"))
+    if compile_policy not in SUPPORTED_COMPILE_POLICIES:
+        raise SchemaValidationError(f"unsupported compile_policy: {compile_policy}")
+    values["compile_policy"] = compile_policy
 
     observability_profile = str(values.get("observability_profile", "tier0"))
     if observability_profile not in OBSERVABILITY_PROFILES:
@@ -428,7 +475,12 @@ def _canonical_gpu_ids(raw: Any, num_gpus: int) -> tuple[int, ...]:
         raise SchemaValidationError(
             f"gpu_ids length must equal num_gpus={num_gpus}; got {len(raw)}"
         )
-    gpu_ids = tuple(int(value) for value in raw)
+    for value in raw:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise SchemaValidationError("gpu_ids must contain integers")
+        if value < 0 or value > 7:
+            raise SchemaValidationError("gpu_ids must be between 0 and 7")
+    gpu_ids = tuple(raw)
     if len(set(gpu_ids)) != len(gpu_ids):
         raise SchemaValidationError(f"duplicate gpu_ids are not allowed: {gpu_ids}")
     return gpu_ids
@@ -510,7 +562,7 @@ def _require_str(raw: dict[str, Any], key: str) -> str:
 
 def _require_int(raw: dict[str, Any], key: str) -> int:
     value = raw.get(key)
-    if not isinstance(value, int):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise SchemaValidationError(f"{key} must be an integer")
     return value
 

@@ -7,6 +7,13 @@ Use this workflow for planning, building, fixing, or changing code. The human
 owns architectural authority and merge. Agents receive bounded work, isolated
 execution, and an independent verification budget.
 
+Default to clean-context subagent execution for discrete implementation, audit,
+and verification tasks. The primary context owns intent, sequencing, integration,
+and authority boundaries; each subagent receives a detailed prompt with the
+specific files, constraints, prohibited actions, expected evidence, and handoff
+format. Keep work local only when the task is trivial, inseparable from the
+current context, or when tool support cannot provide an isolated subagent.
+
 When Matt and Superpowers both apply, read
 `docs/agents/skill-orchestration.md`. Load every applicable skill, then execute
 one combined phase under the owner named there. Do not repeat equivalent
@@ -47,6 +54,9 @@ its evidence in the durable ticket before implementation begins.
 Keep the primary context. Define the behavior, implement red-green slices, run
 focused tests, perform the standard two-axis code review, and inspect the final
 diff. Completion requires fresh verification evidence and human-owned merge.
+Use a clean-context subagent for any separable code edit, review, or verification
+slice even on the short path; the primary context may perform small glue edits
+and final integration checks.
 
 ## 3. Bug path
 
@@ -79,8 +89,9 @@ Complete these gates in order:
    evidence. The tracker spec and tickets are canonical; exact file-and-code
    micro-plans remain session-local. Do not duplicate them under
    `docs/superpowers/specs` or `docs/superpowers/plans`.
-5. **Isolated execution:** Implement each ticket in its own worktree. Parallel
-   agents receive non-overlapping tickets and never share a mutable checkout.
+5. **Isolated execution:** Implement each ticket in its own worktree through a
+   clean-context subagent with a detailed prompt. Parallel agents receive
+   non-overlapping tickets and never share a mutable checkout.
 6. **Behavioral proof:** Approve the public test seam once during design or
    specification, then drive every behavior slice with visible red-green
    evidence. Only behavior-preserving cleanup follows green. Run focused tests
@@ -111,6 +122,9 @@ Complete these gates in order:
 - Durable intent is external to prompts, conversations, agent memory, and
   commits.
 - Background and parallel execution stays isolated from the human's checkout.
+- Repeated audit or launch-boundary checks stop when a clean-context verifier
+  confirms the same blocker and no state has changed; report the authority or
+  state change needed instead of dispatching more equivalent audits.
 - Verification has its own budget and may cost as much as implementation when
   risk warrants it, but extending the three-iteration repair budget requires a
   human decision.

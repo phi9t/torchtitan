@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
 )
 from torchtitan.observability.state_estimator.reports import (
     analyze_attempt_report,
@@ -52,9 +52,7 @@ def test_analyze_attempt_report_writes_derived_outputs_outside_raw_evidence(tmp_
         ],
     )
     raw_manifest = attempt_path / "manifest.json"
-    raw_log = (
-        attempt_path / "structured_logs" / "trainer.core.global_rank_000000.jsonl"
-    )
+    raw_log = attempt_path / "structured_logs" / "trainer.core.global_rank_000000.jsonl"
     before_manifest = raw_manifest.read_text()
     before_log = raw_log.read_text()
     output_dir = tmp_path / "operator-output"
@@ -66,10 +64,7 @@ def test_analyze_attempt_report_writes_derived_outputs_outside_raw_evidence(tmp_
     assert artifacts["evidence_graph"].startswith(str(output_dir))
     assert artifacts["belief_summary"].startswith(str(output_dir))
     assert artifacts["operator_report"].startswith(str(output_dir))
-    assert (
-        _read_json(output_dir / "belief_summary.json")["attempt_id"]
-        == "attempt-001"
-    )
+    assert _read_json(output_dir / "belief_summary.json")["attempt_id"] == "attempt-001"
     assert raw_manifest.read_text() == before_manifest
     assert raw_log.read_text() == before_log
     assert not (attempt_path / "derived").exists()
@@ -194,9 +189,5 @@ def test_compare_attempt_reports_keeps_same_attempt_id_from_different_runs(
         assert artifacts["operator_report"].startswith(str(output_dir))
         assert artifacts["operator_report"].endswith("operator_report.md")
         assert artifacts["evidence_graph"].startswith(str(output_dir))
-    assert (
-        output_dir / "first-run" / "attempt-001" / "operator_report.md"
-    ).exists()
-    assert (
-        output_dir / "second-run" / "attempt-001" / "operator_report.md"
-    ).exists()
+    assert (output_dir / "first-run" / "attempt-001" / "operator_report.md").exists()
+    assert (output_dir / "second-run" / "attempt-001" / "operator_report.md").exists()

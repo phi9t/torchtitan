@@ -11,9 +11,19 @@ import os
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
-from experiments.modded_nanogpt_b200 import run_speedrun
+import pytest
+
+from experiments.modded_nanogpt_b200 import preflight, run_speedrun
+
+
+def test_preflight_no_output_timeout_exceeds_inner_subprocess_timeout():
+    assert (
+        run_speedrun.PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS
+        > preflight.SUBPROCESS_TIMEOUT_SECONDS + 10
+    )
 
 
 def _is_fa2_setup_command(cmd: list[str]) -> bool:
@@ -22,6 +32,10 @@ def _is_fa2_setup_command(cmd: list[str]) -> bool:
 
 def _is_preflight_command(cmd: list[str]) -> bool:
     return "experiments/modded_nanogpt_b200/run_preflight.sh" in cmd
+
+
+def _is_kernel_cert_command(cmd: list[str]) -> bool:
+    return "experiments/modded_nanogpt_b200/certify_optimized_kernels.sh" in cmd
 
 
 def _make_source(path: Path) -> None:
@@ -99,6 +113,24 @@ def _write_success_preflight_report(
                         },
                     },
                 ],
+            }
+        )
+        + "\n"
+    )
+
+
+def _write_success_kernel_cert_report(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "schema_name": "optimized_kernel_report",
+                "launch_eligible": True,
+                "report_digest": {"sha256": "a" * 64},
+                "schema_digest": {"path": "schema.json", "sha256": "b" * 64},
+                "rows": [],
+                "blockers": [],
             }
         )
         + "\n"
@@ -464,6 +496,8 @@ def test_full_launch_rejects_bad_source_visible_data_path_before_torchrun(
             "triton",
             "--report",
             str(result_dir / "preflight_report.json"),
+            "--progress",
+            str(result_dir / "preflight_progress.json"),
             "--expected-gpus",
             "2",
             "--verify-sha",
@@ -493,6 +527,11 @@ def test_full_attempt_initial_metadata_is_not_claim_eligible_before_preflight(
     def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
         if "experiments/modded_nanogpt_b200/setup_flash_attention.sh" in cmd:
             return run_speedrun.CommandResult(returncode=0, stdout="fa2 setup ok\n")
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
         _write_success_preflight_report(
             result_dir / "preflight_report.json",
             lane="B",
@@ -535,6 +574,9 @@ def test_full_attempt_initial_metadata_is_not_claim_eligible_before_preflight(
     assert attempt["classification"]["claim_eligible"] is False
     readiness = json.loads((result_dir / "launch_readiness.json").read_text())
     assert readiness["ready_to_launch"] is True
+    assert readiness["classification"]["claim_eligible"] is True
+    summary = json.loads((result_dir / "summary.json").read_text())
+    assert summary["classification"]["claim_eligible"] is True
 
 
 def test_skip_run_attempt_writes_metadata_preflight_and_summary(tmp_path: Path):
@@ -607,6 +649,33 @@ def test_skip_run_attempt_writes_metadata_preflight_and_summary(tmp_path: Path):
     assert "--mlp-backend torch" in command_argv
     assert "--allow-previous-stall" in command_argv
     assert "--skip-run" in command_argv
+    command_argv_json = json.loads((result_dir / "command.argv.json").read_text())
+    assert command_argv_json["schema_version"] == 1
+    assert command_argv_json["kind"] == "command_argv"
+    assert command_argv_json["run_id"] == "lane_b_diag"
+    assert command_argv_json["attempt_id"] == "lane_b_diag_attempt_001"
+    assert command_argv_json["argv"] == run_speedrun._attempt_command(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="diagnostic",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="torch",
+            allow_previous_stall=True,
+            skip_run=True,
+            result_root=tmp_path / "results",
+        )
+    )
+    assert command_argv_json["training_argv"] == [
+        "torchrun",
+        "--standalone",
+        "--nproc_per_node=2",
+        "train_gpt.py",
+    ]
+    assert command_argv_json["argv_digest"]["algorithm"] == "sha256"
+    assert len(command_argv_json["argv_digest"]["sha256"]) == 64
     result_manifest = json.loads((result_dir / "data_manifest.json").read_text())
     assert result_manifest == {
         "schema_version": 1,
@@ -733,6 +802,152 @@ def test_attempt_metadata_redacts_sensitive_environment_values(
     assert "AWS_CREDENTIALS_FILE=<REDACTED>" in env_text
     assert "WANDB_API_KEY=<REDACTED>" in env_text
     assert "SERVICE_AUTH_HEADER=<REDACTED>" in env_text
+
+
+def test_full_skip_run_writes_matching_command_env_digest(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source"
+    _make_source(source)
+    manifest = tmp_path / "data_manifest.json"
+    _make_manifest(manifest)
+    result_dir = tmp_path / "results" / "lane_b_env_digest"
+
+    def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
+        if not _is_preflight_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="setup ok\n")
+        _write_success_preflight_report(
+            result_dir / "preflight_report.json",
+            lane="B",
+            mode="full",
+            run_id="lane_b_env_digest",
+        )
+        return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+
+    def fake_check_active_jobs(output=None):
+        report = {
+            "schema_version": 1,
+            "ok": True,
+            "active_job_count": 0,
+            "active_jobs": [],
+            "ignored_match_count": 0,
+            "ignored_matches": [],
+        }
+        if output is not None:
+            run_speedrun._write_json_atomic(output, report)
+        return report
+
+    monkeypatch.setattr(run_speedrun, "check_active_jobs", fake_check_active_jobs)
+
+    exit_code = run_speedrun.run_attempt(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="full",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="triton",
+            verify_sha=True,
+            skip_run=True,
+            result_root=tmp_path / "results",
+            run_id="lane_b_env_digest",
+        ),
+        command_runner=fake_runner,
+    )
+
+    assert exit_code == 0
+    command_env = json.loads((result_dir / "command.env.json").read_text())
+    runtime_verification = json.loads(
+        (result_dir / "runtime" / "runtime_verification.json").read_text()
+    )
+    readiness = json.loads((result_dir / "launch_readiness.json").read_text())
+    assert command_env["environment"]["TORCHTITAN_IN_ROOTFS"] == "1"
+    assert command_env["environment"]["TORCHTITAN_ROOTFS_PROJECT"] == (
+        "/workspace/torchtitan"
+    )
+    assert command_env["environment"]["TORCHTITAN_ROOTFS_NETWORK"] == "offline"
+    assert command_env["environment"]["PYTHON"] == (
+        "/project/venvs/b200-runtime/bin/python"
+    )
+    digest = command_env["environment_digest"]
+    assert digest["sha256"]
+    assert runtime_verification["command_env_digest"] == digest
+    assert readiness["command_env_digest"] == digest
+    assert readiness["runtime_verification"]["path"] == str(
+        result_dir / "runtime" / "runtime_verification.json"
+    )
+    assert readiness["runtime_verification"]["training_launch_allowed"] is True
+
+
+def test_full_skip_run_command_env_ignores_runtime_venv_override_without_python(
+    tmp_path: Path, monkeypatch
+):
+    source = tmp_path / "source"
+    _make_source(source)
+    manifest = tmp_path / "data_manifest.json"
+    _make_manifest(manifest)
+    result_dir = tmp_path / "results" / "lane_b_env_python_override"
+
+    monkeypatch.delenv("PYTHON", raising=False)
+    monkeypatch.setenv("MODDED_NANOGPT_RUNTIME_VENV", "/tmp/not-rootfs-runtime")
+
+    def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
+        if not _is_preflight_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="setup ok\n")
+        _write_success_preflight_report(
+            result_dir / "preflight_report.json",
+            lane="B",
+            mode="full",
+            run_id="lane_b_env_python_override",
+        )
+        return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+
+    def fake_check_active_jobs(output=None):
+        report = {
+            "schema_version": 1,
+            "ok": True,
+            "active_job_count": 0,
+            "active_jobs": [],
+            "ignored_match_count": 0,
+            "ignored_matches": [],
+        }
+        if output is not None:
+            run_speedrun._write_json_atomic(output, report)
+        return report
+
+    monkeypatch.setattr(run_speedrun, "check_active_jobs", fake_check_active_jobs)
+
+    exit_code = run_speedrun.run_attempt(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="full",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="triton",
+            verify_sha=True,
+            skip_run=True,
+            result_root=tmp_path / "results",
+            run_id="lane_b_env_python_override",
+        ),
+        command_runner=fake_runner,
+    )
+
+    assert exit_code == 0
+    command_env = json.loads((result_dir / "command.env.json").read_text())
+    assert command_env["environment"]["PYTHON"] == (
+        "/project/venvs/b200-runtime/bin/python"
+    )
 
 
 def test_run_attempt_rejects_existing_nonempty_result_dir_before_artifacts(
@@ -941,6 +1156,11 @@ def test_run_attempt_accepts_prelaunch_active_jobs_snapshot_but_rescans(
                 run_id="lane_b_with_prelaunch_scan_snapshot",
             )
             return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
         raise AssertionError(f"training must not start during a skip-run test: {cmd}")
 
     def fake_check_active_jobs(output=None):
@@ -1021,6 +1241,11 @@ def test_run_attempt_accepts_rootfs_launcher_prelaunch_files(
                 run_id="lane_b_full_rootfs_launcher",
             )
             return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
         raise AssertionError(f"training must not start during a skip-run test: {cmd}")
 
     def fake_check_active_jobs(output=None):
@@ -1414,6 +1639,81 @@ def test_preflight_failure_stops_before_training_but_still_writes_summary(
     assert summary["blocker"] == blocker
 
 
+def test_preflight_no_output_timeout_preserves_blocker_and_summary(tmp_path: Path):
+    source = tmp_path / "source"
+    _make_source(source)
+    manifest = tmp_path / "data_manifest.json"
+    _make_manifest(manifest)
+    result_dir = tmp_path / "results" / "lane_b_preflight_timeout"
+    calls: list[list[str]] = []
+
+    def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        calls.append(cmd)
+        if _is_fa2_setup_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="fa2 setup ok\n")
+        assert _is_preflight_command(cmd)
+        assert kwargs["log_path"] == result_dir / "run.log"
+        assert (
+            kwargs["no_output_timeout_seconds"]
+            == run_speedrun.PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS
+        )
+        (result_dir / "preflight_progress.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "active_check": "nccl_all_reduce",
+                    "completed_checks": ["mode_policy", "rootfs"],
+                }
+            )
+            + "\n"
+        )
+        return run_speedrun.CommandResult(
+            returncode=run_speedrun.NO_OUTPUT_TIMEOUT_EXIT_CODE,
+            stdout="",
+        )
+
+    exit_code = run_speedrun.run_attempt(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="full",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="triton",
+            verify_sha=True,
+            result_root=tmp_path / "results",
+        ),
+        command_runner=fake_runner,
+    )
+
+    assert exit_code == run_speedrun.NO_OUTPUT_TIMEOUT_EXIT_CODE
+    assert len(calls) == 2
+    assert not (result_dir / "preflight_report.json").exists()
+    exit_code_record = json.loads((result_dir / "exit_code.json").read_text())
+    assert exit_code_record == {
+        "exit_code": run_speedrun.NO_OUTPUT_TIMEOUT_EXIT_CODE,
+        "phase": "preflight",
+    }
+    blocker = json.loads((result_dir / "blocker.json").read_text())
+    assert blocker == {
+        "phase": "nccl_all_reduce",
+        "message": "preflight produced no output for "
+        f"{run_speedrun.PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS} seconds "
+        "while running nccl_all_reduce",
+    }
+    readiness = json.loads((result_dir / "launch_readiness.json").read_text())
+    assert readiness["ready_to_launch"] is False
+    assert readiness["training_launched"] is False
+    assert readiness["blocked_by"] == [blocker]
+    watcher = json.loads((result_dir / "telemetry" / "watcher_status.json").read_text())
+    assert watcher["state"] == "not_started"
+    assert watcher["reason"] == "preflight_failed"
+    summary = json.loads((result_dir / "summary.json").read_text())
+    assert summary["blocker"] == blocker
+    assert summary["ok"] is False
+
+
 def test_preflight_report_not_ok_stops_even_with_zero_process_exit(tmp_path: Path):
     source = tmp_path / "source"
     _make_source(source)
@@ -1526,6 +1826,11 @@ def test_training_attempt_starts_and_stops_telemetry(tmp_path: Path, monkeypatch
         if _is_fa2_setup_command(cmd):
             return run_speedrun.CommandResult(returncode=0, stdout="fa2 setup ok\n")
         if _is_preflight_command(cmd):
+            assert kwargs["log_path"] == result_dir / "run.log"
+            assert (
+                kwargs["no_output_timeout_seconds"]
+                == run_speedrun.PREFLIGHT_NO_OUTPUT_TIMEOUT_SECONDS
+            )
             (result_dir / "preflight_report.json").write_text(
                 json.dumps(
                     {
@@ -1550,7 +1855,10 @@ def test_training_attempt_starts_and_stops_telemetry(tmp_path: Path, monkeypatch
             return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
         assert kwargs["cwd"] == source
         assert kwargs["log_path"] == result_dir / "run.log"
-        assert kwargs["no_output_timeout_seconds"] == 600
+        assert (
+            kwargs["no_output_timeout_seconds"]
+            == run_speedrun.TRAINING_NO_OUTPUT_TIMEOUT_SECONDS
+        )
         assert kwargs["progress_probe"] is run_speedrun._compile_worker_progress_active
         (result_dir / "run.log").write_text(
             "NCCL communicator abort during all_reduce\n"
@@ -1560,6 +1868,15 @@ def test_training_attempt_starts_and_stops_telemetry(tmp_path: Path, monkeypatch
     class FakeProcess:
         pid = 4321
         returncode = 0
+
+        def terminate(self) -> None:
+            return None
+
+        def wait(self, timeout=None) -> int:
+            return self.returncode
+
+        def kill(self) -> None:
+            return None
 
     def fake_start(config: run_speedrun.RunConfig):
         telemetry_events.append("start")
@@ -1649,6 +1966,8 @@ def test_training_attempt_starts_and_stops_telemetry(tmp_path: Path, monkeypatch
             "torch",
             "--report",
             str(result_dir / "preflight_report.json"),
+            "--progress",
+            str(result_dir / "preflight_progress.json"),
             "--expected-gpus",
             "2",
             "--allow-previous-stall",
@@ -1736,6 +2055,11 @@ def test_full_attempt_limits_setup_preflight_and_training_to_first_two_gpus(
                 run_id="lane_b_full_gpu_mask",
             )
             return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
         assert cmd == ["torchrun", "--standalone", "--nproc_per_node=2", "train_gpt.py"]
         assert kwargs["cwd"] == source
         return run_speedrun.CommandResult(returncode=0, stdout="training ok\n")
@@ -1797,13 +2121,13 @@ def test_full_attempt_limits_setup_preflight_and_training_to_first_two_gpus(
     )
 
     assert exit_code == 0
-    assert [env["CUDA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 3
-    assert [env["NVIDIA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 3
+    assert [env["CUDA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 4
+    assert [env["NVIDIA_VISIBLE_DEVICES"] for env in command_envs] == ["0,1"] * 4
     assert [env["MODDED_NANOGPT_COMPILE_FULLGRAPH"] for env in command_envs] == [
         "0"
-    ] * 3
-    assert [env["TORCH_COMPILE_DISABLE"] for env in command_envs] == ["1"] * 3
-    assert [env["MODDED_NANOGPT_MLP_BACKEND"] for env in command_envs] == ["torch"] * 3
+    ] * 4
+    assert [env["TORCH_COMPILE_DISABLE"] for env in command_envs] == ["1"] * 4
+    assert [env["MODDED_NANOGPT_MLP_BACKEND"] for env in command_envs] == ["torch"] * 4
     env_text = (result_dir / "command.env").read_text()
     assert "CUDA_VISIBLE_DEVICES=0,1" in env_text
     assert "NVIDIA_VISIBLE_DEVICES=0,1" in env_text
@@ -1871,6 +2195,11 @@ def test_full_attempt_honors_explicit_gpu_count_and_ids(tmp_path: Path, monkeypa
                 run_id="lane_b_full_gpu_ids",
             )
             return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
         assert cmd == ["torchrun", "--standalone", "--nproc_per_node=4", "train_gpt.py"]
         return run_speedrun.CommandResult(returncode=0, stdout="training ok\n")
 
@@ -1911,8 +2240,8 @@ def test_full_attempt_honors_explicit_gpu_count_and_ids(tmp_path: Path, monkeypa
     assert exit_code == 0
     expected_gpus_index = calls[1].index("--expected-gpus")
     assert calls[1][expected_gpus_index + 1] == "4"
-    assert [env["CUDA_VISIBLE_DEVICES"] for env in command_envs] == ["0,2,4,6"] * 3
-    assert [env["NVIDIA_VISIBLE_DEVICES"] for env in command_envs] == ["0,2,4,6"] * 3
+    assert [env["CUDA_VISIBLE_DEVICES"] for env in command_envs] == ["0,2,4,6"] * 4
+    assert [env["NVIDIA_VISIBLE_DEVICES"] for env in command_envs] == ["0,2,4,6"] * 4
     attempt = json.loads((result_dir / "attempt.json").read_text())
     assert attempt["command"]["training_argv"] == [
         "torchrun",
@@ -1933,9 +2262,31 @@ def test_full_skip_run_writes_launch_readiness_report(tmp_path: Path, monkeypatc
     manifest = tmp_path / "data_manifest.json"
     _make_manifest(manifest)
     result_dir = tmp_path / "results" / "lane_b_full_gate"
+    calls: list[list[str]] = []
 
     def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        calls.append(cmd)
         assert "torchrun" not in cmd, "training command should not run for skip-run"
+        if _is_kernel_cert_command(cmd):
+            (result_dir / "runtime" / "optimized_kernel_report.json").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (result_dir / "runtime" / "optimized_kernel_report.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "schema_name": "optimized_kernel_report",
+                        "launch_eligible": True,
+                        "report_digest": {"sha256": "a" * 64},
+                        "rows": [],
+                        "blockers": [],
+                    }
+                )
+                + "\n"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
+        if not _is_preflight_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="setup ok\n")
         (result_dir / "preflight_report.json").write_text(
             json.dumps(
                 {
@@ -2004,6 +2355,8 @@ def test_full_skip_run_writes_launch_readiness_report(tmp_path: Path, monkeypatc
     )
 
     assert exit_code == 0
+    assert any(_is_preflight_command(cmd) for cmd in calls)
+    assert any(_is_kernel_cert_command(cmd) for cmd in calls)
     report = json.loads((result_dir / "launch_readiness.json").read_text())
     assert report["ready_to_launch"] is True
     assert report["training_launched"] is False
@@ -2016,6 +2369,8 @@ def test_full_skip_run_writes_launch_readiness_report(tmp_path: Path, monkeypatc
     assert report["blocked_by"] == []
     assert report["full_mode_gates"]["verified_sha"] is True
     assert report["full_mode_gates"]["nccl_checked"] is True
+    assert report["full_mode_gates"]["optimized_kernel_certified"] is True
+    assert report["optimized_kernel_report"]["report_digest"]["sha256"] == "a" * 64
     assert report["full_mode_gates"]["manifest_token_budget"] == "900M"
     active_jobs = json.loads((result_dir / "active_jobs.json").read_text())
     assert active_jobs["ok"] is True
@@ -2506,6 +2861,198 @@ def test_full_launch_reports_active_job_scan_failure_as_blocker(
     assert readiness["blocked_by"] == [blocker]
 
 
+def _write_runtime_verification_without_training_launch_allowed(path: Path) -> None:
+    command_env = json.loads((path.parent.parent / "command.env.json").read_text())
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "runtime_verification",
+                "ok": True,
+                "command_env_digest": command_env["environment_digest"],
+            }
+        )
+        + "\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("case", "mutate_runtime_verification", "message_fragment"),
+    [
+        (
+            "missing",
+            lambda path: path.unlink(),
+            "runtime verification report is missing",
+        ),
+        (
+            "malformed",
+            lambda path: path.write_text("{not json\n"),
+            "runtime verification report is not valid JSON",
+        ),
+        (
+            "not_ok",
+            lambda path: path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "kind": "runtime_verification",
+                        "ok": False,
+                        "command_env_digest": {
+                            "algorithm": "sha256",
+                            "sha256": "0" * 64,
+                        },
+                    }
+                )
+                + "\n"
+            ),
+            "runtime verification did not pass",
+        ),
+        (
+            "stale_digest",
+            lambda path: path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "kind": "runtime_verification",
+                        "ok": True,
+                        "command_env_digest": {
+                            "algorithm": "sha256",
+                            "sha256": "0" * 64,
+                        },
+                    }
+                )
+                + "\n"
+            ),
+            "runtime verification command env digest does not match",
+        ),
+        (
+            "missing_training_launch_allowed",
+            _write_runtime_verification_without_training_launch_allowed,
+            "runtime verification did not allow training launch",
+        ),
+    ],
+)
+def test_full_launch_fails_closed_on_invalid_runtime_verification(
+    tmp_path: Path, monkeypatch, case, mutate_runtime_verification, message_fragment
+):
+    source = tmp_path / "source"
+    _make_source(source)
+    manifest = tmp_path / "data_manifest.json"
+    _make_manifest(manifest)
+    data_dir = tmp_path / "data" / "fineweb10B"
+    data_dir.mkdir(parents=True)
+    (data_dir / "fineweb_train_000000.bin").write_bytes(b"train")
+    (data_dir / "fineweb_val_000000.bin").write_bytes(b"val")
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "dataset": "fineweb10B",
+                "token_budget": "900M",
+                "files": [
+                    {
+                        "path": str(data_dir / "fineweb_train_000000.bin"),
+                        "bytes": 5,
+                        "sha256": "abc",
+                    },
+                    {
+                        "path": str(data_dir / "fineweb_val_000000.bin"),
+                        "bytes": 3,
+                        "sha256": "def",
+                    },
+                ],
+            }
+        )
+        + "\n"
+    )
+    result_dir = tmp_path / "results" / f"lane_b_full_runtime_{case}"
+    calls: list[list[str]] = []
+    telemetry_started = False
+    original_write_runtime_verification = run_speedrun._write_runtime_verification
+
+    def fake_runner(cmd: list[str], **kwargs) -> run_speedrun.CommandResult:
+        calls.append(cmd)
+        if _is_fa2_setup_command(cmd):
+            return run_speedrun.CommandResult(returncode=0, stdout="fa2 setup ok\n")
+        if _is_preflight_command(cmd):
+            _write_success_preflight_report(
+                result_dir / "preflight_report.json",
+                lane="B",
+                mode="full",
+                run_id=f"lane_b_full_runtime_{case}",
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="preflight ok\n")
+        if _is_kernel_cert_command(cmd):
+            _write_success_kernel_cert_report(
+                result_dir / "runtime" / "optimized_kernel_report.json"
+            )
+            return run_speedrun.CommandResult(returncode=0, stdout="kernel cert ok\n")
+        if cmd == ["torchrun", "--standalone", "--nproc_per_node=2", "train_gpt.py"]:
+            return run_speedrun.CommandResult(returncode=0, stdout="train ok\n")
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    def fake_check_active_jobs(output=None):
+        report = {
+            "schema_version": 1,
+            "ok": True,
+            "active_job_count": 0,
+            "active_jobs": [],
+            "ignored_match_count": 0,
+            "ignored_matches": [],
+        }
+        if output is not None:
+            run_speedrun._write_json_atomic(output, report)
+        return report
+
+    def fake_write_runtime_verification(config, command_env_record):
+        original_write_runtime_verification(config, command_env_record)
+        mutate_runtime_verification(
+            config.result_dir / "runtime" / "runtime_verification.json"
+        )
+
+    def fake_start_telemetry(config):
+        nonlocal telemetry_started
+        telemetry_started = True
+        return []
+
+    monkeypatch.setattr(run_speedrun, "check_active_jobs", fake_check_active_jobs)
+    monkeypatch.setattr(
+        run_speedrun, "_write_runtime_verification", fake_write_runtime_verification
+    )
+    monkeypatch.setattr(run_speedrun, "_start_telemetry", fake_start_telemetry)
+
+    exit_code = run_speedrun.run_attempt(
+        run_speedrun.RunConfig(
+            lane="B",
+            mode="full",
+            source=source,
+            data_manifest=manifest,
+            result_dir=result_dir,
+            attention_backend="fa2",
+            mlp_backend="triton",
+            verify_sha=True,
+            launch_authorization=run_speedrun.FULL_LAUNCH_AUTHORIZATION_TOKEN,
+            result_root=tmp_path / "results",
+            run_id=f"lane_b_full_runtime_{case}",
+        ),
+        command_runner=fake_runner,
+    )
+
+    assert exit_code == 21
+    assert not telemetry_started
+    assert any(_is_kernel_cert_command(cmd) for cmd in calls)
+    assert all("torchrun" not in cmd for cmd in calls)
+    blocker = json.loads((result_dir / "blocker.json").read_text())
+    assert blocker["phase"] == "runtime_verification"
+    assert message_fragment in blocker["message"]
+    exit_code_record = json.loads((result_dir / "exit_code.json").read_text())
+    assert exit_code_record == {"exit_code": 21, "phase": "runtime_verification"}
+    readiness = json.loads((result_dir / "launch_readiness.json").read_text())
+    assert readiness["ready_to_launch"] is False
+    assert readiness["training_launched"] is False
+    assert readiness["blocked_by"] == [blocker]
+
+
 def test_full_preflight_failure_does_not_invent_unchecked_manifest_blocker(
     tmp_path: Path,
 ):
@@ -2607,6 +3154,43 @@ def test_default_runner_times_out_when_log_is_silent(tmp_path: Path):
 
     assert result.returncode == run_speedrun.NO_OUTPUT_TIMEOUT_EXIT_CODE
     assert "no output for 0.1 seconds; terminating command" in log_path.read_text()
+
+
+def test_default_runner_timeout_terminates_child_process_group(tmp_path: Path):
+    log_path = tmp_path / "run.log"
+    child_pid_path = tmp_path / "child.pid"
+    script = tmp_path / "spawn_child.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            from pathlib import Path
+            import subprocess
+            import time
+
+            proc = subprocess.Popen([{sys.executable!r}, "-c", "import time; time.sleep(30)"])
+            Path({str(child_pid_path)!r}).write_text(str(proc.pid))
+            print("child spawned", flush=True)
+            time.sleep(30)
+            """
+        )
+    )
+
+    result = run_speedrun._default_runner(
+        [sys.executable, str(script)],
+        log_path=log_path,
+        no_output_timeout_seconds=0.2,
+    )
+
+    assert result.returncode == run_speedrun.NO_OUTPUT_TIMEOUT_EXIT_CODE
+    child_pid = int(child_pid_path.read_text())
+    for _ in range(20):
+        try:
+            os.kill(child_pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail(f"child process still alive after timeout: {child_pid}")
 
 
 def test_start_telemetry_captures_dcgm_when_command_is_available(

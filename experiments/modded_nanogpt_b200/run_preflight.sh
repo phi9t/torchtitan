@@ -14,6 +14,7 @@ fi
 
 source "${SCRIPT_DIR}/rootfs_guard.sh"
 require_modded_nanogpt_rootfs "${SCRIPT_REL}"
+PYTHON_BIN="$(select_modded_nanogpt_python)"
 
 cd "${REPO_ROOT}"
 
@@ -35,4 +36,4 @@ for arg in "$@"; do
   fi
 done
 
-exec python experiments/modded_nanogpt_b200/preflight.py "$@"
+exec "${PYTHON_BIN}" experiments/modded_nanogpt_b200/preflight.py "$@"

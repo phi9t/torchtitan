@@ -1,5 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
 
 """Audit helpers for scaffold-to-policy benchmark evidence.
 
@@ -9,11 +12,12 @@ artifacts and does not rerun model generation, training, or external harnesses.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
+from collections.abc import Iterable
+
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 from torchtitan.experiments.execution import models
 
@@ -205,10 +209,14 @@ def _audit_metrics(
         return
     splits = metrics.get("splits")
     if splits is None:
-        findings.append(_warn("report.metrics.splits", "report has no split metrics", path))
+        findings.append(
+            _warn("report.metrics.splits", "report has no split metrics", path)
+        )
         return
     if not isinstance(splits, dict):
-        findings.append(_fail("report.metrics.splits", "metrics.splits is not an object", path))
+        findings.append(
+            _fail("report.metrics.splits", "metrics.splits is not an object", path)
+        )
         return
 
     for split_name, summary in splits.items():
@@ -235,18 +243,34 @@ def _audit_split_summary(
     pass_at_k = summary.get("pass_at_k")
     if not isinstance(num_problems, int) or num_problems < 0:
         findings.append(
-            _fail("report.metrics.num_problems", f"{split_name} has invalid num_problems", path)
+            _fail(
+                "report.metrics.num_problems",
+                f"{split_name} has invalid num_problems",
+                path,
+            )
         )
     if not isinstance(total_rollouts, int) or total_rollouts < 0:
         findings.append(
-            _fail("report.metrics.total_rollouts", f"{split_name} has invalid total_rollouts", path)
+            _fail(
+                "report.metrics.total_rollouts",
+                f"{split_name} has invalid total_rollouts",
+                path,
+            )
         )
     if not isinstance(pass_at_k, dict):
         findings.append(
-            _fail("report.metrics.pass_at_k", f"{split_name} has no pass_at_k object", path)
+            _fail(
+                "report.metrics.pass_at_k",
+                f"{split_name} has no pass_at_k object",
+                path,
+            )
         )
         return
-    if isinstance(num_problems, int) and num_problems > 0 and isinstance(total_rollouts, int):
+    if (
+        isinstance(num_problems, int)
+        and num_problems > 0
+        and isinstance(total_rollouts, int)
+    ):
         rollouts_per_problem = total_rollouts // num_problems
         over_budget = []
         for key in pass_at_k:
@@ -254,7 +278,11 @@ def _audit_split_summary(
                 k = int(key)
             except ValueError:
                 findings.append(
-                    _fail("report.metrics.pass_at_k", f"{split_name} has non-integer pass@k key {key!r}", path)
+                    _fail(
+                        "report.metrics.pass_at_k",
+                        f"{split_name} has non-integer pass@k key {key!r}",
+                        path,
+                    )
                 )
                 continue
             if k > rollouts_per_problem:
@@ -269,7 +297,11 @@ def _audit_split_summary(
             )
         else:
             findings.append(
-                _pass("report.pass_at_k_budget", f"{split_name} pass@k fits rollout budget", path)
+                _pass(
+                    "report.pass_at_k_budget",
+                    f"{split_name} pass@k fits rollout budget",
+                    path,
+                )
             )
 
 
@@ -282,11 +314,15 @@ def _audit_artifact_records(
 ) -> None:
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, dict):
-        findings.append(_warn("report.artifacts", "report has no artifacts object", path))
+        findings.append(
+            _warn("report.artifacts", "report has no artifacts object", path)
+        )
         return
     records = list(_iter_artifact_records(artifacts))
     if not records:
-        findings.append(_warn("report.artifacts.records", "report has no artifact records", path))
+        findings.append(
+            _warn("report.artifacts.records", "report has no artifact records", path)
+        )
         return
     missing = []
     unlabeled = []
@@ -332,15 +368,27 @@ def _audit_artifact_records(
                     digest_mismatches.append(record)
     if missing:
         findings.append(
-            _fail("report.artifacts.missing", f"{len(missing)} referenced artifacts are missing", path)
+            _fail(
+                "report.artifacts.missing",
+                f"{len(missing)} referenced artifacts are missing",
+                path,
+            )
         )
     if unlabeled:
         findings.append(
-            _fail("report.artifacts.unlabeled", f"{len(unlabeled)} artifact records lack run binding", path)
+            _fail(
+                "report.artifacts.unlabeled",
+                f"{len(unlabeled)} artifact records lack run binding",
+                path,
+            )
         )
     if unhashed:
         findings.append(
-            _fail("report.artifacts.unhashed", f"{len(unhashed)} existing artifact records lack sha256", path)
+            _fail(
+                "report.artifacts.unhashed",
+                f"{len(unhashed)} existing artifact records lack sha256",
+                path,
+            )
         )
     if digest_mismatches:
         findings.append(
@@ -384,7 +432,11 @@ def _audit_artifact_records(
         and not binding_mismatches
     ):
         findings.append(
-            _pass("report.artifacts", f"{len(records)} artifact records are present and labeled", path)
+            _pass(
+                "report.artifacts",
+                f"{len(records)} artifact records are present and labeled",
+                path,
+            )
         )
 
 
@@ -410,7 +462,9 @@ def _valid_run_binding(
     if recorded_payload_binding != payload_contains_run_id:
         return False
     expected_status = (
-        "fresh" if path_contains_run_id or payload_contains_run_id else "reused_or_unscoped"
+        "fresh"
+        if path_contains_run_id or payload_contains_run_id
+        else "reused_or_unscoped"
     )
     if run_binding.get("status") != expected_status:
         return False
@@ -428,18 +482,34 @@ def _audit_attempt_identity(
     manifest_attempt = manifest.get("attempt")
     run_id = manifest_run.get("run_id") if isinstance(manifest_run, dict) else None
     attempt_id = (
-        manifest_attempt.get("attempt_id") if isinstance(manifest_attempt, dict) else None
+        manifest_attempt.get("attempt_id")
+        if isinstance(manifest_attempt, dict)
+        else None
     )
     if not isinstance(run_id, str) or not run_id:
         findings.append(_fail("attempt.run_id", "manifest has no run.run_id", path))
     if not isinstance(attempt_id, str) or not attempt_id:
-        findings.append(_fail("attempt.attempt_id", "manifest has no attempt.attempt_id", path))
+        findings.append(
+            _fail("attempt.attempt_id", "manifest has no attempt.attempt_id", path)
+        )
     if isinstance(attempt_id, str) and outcome.get("attempt_id") != attempt_id:
-        findings.append(_fail("attempt.identity", "outcome attempt_id does not match manifest", path))
+        findings.append(
+            _fail(
+                "attempt.identity", "outcome attempt_id does not match manifest", path
+            )
+        )
     if report is not None and isinstance(run_id, str) and _run_id(report) != run_id:
-        findings.append(_fail("attempt.identity", "report run_id does not match manifest", path))
+        findings.append(
+            _fail("attempt.identity", "report run_id does not match manifest", path)
+        )
     if isinstance(run_id, str) and isinstance(attempt_id, str):
-        findings.append(_pass("attempt.identity", "manifest, outcome, and report identities match", path))
+        findings.append(
+            _pass(
+                "attempt.identity",
+                "manifest, outcome, and report identities match",
+                path,
+            )
+        )
 
 
 def _audit_attempt_outcome(
@@ -449,23 +519,41 @@ def _audit_attempt_outcome(
 ) -> None:
     execution_outcome = outcome.get("execution_outcome")
     if execution_outcome not in models.ATTEMPT_EXECUTION_OUTCOMES:
-        findings.append(_fail("attempt.outcome", "invalid attempt execution_outcome", path))
+        findings.append(
+            _fail("attempt.outcome", "invalid attempt execution_outcome", path)
+        )
     evaluations = outcome.get("evaluations")
     if not isinstance(evaluations, dict) or not evaluations:
-        findings.append(_fail("attempt.evaluations", "outcome has no evaluations object", path))
+        findings.append(
+            _fail("attempt.evaluations", "outcome has no evaluations object", path)
+        )
         return
     for name, status in evaluations.items():
         if not isinstance(status, dict):
-            findings.append(_fail("attempt.evaluations", f"{name} status is not an object", path))
+            findings.append(
+                _fail("attempt.evaluations", f"{name} status is not an object", path)
+            )
             continue
         try:
             models.ConditionStatus(**status)
         except TypeError as exc:
-            findings.append(_fail("attempt.evaluations", f"{name} status has invalid fields: {exc}", path))
+            findings.append(
+                _fail(
+                    "attempt.evaluations",
+                    f"{name} status has invalid fields: {exc}",
+                    path,
+                )
+            )
         except ValueError as exc:
-            findings.append(_fail("attempt.evaluations", f"{name} status is invalid: {exc}", path))
-    if not any(f.audit_id == "attempt.evaluations" and f.status == "fail" for f in findings):
-        findings.append(_pass("attempt.evaluations", "all condition statuses are valid", path))
+            findings.append(
+                _fail("attempt.evaluations", f"{name} status is invalid: {exc}", path)
+            )
+    if not any(
+        f.audit_id == "attempt.evaluations" and f.status == "fail" for f in findings
+    ):
+        findings.append(
+            _pass("attempt.evaluations", "all condition statuses are valid", path)
+        )
 
 
 def _audit_event_stream(
@@ -485,12 +573,16 @@ def _audit_event_stream(
             row = json.loads(line)
         except json.JSONDecodeError as exc:
             findings.append(
-                _fail("attempt.events", f"invalid JSON on line {line_number}: {exc}", path)
+                _fail(
+                    "attempt.events", f"invalid JSON on line {line_number}: {exc}", path
+                )
             )
             return
         if not isinstance(row, dict):
             findings.append(
-                _fail("attempt.events", f"event line {line_number} is not an object", path)
+                _fail(
+                    "attempt.events", f"event line {line_number} is not an object", path
+                )
             )
             return
         rows.append(row)
@@ -503,21 +595,31 @@ def _audit_event_stream(
         invocation_id = row.get("stage_invocation_id")
         stage_id = row.get("stage_id")
         if kind not in models.STAGE_EVENT_KINDS:
-            findings.append(_fail("attempt.events", f"unknown event kind {kind!r}", path))
+            findings.append(
+                _fail("attempt.events", f"unknown event kind {kind!r}", path)
+            )
             return
         if not isinstance(invocation_id, str) or not invocation_id:
-            findings.append(_fail("attempt.events", "event missing stage_invocation_id", path))
+            findings.append(
+                _fail("attempt.events", "event missing stage_invocation_id", path)
+            )
             return
         if not isinstance(stage_id, str) or not stage_id:
             findings.append(_fail("attempt.events", "event missing stage_id", path))
             return
         if kind == "stage_started":
             if invocation_id in started:
-                findings.append(_fail("attempt.events", "duplicate stage_started event", path))
+                findings.append(
+                    _fail("attempt.events", "duplicate stage_started event", path)
+                )
                 return
             if invocation_id in terminal:
                 findings.append(
-                    _fail("attempt.events", "stage_started appears after terminal event", path)
+                    _fail(
+                        "attempt.events",
+                        "stage_started appears after terminal event",
+                        path,
+                    )
                 )
                 return
             started[invocation_id] = row
@@ -525,27 +627,41 @@ def _audit_event_stream(
         else:
             if invocation_id not in started:
                 findings.append(
-                    _fail("attempt.events", "terminal event appears before stage_started", path)
+                    _fail(
+                        "attempt.events",
+                        "terminal event appears before stage_started",
+                        path,
+                    )
                 )
                 return
             if invocation_id in terminal:
-                findings.append(_fail("attempt.events", "duplicate terminal stage event", path))
+                findings.append(
+                    _fail("attempt.events", "duplicate terminal stage event", path)
+                )
                 return
             if started[invocation_id].get("stage_id") != stage_id:
                 findings.append(
-                    _fail("attempt.events", "terminal stage_id does not match start", path)
+                    _fail(
+                        "attempt.events", "terminal stage_id does not match start", path
+                    )
                 )
                 return
             terminal[invocation_id] = row
 
     if set(started) != set(terminal):
         findings.append(
-            _fail("attempt.events", "stage_started and terminal events are not paired", path)
+            _fail(
+                "attempt.events",
+                "stage_started and terminal events are not paired",
+                path,
+            )
         )
         return
     if len(ordered_invocations) != len(set(ordered_invocations)):
         findings.append(
-            _fail("attempt.events", "duplicate stage_invocation_ids in event stream", path)
+            _fail(
+                "attempt.events", "duplicate stage_invocation_ids in event stream", path
+            )
         )
         return
     outcome_invocations = outcome.get("stage_invocation_ids")
@@ -580,7 +696,9 @@ def _load_required_object(
     scope: str,
 ) -> dict[str, object] | None:
     if not path.is_file():
-        findings.append(_fail(f"{scope}.missing", "missing required JSON artifact", path))
+        findings.append(
+            _fail(f"{scope}.missing", "missing required JSON artifact", path)
+        )
         return None
     return _load_object(path, findings, scope=scope)
 
@@ -624,16 +742,24 @@ def _iter_artifact_records(value: object):
             yield from _iter_artifact_records(child)
 
 
-def _pass(audit_id: str, message: str, path: Path, *, scope: str = "report") -> AuditFinding:
+def _pass(
+    audit_id: str, message: str, path: Path, *, scope: str = "report"
+) -> AuditFinding:
     return AuditFinding(audit_id, "pass", scope, message, str(path))
 
 
-def _warn(audit_id: str, message: str, path: Path, *, scope: str = "report") -> AuditFinding:
+def _warn(
+    audit_id: str, message: str, path: Path, *, scope: str = "report"
+) -> AuditFinding:
     return AuditFinding(audit_id, "warn", scope, message, str(path))
 
 
-def _fail(audit_id: str, message: str, path: Path | None, *, scope: str = "report") -> AuditFinding:
-    return AuditFinding(audit_id, "fail", scope, message, None if path is None else str(path))
+def _fail(
+    audit_id: str, message: str, path: Path | None, *, scope: str = "report"
+) -> AuditFinding:
+    return AuditFinding(
+        audit_id, "fail", scope, message, None if path is None else str(path)
+    )
 
 
 def _sha256(path: Path) -> str:
@@ -650,7 +776,9 @@ def _payload_contains_run_id(payload: object | None, run_id: str) -> bool:
     if isinstance(payload, str):
         return payload == run_id or run_id in payload
     if isinstance(payload, dict):
-        return any(_payload_contains_run_id(value, run_id) for value in payload.values())
+        return any(
+            _payload_contains_run_id(value, run_id) for value in payload.values()
+        )
     if isinstance(payload, list):
         return any(_payload_contains_run_id(value, run_id) for value in payload)
     return False

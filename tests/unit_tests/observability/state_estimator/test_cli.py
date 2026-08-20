@@ -13,8 +13,8 @@ from pathlib import Path
 
 from torchtitan.observability.state_estimator.cli import analyze_attempt
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
 )
 
 
@@ -172,12 +172,8 @@ def test_cli_analyze_run_reports_every_attempt_under_run_path(tmp_path):
     assert payload["attempt_count"] == 2
     assert set(payload["attempts"]) == {"attempt-001", "attempt-002"}
     assert payload["artifacts"]["run_report"] == str(output_dir / "run_report.md")
-    assert Path(
-        payload["attempt_artifacts"]["attempt-001"]["operator_report"]
-    ).exists()
-    assert Path(
-        payload["attempt_artifacts"]["attempt-002"]["operator_report"]
-    ).exists()
+    assert Path(payload["attempt_artifacts"]["attempt-001"]["operator_report"]).exists()
+    assert Path(payload["attempt_artifacts"]["attempt-002"]["operator_report"]).exists()
     assert not (first_attempt / "derived").exists()
     assert not (second_attempt / "derived").exists()
 

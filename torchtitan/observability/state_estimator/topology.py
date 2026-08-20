@@ -8,15 +8,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 from torchtitan.observability.state_estimator.bundle import RunEvidenceBundle
 from torchtitan.observability.state_estimator.observation import (
+    normalize_bundle_observations,
     NormalizedObservation,
     ObservationKind,
-    normalize_bundle_observations,
 )
 from torchtitan.observability.state_estimator.schema import (
     QualityFinding,
@@ -95,11 +96,7 @@ class _LayerBuilder:
             full_id, {"kind": kind, "id": full_id, "attrs": {}}
         )
         entity["attrs"].update(
-            {
-                key: value
-                for key, value in attrs.items()
-                if value is not None
-            }
+            {key: value for key, value in attrs.items() if value is not None}
         )
         return full_id
 
@@ -110,11 +107,7 @@ class _LayerBuilder:
             {"kind": kind, "source": source, "target": target, "attrs": {}},
         )
         edge["attrs"].update(
-            {
-                key: value
-                for key, value in attrs.items()
-                if value is not None
-            }
+            {key: value for key, value in attrs.items() if value is not None}
         )
 
     def build(self, name: GraphLayer) -> LayerGraph:
@@ -148,9 +141,7 @@ def build_topology_snapshot(
             for finding in observation.quality_findings
         ]
 
-    run_id = _first_present(
-        observation.envelope.run_id for observation in observations
-    )
+    run_id = _first_present(observation.envelope.run_id for observation in observations)
     attempt_id = _first_present(
         observation.envelope.attempt_id for observation in observations
     )
@@ -341,7 +332,9 @@ def _add_observation_topology(
                     state=_read_string(raw_record, "state"),
                     path=_read_string(raw_record, "path"),
                 )
-                control.add_edge("artifact_records_checkpoint", artifact_id, checkpoint_id)
+                control.add_edge(
+                    "artifact_records_checkpoint", artifact_id, checkpoint_id
+                )
 
     incident_name = _read_string(raw_record, "incident_id")
     if incident_name is not None:
@@ -362,11 +355,7 @@ def _add_observation_topology(
 def _missing_topology_findings(
     layers: Iterable[LayerGraph],
 ) -> list[QualityFinding]:
-    entity_ids = {
-        entity["id"]
-        for layer in layers
-        for entity in layer.entities
-    }
+    entity_ids = {entity["id"] for layer in layers for entity in layer.entities}
     findings: list[QualityFinding] = []
     if not any(entity_id.startswith("device:") for entity_id in entity_ids):
         findings.append(

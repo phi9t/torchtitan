@@ -4,9 +4,6 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
 import importlib.metadata
 import json
 from pathlib import Path
@@ -225,8 +222,7 @@ def test_audit_report_input_warns_for_typed_blocker(tmp_path):
     assert audit["selected"]
     assert audit["status_counts"]["fail"] == 0
     assert any(
-        finding["audit_id"] == "report.typed_blocker"
-        and finding["status"] == "warn"
+        finding["audit_id"] == "report.typed_blocker" and finding["status"] == "warn"
         for finding in audit["findings"]
     )
 
@@ -476,8 +472,7 @@ def test_audit_attempt_rejects_invalid_condition_status(tmp_path):
     assert not audit["selected"]
     assert audit["status_counts"]["fail"] >= 1
     assert any(
-        finding["audit_id"] == "attempt.evaluations"
-        for finding in audit["findings"]
+        finding["audit_id"] == "attempt.evaluations" for finding in audit["findings"]
     )
 
 
@@ -534,9 +529,7 @@ def test_audit_attempt_rejects_unpaired_events(tmp_path):
     audit = evaluation_audit.audit_paths(attempt_dirs=[attempt])
 
     assert not audit["selected"]
-    assert any(
-        finding["audit_id"] == "attempt.events" for finding in audit["findings"]
-    )
+    assert any(finding["audit_id"] == "attempt.events" for finding in audit["findings"])
 
 
 def test_audit_attempt_rejects_terminal_before_start(tmp_path):
@@ -600,9 +593,7 @@ def test_audit_attempt_rejects_terminal_before_start(tmp_path):
     audit = evaluation_audit.audit_paths(attempt_dirs=[attempt])
 
     assert not audit["selected"]
-    assert any(
-        finding["audit_id"] == "attempt.events" for finding in audit["findings"]
-    )
+    assert any(finding["audit_id"] == "attempt.events" for finding in audit["findings"])
 
 
 def test_audit_evaluation_artifacts_parser_accepts_globs():
@@ -2387,8 +2378,7 @@ def test_coding_style_imports_mbpp_rows_with_builtin_named_entry_point():
     )
     verified = coding_style.verify_solution(
         problems[0],
-        "def sum(a, b):\n"
-        "    return a + b - 19",
+        "def sum(a, b):\n" "    return a + b - 19",
     )
 
     assert problems[0].problem_id == "MBPP/13"
@@ -2417,8 +2407,7 @@ def test_coding_style_imports_mbpp_rows_with_bare_wrapper_calls():
     )
     verified = coding_style.verify_solution(
         problems[0],
-        "def positive_values(values):\n"
-        "    return [v for v in values if v >= 0]",
+        "def positive_values(values):\n" "    return [v for v in values if v >= 0]",
     )
 
     assert problems[0].entry_point == "positive_values"
@@ -2446,8 +2435,7 @@ def test_coding_style_imports_mbpp_rows_with_expected_value_helper_call():
     )
     verified = coding_style.verify_solution(
         problems[0],
-        "def normalize_values(values):\n"
-        "    return sorted(values)",
+        "def normalize_values(values):\n" "    return sorted(values)",
     )
 
     assert problems[0].entry_point == "normalize_values"
@@ -2850,8 +2838,7 @@ def test_coding_style_imports_builtin_named_code_with_nested_argument_call():
     )
     verified = coding_style.verify_solution(
         problems[0],
-        "def sum(first, second):\n"
-        "    return first + second",
+        "def sum(first, second):\n" "    return first + second",
     )
 
     assert problems[0].entry_point == "sum"

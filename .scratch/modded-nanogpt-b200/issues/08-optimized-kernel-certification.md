@@ -1,7 +1,8 @@
 # Issue 08: Optimized Kernel Certification Matrix
 
 Type: task
-Status: open
+Status: complete
+Blocked by: -
 
 ## Intent
 
@@ -130,3 +131,51 @@ boundary is not provisional.
 selected paths must pass build and smoke checks; unsupported unselected FA3,
 FA4, Triton, and fallback paths must produce structured evidence without
 blocking a known-good selected launch tuple.
+
+2026-08-19: Implemented `optimized_kernel_report.schema.json`,
+`optimized_kernel_certifier.py`, and the rootfs-aware
+`certify_optimized_kernels.sh` wrapper. `run_speedrun.py` now invokes the
+certifier for full-mode launch gates after preflight and active-job safety
+checks, before skip-run readiness or a real training launch, and includes the
+report digest in `launch_readiness.json`.
+
+Selected FA2/Triton certification passed through the rootfs without launching
+training:
+
+```bash
+experiments/modded_nanogpt_b200/certify_optimized_kernels.sh \
+  --source experiments/modded_nanogpt_b200/sources/modded-nanogpt-b200-sdpa \
+  --attention-backend fa2 \
+  --mlp-backend triton \
+  --output experiments/modded_nanogpt_b200/results/issue08_kernel_cert_fa2_triton_20260819T083000Z/runtime/optimized_kernel_report.json \
+  --run-id issue08_kernel_cert_fa2_triton_20260819T083000Z \
+  --attempt-id issue08_kernel_cert_fa2_triton_20260819T083000Z_attempt_001 \
+  --expected-gpus 2
+```
+
+The report records `launch_eligible=true`, `blockers=[]`, digest
+`a789b17eef84c62d386f4f395d32ec0c0924bc261fcd450c07668d17d3882969`, and
+selected-row success for FA2 attention, Triton MLP, source-local Triton/DC
+kernels, FP8 `torch._scaled_mm`, TorchInductor cache, Triton tensor descriptor,
+and two-rank NCCL. Unselected FA3, FA4, flex, torch SDPA, and torch MLP
+fallback rows are preserved as diagnostic/nonblocking evidence. `flashinfer`
+is installed in the reusable rootfs through `vllm`, but the selected
+modded-nanogpt source does not import or select it, so the row is recorded as
+`support_status=installed_unselected` and does not block the selected tuple.
+
+Verification completed inside the rootfs:
+
+```bash
+python3 experiments/modded_nanogpt_b200/verify_static.py
+python3 -m pytest -q \
+  tests/unit_tests/test_modded_nanogpt_b200_optimized_kernel_certifier.py \
+  tests/unit_tests/test_modded_nanogpt_b200_cli_guard.py \
+  tests/unit_tests/test_modded_nanogpt_b200_run_speedrun.py \
+  tests/unit_tests/test_modded_nanogpt_b200_performance_probe.py \
+  tests/unit_tests/test_modded_nanogpt_b200_summarize.py \
+  tests/unit_tests/test_modded_nanogpt_b200_run_experiment_matrix.py \
+  tests/unit_tests/test_modded_nanogpt_b200_diagnose_mlp_backend.py
+```
+
+The final verification output was `Static verification passed for 13 file(s).`
+and `124 passed in 7.91s`.

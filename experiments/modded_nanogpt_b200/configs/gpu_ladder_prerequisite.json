@@ -18,7 +18,7 @@
       "observability_profile": "eroica"
     }
   ],
-  "data_manifest": "experiments/modded_nanogpt_b200/results/full_manifest/data_manifest.json",
+  "data_manifest": "experiments/modded_nanogpt_b200/results/full_manifest_refresh_20260816T111021Z/data_manifest.json",
   "defaults": {
     "attention_backend": "fa2",
     "ce_compute_capability": "100",
@@ -26,7 +26,7 @@
     "expected_gpu_name": "B200",
     "experiment_kind": "prerequisite",
     "legacy_lane": "B",
-    "mlp_backend": "torch",
+    "mlp_backend": "triton",
     "mode": "full",
     "observability_profile": "byterobust",
     "verify_sha": true

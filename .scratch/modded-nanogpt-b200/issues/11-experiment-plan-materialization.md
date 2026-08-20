@@ -2,7 +2,7 @@
 
 Type: task
 Status: complete
-Blocked by: 10
+Blocked by: -
 
 ## Requirement
 
@@ -20,7 +20,9 @@ Allowed:
   preflight `--expected-gpus`;
 - add `--num-gpus` and `--gpu-ids` to `run_speedrun.py`;
 - update `preflight.py` full-mode policy so full matrix arms may use 1/2/4/8
-  GPUs while remaining non-claimable unless claim policy requires 8 GPUs;
+  GPUs while remaining non-claimable for broader 8x reproduction unless that
+  separate claim policy is explicitly selected. The active RSI foundation gate
+  is the declared two-GPU Lane B trial;
 - preserve existing two-GPU launcher behavior.
 
 Excluded:
@@ -28,7 +30,10 @@ Excluded:
 - no matrix executor yet;
 - no source-side training schedule overrides;
 - no parallel matrix scheduling;
-- no claim promotion for non-8-GPU prerequisite arms.
+- no claim promotion from prerequisite-only arms. Non-8-GPU arms cannot support
+  a broader 8x reproduction claim, but the active two-GPU full attempt can be
+  classified as the local B200 RSI foundation result when it is authorized and
+  actually launched.
 
 ## Verification Evidence
 

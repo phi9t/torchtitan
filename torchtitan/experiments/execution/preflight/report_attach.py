@@ -57,8 +57,7 @@ def _validate_preflight(preflight: dict[str, object]) -> None:
     execution_outcome = preflight.get("execution_outcome")
     if execution_outcome not in models.EXECUTION_OUTCOMES:
         raise ValueError(
-            "preflight.execution_outcome must be one of "
-            f"{models.EXECUTION_OUTCOMES}"
+            "preflight.execution_outcome must be one of " f"{models.EXECUTION_OUTCOMES}"
         )
     expected_outcome = _READY_OUTCOMES[readiness]
     if execution_outcome != expected_outcome:
@@ -96,7 +95,9 @@ def _validate_preflight(preflight: dict[str, object]) -> None:
     if readiness != derived_readiness:
         raise ValueError("preflight.readiness is inconsistent with nested evidence")
     if blocker_codes != derived_blockers:
-        raise ValueError("preflight.blocker_codes are inconsistent with nested evidence")
+        raise ValueError(
+            "preflight.blocker_codes are inconsistent with nested evidence"
+        )
 
 
 def _validate_profile_report(value: object, index: int) -> None:

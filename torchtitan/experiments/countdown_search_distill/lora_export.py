@@ -70,9 +70,7 @@ def split_qwen3_fused_qkv_lora_b(
     head_dim: int,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     heads_per_key_value = num_attention_heads // num_key_value_heads
-    expected_out_features = (
-        num_key_value_heads * (heads_per_key_value + 2) * head_dim
-    )
+    expected_out_features = num_key_value_heads * (heads_per_key_value + 2) * head_dim
     if tensor.ndim != 2:
         raise ValueError(f"expected a 2D fused QKV LoRA B tensor, got {tensor.shape}")
     if tensor.shape[0] != expected_out_features:

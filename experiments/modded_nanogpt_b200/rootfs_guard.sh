@@ -18,3 +18,17 @@ require_modded_nanogpt_rootfs() {
   fi
   return 0
 }
+
+select_modded_nanogpt_python() {
+  local venv="${MODDED_NANOGPT_RUNTIME_VENV:-/project/venvs/b200-runtime}"
+  local managed_python="${venv}/bin/python"
+  if [[ -x "${managed_python}" ]]; then
+    printf '%s\n' "${managed_python}"
+    return 0
+  fi
+  if [[ -n "${PYTHON:-}" && -x "${PYTHON}" ]]; then
+    printf '%s\n' "${PYTHON}"
+    return 0
+  fi
+  command -v python
+}

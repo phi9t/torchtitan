@@ -1,6 +1,8 @@
 # Issue 07: Bwrap Rootfs Plan Verification
 
-Status: completed
+Type: task
+Status: complete
+Blocked by: -
 
 ## Intent
 

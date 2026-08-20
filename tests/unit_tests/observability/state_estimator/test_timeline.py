@@ -13,11 +13,11 @@ from torchtitan.observability.state_estimator.observation import (
     ObservationKind,
 )
 from torchtitan.observability.state_estimator.timeline import (
-    TimelineWindow,
     build_incident_timeline,
     build_semantic_timeline,
     select_failure_center_time_ns,
     summarize_incident_timeline,
+    TimelineWindow,
 )
 
 

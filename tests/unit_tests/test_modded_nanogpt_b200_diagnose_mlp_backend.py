@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
-from experiments.modded_nanogpt_b200 import diagnose_mlp_backend
-from experiments.modded_nanogpt_b200 import preflight
+from experiments.modded_nanogpt_b200 import diagnose_mlp_backend, preflight
 
 LANE_B_TRITON_KERNELS = Path(
     "experiments/modded_nanogpt_b200/sources/modded-nanogpt-b200-sdpa/triton_kernels.py"
@@ -43,9 +42,13 @@ def test_direct_script_help_imports_from_repo_root():
 def test_lane_b_triton_backward_flattens_3d_mlp_tensors():
     source = LANE_B_TRITON_KERNELS.read_text()
     backward_source = source[source.index("    def backward(ctx, grad_output):") :]
-    backward_source = backward_source[: backward_source.index("\n\n\ndef reduce_mlp_activation_scales")]
+    backward_source = backward_source[
+        : backward_source.index("\n\n\ndef reduce_mlp_activation_scales")
+    ]
 
-    assert "grad_flat = grad_output.view((-1, grad_output.shape[-1]))" in backward_source
+    assert (
+        "grad_flat = grad_output.view((-1, grad_output.shape[-1]))" in backward_source
+    )
     assert "x_flat = x.view((-1, x.shape[-1]))" in backward_source
     assert "dW2 = post.T @ grad_flat" in backward_source
     assert "dpre = linear_relu_square(grad_flat, W2, aux=post)" in backward_source
@@ -64,8 +67,7 @@ def test_lane_b_softcapped_cross_entropy_backward_matches_forward_arity():
     )
     assert (
         "return grad_x, None, None, None, None, grad_w, None, None, None, None, "
-        "None, None, None"
-        in class_source
+        "None, None, None" in class_source
     )
 
 
@@ -82,7 +84,10 @@ def test_lane_b_train_compile_decorators_obey_compile_disable_env():
         or line.strip().startswith("@torch.compile(")
     ]
     assert direct_compile_decorators == []
-    assert "torch.compile(model, dynamic=False, fullgraph=model_compile_fullgraph)" in source
+    assert (
+        "torch.compile(model, dynamic=False, fullgraph=model_compile_fullgraph)"
+        in source
+    )
 
 
 def test_lane_b_compile_disabled_optimizer_avoids_eager_uint32_cuda_ops():
@@ -150,8 +155,12 @@ def test_triton_diagnostic_writes_subprocess_failure_report(monkeypatch, tmp_pat
 
     monkeypatch.setattr(diagnose_mlp_backend, "parse_args", lambda: args)
     monkeypatch.setattr(diagnose_mlp_backend.preflight, "check_rootfs", lambda: None)
-    monkeypatch.setattr(diagnose_mlp_backend.preflight, "collect_rootfs_detail", lambda: {})
-    monkeypatch.setattr(diagnose_mlp_backend.preflight, "collect_environment_detail", lambda: {})
+    monkeypatch.setattr(
+        diagnose_mlp_backend.preflight, "collect_rootfs_detail", lambda: {}
+    )
+    monkeypatch.setattr(
+        diagnose_mlp_backend.preflight, "collect_environment_detail", lambda: {}
+    )
 
     monkeypatch.setattr(
         diagnose_mlp_backend.preflight,
@@ -204,8 +213,12 @@ def test_triton_diagnostic_classifies_backward_shape_mismatch(monkeypatch, tmp_p
 
     monkeypatch.setattr(diagnose_mlp_backend, "parse_args", lambda: args)
     monkeypatch.setattr(diagnose_mlp_backend.preflight, "check_rootfs", lambda: None)
-    monkeypatch.setattr(diagnose_mlp_backend.preflight, "collect_rootfs_detail", lambda: {})
-    monkeypatch.setattr(diagnose_mlp_backend.preflight, "collect_environment_detail", lambda: {})
+    monkeypatch.setattr(
+        diagnose_mlp_backend.preflight, "collect_rootfs_detail", lambda: {}
+    )
+    monkeypatch.setattr(
+        diagnose_mlp_backend.preflight, "collect_environment_detail", lambda: {}
+    )
     monkeypatch.setattr(
         diagnose_mlp_backend.preflight,
         "run_checked_subprocess",
@@ -239,18 +252,26 @@ def test_triton_diagnostic_uses_shared_preflight_smoke(monkeypatch, tmp_path):
 
     monkeypatch.setattr(diagnose_mlp_backend, "parse_args", lambda: args)
     monkeypatch.setattr(diagnose_mlp_backend.preflight, "check_rootfs", lambda: None)
-    monkeypatch.setattr(diagnose_mlp_backend.preflight, "collect_rootfs_detail", lambda: {"marker": "1"})
-    monkeypatch.setattr(diagnose_mlp_backend.preflight, "collect_environment_detail", lambda: {})
+    monkeypatch.setattr(
+        diagnose_mlp_backend.preflight, "collect_rootfs_detail", lambda: {"marker": "1"}
+    )
+    monkeypatch.setattr(
+        diagnose_mlp_backend.preflight, "collect_environment_detail", lambda: {}
+    )
 
     def shared_smoke(path, timeout_seconds):
         calls.append((path, timeout_seconds))
         return {"backend": "triton", "output_shape": [2, 16, 768]}
 
-    monkeypatch.setattr(diagnose_mlp_backend.preflight, "_run_triton_mlp_smoke", shared_smoke)
+    monkeypatch.setattr(
+        diagnose_mlp_backend.preflight, "_run_triton_mlp_smoke", shared_smoke
+    )
     monkeypatch.setattr(
         diagnose_mlp_backend.preflight,
         "run_checked_subprocess",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("diagnostic bypassed shared smoke")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("diagnostic bypassed shared smoke")
+        ),
     )
 
     assert diagnose_mlp_backend.main() == 0

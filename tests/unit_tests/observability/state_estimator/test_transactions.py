@@ -13,8 +13,8 @@ from torchtitan.observability.state_estimator.estimators import (
     write_belief_summary,
 )
 from torchtitan.observability.state_estimator.fixtures import (
-    ProcessFixture,
     build_minimal_evidence_bundle,
+    ProcessFixture,
     write_artifact_index,
 )
 from torchtitan.observability.state_estimator.transactions import (
@@ -224,7 +224,9 @@ def test_anomaly_before_likely_commit_boundary_is_advisory():
         "edges": [],
         "quality": [],
         "observations": [
-            _observation("txn:step", payload={"committed_step": 5, "speculative_step": 6}),
+            _observation(
+                "txn:step", payload={"committed_step": 5, "speculative_step": 6}
+            ),
             _observation(
                 "anomaly:pre",
                 event_time_ns=1_500,
@@ -256,7 +258,9 @@ def test_anomaly_after_likely_commit_boundary_is_advisory():
         "edges": [],
         "quality": [],
         "observations": [
-            _observation("txn:step", payload={"committed_step": 5, "speculative_step": 6}),
+            _observation(
+                "txn:step", payload={"committed_step": 5, "speculative_step": 6}
+            ),
             _observation(
                 "anomaly:post",
                 event_time_ns=2_500,
@@ -343,7 +347,9 @@ def test_estimator_adds_transactions_additively():
         "edges": [],
         "quality": [],
         "observations": [
-            _observation("txn:step", payload={"committed_step": 1, "speculative_step": 2})
+            _observation(
+                "txn:step", payload={"committed_step": 1, "speculative_step": 2}
+            )
         ],
     }
 

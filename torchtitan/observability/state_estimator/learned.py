@@ -8,11 +8,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import importlib
 import json
+
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,8 +128,7 @@ class LearnedFactorBundle:
             "calibration": self.calibration.to_json(),
             "training_data_manifest": self.training_data_manifest.to_json(),
             "source_segments": [
-                source_segment.to_json()
-                for source_segment in self.source_segments
+                source_segment.to_json() for source_segment in self.source_segments
             ],
             "factors": [factor.to_json() for factor in self.factors],
         }
@@ -211,7 +212,9 @@ def load_learned_factor_bundle(
         source_segments=_source_segments(data.get("source_segments")),
         factors=_likelihood_factors(data.get("factors")),
     )
-    source_segment_ids = {source_segment.id for source_segment in bundle.source_segments}
+    source_segment_ids = {
+        source_segment.id for source_segment in bundle.source_segments
+    }
     for factor in bundle.factors:
         if not factor.source_segment_id:
             raise ValueError("factor is missing source segment identity")
@@ -309,9 +312,7 @@ def _likelihood_factors(value: Any) -> tuple[LikelihoodFactor, ...]:
                     item, "source_segment_id", owner="factor"
                 ),
                 target_state=_required_string(item, "target_state", owner="factor"),
-                log_likelihood=_required_float(
-                    item, "log_likelihood", owner="factor"
-                ),
+                log_likelihood=_required_float(item, "log_likelihood", owner="factor"),
                 calibration=_required_string(item, "calibration", owner="factor"),
                 metadata=_optional_mapping(item.get("metadata")),
             )
@@ -383,9 +384,7 @@ _SOURCE_EVIDENCE_PATHS = {
 }
 
 
-def _reject_control_decision_fields(
-    value: Any, path: tuple[str, ...] = ()
-) -> None:
+def _reject_control_decision_fields(value: Any, path: tuple[str, ...] = ()) -> None:
     if isinstance(value, Mapping):
         for key, child in value.items():
             child_path = (*path, str(key))
@@ -417,9 +416,7 @@ def _is_source_evidence_path(path: tuple[str, ...]) -> bool:
     return path in _SOURCE_EVIDENCE_PATHS
 
 
-def _has_control_decision_term(
-    value: str, *, allow_transaction_evidence: bool
-) -> bool:
+def _has_control_decision_term(value: str, *, allow_transaction_evidence: bool) -> bool:
     if any(term in value for term in _CONTROL_DECISION_TERMS):
         return True
     if any(term in value for term in _TRANSACTION_CONTROL_DECISION_TERMS):

@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ok",
+    "classification",
+    "final_validation_reached",
+    "included_in_baseline_stats",
+    "launch_readiness",
+    "preflight_ok"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "active_jobs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "artifact_sizes": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "attempt_command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "argv",
+        "training_argv",
+        "skip_run",
+        "launch_authorization_present",
+        "attention_backend",
+        "mlp_backend"
+      ],
+      "properties": {
+        "argv": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "training_argv": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skip_run": { "type": "boolean" },
+        "launch_authorization_present": { "type": "boolean" },
+        "attention_backend": { "type": "string" },
+        "mlp_backend": { "type": "string" }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "message"],
+      "properties": {
+        "phase": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "claim_validation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lane",
+        "mode",
+        "arm",
+        "claim_label",
+        "evidence_tier",
+        "run_id",
+        "attempt_id",
+        "environment_class",
+        "claim_eligible"
+      ],
+      "properties": {
+        "lane": { "type": "string" },
+        "mode": { "type": "string" },
+        "arm": { "type": "string" },
+        "claim_label": { "type": "string" },
+        "evidence_tier": { "type": "string" },
+        "run_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "environment_class": { "type": "string" },
+        "claim_eligible": { "type": "boolean" }
+      }
+    },
+    "data_manifest": { "type": "string" },
+    "data_manifest_summary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "environment_sidecar": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "final_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "peak_allocated_memory",
+        "peak_reserved_memory",
+        "step_avg",
+        "train_time",
+        "val_loss"
+      ],
+      "properties": {
+        "peak_allocated_memory": { "type": ["number", "null"] },
+        "peak_reserved_memory": { "type": ["number", "null"] },
+        "step_avg": { "type": ["number", "null"] },
+        "train_time": { "type": ["number", "null"] },
+        "val_loss": { "type": ["number", "null"] }
+      }
+    },
+    "final_validation_reached": { "type": "boolean" },
+    "first_relevant_error": { "type": ["string", "null"] },
+    "gpus": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "hardware_sidecar": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "included_in_baseline_stats": { "type": "boolean" },
+    "last_50_meaningful_log_lines": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "launch_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "classification",
+        "run_id",
+        "attempt_id",
+        "lane",
+        "mode",
+        "arm",
+        "ready_to_launch",
+        "training_launched",
+        "launch_authority_required",
+        "launch_authorization_required_token",
+        "preflight_ok",
+        "preflight_returncode",
+        "verify_sha",
+        "allow_previous_stall",
+        "skip_run",
+        "source",
+        "data_manifest",
+        "attention_backend",
+        "mlp_backend",
+        "full_mode_gates",
+        "blocked_by"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "classification": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "run_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "lane": { "type": "string" },
+        "mode": { "type": "string" },
+        "arm": { "type": "string" },
+        "ready_to_launch": { "type": "boolean" },
+        "training_launched": { "type": "boolean" },
+        "launch_authority_required": { "type": "boolean" },
+        "launch_authorization_required_token": { "type": ["string", "null"] },
+        "preflight_ok": { "type": "boolean" },
+        "preflight_returncode": { "type": ["integer", "null"] },
+        "verify_sha": { "type": "boolean" },
+        "allow_previous_stall": { "type": "boolean" },
+        "skip_run": { "type": "boolean" },
+        "source": { "type": "string" },
+        "data_manifest": { "type": "string" },
+        "attention_backend": { "type": "string" },
+        "mlp_backend": { "type": "string" },
+        "full_mode_gates": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "blocked_by": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "optimized_kernel_report": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "launch_eligible", "report_digest", "schema_digest"],
+          "properties": {
+            "path": { "type": "string" },
+            "launch_eligible": { "type": "boolean" },
+            "report_digest": { "type": ["object", "null"] },
+            "schema_digest": { "type": ["object", "null"] }
+          }
+        },
+        "command_env_digest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "sha256"],
+          "properties": {
+            "algorithm": { "const": "sha256" },
+            "sha256": { "type": "string" }
+          }
+        },
+        "runtime_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "ok",
+            "training_launch_allowed",
+            "command_env_digest"
+          ],
+          "properties": {
+            "path": { "type": "string" },
+            "ok": { "type": "boolean" },
+            "training_launch_allowed": { "type": "boolean" },
+            "command_env_digest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["algorithm", "sha256"],
+              "properties": {
+                "algorithm": { "const": "sha256" },
+                "sha256": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ok": { "type": "boolean" },
+    "preflight_data_manifest": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "preflight_mlp_backend": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "preflight_ok": { "type": "boolean" },
+    "preflight_report": { "type": "string" },
+    "source": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "upstream_commit": { "type": ["string", "null"] },
+    "variant_patch_classification": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "wall_clock": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

@@ -4,9 +4,6 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
 """Wave F1 begin/stage/finish CLI facade tests (roadmap Section 4).
 
 The shell facade exposes the migration-compatible equivalent of the typed

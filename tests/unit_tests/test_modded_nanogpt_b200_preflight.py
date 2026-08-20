@@ -145,6 +145,45 @@ def test_full_direct_runtime_dependencies_skip_kernels_for_lane_b_fa2(monkeypatc
     ]
 
 
+def test_check_nccl_uses_bounded_debug_subprocess(monkeypatch):
+    observed = {}
+
+    def fake_run_checked_subprocess(cmd, *, timeout_seconds, env=None, cwd=None):
+        observed["cmd"] = cmd
+        observed["timeout_seconds"] = timeout_seconds
+        observed["env"] = env
+        observed["cwd"] = cwd
+        raise preflight.CheckFailure(
+            "subprocess timed out after 90s: torchrun",
+            detail={"timeout_seconds": 90, "output": "rank0 waiting"},
+        )
+
+    monkeypatch.setattr(
+        preflight, "run_checked_subprocess", fake_run_checked_subprocess
+    )
+
+    try:
+        preflight.check_nccl(2)
+    except preflight.CheckFailure as exc:
+        assert "NCCL all-reduce smoke timed out after 90s" in str(exc)
+        assert exc.detail == {
+            "timeout_seconds": 90,
+            "expected_gpus": 2,
+            "output": "rank0 waiting",
+        }
+    else:
+        raise AssertionError("expected NCCL timeout failure")
+
+    assert "--standalone" not in observed["cmd"]
+    assert "--master-addr=127.0.0.1" in observed["cmd"]
+    assert observed["cmd"][:2] == ["torchrun", "--nproc_per_node=2"]
+    assert observed["timeout_seconds"] == preflight.NCCL_SUBPROCESS_TIMEOUT_SECONDS
+    assert observed["env"]["NCCL_DEBUG"] == "INFO"
+    assert observed["env"]["TORCH_NCCL_ASYNC_ERROR_HANDLING"] == "1"
+    assert observed["env"]["TORCH_NCCL_BLOCKING_WAIT"] == "1"
+    assert observed["env"]["MASTER_ADDR"] == "127.0.0.1"
+
+
 def test_main_checks_data_manifest_before_mlp_backend(monkeypatch, tmp_path):
     report = tmp_path / "preflight_report.json"
     args = SimpleNamespace(
@@ -286,6 +325,7 @@ def test_full_mode_policy_rejects_non_ladder_gpu_count():
 
 def test_main_writes_structured_runtime_contract_failure(monkeypatch, tmp_path):
     report = tmp_path / "preflight_report.json"
+    progress = tmp_path / "preflight_progress.json"
     args = SimpleNamespace(
         _nccl_worker=False,
         mode="full",
@@ -306,6 +346,7 @@ def test_main_writes_structured_runtime_contract_failure(monkeypatch, tmp_path):
         verify_sha=True,
         allow_previous_stall=False,
         report=report,
+        progress=progress,
     )
 
     monkeypatch.setattr(preflight, "parse_args", lambda: args)
@@ -353,6 +394,28 @@ def test_main_writes_structured_runtime_contract_failure(monkeypatch, tmp_path):
         {"name": "runtime_contract", "error": "runtime contract drift"}
     ]
     assert data["classification"]["claim_eligible"] is False
+    progress_record = json.loads(progress.read_text())
+    assert progress_record["active_check"] == "runtime_contract"
+    assert progress_record["completed_checks"] == [
+        "mode_policy",
+        "rootfs",
+        "torch_import",
+    ]
+    assert progress_record["checks"][-1]["detail"] == {
+        "mismatches": {
+            "torch": {
+                "expected": "2.13.0+cu132",
+                "actual": "2.13.0+cu131",
+            }
+        }
+    }
+    assert {
+        key: progress_record["checks"][-1][key] for key in ("name", "ok", "error")
+    } == {
+        "name": "runtime_contract",
+        "ok": False,
+        "error": "runtime contract drift",
+    }
 
 
 def test_full_manifest_requires_declared_verified_sha_when_verifying(

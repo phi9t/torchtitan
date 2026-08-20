@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "attempt_id",
+    "environment",
+    "environment_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "command_environment" },
+    "run_id": { "type": "string" },
+    "attempt_id": { "type": "string" },
+    "environment": {
+      "type": "object",
+      "required": [
+        "TORCHTITAN_IN_ROOTFS",
+        "TORCHTITAN_ROOTFS_PROJECT",
+        "TORCHTITAN_ROOTFS_NETWORK",
+        "PYTHON"
+      ],
+      "properties": {
+        "TORCHTITAN_IN_ROOTFS": { "const": "1" },
+        "TORCHTITAN_ROOTFS_PROJECT": { "const": "/workspace/torchtitan" },
+        "TORCHTITAN_ROOTFS_NETWORK": { "const": "offline" },
+        "PYTHON": { "const": "/project/venvs/b200-runtime/bin/python" }
+      }
+    },
+    "environment_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "sha256"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "sha256": { "type": "string" }
+      }
+    }
+  }
+}

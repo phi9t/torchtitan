@@ -8,9 +8,15 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROOTFS="$REPO_ROOT/scripts/rootfs/rootfs"
 ROOTFS_DEFAULT="$ROOTFS"
 ROOTFS_EXPLICIT=0
+ROOTFS_STORE_ROOT=""
+ROOTFS_LEGACY=1
+ROOTFS_STORE_ID="${TORCHTITAN_ROOTFS_STORE_ID:-legacy-rootfs}"
+ROOTFS_MUTABLE_ALLOWED="true"
 
 # shellcheck source=scripts/rootfs/rootfs_target.sh
 source "$REPO_ROOT/scripts/rootfs/rootfs_target.sh"
+# shellcheck source=scripts/rootfs/runtime_env.sh
+source "$REPO_ROOT/scripts/rootfs/runtime_env.sh"
 
 usage() {
   cat <<'EOF'
@@ -21,6 +27,9 @@ Enter the TorchTitan bwrap rootfs with this checkout mounted read-write at
 
 Options:
   --rootfs DIR    Rootfs directory to enter (default: scripts/rootfs/rootfs).
+  --rootfs-store DIR
+                  Resolve DIR/selected.json to the selected managed rootfs
+                  content directory before entering bwrap.
   -h, --help      Show this help and exit.
 
 Environment:
@@ -34,6 +43,14 @@ Environment:
                   Emit the resolved bwrap plan as JSON and exit before running
                   bwrap. Writes to TORCHTITAN_ROOTFS_PLAN_OUTPUT when set,
                   otherwise stdout.
+  TORCHTITAN_ROOTFS_NETWORK=offline|networked
+                  Select rootfs network mode. Defaults to offline. Use
+                  networked only for diagnostic/setup steps that require host
+                  networking.
+  TORCHTITAN_ROOTFS_REQUIRE_MANIFEST=1
+                  Require a legacy --rootfs tree to carry the rootfs ownership
+                  marker and a build_manifest.json with
+                  mutable_rootfs_allowed=false.
 EOF
 }
 
@@ -47,6 +64,18 @@ while [[ $# -gt 0 ]]; do
     --rootfs=*)
       ROOTFS="${1#*=}"
       ROOTFS_EXPLICIT=1
+      shift
+      ;;
+    --rootfs-store)
+      ROOTFS_STORE_ROOT="${2:?--rootfs-store requires a value}"
+      ROOTFS_EXPLICIT=1
+      ROOTFS_LEGACY=0
+      shift 2
+      ;;
+    --rootfs-store=*)
+      ROOTFS_STORE_ROOT="${1#*=}"
+      ROOTFS_EXPLICIT=1
+      ROOTFS_LEGACY=0
       shift
       ;;
     --)
@@ -84,12 +113,17 @@ emit_bwrap_plan() {
   inner_argv_json="$(json_array "$@")"
   local bwrap_argv_json
   bwrap_argv_json="$(json_array "${bwrap_args[@]}")"
-  local entrypoint_json rootfs_json repo_root_json host_libdir_json cwd_json
+  local entrypoint_json rootfs_json repo_root_json host_libdir_json cwd_json state_json
   entrypoint_json="$(json_escape "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh")"
   rootfs_json="$(json_escape "$ROOTFS")"
   repo_root_json="$(json_escape "$REPO_ROOT")"
   host_libdir_json="$(json_escape "$HOST_LIBDIR")"
   cwd_json="$(json_escape "$REPO_MNT")"
+  state_json="$(json_escape "$ROOTFS_RUNTIME_STATE_ROOT")"
+  local rootfs_store_json="null"
+  if [[ -n "${ROOTFS_STORE_ROOT}" ]]; then
+    rootfs_store_json="$(json_escape "$ROOTFS_STORE_ROOT")"
+  fi
 
   local plan
   plan="$(cat <<EOF
@@ -98,10 +132,14 @@ emit_bwrap_plan() {
   "entrypoint": ${entrypoint_json},
   "rootfs": {
     "path": ${rootfs_json},
-    "explicit": $([[ "$ROOTFS_EXPLICIT" -eq 1 ]] && printf 'true' || printf 'false')
+    "explicit": $([[ "$ROOTFS_EXPLICIT" -eq 1 ]] && printf 'true' || printf 'false'),
+    "legacy": $([[ "$ROOTFS_LEGACY" -eq 1 ]] && printf 'true' || printf 'false'),
+    "store_root": ${rootfs_store_json},
+    "store_id": "$(printf '%s' "${ROOTFS_STORE_ID}")",
+    "mutable_rootfs_allowed": ${ROOTFS_MUTABLE_ALLOWED}
   },
   "cwd": ${cwd_json},
-  "network_mode": "shared",
+  "network_mode": "${ROOTFS_NETWORK_MODE}",
   "mounts": [
 EOF
 )"
@@ -119,13 +157,20 @@ EOF
   append_mount "{\"kind\":\"tmpfs\",\"source\":\"tmpfs\",\"target\":\"/tmp\",\"writable\":true}"
   append_mount "{\"kind\":\"dev\",\"source\":\"devfs\",\"target\":\"/dev\",\"writable\":true}"
   append_mount "{\"kind\":\"bind\",\"source\":${repo_root_json},\"target\":\"${REPO_MNT}\",\"writable\":true}"
-  for f in /etc/resolv.conf /etc/hosts; do
-    if [[ -e "$f" ]]; then
-      local escaped
-      escaped="$(json_escape "$f")"
-      append_mount "{\"kind\":\"ro-bind\",\"source\":${escaped},\"target\":${escaped},\"writable\":false}"
-    fi
+  for bind_name in "${ROOTFS_RUNTIME_STATE_DIRS[@]}"; do
+    local bind_source_json
+    bind_source_json="$(json_escape "$ROOTFS_RUNTIME_STATE_ROOT/$bind_name")"
+    append_mount "{\"kind\":\"bind\",\"source\":${bind_source_json},\"target\":\"$(rootfs_runtime_path_for "$bind_name")\",\"writable\":true}"
   done
+  if [[ "${ROOTFS_NETWORK_MODE}" == "networked" ]]; then
+    for f in /etc/resolv.conf /etc/hosts; do
+      if [[ -e "$f" ]]; then
+        local escaped
+        escaped="$(json_escape "$f")"
+        append_mount "{\"kind\":\"ro-bind\",\"source\":${escaped},\"target\":${escaped},\"writable\":false}"
+      fi
+    done
+  fi
   local dev_json_entries=()
   local lib_json_entries=()
   for dev in "${rootfs_plan_devices[@]}"; do
@@ -156,7 +201,7 @@ EOF
   driver_libraries_json="$(json_array "${lib_json_entries[@]}")"
   nvidia_visible_json="$(json_escape "${NVIDIA_VISIBLE_DEVICES:-all}")"
   ld_json="$(json_escape "${HOST_LIBDIR}:/opt/cuda-synth/lib64")"
-  path_json="$(json_escape "/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin")"
+  path_json="$(json_escape "$ROOTFS_RUNTIME_PATH")"
   plan+=$'\n'
   plan+="  ],
   \"devices\": ${devices_json},
@@ -167,7 +212,26 @@ EOF
     \"CUDA_PATH\": \"/opt/cuda-synth\",
     \"LD_LIBRARY_PATH\": ${ld_json},
     \"TORCHTITAN_IN_ROOTFS\": \"1\",
-    \"HOME\": \"/root\",
+    \"TORCHTITAN_ROOTFS_ENV\": \"${ROOTFS_RUNTIME_ENV_NAME}\",
+    \"TORCHTITAN_ROOTFS_STORE_ID\": \"${ROOTFS_RUNTIME_STORE_ID}\",
+    \"TORCHTITAN_ROOTFS_HOST_STATE\": ${state_json},
+    \"TORCHTITAN_ROOTFS_PROJECT\": \"${ROOTFS_RUNTIME_PROJECT}\",
+    \"TORCHTITAN_ROOTFS_LOG_DIR\": \"/project/logs\",
+    \"HOME\": \"/project/home\",
+    \"XDG_CACHE_HOME\": \"/project/xdg-cache\",
+    \"UV_CACHE_DIR\": \"/project/uv-cache\",
+    \"PIP_CACHE_DIR\": \"/project/pip-cache\",
+    \"MISE_DATA_DIR\": \"/project/mise/data\",
+    \"MISE_CACHE_DIR\": \"/project/mise/cache\",
+    \"MISE_CONFIG_DIR\": \"${ROOTFS_RUNTIME_CONFIG}\",
+    \"PYTHON\": \"${ROOTFS_RUNTIME_VENV}/bin/python\",
+    \"TMPDIR\": \"/project/tmp\",
+    \"TEMP\": \"/project/tmp\",
+    \"TMP\": \"/project/tmp\",
+    \"HF_HOME\": \"${ROOTFS_RUNTIME_PROJECT}/.cache/huggingface\",
+    \"HF_HUB_CACHE\": \"${ROOTFS_RUNTIME_PROJECT}/.cache/huggingface/hub\",
+    \"TORCH_HOME\": \"${ROOTFS_RUNTIME_PROJECT}/.cache/torch\",
+    \"MPLCONFIGDIR\": \"/project/xdg-cache/matplotlib\",
     \"NVIDIA_VISIBLE_DEVICES\": ${nvidia_visible_json}"
   if [[ "${CUDA_VISIBLE_DEVICES+set}" == set ]]; then
     cuda_visible_json="$(json_escape "$CUDA_VISIBLE_DEVICES")"
@@ -197,6 +261,14 @@ EOF
   fi
 }
 
+if [[ -n "${ROOTFS_STORE_ROOT}" ]]; then
+  ROOTFS_STORE_ROOT="$(cd -P -- "${ROOTFS_STORE_ROOT}" && pwd)" \
+    || die "cannot resolve rootfs store: ${ROOTFS_STORE_ROOT}"
+  ROOTFS="$(rootfs_resolve_selected_dir "${ROOTFS_STORE_ROOT}")"
+  ROOTFS_STORE_ID="$(rootfs_manifest_store_id "${ROOTFS}")"
+  ROOTFS_MUTABLE_ALLOWED="false"
+fi
+
 if [[ ! -x "$ROOTFS/bin/bash" ]]; then
   # Fail-closed construction (runtime_preflight_roadmap.md Section 8.2, Wave
   # F0): implicit build is allowed only for the canonical default rootfs. A
@@ -210,11 +282,24 @@ if [[ ! -x "$ROOTFS/bin/bash" ]]; then
   [[ -x "$ROOTFS/bin/bash" ]] || die "rootfs build did not produce a usable rootfs at $ROOTFS"
 fi
 
+if [[ -z "${ROOTFS_STORE_ROOT}" && "${TORCHTITAN_ROOTFS_REQUIRE_MANIFEST:-0}" == "1" ]]; then
+  rootfs_assert_manifested_nonmutable "${ROOTFS}"
+  ROOTFS_STORE_ID="$(rootfs_manifest_store_id "${ROOTFS}")"
+  ROOTFS_MUTABLE_ALLOWED="false"
+fi
+rootfs_runtime_set_store_id "${ROOTFS_STORE_ID}"
+
 REPO_MNT=/workspace/torchtitan
 HOST_LIBDIR=/usr/lib/x86_64-linux-gnu
+ROOTFS_NETWORK_MODE="${TORCHTITAN_ROOTFS_NETWORK:-offline}"
+case "${ROOTFS_NETWORK_MODE}" in
+  offline|networked) ;;
+  *) die "TORCHTITAN_ROOTFS_NETWORK must be 'offline' or 'networked', found '${ROOTFS_NETWORK_MODE}'" ;;
+esac
 rootfs_plan_devices=()
 rootfs_plan_driver_libraries=()
 rootfs_plan_nvidia_smi=""
+rootfs_runtime_init
 
 bwrap_args=(
   --bind "$ROOTFS" /
@@ -222,14 +307,18 @@ bwrap_args=(
   --tmpfs /tmp
   --dev /dev
   --bind "$REPO_ROOT" "$REPO_MNT"
-  --unshare-all --share-net
+  --unshare-all
   --die-with-parent
   --chdir "$REPO_MNT"
 )
+rootfs_runtime_add_bwrap_binds bwrap_args
 
-for f in /etc/resolv.conf /etc/hosts; do
-  [[ -e "$f" ]] && bwrap_args+=(--ro-bind "$f" "$f")
-done
+if [[ "${ROOTFS_NETWORK_MODE}" == "networked" ]]; then
+  bwrap_args+=(--share-net)
+  for f in /etc/resolv.conf /etc/hosts; do
+    [[ -e "$f" ]] && bwrap_args+=(--ro-bind "$f" "$f")
+  done
+fi
 
 shopt -s nullglob
 for dev in /dev/nvidia* /dev/nvidia-caps; do
@@ -261,13 +350,11 @@ if [[ "${TORCHTITAN_ROOTFS_BIND_DOCKER:-0}" == "1" ]]; then
 fi
 
 bwrap_args+=(
-  --setenv PATH "/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin"
   --setenv CUDA_HOME /opt/cuda-synth
   --setenv CUDA_PATH /opt/cuda-synth
   --setenv LD_LIBRARY_PATH "$HOST_LIBDIR:/opt/cuda-synth/lib64"
-  --setenv TORCHTITAN_IN_ROOTFS 1
-  --setenv HOME /root
 )
+rootfs_runtime_add_bwrap_env bwrap_args
 
 if [[ "${CUDA_VISIBLE_DEVICES+set}" == set ]]; then
   bwrap_args+=(--setenv CUDA_VISIBLE_DEVICES "$CUDA_VISIBLE_DEVICES")

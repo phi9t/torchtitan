@@ -8,12 +8,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Literal, Mapping, Sequence
+from typing import Any, Literal
 
-from torchtitan.observability.state_estimator.observation import (
-    NormalizedObservation,
-)
+from torchtitan.observability.state_estimator.observation import NormalizedObservation
 
 
 TimelineWindowMode = Literal[
@@ -83,7 +82,9 @@ class TimelineWindow:
         center_time_ns: int | None = None,
     ) -> "TimelineWindow":
         if end_time_ns < start_time_ns:
-            raise ValueError("end_time_ns must be greater than or equal to start_time_ns")
+            raise ValueError(
+                "end_time_ns must be greater than or equal to start_time_ns"
+            )
         return cls(
             mode="explicit_time",
             start_time_ns=start_time_ns,
@@ -471,9 +472,7 @@ def _relative_center_time_ns(
     if window.center_time_ns is not None:
         return window.center_time_ns
     timestamps = [
-        timestamp
-        for row in rows
-        if (timestamp := _relative_timestamp(row)) is not None
+        timestamp for row in rows if (timestamp := _relative_timestamp(row)) is not None
     ]
     if timestamps:
         return min(timestamps)
@@ -591,7 +590,9 @@ def _timeline_summary_line(entry: TimelineEntry) -> str:
     )
     step = "?" if entry.step is None else str(entry.step)
     phase = entry.phase or "unknown"
-    entity = f"{entry.entity.get('kind', 'unknown')}:{entry.entity.get('id', 'unknown')}"
+    entity = (
+        f"{entry.entity.get('kind', 'unknown')}:{entry.entity.get('id', 'unknown')}"
+    )
     source = f"{entry.source_path}#{entry.source_record}"
     return (
         f"- {relative_time} step={step} phase={phase} "

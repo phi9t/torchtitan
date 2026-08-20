@@ -8,9 +8,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Mapping
+from typing import Any
 
 from torchtitan.observability.state_estimator.bundle import RunEvidenceBundle
 from torchtitan.observability.state_estimator.schema import (
@@ -251,7 +252,9 @@ def _normalize_row(
                 )
             )
 
-    event_time_ns = _event_time_ns(row, findings, source_path=source_path, entity=entity)
+    event_time_ns = _event_time_ns(
+        row, findings, source_path=source_path, entity=entity
+    )
     ingestion_time_ns = _read_int(row, "ingestion_time_ns")
     monotonic_ns = _read_int(row, "monotonic_ns")
     clock_quality = _clock_quality(
@@ -368,7 +371,11 @@ def _event_time_ns(
             )
         return event_time_ns
     wall_time_ns = _read_int(row, "wall_time_ns")
-    if wall_time_ns is None and "wall_time_ns" in row and row["wall_time_ns"] is not None:
+    if (
+        wall_time_ns is None
+        and "wall_time_ns" in row
+        and row["wall_time_ns"] is not None
+    ):
         findings.append(
             _malformed_identity_field(
                 "wall_time_ns",

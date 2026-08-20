@@ -8,9 +8,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from torchtitan.observability.state_estimator.schema import (
     SCHEMA_VERSION,
@@ -116,9 +117,7 @@ class EvaluationResult:
         }
 
 
-def evaluate_case(
-    case: EvaluationCase, summary: Mapping[str, Any]
-) -> EvaluationResult:
+def evaluate_case(case: EvaluationCase, summary: Mapping[str, Any]) -> EvaluationResult:
     mode_items = _mode_items(summary)
     modes = {item.get("mode") for item in mode_items}
     probes = {item.get("kind") for item in summary.get("probe_recommendations", [])}
@@ -182,8 +181,7 @@ def evaluate_manifest(
     summaries: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
     results = [
-        evaluate_case(case, summaries[case.id]).to_json()
-        for case in manifest.cases
+        evaluate_case(case, summaries[case.id]).to_json() for case in manifest.cases
     ]
     return _aggregate_results(
         results, score_label_families=manifest.score_label_families
@@ -328,8 +326,7 @@ def _aggregate_results(
                 if result.get("observability_warning_correct") is True
             ),
             "warning_count": sum(
-                int(result.get("observability_warning_count", 0))
-                for result in results
+                int(result.get("observability_warning_count", 0)) for result in results
             ),
         },
         "resource": {
@@ -428,9 +425,7 @@ def _top_k_root_cause_found(
 ) -> bool | None:
     if expected_root_cause is None:
         return None
-    return any(
-        item.get("candidate") == expected_root_cause for item in root_causes[:k]
-    )
+    return any(item.get("candidate") == expected_root_cause for item in root_causes[:k])
 
 
 def _best_scope_score(
@@ -455,10 +450,12 @@ def _scope_score(expected_scope: Mapping[str, Any], actual_scope: Any) -> float:
         return 0.0
     expected_entities: set[tuple[str, Any]] = set()
     actual_entities: set[tuple[str, Any]] = set()
-    for field, expected_values in expected_scope.items():
-        expected_entities.update((field, item) for item in _as_set(expected_values))
+    for scope_field, expected_values in expected_scope.items():
+        expected_entities.update(
+            (scope_field, item) for item in _as_set(expected_values)
+        )
         actual_entities.update(
-            (field, item) for item in _as_set(actual_scope.get(field))
+            (scope_field, item) for item in _as_set(actual_scope.get(scope_field))
         )
     if not expected_entities and not actual_entities:
         return 0.0
