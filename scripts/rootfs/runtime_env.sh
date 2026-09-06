@@ -11,7 +11,7 @@ ROOTFS_RUNTIME_STORE_ID="${TORCHTITAN_ROOTFS_STORE_ID:-legacy-rootfs}"
 ROOTFS_RUNTIME_PROJECT="/workspace/torchtitan"
 ROOTFS_RUNTIME_CONFIG="${ROOTFS_RUNTIME_PROJECT}/experiments/modded_nanogpt_b200/runtime"
 ROOTFS_RUNTIME_VENV="/project/venvs/b200-runtime"
-ROOTFS_RUNTIME_PATH="${ROOTFS_RUNTIME_VENV}/bin:/project/mise/data/shims:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin"
+ROOTFS_RUNTIME_PATH="${ROOTFS_RUNTIME_VENV}/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin"
 ROOTFS_RUNTIME_STATE_ROOT="${TORCHTITAN_ROOTFS_HOST_STATE:-${ROOTFS_RUNTIME_REPO_ROOT}/.cache/torchtitan-rootfs/${ROOTFS_RUNTIME_ENV_NAME}}"
 ROOTFS_RUNTIME_STATE_DIRS=(home xdg-cache uv-cache pip-cache mise venvs wheels downloads scratch tmp logs)
 
@@ -95,7 +95,7 @@ import sys
 host_state = sys.argv[1]
 workspace = "/workspace/torchtitan"
 env = {
-    "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
+    "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
     "CUDA_HOME": "/opt/cuda-synth",
     "CUDA_PATH": "/opt/cuda-synth",
     "TORCHTITAN_IN_ROOTFS": "1",

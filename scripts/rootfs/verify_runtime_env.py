@@ -17,8 +17,19 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 WORKSPACE = "/workspace/torchtitan"
+REQUIRED_PATH = ":".join(
+    (
+        "/project/venvs/b200-runtime/bin",
+        "/project/mise/data/shims",
+        "/usr/local/cuda/bin",
+        "/opt/cuda-synth/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+    )
+)
 REQUIRED_ENV = {
-    "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
+    "PATH": REQUIRED_PATH,
     "CUDA_HOME": "/opt/cuda-synth",
     "CUDA_PATH": "/opt/cuda-synth",
     "TORCHTITAN_IN_ROOTFS": "1",

@@ -66,6 +66,9 @@ execution surfaces above:
   Profiler and memory capture; Tier 2 is anomaly-triggered Flight Recorder,
   NCCL RAS, py-spy, and evidence-tail capture; Tier 3 is stopped-job EUD,
   `nccl-tests`, SuperBench, deterministic replay, and Nsight diagnosis.
+- Live-attach (job stays up): host `/proc`, `nvidia-smi`/`dcgmi`, and short
+  `perf`/eBPF samples. Use `.claude/skills/attaching-live-training/SKILL.md`.
+  Nsight, EUD, `strace`, and `gdb` stay stop-job.
 - Tier 0 must stay within 1% median steady-state throughput regression. Report
   GPU-memory delta, host CPU, artifact bytes per GPU-hour, and detection latency
   separately.

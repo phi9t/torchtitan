@@ -26,9 +26,22 @@ ENTER_ROOTFS = REPO_ROOT / "scripts" / "rootfs" / "enter_rootfs.sh"
 ROOTFS_MARKER = ".torchtitan-rootfs-owner"
 
 
+CANONICAL_PATH = ":".join(
+    (
+        "/project/venvs/b200-runtime/bin",
+        "/project/mise/data/shims",
+        "/usr/local/cuda/bin",
+        "/opt/cuda-synth/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+    )
+)
+
+
 def _canonical_environment(host_state: Path) -> dict[str, str]:
     return {
-        "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
+        "PATH": CANONICAL_PATH,
         "CUDA_HOME": "/opt/cuda-synth",
         "CUDA_PATH": "/opt/cuda-synth",
         "LD_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu:/opt/cuda-synth/lib64",
@@ -137,6 +150,9 @@ def test_enter_rootfs_emits_plan_without_running_bwrap(tmp_path: Path):
     assert plan["inner_argv"] == ["python", "-c", "print('should not run')"]
     assert plan["environment"]["TORCHTITAN_IN_ROOTFS"] == "1"
     assert plan["environment"]["CUDA_VISIBLE_DEVICES"] == "0,1"
+    assert plan["pid_mode"] == "isolated"
+    assert "--unshare-all" in plan["bwrap_argv"]
+    assert "/usr/local/cuda/bin" in plan["environment"]["PATH"].split(":")
     assert any(
         mount["target"] == "/workspace/torchtitan"
         and mount["source"] == str(REPO_ROOT)
@@ -257,6 +273,279 @@ def test_enter_rootfs_accepts_nonmutable_legacy_manifest(tmp_path: Path):
     assert plan["rootfs"]["store_id"] == "legacy-rootfs"
     assert plan["rootfs"]["mutable_rootfs_allowed"] is False
     assert validate_bwrap_plan(plan)["ok"] is True
+
+
+def test_enter_rootfs_profile_mode_shares_pid_and_records_host_rootfs(tmp_path: Path):
+    rootfs = _minimal_rootfs(tmp_path)
+    output = tmp_path / "bwrap_plan.json"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--profile",
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    plan = json.loads(output.read_text())
+    assert plan["profile_mode"] is True
+    assert plan["pid_mode"] == "host"
+    assert plan["environment"]["TORCHTITAN_ROOTFS_PROFILE"] == "1"
+    assert plan["environment"]["TORCHTITAN_ROOTFS_HOST_ROOTFS"] == str(rootfs)
+    assert "--unshare-pid" not in plan["bwrap_argv"]
+    assert validate_bwrap_plan(plan)["ok"] is True
+
+
+def test_enter_rootfs_share_pid_keeps_host_pid_namespace(tmp_path: Path):
+    rootfs = _minimal_rootfs(tmp_path)
+    output = tmp_path / "bwrap_plan.json"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--share-pid",
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    plan = json.loads(output.read_text())
+    assert plan["pid_mode"] == "host"
+    assert "--unshare-all" not in plan["bwrap_argv"]
+    assert "--unshare-pid" not in plan["bwrap_argv"]
+    assert plan["environment"]["TORCHTITAN_ROOTFS_SHARE_PID"] == "1"
+    assert validate_bwrap_plan(plan)["ok"] is True
+
+
+def test_enter_rootfs_binds_host_sysfs_when_present(tmp_path: Path):
+    if not Path("/sys").is_dir():
+        pytest.skip("host has no /sys")
+    rootfs = _minimal_rootfs(tmp_path)
+    output = tmp_path / "bwrap_plan.json"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    mounts = {
+        mount["target"]: mount for mount in json.loads(output.read_text())["mounts"]
+    }
+    assert mounts["/sys"]["kind"] == "ro-bind"
+    assert mounts["/sys"]["source"] == "/sys"
+
+
+def _emit_plan(tmp_path: Path, rootfs: Path, *mode_args: str) -> dict:
+    output = tmp_path / f"bwrap_plan{'_'.join(mode_args).replace('-', '')}.json"
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            *mode_args,
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    assert proc.returncode == 0, proc.stdout
+    return json.loads(output.read_text())
+
+
+def test_enter_rootfs_privileged_mode_keeps_initial_user_namespace(tmp_path: Path):
+    """bpf() checks capabilities against the initial user namespace.
+
+    A capability minted inside a nested user namespace can never satisfy it, so
+    privileged mode must not unshare the user namespace and must ask bwrap to
+    retain the tracing capabilities instead.
+    """
+    plan = _emit_plan(tmp_path, _minimal_rootfs(tmp_path), "--privileged")
+
+    assert plan["privileged_mode"] is True
+    assert plan["pid_mode"] == "host"
+    assert plan["environment"]["TORCHTITAN_ROOTFS_PRIVILEGED"] == "1"
+
+    argv = plan["bwrap_argv"]
+    assert "--unshare-user" not in argv
+    assert "--unshare-user-try" not in argv
+    assert "--unshare-all" not in argv
+    assert "--unshare-pid" not in argv
+
+    assert plan["capabilities"] == [
+        "CAP_BPF",
+        "CAP_PERFMON",
+        "CAP_SYS_ADMIN",
+        "CAP_SYS_PTRACE",
+        "CAP_SYSLOG",
+    ]
+    added = {argv[i + 1] for i, arg in enumerate(argv) if arg == "--cap-add"}
+    assert added == set(plan["capabilities"])
+
+
+def test_enter_rootfs_privileged_mode_exposes_kernel_headers_and_sbin(tmp_path: Path):
+    """BCC compiles each program against the running kernel at runtime."""
+    plan = _emit_plan(tmp_path, _minimal_rootfs(tmp_path), "--privileged")
+
+    mounts = {mount["target"]: mount for mount in plan["mounts"]}
+    for target in ("/lib/modules", "/usr/src"):
+        assert mounts[target]["kind"] == "ro-bind", f"{target} not ro-bound"
+
+    # BCC's tools and bpftool install into sbin.
+    path_entries = plan["environment"]["PATH"].split(":")
+    assert "/usr/sbin" in path_entries
+    assert "/sbin" in path_entries
+
+
+def test_enter_rootfs_default_mode_grants_no_capabilities(tmp_path: Path):
+    """Training must keep the unprivileged sandbox it has today."""
+    plan = _emit_plan(tmp_path, _minimal_rootfs(tmp_path))
+
+    assert plan["privileged_mode"] is False
+    assert plan["capabilities"] == []
+    assert "--cap-add" not in plan["bwrap_argv"]
+    assert "--unshare-all" in plan["bwrap_argv"]
+    assert "TORCHTITAN_ROOTFS_PRIVILEGED" not in plan["environment"]
+
+    path_entries = plan["environment"]["PATH"].split(":")
+    assert "/usr/sbin" not in path_entries
+    assert "/sbin" not in path_entries
+
+
+def test_enter_rootfs_fills_only_empty_rootfs_libraries(tmp_path: Path):
+    """Host perf/bpftool need host libs, but must not shadow rootfs ones.
+
+    The image ships zero-byte placeholders where host-only libraries such as
+    libunwind belong, which is why the bound host perf reports "file too
+    short" without this. A rootfs library that is actually populated has to be
+    left alone.
+    """
+    if not Path("/usr/bin/perf").exists():
+        pytest.skip("host has no perf")
+
+    rootfs = _minimal_rootfs(tmp_path)
+    # Mirror the merged-usr layout of the real image so that the /lib and
+    # /usr/lib spellings of a library refer to the same file, as they do on
+    # the host. ldd prints either one depending on LD_LIBRARY_PATH.
+    if not (rootfs / "lib").exists():
+        (rootfs / "usr" / "lib").mkdir(parents=True, exist_ok=True)
+        (rootfs / "lib").symlink_to("usr/lib")
+
+    # ldd prints the /lib or the /usr/lib spelling depending on
+    # LD_LIBRARY_PATH, so query it under the same environment the plan run
+    # uses. The script binds exactly the path ldd reports.
+    host_libs = {
+        line.split()[2]
+        for line in subprocess.run(
+            ["ldd", "/usr/bin/perf"],
+            env={"PATH": "/usr/bin:/bin"},
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        ).stdout.splitlines()
+        if "=> /" in line
+    }
+    if not host_libs:
+        pytest.skip("host perf is not dynamically linked")
+
+    populated = sorted(host_libs)[0]
+    in_rootfs = rootfs / Path(populated).relative_to("/")
+    in_rootfs.parent.mkdir(parents=True, exist_ok=True)
+    in_rootfs.write_bytes(b"populated")
+
+    plan = _emit_plan(tmp_path, rootfs, "--privileged")
+    ro_bound = {
+        mount["target"] for mount in plan["mounts"] if mount["kind"] == "ro-bind"
+    }
+
+    assert populated not in ro_bound, f"shadowed populated rootfs library {populated}"
+    for lib in host_libs - {populated}:
+        assert lib in ro_bound, f"{lib} missing from the plan"
+
+
+def test_enter_rootfs_binds_host_cuda_toolkit_when_present(tmp_path: Path):
+    if not Path("/usr/local/cuda/bin/nsys").is_file():
+        pytest.skip("host has no /usr/local/cuda/bin/nsys")
+    rootfs = _minimal_rootfs(tmp_path)
+    output = tmp_path / "bwrap_plan.json"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    mounts = {
+        mount["target"]: mount for mount in json.loads(output.read_text())["mounts"]
+    }
+    assert mounts["/usr/local/cuda"]["kind"] == "ro-bind"
+    assert Path(mounts["/usr/local/cuda"]["source"]).exists()
 
 
 def test_enter_rootfs_can_emit_networked_plan(tmp_path: Path):
