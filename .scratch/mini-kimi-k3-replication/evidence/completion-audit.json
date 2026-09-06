@@ -1,0 +1,713 @@
+{
+  "attempt": {
+    "attempt_id": "attempt-guarded-current-003",
+    "bundle": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003",
+    "results_root": "experiments/mini_kimi_k3/results",
+    "run_id": "mini-kimi-k3-r1-local"
+  },
+  "checks": [
+    {
+      "detail": "full preflight must be ready",
+      "evidence": {
+        "kind": "mini_kimi_k3_preflight",
+        "mode": "full",
+        "report": "experiments/mini_kimi_k3/results/preflight.json",
+        "schema_version": 1,
+        "status": "blocked"
+      },
+      "name": "full_preflight_ready",
+      "status": "fail"
+    },
+    {
+      "detail": "r1 Trainer smoke must have a selected GPU with enough free memory",
+      "evidence": {
+        "devices": [
+          {
+            "index": 0,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          },
+          {
+            "index": 1,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          },
+          {
+            "index": 2,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          },
+          {
+            "index": 3,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          },
+          {
+            "index": 4,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          },
+          {
+            "index": 5,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          },
+          {
+            "index": 6,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          },
+          {
+            "index": 7,
+            "memory_free_mib": 182628,
+            "memory_total_mib": 183359,
+            "memory_used_mib": 4,
+            "name": "NVIDIA B200"
+          }
+        ],
+        "required_free_mib": 12000,
+        "selected": {
+          "index": 0,
+          "memory_free_mib": 182628,
+          "memory_total_mib": 183359,
+          "memory_used_mib": 4,
+          "name": "NVIDIA B200"
+        },
+        "status": "pass"
+      },
+      "name": "r1_smoke_gpu_capacity_ready",
+      "status": "pass"
+    },
+    {
+      "detail": "trainable_config gate must pass",
+      "evidence": {
+        "gate": "trainable_config",
+        "r1_training_smoke": {
+          "command": {
+            "argv": [
+              "/usr/bin/env",
+              "CUDA_VISIBLE_DEVICES=0",
+              "MODULE=mini_kimi_k3",
+              "CONFIG=mini_kimi_k3_r1_contract",
+              "COMM_MODE=fake_backend",
+              "NGPU=1",
+              "./run_train.sh",
+              "--hf_assets_path=tests/assets/tokenizer",
+              "--dump_folder=experiments/mini_kimi_k3/results/r1_training_smoke_train",
+              "--training.steps",
+              "1",
+              "--training.local_batch_size=1",
+              "--training.global_batch_size=1",
+              "--training.seq_len=4096",
+              "--checkpoint.no-enable",
+              "--dataloader.token_manifest=experiments/mini_kimi_k3/data/manifest-r1.json",
+              "--dataloader.tokens_dir=experiments/mini_kimi_k3/data/tokens-r1"
+            ],
+            "cwd": "/workspace/torchtitan",
+            "return_code": 0
+          },
+          "config": "mini_kimi_k3_r1_contract",
+          "gpu_memory": {
+            "devices": [
+              {
+                "index": 0,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              },
+              {
+                "index": 1,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              },
+              {
+                "index": 2,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              },
+              {
+                "index": 3,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              },
+              {
+                "index": 4,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              },
+              {
+                "index": 5,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              },
+              {
+                "index": 6,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              },
+              {
+                "index": 7,
+                "memory_free_mib": 182628,
+                "memory_total_mib": 183359,
+                "memory_used_mib": 4,
+                "name": "NVIDIA B200"
+              }
+            ],
+            "required_free_mib": 12000,
+            "selected": {
+              "index": 0,
+              "memory_free_mib": 182628,
+              "memory_total_mib": 183359,
+              "memory_used_mib": 4,
+              "name": "NVIDIA B200"
+            },
+            "status": "pass"
+          },
+          "max_grad_norm": 0.0071,
+          "model_flavor": "r1",
+          "report": "experiments/mini_kimi_k3/results/r1_training_smoke.json",
+          "rootfs": {
+            "cwd": "/workspace/torchtitan",
+            "marker": "1"
+          },
+          "status": "pass",
+          "steps": 1
+        },
+        "status": "pass"
+      },
+      "name": "trainable_config_passed",
+      "status": "pass"
+    },
+    {
+      "detail": "model_fidelity gate must pass",
+      "evidence": {
+        "gate": "model_fidelity",
+        "status": "pass"
+      },
+      "name": "model_fidelity_passed",
+      "status": "pass"
+    },
+    {
+      "detail": "real_corpus_manifest gate must pass",
+      "evidence": {
+        "detail": "full Mini-K3 manifest decontamination status must be completed or reviewed; full Mini-K3 manifest decontamination must include a non-placeholder report path and report hash; full Mini-K3 manifest source 'code-python' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'cosmopedia' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'finemath' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'fineweb-edu' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'open-web-math' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'web-diverse' local_stage1 decontamination evidence is required for every local build",
+        "gate": "real_corpus_manifest",
+        "status": "fail"
+      },
+      "name": "real_corpus_manifest_passed",
+      "status": "fail"
+    },
+    {
+      "detail": "r1 corpus plan audit must be ready with no token deficit",
+      "evidence": {
+        "available_tokens": 5000000000,
+        "deficit_tokens": 0,
+        "planned_tokens": 5000000000,
+        "report": "experiments/mini_kimi_k3/reports/r1-corpus-plan-audit.json",
+        "sources": {
+          "code-python": {
+            "available_tokens": 612500000,
+            "deficit_tokens": 0,
+            "required_tokens": 612500000,
+            "status": "ready"
+          },
+          "cosmopedia": {
+            "available_tokens": 150000000,
+            "deficit_tokens": 0,
+            "required_tokens": 150000000,
+            "status": "ready"
+          },
+          "finemath": {
+            "available_tokens": 262500000,
+            "deficit_tokens": 0,
+            "required_tokens": 262500000,
+            "status": "ready"
+          },
+          "fineweb-edu": {
+            "available_tokens": 2660000000,
+            "deficit_tokens": 0,
+            "required_tokens": 2660000000,
+            "status": "ready"
+          },
+          "open-web-math": {
+            "available_tokens": 175000000,
+            "deficit_tokens": 0,
+            "required_tokens": 175000000,
+            "status": "ready"
+          },
+          "web-diverse": {
+            "available_tokens": 1140000000,
+            "deficit_tokens": 0,
+            "required_tokens": 1140000000,
+            "status": "ready"
+          }
+        },
+        "status": "ready",
+        "target_tokens": 5000000000
+      },
+      "name": "r1_corpus_plan_audit_ready",
+      "status": "pass"
+    },
+    {
+      "detail": "raw shard target filesystem must have capacity for the r1 token plan",
+      "evidence": {
+        "deficit_bytes": 0,
+        "free_bytes": 29537640448,
+        "path": "experiments/mini_kimi_k3/data/tokens",
+        "report": "experiments/mini_kimi_k3/reports/corpus-disk-readiness.json",
+        "required_bytes": 24000000000,
+        "status": "ready",
+        "target_tokens": 5000000000
+      },
+      "name": "raw_shard_disk_capacity_ready",
+      "status": "pass"
+    },
+    {
+      "detail": "local Stage 1 corpus route must include passing input inspection evidence",
+      "evidence": {
+        "input_format": "parquet-text",
+        "input_manifest": {
+          "paths": [
+            "experiments/mini_kimi_k3/data/stage1-local-r1-inputs/code-python-inputs.json",
+            "experiments/mini_kimi_k3/data/stage1-local-r1-inputs/cosmopedia-inputs.json",
+            "experiments/mini_kimi_k3/data/stage1-local-r1-inputs/finemath-inputs.json",
+            "experiments/mini_kimi_k3/data/stage1-local-r1-inputs/fineweb-edu-inputs.json",
+            "experiments/mini_kimi_k3/data/stage1-local-r1-inputs/open-web-math-inputs.json",
+            "experiments/mini_kimi_k3/data/stage1-local-r1-inputs/web-diverse-inputs.json"
+          ],
+          "sha256": "ecc7e3f81c910e9e50a8edc7388f8203ab7fb4c35cf96d60cf6cda99b662aaac"
+        },
+        "min_total_tokens": 5000000000,
+        "report": "experiments/mini_kimi_k3/reports/stage1-input-inspection-r1.json",
+        "status": "pass",
+        "total_documents": 10922627,
+        "total_files": 52,
+        "total_tokens": 16328451286
+      },
+      "name": "local_stage1_input_inspection_ready",
+      "status": "pass"
+    },
+    {
+      "detail": "Stage 1 source resolution must be ready with no unresolved sources",
+      "evidence": {
+        "num_benchmarks": 8,
+        "num_corpora": 6,
+        "report": "experiments/mini_kimi_k3/reports/stage1-source-resolution.json",
+        "status": "ready",
+        "unresolved_benchmarks": [],
+        "unresolved_corpora": []
+      },
+      "name": "stage1_source_resolution_ready",
+      "status": "pass"
+    },
+    {
+      "detail": "remote Stage 1 corpus path must be ready or explicitly not required",
+      "evidence": {
+        "huggingface_dns": "pass",
+        "modal_auth": "blocked",
+        "modal_cli": "pass",
+        "network_mode": "networked",
+        "report": "experiments/mini_kimi_k3/reports/stage1-remote-readiness.json",
+        "rootfs_marker": "1",
+        "route": "local_or_imported",
+        "status": "not_required"
+      },
+      "name": "stage1_remote_readiness_ready",
+      "status": "pass"
+    },
+    {
+      "detail": "launch_evidence_bundle gate must pass for this full r1 attempt",
+      "evidence": {
+        "attempt_id": "attempt-guarded-current-003",
+        "family": "mini_kimi_k3",
+        "lane": "full",
+        "manifest": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/manifest.json",
+        "model_variant": "r1",
+        "run_id": "mini-kimi-k3-r1-local",
+        "status": "pass",
+        "task": "pretraining"
+      },
+      "name": "launch_evidence_bundle_passed",
+      "status": "pass"
+    },
+    {
+      "detail": "guarded launch attempt must complete",
+      "evidence": {
+        "attempt_id": "attempt-guarded-current-003",
+        "execution_outcome": "blocked",
+        "kind": "attempt_outcome",
+        "report": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+        "schema_version": 1
+      },
+      "name": "guarded_launch_completed",
+      "status": "fail"
+    },
+    {
+      "detail": "training evaluation must be a completed real measurement",
+      "evidence": {
+        "matched_train_stage_invocation_ids": [],
+        "outcome_stage_invocation_ids": [
+          "inv-preflight-2026-08-22T01:34:30Z-2-5762107505065102"
+        ],
+        "run_gate": {
+          "has_real_measurement": false,
+          "measurement_counts": {
+            "not_run": 1
+          },
+          "num_conditions": 1,
+          "promotion_counts": {
+            "not_evaluated": 1
+          }
+        },
+        "stage_invocation_id": null,
+        "stage_invocation_match": false,
+        "status": "missing"
+      },
+      "name": "training_measurement_real",
+      "status": "fail"
+    },
+    {
+      "detail": "coordinator event stream must include a successful train stage",
+      "evidence": {
+        "event_stream": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/processes/coordinator/events.jsonl",
+        "outcome_stage_invocation_ids": [
+          "inv-preflight-2026-08-22T01:34:30Z-2-5762107505065102"
+        ],
+        "terminal_events": [
+          {
+            "kind": "stage_blocked",
+            "return_code": 21,
+            "stage_invocation_id": "inv-preflight-2026-08-22T01:34:30Z-2-5762107505065102"
+          }
+        ],
+        "train_terminal_events": []
+      },
+      "name": "train_stage_succeeded",
+      "status": "fail"
+    }
+  ],
+  "covered": [
+    "r1_smoke_gpu_capacity",
+    "r1_trainer_optimizer_step",
+    "model_fidelity",
+    "r1_corpus_plan_audit",
+    "raw_shard_disk_capacity",
+    "local_stage1_input_inspection",
+    "stage1_source_resolution",
+    "launch_evidence_bundle"
+  ],
+  "kind": "mini_kimi_k3_completion_audit",
+  "missing": [
+    "full_preflight_ready",
+    "real_5b_corpus_manifest",
+    "guarded_launch_completed",
+    "training_measurement_real",
+    "train_stage_succeeded"
+  ],
+  "next_actions": [
+    {
+      "action": "Refresh the full preflight after the missing prerequisite artifacts are ready.",
+      "blocking_checks": [
+        {
+          "detail": "full preflight must be ready",
+          "evidence": {
+            "kind": "mini_kimi_k3_preflight",
+            "mode": "full",
+            "report": "experiments/mini_kimi_k3/results/preflight.json",
+            "schema_version": 1,
+            "status": "blocked"
+          },
+          "name": "full_preflight_ready"
+        }
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "guidance": {
+        "blocked_preflight_requirements": [
+          "real_5b_corpus_manifest"
+        ]
+      },
+      "requirement": "full_preflight_ready"
+    },
+    {
+      "action": "Build or import the full 5B-token Kimi-tokenized corpus manifest with provenance and decontamination evidence.",
+      "blocking_checks": [
+        {
+          "detail": "real_corpus_manifest gate must pass",
+          "evidence": {
+            "detail": "full Mini-K3 manifest decontamination status must be completed or reviewed; full Mini-K3 manifest decontamination must include a non-placeholder report path and report hash; full Mini-K3 manifest source 'code-python' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'cosmopedia' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'finemath' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'fineweb-edu' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'open-web-math' local_stage1 decontamination evidence is required for every local build; full Mini-K3 manifest source 'web-diverse' local_stage1 decontamination evidence is required for every local build",
+            "gate": "real_corpus_manifest",
+            "status": "fail"
+          },
+          "name": "real_corpus_manifest_passed"
+        }
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "guidance": {
+        "available_tokens": 5000000000,
+        "deficit_tokens": 0,
+        "target_tokens": 5000000000
+      },
+      "requirement": "real_5b_corpus_manifest"
+    },
+    {
+      "action": "Run the guarded launch only after full preflight is ready and preserve its outcome artifact.",
+      "blocking_checks": [
+        {
+          "detail": "guarded launch attempt must complete",
+          "evidence": {
+            "attempt_id": "attempt-guarded-current-003",
+            "execution_outcome": "blocked",
+            "kind": "attempt_outcome",
+            "report": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+            "schema_version": 1
+          },
+          "name": "guarded_launch_completed"
+        }
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+      "guidance": {
+        "attempt_outcome_report": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+        "execution_outcome": "blocked",
+        "kind": "attempt_outcome",
+        "status": "fail"
+      },
+      "requirement": "guarded_launch_completed"
+    },
+    {
+      "action": "Complete a real training stage so the guarded attempt records a real measurement.",
+      "blocking_checks": [
+        {
+          "detail": "training evaluation must be a completed real measurement",
+          "evidence": {
+            "matched_train_stage_invocation_ids": [],
+            "outcome_stage_invocation_ids": [
+              "inv-preflight-2026-08-22T01:34:30Z-2-5762107505065102"
+            ],
+            "run_gate": {
+              "has_real_measurement": false,
+              "measurement_counts": {
+                "not_run": 1
+              },
+              "num_conditions": 1,
+              "promotion_counts": {
+                "not_evaluated": 1
+              }
+            },
+            "stage_invocation_id": null,
+            "stage_invocation_match": false,
+            "status": "missing"
+          },
+          "name": "training_measurement_real"
+        }
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+      "guidance": {
+        "attempt_outcome_report": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+        "execution_outcome": null,
+        "measurement": null,
+        "status": "missing"
+      },
+      "requirement": "training_measurement_real"
+    },
+    {
+      "action": "Complete the train stage successfully so the coordinator event stream records stage_succeeded for train.",
+      "blocking_checks": [
+        {
+          "detail": "coordinator event stream must include a successful train stage",
+          "evidence": {
+            "event_stream": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/processes/coordinator/events.jsonl",
+            "outcome_stage_invocation_ids": [
+              "inv-preflight-2026-08-22T01:34:30Z-2-5762107505065102"
+            ],
+            "terminal_events": [
+              {
+                "kind": "stage_blocked",
+                "return_code": 21,
+                "stage_invocation_id": "inv-preflight-2026-08-22T01:34:30Z-2-5762107505065102"
+              }
+            ],
+            "train_terminal_events": []
+          },
+          "name": "train_stage_succeeded"
+        }
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/processes/coordinator/events.jsonl",
+      "guidance": {
+        "event_stream": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/processes/coordinator/events.jsonl",
+        "status": "fail",
+        "terminal_events": [
+          {
+            "kind": "stage_blocked",
+            "return_code": 21,
+            "stage_invocation_id": "inv-preflight-2026-08-22T01:34:30Z-2-5762107505065102"
+          }
+        ]
+      },
+      "requirement": "train_stage_succeeded"
+    }
+  ],
+  "not_required": [
+    "stage1_remote_readiness"
+  ],
+  "objective": "proceed to launch the full Mini Kimi-K3 run end to end",
+  "preflight_report": "experiments/mini_kimi_k3/results/preflight.json",
+  "prompt_to_artifact_checklist": [
+    {
+      "checks": [
+        "full_preflight_ready"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "full_preflight_ready",
+      "status": "missing"
+    },
+    {
+      "checks": [
+        "r1_smoke_gpu_capacity_ready"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "r1_smoke_gpu_capacity",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "trainable_config_passed"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "r1_trainer_optimizer_step",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "model_fidelity_passed"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "model_fidelity",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "real_corpus_manifest_passed"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "real_5b_corpus_manifest",
+      "status": "missing"
+    },
+    {
+      "checks": [
+        "r1_corpus_plan_audit_ready"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "r1_corpus_plan_audit",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "raw_shard_disk_capacity_ready"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "raw_shard_disk_capacity",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "local_stage1_input_inspection_ready"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "local_stage1_input_inspection",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "stage1_source_resolution_ready"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "stage1_source_resolution",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "stage1_remote_readiness_ready"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "stage1_remote_readiness",
+      "status": "not_required"
+    },
+    {
+      "checks": [
+        "launch_evidence_bundle_passed"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/preflight.json",
+      "requirement": "launch_evidence_bundle",
+      "status": "covered"
+    },
+    {
+      "checks": [
+        "guarded_launch_completed"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+      "requirement": "guarded_launch_completed",
+      "status": "missing"
+    },
+    {
+      "checks": [
+        "training_measurement_real"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/outcome.json",
+      "requirement": "training_measurement_real",
+      "status": "missing"
+    },
+    {
+      "checks": [
+        "train_stage_succeeded"
+      ],
+      "evidence": "experiments/mini_kimi_k3/results/runs/mini-kimi-k3-r1-local/attempt-guarded-current-003/processes/coordinator/events.jsonl",
+      "requirement": "train_stage_succeeded",
+      "status": "missing"
+    }
+  ],
+  "schema_version": 1,
+  "status": "blocked",
+  "success_criteria": [
+    "full_preflight_ready",
+    "r1_smoke_gpu_capacity",
+    "r1_trainer_optimizer_step",
+    "model_fidelity",
+    "real_5b_corpus_manifest",
+    "r1_corpus_plan_audit",
+    "raw_shard_disk_capacity",
+    "local_stage1_input_inspection",
+    "stage1_source_resolution",
+    "stage1_remote_readiness",
+    "launch_evidence_bundle",
+    "guarded_launch_completed",
+    "training_measurement_real",
+    "train_stage_succeeded"
+  ]
+}

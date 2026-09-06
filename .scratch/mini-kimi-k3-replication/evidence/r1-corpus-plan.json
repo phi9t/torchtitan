@@ -1,0 +1,65 @@
+{
+  "first_party_total_tokens": 55000000000.0,
+  "kind": "mini_kimi_k3_r1_corpus_plan",
+  "mix_plan": {
+    "path": "experiments/mini_kimi_k3/assets/mini-kimi-k3-vizuara/data/mix_plan.json",
+    "sha256": "d42b9c503bddbb334c29096fd24e801880a9c02371b44a51899ed167447c07ed"
+  },
+  "scale": 0.09090909090909091,
+  "schema_version": 1,
+  "source_tokens": {
+    "code-python": 612500000,
+    "cosmopedia": 150000000,
+    "finemath": 262500000,
+    "fineweb-edu": 2660000000,
+    "open-web-math": 175000000,
+    "web-diverse": 1140000000
+  },
+  "sources": {
+    "code-python": {
+      "estimated_files": 41,
+      "first_party_files": 446,
+      "source_fraction": 0.1225,
+      "target_tokens": 612500000,
+      "tokens_per_file": 15127250.5
+    },
+    "cosmopedia": {
+      "estimated_files": 1,
+      "first_party_files": 7,
+      "source_fraction": 0.03,
+      "target_tokens": 150000000,
+      "tokens_per_file": 260286612.02844
+    },
+    "finemath": {
+      "estimated_files": 2,
+      "first_party_files": 20,
+      "source_fraction": 0.0525,
+      "target_tokens": 262500000,
+      "tokens_per_file": 146123980.2288
+    },
+    "fineweb-edu": {
+      "estimated_files": 4,
+      "first_party_files": 39,
+      "source_fraction": 0.532,
+      "target_tokens": 2660000000,
+      "tokens_per_file": 755008927.2
+    },
+    "open-web-math": {
+      "estimated_files": 2,
+      "first_party_files": 19,
+      "source_fraction": 0.035,
+      "target_tokens": 175000000,
+      "tokens_per_file": 104911668.44706
+    },
+    "web-diverse": {
+      "estimated_files": 2,
+      "first_party_files": 19,
+      "source_fraction": 0.228,
+      "target_tokens": 1140000000,
+      "tokens_per_file": 693974683.1424
+    }
+  },
+  "status": "planned",
+  "target_tokens": 5000000000,
+  "total_planned_tokens": 5000000000
+}

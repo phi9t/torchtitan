@@ -1,0 +1,51 @@
+{
+  "available_tokens": 5000000000,
+  "corpus_plan": "experiments/mini_kimi_k3/reports/r1-corpus-plan.json",
+  "deficit_tokens": 0,
+  "extra_manifest_sources": {},
+  "kind": "mini_kimi_k3_r1_corpus_plan_audit",
+  "manifest": "experiments/mini_kimi_k3/data/manifest-r1-decontam.json",
+  "planned_tokens": 5000000000,
+  "schema_version": 1,
+  "sources": {
+    "code-python": {
+      "available_tokens": 612500000,
+      "deficit_tokens": 0,
+      "required_tokens": 612500000,
+      "status": "ready"
+    },
+    "cosmopedia": {
+      "available_tokens": 150000000,
+      "deficit_tokens": 0,
+      "required_tokens": 150000000,
+      "status": "ready"
+    },
+    "finemath": {
+      "available_tokens": 262500000,
+      "deficit_tokens": 0,
+      "required_tokens": 262500000,
+      "status": "ready"
+    },
+    "fineweb-edu": {
+      "available_tokens": 2660000000,
+      "deficit_tokens": 0,
+      "required_tokens": 2660000000,
+      "status": "ready"
+    },
+    "open-web-math": {
+      "available_tokens": 175000000,
+      "deficit_tokens": 0,
+      "required_tokens": 175000000,
+      "status": "ready"
+    },
+    "web-diverse": {
+      "available_tokens": 1140000000,
+      "deficit_tokens": 0,
+      "required_tokens": 1140000000,
+      "status": "ready"
+    }
+  },
+  "status": "ready",
+  "target_tokens": 5000000000,
+  "tokens_dir": "experiments/mini_kimi_k3/data/tokens-r1-decontam"
+}
