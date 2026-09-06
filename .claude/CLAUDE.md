@@ -100,6 +100,9 @@ execution surfaces above:
   proves promised numerical identity; representative training proves
   convergence; matched steady-state runs prove performance; fault injection
   proves detection/diagnosis; replicated evaluation proves quality improvement.
+- Mercor-shaped campaigns (de-risk → ablate → freeze → scale → transfer):
+  `.claude/skills/running-experiment-campaigns/SKILL.md`. Next ticket comes
+  from the campaign ledger, not from chat.
 
 ## Configuration and Entrypoints
 

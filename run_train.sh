@@ -36,6 +36,8 @@ TORCHTITAN_ATTEMPT_ID=${TORCHTITAN_ATTEMPT_ID:-"$(python3 -c 'import uuid; print
 export TORCHTITAN_RUN_ID TORCHTITAN_ATTEMPT_ID
 
 TORCHFT_LIGHTHOUSE=${TORCHFT_LIGHTHOUSE:-"http://localhost:29510"}
+TORCHTITAN_RDZV_ENDPOINT=${TORCHTITAN_RDZV_ENDPOINT:-"127.0.0.1:0"}
+TORCHTITAN_LOCAL_ADDR=${TORCHTITAN_LOCAL_ADDR:-"127.0.0.1"}
 
 if [ -n "$COMM_MODE" ]; then
     # Communication mode specified: validate configuration or run in debug mode
@@ -46,7 +48,8 @@ else
     PYTORCH_ALLOC_CONF="expandable_segments:True" \
     TORCHFT_LIGHTHOUSE=${TORCHFT_LIGHTHOUSE} \
     torchrun --nproc_per_node=${NGPU} --rdzv_id "${TORCHTITAN_RUN_ID}" \
-    --rdzv_backend c10d --rdzv_endpoint="localhost:0" \
+    --rdzv_backend c10d --rdzv_endpoint="${TORCHTITAN_RDZV_ENDPOINT}" \
+    --local_addr="${TORCHTITAN_LOCAL_ADDR}" \
     --local-ranks-filter ${LOG_RANK} --role rank --tee 3 \
     -m torchtitan.train --module ${MODULE} --config ${CONFIG} "$@"
 fi

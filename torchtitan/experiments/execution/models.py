@@ -104,11 +104,16 @@ class ConditionStatus:
     execution_outcome: str
     measurement: str
     promotion: str
+    stage_invocation_id: str | None = None
 
     def __post_init__(self) -> None:
         _require_member("execution_outcome", self.execution_outcome, EXECUTION_OUTCOMES)
         _require_member("measurement", self.measurement, MEASUREMENTS)
         _require_member("promotion", self.promotion, PROMOTIONS)
+        if self.stage_invocation_id is not None and not self.stage_invocation_id:
+            raise ValueError(
+                "ConditionStatus.stage_invocation_id must be non-empty when set"
+            )
 
     @property
     def is_real_measurement(self) -> bool:
@@ -117,11 +122,14 @@ class ConditionStatus:
         return self.measurement == "real"
 
     def to_dict(self) -> dict[str, str]:
-        return {
+        data = {
             "execution_outcome": self.execution_outcome,
             "measurement": self.measurement,
             "promotion": self.promotion,
         }
+        if self.stage_invocation_id is not None:
+            data["stage_invocation_id"] = self.stage_invocation_id
+        return data
 
 
 def _require_member(field: str, value: str, allowed: tuple[str, ...]) -> None:

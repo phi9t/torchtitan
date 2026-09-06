@@ -11,6 +11,8 @@ _supported_experiments = frozenset(
         "graph_trainer.qwen3",
         "dit",
         "transformers_modeling_backend",
+        "mini_kimi_k3",
+        "falcon",
         "autoparallel.llama3",
         "autoparallel.local_map_deepseek_v3",
         "torchft.llama3",

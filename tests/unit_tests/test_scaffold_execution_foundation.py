@@ -154,6 +154,28 @@ def test_real_zero_measurement_is_real_not_blocked():
     }
 
 
+def test_condition_status_can_identify_owning_stage_invocation():
+    status = models.ConditionStatus(
+        "completed",
+        "real",
+        "not_evaluated",
+        stage_invocation_id="inv-train-1",
+    )
+    assert status.to_dict() == {
+        "execution_outcome": "completed",
+        "measurement": "real",
+        "promotion": "not_evaluated",
+        "stage_invocation_id": "inv-train-1",
+    }
+    with pytest.raises(ValueError, match="stage_invocation_id"):
+        models.ConditionStatus(
+            "completed",
+            "real",
+            "not_evaluated",
+            stage_invocation_id="",
+        )
+
+
 def test_legacy_execution_status_reexports_condition_status():
     assert execution_status.ConditionStatus is models.ConditionStatus
     assert execution_status.EXECUTION_OUTCOMES is models.EXECUTION_OUTCOMES

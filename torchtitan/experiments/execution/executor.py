@@ -40,17 +40,30 @@ class CommandResult:
 
 
 class Executor(Protocol):
-    def run(self, argv: list[str], *, cwd: Path | None = None) -> CommandResult:
+    def run(
+        self,
+        argv: list[str],
+        *,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
         """Launch argv and return its CommandResult."""
 
 
 class SubprocessExecutor:
     """Default executor: run argv as a host subprocess and capture output."""
 
-    def run(self, argv: list[str], *, cwd: Path | None = None) -> CommandResult:
+    def run(
+        self,
+        argv: list[str],
+        *,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
         completed = subprocess.run(
             argv,
             cwd=cwd,
+            env=env,
             capture_output=True,
             text=True,
         )
@@ -71,7 +84,16 @@ class FakeExecutor:
     def __init__(self, results: dict[tuple[str, ...], CommandResult] | None = None):
         self._results = dict(results or {})
         self.calls: list[list[str]] = []
+        self.env_by_call: list[dict[str, str] | None] = []
 
-    def run(self, argv: list[str], *, cwd: Path | None = None) -> CommandResult:
+    def run(
+        self,
+        argv: list[str],
+        *,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
+        del cwd
         self.calls.append(list(argv))
+        self.env_by_call.append(dict(env) if env is not None else None)
         return self._results.get(tuple(argv), CommandResult(return_code=0))
