@@ -1,6 +1,13 @@
 # Issue tracker: Local Markdown
 
 Issues and specs for this repo live as markdown files in `.scratch/`.
+That remains the canonical tracker for single-repository work.
+
+Kata is an additional Ultron control plane. Read
+`docs/agents/active-work.md` and use `tools/active_work.py` for the
+projection over Kata. Do not treat `.scratch/` as read-only history and
+do not dual-write the same ticket into both systems unless a ticket
+explicitly says to import it.
 
 ## Conventions
 

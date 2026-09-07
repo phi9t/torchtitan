@@ -36,10 +36,13 @@ Inspect the working tree and applicable repository guidance, then use
 `docs/agents/triage-labels.md` before triaging incoming work. Put durable intent
 in the configured tracker:
 
-- Single-repository work uses that repository's tracker.
+- Single-repository work uses that repository's tracker
+  (`docs/agents/issue-tracker.md`, `.scratch/`).
 - Cross-repository work starts in Ultron at `.scratch/<effort>/`. Create linked
   child tickets in every affected repository and point each child back to the
   Ultron map.
+- The Kata projection in `docs/agents/active-work.md` is additional. It does
+  not replace the `.scratch/` tracker on this repository.
 
 The **short path** is available only when every condition holds: one repository,
 one session, reversible, narrowly scoped, and no public API or schema,

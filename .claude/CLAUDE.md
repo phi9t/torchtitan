@@ -477,7 +477,11 @@ A change is ready for review when:
 **Mandatory:** Read and follow `CONSTITUTION.md` before acting. Before planning,
 building, fixing, or changing code, read and follow
 `docs/agents/agentic-engineering.md`. Direct user instructions and more specific
-repository guidance take precedence.
+repository guidance take precedence. Before selecting, claiming, or tracking
+engineering work, also read `docs/agents/active-work.md`. Durable intent for
+this repository still lives in `.scratch/` as described in
+`docs/agents/issue-tracker.md`; Kata is an additional projection, not a
+cutover.
 Default to the clean-context subagent execution rule in that workflow for
 discrete implementation, audit, and verification tasks.
 For implementation-plan work, the main agent should behave as an orchestrator:
