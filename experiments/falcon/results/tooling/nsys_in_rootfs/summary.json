@@ -1,0 +1,21 @@
+{
+  "claim_label": "smoke",
+  "purpose": "perf_tooling_base",
+  "arm": "A5",
+  "mixer": "falcon",
+  "variant": "falcon1a",
+  "alignment": "delayed",
+  "phi": "l2",
+  "steps": 20,
+  "seed": 0,
+  "seq_len": 512,
+  "local_batch_size": 32,
+  "tokens_per_step": 16384,
+  "dtype": "float32",
+  "started_utc": "2026-09-06T19:56:51.836210+00:00",
+  "pid": 34,
+  "cuda_visible_devices": "3",
+  "completed_steps": 20,
+  "elapsed_sec": 4.59,
+  "finished_utc": "2026-09-06T19:56:56.425274+00:00"
+}

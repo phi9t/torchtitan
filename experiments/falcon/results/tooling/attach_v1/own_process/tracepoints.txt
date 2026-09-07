@@ -1,0 +1,10 @@
+
+ Performance counter stats for process id '2176064':
+
+               203      sched:sched_switch
+                19      sched:sched_wakeup
+                 8      syscalls:sys_enter_read
+                 0      syscalls:sys_enter_ioctl
+               176      syscalls:sys_enter_futex
+
+       8.002560771 seconds time elapsed

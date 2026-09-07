@@ -1,0 +1,294 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cpu-clock:uH'
+# Event count (approx.): 12050504930
+#
+# Overhead       Samples  Command  Shared Object         Symbol
+# ........  ............  .......  ....................  ..............................
+#
+    10.81%           129  python   [vdso]                [.] 0x00000000000006b8
+            |
+            ---0x7fffc33a06b8
+               0x7ff9bbc2c96d
+               0x7ff9908d2cb4
+               0x7ff9907e2c4c
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --10.39%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     9.14%           109  python   libcuda.so.1          [.] 0x00000000004618ce
+            |
+            ---0x7ff990a188ce
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --9.05%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     5.28%            63  python   libcuda.so.1          [.] 0x0000000000461860
+            |
+            ---0x7ff990a18860
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --5.20%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     3.77%            45  python   libcuda.so.1          [.] 0x0000000000461894
+            |
+            ---0x7ff990a18894
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --3.69%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     3.52%            42  python   libcuda.so.1          [.] 0x000000000022b969
+            |
+            ---0x7ff9907e2969
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --3.35%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     3.19%            38  python   libcuda.so.1          [.] 0x0000000000461873
+            |
+            ---0x7ff990a18873
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --3.10%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     2.43%            29  python   libcuda.so.1          [.] 0x0000000000461996
+            |
+            ---0x7ff990a18996
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --2.26%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     1.84%            22  python   libc.so.6             [.] __strverscmp
+            |
+            ---__strverscmp
+               |
+                --1.09%--0x7ff99157224b
+                          |
+                           --1.01%--0x7ff990780ad5
+                                     0x7ff99078c9a8
+                                     0x7ff99078d34e
+
+     1.84%            22  python   libcuda.so.1          [.] 0x000000000021f106
+            |
+            ---0x7ff9907d6106
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               0x7ff905cbbe7e
+               0x7ff91f0afab2
+               0x7ff91f0b1e30
+
+     1.68%            20  python   libcuda.so.1          [.] 0x00000000004618c8
+            |
+            ---0x7ff990a188c8
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               0x7ff905cbbe7e
+               0x7ff91f0afab2
+               0x7ff91f0b1e30
+
+     1.59%            19  python   libcuda.so.1          [.] 0x0000000000f9d2b0
+            |
+            ---0x7ff9915542b0
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --1.51%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     1.51%            18  python   libcuda.so.1          [.] 0x00000000004618cc
+            |
+            ---0x7ff990a188cc
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               0x7ff905cbbe7e
+               0x7ff91f0afab2
+               0x7ff91f0b1e30
+
+     1.51%            18  python   libcuda.so.1          [.] 0x0000000000461901
+            |
+            ---0x7ff990a18901
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               |
+                --1.42%--0x7ff905cbbe7e
+                          0x7ff91f0afab2
+                          0x7ff91f0b1e30
+
+     1.34%            16  python   libcuda.so.1          [.] 0x00000000004618d1
+            |
+            ---0x7ff990a188d1
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               0x7ff905cbbe7e
+               0x7ff91f0afab2
+               0x7ff91f0b1e30
+
+     1.09%            13  python   libc.so.6             [.] __strxfrm_l
+            |
+            ---__strxfrm_l
+
+     1.09%            13  python   libcuda.so.1          [.] 0x000000000021f0f2
+            |
+            ---0x7ff9907d60f2
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               0x7ff905cbbe7e
+               0x7ff91f0afab2
+               0x7ff91f0b1e30
+
+     1.09%            13  python   libcuda.so.1          [.] 0x00000000004618f8
+            |
+            ---0x7ff990a188f8
+               0x7ff9907d6103
+               0x7ff990814e3b
+               0x7ff991554237
+               0x7ff991554685
+               0x7ff9907e2974
+               0x7ff9908a92b3
+               0x7ff991508ff5
+               0x7ff99095f3a7
+               cuStreamSynchronize
+               0x7ff9bae13723
+               0x7ff9bae81e50
+               0x7ff905cbbe7e
+               0x7ff91f0afab2
+               0x7ff91f0b1e30
+
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

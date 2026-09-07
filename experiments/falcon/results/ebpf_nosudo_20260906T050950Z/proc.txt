@@ -1,0 +1,102 @@
+=== status ===
+Name:	python
+Umask:	0022
+State:	R (running)
+Tgid:	2211702
+Ngid:	0
+Pid:	2211702
+PPid:	2211700
+TracerPid:	0
+Uid:	1018	1018	1018	1018
+Gid:	1018	1018	1018	1018
+FDSize:	64
+Groups:	27 991 993 1000 1018
+NStgid:	2211702	4
+NSpid:	2211702	4
+NSpgid:	2211664	0
+NSsid:	2211664	0
+VmPeak:	45593396 kB
+VmSize:	44616828 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	 3809448 kB
+VmRSS:	 2832988 kB
+RssAnon:	 2216816 kB
+RssFile:	  594408 kB
+RssShmem:	   21764 kB
+VmData:	 6634428 kB
+VmStk:	     200 kB
+VmExe:	    2956 kB
+VmLib:	 2000552 kB
+VmPTE:	    7940 kB
+VmSwap:	       0 kB
+HugetlbPages:	       0 kB
+CoreDumping:	0
+THP_enabled:	1
+Threads:	71
+SigQ:	0/15994057
+SigPnd:	0000000000000000
+ShdPnd:	0000000000000000
+SigBlk:	0000000000000000
+SigIgn:	0000000001001000
+SigCgt:	00000001000004ea
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+CapAmb:	0000000000000000
+NoNewPrivs:	1
+Seccomp:	0
+Seccomp_filters:	0
+Speculation_Store_Bypass:	thread vulnerable
+SpeculationIndirectBranch:	conditional enabled
+Cpus_allowed:	ffffff,ffffffff,ffffffff,ffffffff,ffffffff,ffffffff,ffffffff
+Cpus_allowed_list:	0-215
+Mems_allowed:	00000000,00000003
+Mems_allowed_list:	0-1
+voluntary_ctxt_switches:	269
+nonvoluntary_ctxt_switches:	3032
+=== stat ===
+2211702 (python) R 2211700 2211664 2211664 0 -1 4194304 502405 245 0 0 251119 544 0 0 20 0 71 0 112251725 45687631872 708247 18446744073709551615 4325376 7352317 140736468331808 0 0 0 0 16781312 1258 0 0 0 17 16 0 0 0 0 0 10653128 12216448 42582016 140736468334817 140736468334967 140736468334967 140736468340712 0
+=== io ===
+rchar: 3491033450
+wchar: 37777
+syscr: 12790
+syscw: 2659
+read_bytes: 0
+write_bytes: 45056
+cancelled_write_bytes: 4096
+=== wchan ===
+0
+=== syscall ===
+running
+
+=== cwd ===
+/workspace/torchtitan
+=== smaps_rollup ===
+00400000-7fffc33a2000 ---p 00000000 00:00 0                              [rollup]
+Rss:             2833692 kB
+Pss:             2829911 kB
+Pss_Anon:        2217460 kB
+Pss_File:         590687 kB
+Pss_Shmem:         21764 kB
+Shared_Clean:       4772 kB
+Shared_Dirty:          0 kB
+Private_Clean:    583212 kB
+Private_Dirty:   2245708 kB
+Referenced:      2825360 kB
+Anonymous:       2217460 kB
+LazyFree:              0 kB
+AnonHugePages:    620544 kB
+ShmemPmdMapped:        0 kB
+FilePmdMapped:         0 kB
+Shared_Hugetlb:        0 kB
+Private_Hugetlb:       0 kB
+Swap:                  0 kB
+SwapPss:               0 kB
+Locked:                0 kB
+=== limits (nofile) ===
+=== cpuset ===
+/user.slice/user-1018.slice/session-38148.scope
+=== schedstat ===
+2507457057788 159484379 3303

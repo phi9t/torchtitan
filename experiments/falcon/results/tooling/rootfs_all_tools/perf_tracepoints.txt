@@ -1,0 +1,12 @@
+
+ Performance counter stats for 'sleep 3':
+
+                 1      sched:sched_switch
+                 1      syscalls:sys_enter_read
+                 0      syscalls:sys_enter_ioctl
+                 0      syscalls:sys_enter_futex
+
+       3.000803389 seconds time elapsed
+
+       0.000000000 seconds user
+       0.000810000 seconds sys

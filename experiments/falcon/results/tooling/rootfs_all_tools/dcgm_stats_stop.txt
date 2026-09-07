@@ -1,0 +1,1 @@
+Successfully stopped recording stats for rootfs_smoke.

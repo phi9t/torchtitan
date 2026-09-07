@@ -1,0 +1,2 @@
+Failed to execute our gdb script.
+Run with --verbose to debug the failure.

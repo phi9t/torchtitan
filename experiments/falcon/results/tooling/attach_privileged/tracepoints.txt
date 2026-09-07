@@ -1,0 +1,10 @@
+
+ Performance counter stats for process id '2619929':
+
+                 8      sched:sched_switch
+                 8      sched:sched_wakeup
+                 0      syscalls:sys_enter_read
+                 0      syscalls:sys_enter_ioctl
+                 0      syscalls:sys_enter_futex
+
+       8.001017687 seconds time elapsed

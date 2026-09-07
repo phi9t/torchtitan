@@ -1,1 +1,12 @@
-results/
+# Profiler binaries and Nsight session junk stay on disk.
+*.data
+*.nsys-rep
+*.ncu-rep
+*.sqlite
+*.bin
+*.lock
+__pycache__/
+results/**/tmp/
+results/tooling/nsys_diag/plan.json
+# Generated Fil HTML/SVG (and its upstream typo) stay local.
+results/tooling/py_profilers/fil/

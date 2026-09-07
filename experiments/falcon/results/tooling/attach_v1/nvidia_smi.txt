@@ -1,0 +1,283 @@
+=== query-gpu ===
+index, uuid, name, utilization.gpu [%], utilization.memory [%], memory.used [MiB], memory.total [MiB], temperature.gpu, power.draw [W], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz], clocks_event_reasons.active
+0, GPU-c3f9bd88-bb24-8f3d-4665-888ff03c16d0, NVIDIA B200, 97 %, 29 %, 20914 MiB, 183359 MiB, 53, 740.78 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000000
+1, GPU-eaed2f0d-2541-8ca8-b6c4-3e2e45e86619, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 45, 210.94 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+2, GPU-1e9d22ee-6ee8-b5af-b909-1c1df26a6531, NVIDIA B200, 0 %, 0 %, 4 MiB, 183359 MiB, 34, 190.44 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+3, GPU-b7107eca-4d5c-b8cd-1a6b-61310990dd9f, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 43, 199.42 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+4, GPU-99a059a0-8875-2b34-e42c-d2167a3293c6, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 34, 187.59 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+5, GPU-813d5936-26d2-159c-c21b-12ecc2b4ac8f, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 43, 203.65 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+6, GPU-4eec4163-dfe4-2397-c2f1-b82ef547f0fe, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 34, 188.08 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+7, GPU-2c694d6a-56cd-c4ae-a6d8-724411e1fe7d, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 42, 192.46 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+=== compute-apps ===
+gpu_uuid, pid, process_name, used_gpu_memory [MiB]
+GPU-c3f9bd88-bb24-8f3d-4665-888ff03c16d0, 2176064, python, 20900 MiB
+=== dmon 8s ===
+# gpu    pwr  gtemp  mtemp     sm    mem    enc    dec    jpg    ofa   mclk   pclk  pviol  tviol     fb   bar1   ccpm  sbecc  dbecc    pci  rxpci  txpci
+# Idx      W      C      C      %      %      %      %      %      %    MHz    MHz      %   bool     MB     MB     MB   errs   errs   errs   MB/s   MB/s
+    0    741     55     51     98     27      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0     54     14
+    1    210     45     43      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    2    190     34     33      0      0      0      0      0      0   3996   1965      0      0      4      5      0      0      0      0      0      0
+    3    199     43     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    4    187     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    5    203     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    6    188     34     32      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    7    192     42     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    0    743     53     51     97     28      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0    112      6
+    1    211     45     43      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      1      4
+    2    190     34     33      0      0      0      0      0      0   3996   1965      0      0     28     29      0      0      0      0     35    390
+    3    198     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    4    187     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    5    203     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    6    188     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    7    192     42     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    0    741     55     51     98     26      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0     19      8
+    1    211     45     43      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    2    191     34     33     20      0      0      0      0      0   3996   1965      0      0    830    831      0      0      0      0    160     25
+    3    199     43     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    4    187     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    5    203     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    6    188     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    7    192     42     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    0    741     55     51     97     30      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0     68      4
+    1    211     46     43      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    2    191     34     33      0      0      0      0      0      0   3996   1965      0      0      4      5      0      0      0      0      0      2
+    3    199     43     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    4    189     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      2      2
+    5    206     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    6    190     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      1      1
+    7    194     42     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    0    743     56     51     98     27      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0     62     11
+    1    211     46     43      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      1
+    2    190     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    3    199     43     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    4    187     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    5    203     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    6    188     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    7    192     42     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    0    744     56     52     98     26      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0     44     15
+    1    211     46     43      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    2    190     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    3    198     43     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+# gpu    pwr  gtemp  mtemp     sm    mem    enc    dec    jpg    ofa   mclk   pclk  pviol  tviol     fb   bar1   ccpm  sbecc  dbecc    pci  rxpci  txpci
+# Idx      W      C      C      %      %      %      %      %      %    MHz    MHz      %   bool     MB     MB     MB   errs   errs   errs   MB/s   MB/s
+    4    187     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    5    203     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    6    188     34     32      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    7    192     42     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    0    745     55     51     97     28      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0     55     16
+    1    211     46     44      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    2    190     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    3    199     43     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    4    187     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    5    203     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    6    188     34     32      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    7    192     42     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    0    744     55     51     98     27      0      0      0      0   3996   1965      0      0  20914  20915      0      0      0      0    110      0
+    1    211     46     44      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    2    190     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    3    198     43     40      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    4    187     34     31      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    5    203     43     41      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+    6    188     34     33      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      0
+    7    192     42     42      0      0      0      0      0      0   3996   1965      0      0      0      1      0      0      0      0      0      2
+=== pmon 5s gpu0 ===
+# gpu         pid   type     sm    mem    enc    dec    jpg    ofa    command
+# Idx           #    C/G      %      %      %      %      %      %    name
+    0    2176064     C     96     27      -      -      -      -    python
+    0    2176064     C     96     26      -      -      -      -    python
+    0    2176064     C     97     27      -      -      -      -    python
+    0    2176064     C     97     26      -      -      -      -    python
+    0    2176064     C     96     27      -      -      -      -    python
+=== topo ===
+	[4mGPU0	GPU1	GPU2	GPU3	GPU4	GPU5	GPU6	GPU7	NIC0	NIC1	NIC2	NIC3	NIC4	NIC5	NIC6	NIC7	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV18	NV18	NV18	NV18	NV18	NV18	NV18	PIX	PIX	NODE	NODE	SYS	SYS	SYS	SYS	0-53,108-161	0		N/A
+GPU1	NV18	 X 	NV18	NV18	NV18	NV18	NV18	NV18	PIX	PIX	NODE	NODE	SYS	SYS	SYS	SYS	0-53,108-161	0		N/A
+GPU2	NV18	NV18	 X 	NV18	NV18	NV18	NV18	NV18	NODE	NODE	PIX	PIX	SYS	SYS	SYS	SYS	0-53,108-161	0		N/A
+GPU3	NV18	NV18	NV18	 X 	NV18	NV18	NV18	NV18	NODE	NODE	PIX	PIX	SYS	SYS	SYS	SYS	0-53,108-161	0		N/A
+GPU4	NV18	NV18	NV18	NV18	 X 	NV18	NV18	NV18	SYS	SYS	SYS	SYS	PIX	PIX	NODE	NODE	54-107,162-215	1		N/A
+GPU5	NV18	NV18	NV18	NV18	NV18	 X 	NV18	NV18	SYS	SYS	SYS	SYS	PIX	PIX	NODE	NODE	54-107,162-215	1		N/A
+GPU6	NV18	NV18	NV18	NV18	NV18	NV18	 X 	NV18	SYS	SYS	SYS	SYS	NODE	NODE	PIX	PIX	54-107,162-215	1		N/A
+GPU7	NV18	NV18	NV18	NV18	NV18	NV18	NV18	 X 	SYS	SYS	SYS	SYS	NODE	NODE	PIX	PIX	54-107,162-215	1		N/A
+NIC0	PIX	PIX	NODE	NODE	SYS	SYS	SYS	SYS	 X 	PIX	NODE	NODE	SYS	SYS	SYS	SYS
+NIC1	PIX	PIX	NODE	NODE	SYS	SYS	SYS	SYS	PIX	 X 	NODE	NODE	SYS	SYS	SYS	SYS
+NIC2	NODE	NODE	PIX	PIX	SYS	SYS	SYS	SYS	NODE	NODE	 X 	PIX	SYS	SYS	SYS	SYS
+NIC3	NODE	NODE	PIX	PIX	SYS	SYS	SYS	SYS	NODE	NODE	PIX	 X 	SYS	SYS	SYS	SYS
+NIC4	SYS	SYS	SYS	SYS	PIX	PIX	NODE	NODE	SYS	SYS	SYS	SYS	 X 	PIX	NODE	NODE
+NIC5	SYS	SYS	SYS	SYS	PIX	PIX	NODE	NODE	SYS	SYS	SYS	SYS	PIX	 X 	NODE	NODE
+NIC6	SYS	SYS	SYS	SYS	NODE	NODE	PIX	PIX	SYS	SYS	SYS	SYS	NODE	NODE	 X 	PIX
+NIC7	SYS	SYS	SYS	SYS	NODE	NODE	PIX	PIX	SYS	SYS	SYS	SYS	NODE	NODE	PIX	 X
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+  NIC4: mlx5_4
+  NIC5: mlx5_5
+  NIC6: mlx5_6
+  NIC7: mlx5_7
+
+=== nvlink ===
+GPU 0: NVIDIA B200 (UUID: GPU-c3f9bd88-bb24-8f3d-4665-888ff03c16d0)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s
+GPU 1: NVIDIA B200 (UUID: GPU-eaed2f0d-2541-8ca8-b6c4-3e2e45e86619)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s
+GPU 2: NVIDIA B200 (UUID: GPU-1e9d22ee-6ee8-b5af-b909-1c1df26a6531)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s
+GPU 3: NVIDIA B200 (UUID: GPU-b7107eca-4d5c-b8cd-1a6b-61310990dd9f)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s
+GPU 4: NVIDIA B200 (UUID: GPU-99a059a0-8875-2b34-e42c-d2167a3293c6)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s
+GPU 5: NVIDIA B200 (UUID: GPU-813d5936-26d2-159c-c21b-12ecc2b4ac8f)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s
+GPU 6: NVIDIA B200 (UUID: GPU-4eec4163-dfe4-2397-c2f1-b82ef547f0fe)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s
+GPU 7: NVIDIA B200 (UUID: GPU-2c694d6a-56cd-c4ae-a6d8-724411e1fe7d)
+	 Link 0: 53.125 GB/s
+	 Link 1: 53.125 GB/s
+	 Link 2: 53.125 GB/s
+	 Link 3: 53.125 GB/s
+	 Link 4: 53.125 GB/s
+	 Link 5: 53.125 GB/s
+	 Link 6: 53.125 GB/s
+	 Link 7: 53.125 GB/s
+	 Link 8: 53.125 GB/s
+	 Link 9: 53.125 GB/s
+	 Link 10: 53.125 GB/s
+	 Link 11: 53.125 GB/s
+	 Link 12: 53.125 GB/s
+	 Link 13: 53.125 GB/s
+	 Link 14: 53.125 GB/s
+	 Link 15: 53.125 GB/s
+	 Link 16: 53.125 GB/s
+	 Link 17: 53.125 GB/s

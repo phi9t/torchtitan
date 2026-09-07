@@ -1,0 +1,52 @@
+dircolors: no SHELL environment variable, and no shell type option given
+=== bpftool prog (first 15) ===
+27: cgroup_device  tag ab4bc4523b7fe6b4
+	loaded_at 2026-08-24T04:41:47+0000  uid 0
+	xlated 552B  jited 353B  memlock 4096B
+42: cgroup_device  tag e9eccdf6e1c01e3e
+	loaded_at 2026-08-24T04:41:47+0000  uid 0
+	xlated 1208B  jited 686B  memlock 4096B
+65: cgroup_device  tag e9eccdf6e1c01e3e
+	loaded_at 2026-08-24T04:41:47+0000  uid 0
+	xlated 1208B  jited 686B  memlock 4096B
+66: cgroup_device  tag e9eccdf6e1c01e3e
+	loaded_at 2026-08-24T04:41:47+0000  uid 0
+	xlated 1208B  jited 686B  memlock 4096B
+78: cgroup_device  tag e9eccdf6e1c01e3e
+	loaded_at 2026-08-24T04:41:47+0000  uid 0
+	xlated 1208B  jited 686B  memlock 4096B
+=== debugfs ===
+debugfs on /sys/kernel/debug type debugfs (rw,nosuid,nodev,noexec,relatime)
+tracefs on /sys/kernel/debug/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+tracefs on /sys/kernel/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+enable
+filter
+format
+id
+trigger
+=== perf hardware as root ===
+
+ Performance counter stats for process id '2211702':
+
+   <not supported>      cycles
+   <not supported>      instructions
+   <not supported>      cache-misses
+   <not supported>      cache-references
+               197      context-switches                 #   24.613 /sec
+                 3      cpu-migrations                   #    0.375 /sec
+                 0      page-faults                      #    0.000 /sec
+           8003.94 msec task-clock                       #    1.000 CPUs utilized
+
+       8.002203376 seconds time elapsed
+
+=== tracepoints sched:sched_switch 8s ===
+
+ Performance counter stats for process id '2211702':
+
+               196      sched:sched_switch
+                12      sched:sched_wakeup
+                 8      syscalls:sys_enter_read
+                 0      syscalls:sys_enter_ioctl
+               176      syscalls:sys_enter_futex
+
+       8.002620629 seconds time elapsed

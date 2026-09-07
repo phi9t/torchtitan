@@ -1,0 +1,112 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 496  of event 'cpu-clock:u'
+# Event count (approx.): 5010100960
+#
+# Overhead       Samples  Command  Shared Object     Symbol
+# ........  ............  .......  ................  ....................................
+#
+    21.37%           106  python3  [vdso]            [.] 0x00000000000006b8
+            |
+            ---0x7ffdb0ba96b8
+               clock_gettime
+
+    19.96%            99  python3  python3.11        [.] _PyEval_EvalFrameDefault
+            |
+            ---_PyEval_EvalFrameDefault
+               |
+               |--10.08%--0x7f51962bf400
+               |          0x952020
+               |
+               |--6.05%--0x95a980
+               |
+                --1.01%--0x95acc0
+
+     7.66%            38  python3  python3.11        [.] _PyTime_AsSecondsDouble
+            |
+            ---_PyTime_AsSecondsDouble
+               0x94dc20
+
+     5.44%            27  python3  python3.11        [.] _PyObject_GenericGetAttrWithDict
+            |
+            ---_PyObject_GenericGetAttrWithDict
+               0x95b980
+
+     3.02%            15  python3  [vdso]            [.] __vdso_clock_gettime
+            |
+            ---__vdso_clock_gettime
+               |
+                --2.62%--clock_gettime
+
+     2.42%            12  python3  python3.11        [.] PyObject_RichCompare
+            |
+            ---PyObject_RichCompare
+               |
+               |--1.41%--0x7f51962bf400
+               |          0x952020
+               |
+                --1.01%--0x952900
+
+     2.02%            10  python3  python3.11        [.] PyFloat_FromDouble
+            |
+            ---PyFloat_FromDouble
+               |
+                --1.21%--0x952900
+
+     2.02%            10  python3  python3.11        [.] PyObject_Vectorcall
+            |
+            ---PyObject_Vectorcall
+               |
+                --1.81%--0
+
+     1.81%             9  python3  python3.11        [.] PyNumber_InPlaceAdd
+            |
+            ---PyNumber_InPlaceAdd
+               |
+                --1.41%--0x95acc0
+
+     1.81%             9  python3  python3.11        [.] 0x00000000000ff645
+            |
+            ---0x4ff645
+
+     1.61%             8  python3  python3.11        [.] 0x00000000000ff621
+            |
+            ---0x4ff621
+
+     1.21%             6  python3  python3.11        [.] PyDict_SetItem
+            |
+            ---PyDict_SetItem
+               0x95acc0
+
+     1.21%             6  python3  python3.11        [.] PyObject_Malloc
+            |
+            ---PyObject_Malloc
+
+     1.21%             6  python3  python3.11        [.] 0x00000000000ff66b
+            |
+            ---0x4ff66b
+
+     1.01%             5  python3  python3.11        [.] 0x00000000000ff5e5
+            |
+            ---0x4ff5e5
+
+     1.01%             5  python3  python3.11        [.] 0x00000000000ff5ff
+            |
+            ---0x4ff5ff
+
+     1.01%             5  python3  python3.11        [.] 0x00000000000ff674
+            |
+            ---0x4ff674
+
+     1.01%             5  python3  python3.11        [.] 0x00000000000ff67e
+            |
+            ---0x4ff67e
+
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

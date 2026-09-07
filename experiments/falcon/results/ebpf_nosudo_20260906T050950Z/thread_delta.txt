@@ -1,0 +1,27 @@
+tid comm state d_jiffies cpu
+2211702 python R +300 cpu=43
+2211980 pt_autograd_0 S +0 cpu=112
+2211912 pt_nccl_heartbt S +0 cpu=110
+2211911 pt_nccl_watchdg S +0 cpu=185
+2211910 pt_tcpstore_uv S +0 cpu=4
+2211891 cuda-EvtHandlr S +0 cpu=57
+2211884 jemalloc_bg_thd S +0 cpu=126
+2211862 cuda00001400006 S +0 cpu=141
+
+--- io before ---
+rchar: 3891090838
+wchar: 43018
+syscr: 12864
+syscw: 2737
+read_bytes: 0
+write_bytes: 53248
+cancelled_write_bytes: 4096
+
+--- io after ---
+rchar: 3891090934
+wchar: 43021
+syscr: 12867
+syscw: 2740
+read_bytes: 0
+write_bytes: 53248
+cancelled_write_bytes: 4096

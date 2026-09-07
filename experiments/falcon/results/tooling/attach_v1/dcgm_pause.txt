@@ -1,0 +1,1 @@
+Error: unable to pause profiling metrics: Feature not supported.

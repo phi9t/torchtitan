@@ -1,0 +1,26 @@
+Sun Sep  6 21:43:21 UTC 2026
+=== status ===
+Name:	python3
+State:	R (running)
+Pid:	2619929
+PPid:	2619913
+NSpid:	2619929
+VmRSS:	    8056 kB
+Threads:	1
+voluntary_ctxt_switches:	0
+nonvoluntary_ctxt_switches:	5
+=== io ===
+rchar: 39687
+wchar: 0
+syscr: 25
+syscw: 0
+read_bytes: 0
+write_bytes: 0
+cancelled_write_bytes: 0
+=== wchan ===
+0
+=== syscall ===
+running
+
+=== cpuset ===
+/user.slice/user-1018.slice/session-48351.scope

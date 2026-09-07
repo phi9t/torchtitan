@@ -1,0 +1,2 @@
+PID=2211702
+python -m experiments.falcon.ablation_runner --arms A0 A2 A4 A5 --seeds 0 1 --steps 8000 --val-windows 64 --addition-steps 1500 --tag full_2seed_8000

@@ -1,0 +1,725 @@
+Attaching 2 probes...
+
+
+@[
+    PyObject_Vectorcall+37
+]: 1
+@[
+    _PyObject_GenericGetAttrWithDict+243
+    0x95b980
+]: 1
+@[
+    0x5401bd
+    0x95a980
+]: 1
+@[
+    0x5aaad0
+    0x958820
+]: 1
+@[
+    _PyEval_EvalFrameDefault+7086
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    0x4ff825
+    0x95a980
+]: 1
+@[
+    PyObject_RichCompare+65
+    0x952900
+]: 1
+@[
+    0x5fb168
+    0x94dc20
+]: 1
+@[
+    _PyEval_EvalFrameDefault+15050
+    0x95a980
+]: 1
+@[
+    0x4ff823
+    0x95a980
+]: 1
+@[
+    PyFloat_FromDouble+38
+    0x94dc20
+]: 1
+@[
+    0x7ffdb0ba99cf
+    clock_gettime+25
+]: 1
+@[
+    0x5aad5b
+    0x952900
+]: 1
+@[
+    0x5aad4b
+]: 1
+@[
+    _PyEval_EvalFrameDefault+2474
+    0x952900
+]: 1
+@[
+    _PyObject_GenericGetAttrWithDict+89
+    0x95b980
+]: 1
+@[
+    0x55cb7e
+    0x95b980
+]: 1
+@[
+    PyObject_RichCompare+353
+    0x952900
+]: 1
+@[
+    _PyEval_EvalFrameDefault+14973
+    0x95a980
+]: 1
+@[
+    0x55cb92
+    0x95a4a0
+]: 1
+@[
+    PyObject_RichCompare+332
+    0x952900
+]: 1
+@[
+    0x4ff667
+]: 1
+@[
+    _PyEval_EvalFrameDefault+18960
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    PyObject_Vectorcall+0
+]: 1
+@[
+    _PyTime_AsSecondsDouble+18
+    0x94dc20
+]: 1
+@[
+    _PyEval_EvalFrameDefault+14913
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    PyFloat_FromDouble+0
+    0x94dc20
+]: 1
+@[
+    0x51ff1d
+    0x94dc20
+]: 1
+@[
+    0x4ff825
+    0x95b980
+]: 1
+@[
+    _PyEval_EvalFrameDefault+19073
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    PyObject_RichCompare+441
+    0x952900
+]: 1
+@[
+    _PyObject_GenericGetAttrWithDict+0
+    0x95b980
+]: 1
+@[
+    _PyEval_EvalFrameDefault+2538
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    PyObject_RichCompare+444
+    0x952900
+]: 1
+@[
+    PyNumber_InPlaceAdd+339
+    0x95acc0
+]: 1
+@[
+    0x5aac01
+]: 1
+@[
+    0x4ff6cf
+]: 1
+@[
+    _PyEval_EvalFrameDefault+3984
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    0x5aadfd
+]: 1
+@[
+    0x4ff61b
+]: 1
+@[
+    _PyObject_GenericGetAttrWithDict+393
+    0x95b980
+]: 1
+@[
+    0x7ffdb0ba9a1a
+    clock_gettime+25
+]: 1
+@[
+    PyObject_RichCompare+0
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    PyObject_Malloc+0
+]: 1
+@[
+    _PyEval_EvalFrameDefault+3475
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    _PyEval_EvalFrameDefault+402
+]: 1
+@[
+    _PyEval_EvalFrameDefault+32538
+    0x958820
+]: 1
+@[
+    _PyEval_EvalFrameDefault+346
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    0x51ff30
+    0x94dc20
+]: 1
+@[
+    _PyEval_EvalFrameDefault+2433
+    0x952900
+]: 1
+@[
+    _PyEval_EvalFrameDefault+2481
+    0x952900
+]: 1
+@[
+    0x509094
+    0x95a980
+]: 1
+@[
+    0x7ffdb0ba96b0
+    clock_gettime+25
+]: 1
+@[
+    0x4ff81b
+]: 1
+@[
+    _PyEval_EvalFrameDefault+11586
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    _PyEval_EvalFrameDefault+390
+]: 1
+@[
+    _PyEval_EvalFrameDefault+11450
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    0x4f9960
+]: 1
+@[
+    _PyEval_EvalFrameDefault+3439
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    _PyEval_EvalFrameDefault+427
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    _PyEval_EvalFrameDefault+2309
+    0x952900
+]: 1
+@[
+    PyLong_AsDouble+0
+]: 1
+@[
+    0x4ff814
+]: 1
+@[
+    _PyEval_EvalFrameDefault+7027
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    0x540205
+    0x95a980
+]: 1
+@[
+    0x51feff
+    0x94dc20
+]: 1
+@[
+    _PyObject_GenericGetAttrWithDict+419
+    0x95b980
+]: 1
+@[
+    0x5aae00
+]: 1
+@[
+    _PyEval_EvalFrameDefault+2549
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    0x4ff6a2
+]: 1
+@[
+    _PyEval_EvalFrameDefault+19037
+    0x958820
+]: 1
+@[
+    0x7ffdb0ba99ec
+    clock_gettime+25
+]: 1
+@[
+    PyNumber_Subtract+41
+    0x952900
+]: 1
+@[
+    0x5aaca4
+]: 1
+@[
+    0x5aae91
+]: 1
+@[
+    0x58bbd0
+]: 1
+@[
+    0x4ff657
+]: 1
+@[
+    PyNumber_Subtract+237
+    0x952900
+]: 1
+@[
+    0x50917c
+    0x95a980
+]: 1
+@[
+    0x55cb8c
+    0x95a4a0
+]: 1
+@[
+    0x5fb150
+    0x94dc20
+]: 1
+@[
+    0x5aabf0
+    0x952900
+]: 1
+@[
+    0x5aaafb
+    0x958820
+]: 1
+@[
+    0x7ffdb0ba9960
+]: 1
+@[
+    _PyEval_EvalFrameDefault+7046
+    0x95acc0
+]: 1
+@[
+    PyNumber_InPlaceAdd+24
+    0x95acc0
+]: 1
+@[
+    0x540150
+    0x95a980
+]: 1
+@[
+    _PyEval_EvalFrameDefault+3567
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    _PyEval_EvalFrameDefault+7010
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    PyNumber_Subtract+20
+    0x952900
+]: 1
+@[
+    _PyEval_EvalFrameDefault+378
+]: 1
+@[
+    _PyEval_EvalFrameDefault+373
+]: 1
+@[
+    _PyObject_GenericGetAttrWithDict+357
+    0x95b980
+]: 1
+@[
+    PyObject_Vectorcall+62
+]: 1
+@[
+    0x50926a
+    0x95a980
+]: 1
+@[
+    PyObject_GetAttr+29
+    0x95a4a0
+]: 1
+@[
+    _PyEval_EvalFrameDefault+15096
+    0x7f51962bf400
+    0x952020
+]: 1
+@[
+    0x55cb60
+    0x95a4a0
+]: 1
+@[
+    _PyTime_GetSystemClockWithInfo+19
+]: 2
+@[
+    0x41f390
+]: 2
+@[
+    PyObject_GetAttr+0
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    0x58bb40
+    0x95acc0
+]: 2
+@[
+    _PyEval_EvalFrameDefault+365
+]: 2
+@[
+    0x4ff68b
+]: 2
+@[
+    0x4ff660
+]: 2
+@[
+    0x4ff802
+]: 2
+@[
+    0x4ff5d0
+    0x95b980
+]: 2
+@[
+    _PyObject_GenericGetAttrWithDict+18
+    0x95b980
+]: 2
+@[
+    PyDict_SetItem+0
+    0x95acc0
+]: 2
+@[
+    _PyEval_EvalFrameDefault+15043
+    0x95a980
+]: 2
+@[
+    0x7ffdb0ba99ac
+    clock_gettime+25
+]: 2
+@[
+    _PyEval_EvalFrameDefault+15064
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    PyNumber_Subtract+216
+    0x952900
+]: 2
+@[
+    _PyEval_EvalFrameDefault+11483
+    0x95acc0
+]: 2
+@[
+    0x54015b
+    0x95a980
+]: 2
+@[
+    0x67ab00
+    0x952900
+]: 2
+@[
+    PyNumber_InPlaceAdd+0
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    0x58bb66
+    0x95acc0
+]: 2
+@[
+    PyFloat_FromDouble+79
+    0x94dc20
+]: 2
+@[
+    PyObject_Malloc+84
+]: 2
+@[
+    PyObject_RichCompare+120
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    0x7ffdb0ba96c1
+    clock_gettime+25
+]: 2
+@[
+    0x4f999f
+]: 2
+@[
+    PyFloat_FromDouble+0
+    0x952900
+]: 2
+@[
+    _PyEval_EvalFrameDefault+3463
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    _PyEval_EvalFrameDefault+14909
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    _PyEval_EvalFrameDefault+3948
+    0x94dc20
+]: 2
+@[
+    0x4ff652
+]: 2
+@[
+    0x5092b7
+    0x95a980
+]: 2
+@[
+    _PyEval_EvalFrameDefault+3506
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    0x4ff81c
+]: 2
+@[
+    _PyEval_EvalFrameDefault+7075
+    0x952900
+]: 2
+@[
+    0x5aac3d
+]: 2
+@[
+    _PyObject_GenericGetAttrWithDict+344
+    0x95b980
+]: 2
+@[
+    _PyEval_EvalFrameDefault+15030
+    0x95a980
+]: 2
+@[
+    0x7ffdb0ba96be
+    clock_gettime+25
+]: 2
+@[
+    0x4ff6b6
+]: 2
+@[
+    _PyEval_EvalFrameDefault+11524
+    0x95acc0
+]: 2
+@[
+    _PyEval_EvalFrameDefault+3917
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    PyObject_Vectorcall+61
+]: 2
+@[
+    _PyEval_EvalFrameDefault+342
+    0x7f51962bf400
+    0x952020
+]: 2
+@[
+    _PyEval_EvalFrameDefault+2577
+]: 2
+@[
+    0x51ff2f
+    0x94dc20
+]: 2
+@[
+    _PyObject_GenericGetAttrWithDict+143
+    0x95b980
+]: 3
+@[
+    0x58bc23
+]: 3
+@[
+    _PyTime_AsSecondsDouble+53
+    0x94dc20
+]: 3
+@[
+    0x4ff5d0
+    0x95a980
+]: 3
+@[
+    PyObject_RichCompare+27
+    0x7f51962bf400
+    0x952020
+]: 3
+@[
+    PyObject_Vectorcall+29
+]: 3
+@[
+    0x51fee0
+]: 3
+@[
+    0x4ff674
+]: 3
+@[
+    0x7ffdb0ba9978
+    clock_gettime+25
+]: 3
+@[
+    _PyTime_GetSystemClockWithInfo+64
+]: 3
+@[
+    _PyEval_EvalFrameDefault+15009
+    0x95a980
+]: 3
+@[
+    _PyEval_EvalFrameDefault+14916
+    0x7f51962bf400
+    0x952020
+]: 3
+@[
+    0x509277
+    0x95a980
+]: 3
+@[
+    _PyEval_EvalFrameDefault+11578
+    0x7f51962bf400
+    0x952020
+]: 3
+@[
+    _PyObject_GenericGetAttrWithDict+327
+    0x95b980
+]: 3
+@[
+    0x5401d6
+    0x95a980
+]: 3
+@[
+    PyNumber_InPlaceAdd+40
+    0x95acc0
+]: 3
+@[
+    _PyEval_EvalFrameDefault+10192
+    0x7f51962bf400
+    0x952020
+]: 3
+@[
+    0x509070
+    0x95a980
+]: 4
+@[
+    _PyObject_GenericGetAttrWithDict+286
+    0x95b980
+]: 4
+@[
+    _PyObject_GenericGetAttrWithDict+437
+    0x95b980
+]: 4
+@[
+    _PyObject_GenericGetAttrWithDict+351
+    0x95b980
+]: 4
+@[
+    _PyTime_AsSecondsDouble+59
+    0x94dc20
+]: 4
+@[
+    _PyEval_EvalFrameDefault+6997
+    0x7f51962bf400
+    0x952020
+]: 4
+@[
+    PyNumber_InPlaceAdd+20
+    0x95acc0
+]: 4
+@[
+    0x4ff811
+]: 4
+@[
+    0x4ff7e0
+]: 4
+@[
+    0x5090a1
+    0x95a980
+]: 4
+@[
+    0x4ff6c9
+]: 4
+@[
+    0x4ff5ff
+]: 4
+@[
+    _PyEval_EvalFrameDefault+14959
+    0x95a980
+]: 5
+@[
+    _PyTime_AsSecondsDouble+47
+    0x94dc20
+]: 5
+@[
+    0x5aadda
+]: 5
+@[
+    0x4ff66b
+]: 5
+@[
+    0x67ab5f
+    0x952900
+]: 5
+@[
+    _PyObject_GenericGetAttrWithDict+340
+    0x95b980
+]: 5
+@[
+    0x4ff621
+]: 7
+@[
+    0x4ff6ab
+]: 7
+@[
+    0x4ff5e5
+    0x95a980
+]: 8
+@[
+    0x4ff67e
+]: 9
+@[
+    0x4ff645
+]: 10
+@[
+    _PyTime_AsSecondsDouble+13
+    0x94dc20
+]: 10
+@[
+    0x7ffdb0ba96b8
+    clock_gettime+25
+]: 124

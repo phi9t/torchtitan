@@ -1,0 +1,5 @@
+==PROF== Connected to process 2546147 (/usr/bin/python3.12)
+==PROF== Profiling "cutlass3x_sm100_simt_sgemm_f32_f32_f32_f32_f32_32x32x16_1x1x1_3_nnn_align1_bias_f32_relu": 0%....50%....100% - 9 passes
+44.65928268432617
+==PROF== Disconnected from process 2546147
+==PROF== Report: /workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/ncu_sgemm.ncu-rep

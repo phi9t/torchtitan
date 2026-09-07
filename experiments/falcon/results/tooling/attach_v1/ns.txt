@@ -1,0 +1,4 @@
+State:	R (running)
+NSpid:	2176064	2
+VmRSS:	 2819212 kB
+Threads:	71

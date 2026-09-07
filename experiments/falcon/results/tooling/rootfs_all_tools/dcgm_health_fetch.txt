@@ -1,0 +1,13 @@
+Health monitor systems report
++-----------------+--------------------------------------------------------------------+
+| PCIe            | On                                                                 |
+| NVLINK          | Off                                                                |
+| Memory          | On                                                                 |
+| SM              | Off                                                                |
+| InfoROM         | Off                                                                |
+| Thermal         | Off                                                                |
+| Power           | Off                                                                |
+| Driver          | Off                                                                |
+| NvSwitch NF     | Off                                                                |
+| NvSwitch F      | Off                                                                |
++-----------------+--------------------------------------------------------------------+

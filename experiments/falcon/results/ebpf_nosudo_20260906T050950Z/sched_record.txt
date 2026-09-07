@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 0.709 MB /data02/home/philip.yang/workspace/torchtitan/experiments/falcon/results/ebpf_nosudo_20260906T050950Z/sched.data ]

@@ -1,0 +1,48 @@
+### id/caps
+0
+CapEff:	000001ffffffffff
+### TORCHTITAN_IN_ROOTFS=1  PRIVILEGED=1
+### host pid visible:
+yes
+### bpftrace
+
+
+@[python3]: 297
+### bpftrace tracepoint
+@[swapper/118]: 10853
+@[node]: 16364
+@[libuv-worker]: 16485
+### BCC cachestat
+/bin/bash: line 10: cachestat-bpfcc: command not found
+### BCC runqlat
+/bin/bash: line 11: runqlat-bpfcc: command not found
+### BCC profile -p
+/bin/bash: line 12: profile-bpfcc: command not found
+### BCC offcputime
+/bin/bash: line 13: offcputime-bpfcc: command not found
+### perf version
+perf version 6.6.40.ga4d39821c034
+### perf tracepoints -p
+
+                 9      sched:sched_switch
+                 0      syscalls:sys_enter_ioctl
+
+       2.001031473 seconds time elapsed
+
+### perf record attach
+#
+# Samples: 298  of event 'cpu-clock'
+# Event count (approx.): 3010100980
+#
+# Children      Self  Symbol                                IPC   [IPC Coverage]
+### bpftool
+/bin/bash: line 20: bpftool: command not found
+### nvidia-smi
+0, NVIDIA B200
+1, NVIDIA B200
+### nsys present
+NVIDIA Nsight Systems version 2025.6.3.343-256337165561v0
+### py-spy
+Process 2608016: python3 -c import time;t=time.time();x=0
+while time.time()-t<70: x+=1
+Python v3.11.2 (/usr/bin/python3.11)

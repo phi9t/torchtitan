@@ -1,0 +1,158 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 250  of event 'sched:sched_switch'
+# Event count (approx.): 250
+#
+# Overhead       Samples  Trace output
+# ........  ............  .......................................................
+#
+    33.20%            83  pt_nccl_watchdg:2211911 [120] S ==> swapper/184:0 [120]
+            |
+            ---__traceiter_sched_switch
+               __traceiter_sched_switch
+               __schedule
+               schedule
+               futex_wait_queue_me
+               futex_wait
+               do_futex
+               __x64_sys_futex
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               0x7ff9bbbd8d71
+               pthread_cond_timedwait
+               c10d::ProcessGroupNCCL::Watchdog::runLoop()
+               c10d::ProcessGroupNCCL::Watchdog::run()
+               0x7ff9ba86edb4
+               0x7ff9bbbdcaa4
+               0x7ff9bbc69c6c
+
+    31.60%            79  cuda-EvtHandlr:2211891 [120] S ==> swapper/57:0 [120]
+            |
+            ---__traceiter_sched_switch
+               __traceiter_sched_switch
+               __schedule
+               schedule
+               schedule_hrtimeout_range_clock
+               do_sys_poll
+               __x64_sys_poll
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               __poll
+               0x7ff9908d3ed7
+               0x7ff9909c3357
+               0x7ff9908bfc23
+               0x7ff9bbbdcaa4
+               0x7ff9bbc69c6c
+
+     8.40%            21  cuda-EvtHandlr:2211891 [120] S ==> swapper/193:0 [120]
+            |
+            ---__traceiter_sched_switch
+               __traceiter_sched_switch
+               __schedule
+               schedule
+               schedule_hrtimeout_range_clock
+               do_sys_poll
+               __x64_sys_poll
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               __poll
+               0x7ff9908d3ed7
+               0x7ff9909c3357
+               0x7ff9908bfc23
+               0x7ff9bbbdcaa4
+               0x7ff9bbc69c6c
+
+     8.00%            20  pt_nccl_heartbt:2211912 [120] S ==> swapper/110:0 [120]
+            |
+            ---__traceiter_sched_switch
+               __traceiter_sched_switch
+               __schedule
+               schedule
+               |
+               |--4.00%--schedule_timeout
+               |          wait_woken
+               |          sk_wait_data
+               |          tcp_recvmsg_locked
+               |          tcp_recvmsg
+               |          inet6_recvmsg
+               |          sock_recvmsg
+               |          __sys_recvfrom
+               |          __x64_sys_recvfrom
+               |          do_syscall_64
+               |          entry_SYSCALL_64_after_hwframe
+               |          recv
+               |          void c10d::tcputil::recvBytes<c10d::detail::CheckResponseType>(int, c10d::detail::CheckResponseType*, unsigned long)
+               |          c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&)
+               |          c10d::ProcessGroupNCCL::HeartbeatMonitor::runLoop()
+               |          0x7ff9ba86edb4
+               |          0x7ff9bbbdcaa4
+               |          0x7ff9bbc69c6c
+               |
+                --4.00%--futex_wait_queue_me
+                          futex_wait
+                          do_futex
+                          __x64_sys_futex
+                          do_syscall_64
+                          entry_SYSCALL_64_after_hwframe
+                          0x7ff9bbbd8d71
+                          pthread_cond_timedwait
+                          c10d::ProcessGroupNCCL::HeartbeatMonitor::runLoop()
+                          0x7ff9ba86edb4
+                          0x7ff9bbbdcaa4
+                          0x7ff9bbc69c6c
+
+     7.20%            18  pt_nccl_watchdg:2211911 [120] S ==> swapper/185:0 [120]
+            |
+            ---__traceiter_sched_switch
+               __traceiter_sched_switch
+               __schedule
+               schedule
+               futex_wait_queue_me
+               futex_wait
+               do_futex
+               __x64_sys_futex
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               0x7ff9bbbd8d71
+               pthread_cond_timedwait
+               c10d::ProcessGroupNCCL::Watchdog::runLoop()
+               c10d::ProcessGroupNCCL::Watchdog::run()
+               0x7ff9ba86edb4
+               0x7ff9bbbdcaa4
+               0x7ff9bbc69c6c
+
+     6.00%            15  python:2211702 [120] R ==> kworker/151:0:1793110 [120]
+            |
+            ---__traceiter_sched_switch
+               __traceiter_sched_switch
+               __schedule
+               schedule
+               exit_to_user_mode_prepare
+               irqentry_exit_to_user_mode
+               asm_sysvec_apic_timer_interrupt
+
+     4.00%            10  pt_tcpstore_uv:2211910 [120] S ==> swapper/4:0 [120]
+            |
+            ---__traceiter_sched_switch
+               __traceiter_sched_switch
+               __schedule
+               schedule
+               schedule_hrtimeout_range_clock
+               do_epoll_wait
+               do_epoll_pwait.part.0
+               __x64_sys_epoll_pwait
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               epoll_pwait
+               uv__io_poll
+               0x7ff9bac3e040
+               0
+
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

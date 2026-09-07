@@ -1,0 +1,7 @@
+USDT:2026-09-06 21:23:50 2548214:2548214 SyncActivityProfilerHandler.cpp:52] profiler_start
+USDT:2026-09-06 21:23:51 2548214:2548214 SyncActivityProfilerHandler.cpp:59] profiler_stop
+
+Scalene: profile saved to experiments/falcon/results/tooling/rootfs_all_tools/scalene_gpu.json
+  To view in browser:  scalene view experiments/falcon/results/tooling/rootfs_all_tools/scalene_gpu.json
+  To view in terminal: scalene view --cli experiments/falcon/results/tooling/rootfs_all_tools/scalene_gpu.json
+0.0006428773049265146

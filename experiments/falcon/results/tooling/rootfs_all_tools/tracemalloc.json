@@ -1,0 +1,8 @@
+{
+  "current": 1600000,
+  "peak": 1600008,
+  "top": [
+    "<stdin>:3: size=1562 KiB, count=1, average=1562 KiB",
+    "<stdin>:4: size=64 B, count=2, average=32 B"
+  ]
+}

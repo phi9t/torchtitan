@@ -1,0 +1,26 @@
+=== gpm -h ===
+
+    gpm -- Display GPU Performance Monitoring information.
+
+    Usage: nvidia-smi gpm [options]
+
+    Options include:
+    [-h | --help]: Display help information
+    [-i | --id]: Enumeration index, PCI bus ID or UUID.
+                 Provide comma separated values for more than one device.
+    [-s | --set-stream-state]: Set GPU Performance Monitoring Stream State
+    [-g | --get-stream-state]: Get GPU Performance Monitoring Stream State
+
+
+=== gpm sample ===
+
+    gpm -- Display GPU Performance Monitoring information.
+
+    Usage: nvidia-smi gpm [options]
+
+    Options include:
+    [-h | --help]: Display help information
+    [-i | --id]: Enumeration index, PCI bus ID or UUID.
+                 Provide comma separated values for more than one device.
+    [-s | --set-stream-state]: Set GPU Performance Monitoring Stream State
+    [-g | --get-stream-state]: Get GPU Performance Monitoring Stream State

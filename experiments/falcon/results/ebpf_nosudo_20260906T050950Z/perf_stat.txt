@@ -1,0 +1,15 @@
+
+ Performance counter stats for process id '2211702':
+
+   <not supported>      cycles:u
+   <not supported>      instructions:u
+           8004.05 msec task-clock:u                     #    0.800 CPUs utilized
+                 0      context-switches:u               #    0.000 /sec
+                 0      cpu-migrations:u                 #    0.000 /sec
+              1264      page-faults:u                    #  157.920 /sec
+              1264      minor-faults:u                   #  157.920 /sec
+                 0      major-faults:u                   #    0.000 /sec
+   <not supported>      cache-misses:u
+   <not supported>      cache-references:u
+
+      10.003027107 seconds time elapsed

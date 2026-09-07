@@ -1,0 +1,78 @@
+=== proc io ===
+rchar: 290616349
+wchar: 26983
+syscr: 10332
+syscw: 165
+read_bytes: 49315840
+write_bytes: 20480
+cancelled_write_bytes: 4096
+=== smaps_rollup ===
+00400000-7ffdf714e000 ---p 00000000 00:00 0                              [rollup]
+Rss:             2820184 kB
+Pss:             2558515 kB
+Pss_Anon:        2207816 kB
+Pss_File:         328935 kB
+Pss_Shmem:         21764 kB
+Shared_Clean:     435192 kB
+Shared_Dirty:          0 kB
+Private_Clean:    149008 kB
+Private_Dirty:   2235984 kB
+Referenced:      2820184 kB
+Anonymous:       2207816 kB
+LazyFree:              0 kB
+AnonHugePages:    780288 kB
+ShmemPmdMapped:        0 kB
+FilePmdMapped:         0 kB
+Shared_Hugetlb:        0 kB
+Private_Hugetlb:       0 kB
+Swap:                  0 kB
+SwapPss:               0 kB
+Locked:                0 kB
+=== vmstat ===
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+ 7  0      0 1114262656 19842428 2890101248    0    0    16    24  188  381  1  0 98  0  0
+48  0      0 1114262656 19842428 2890101248    0    0     0   416 39934 64813  2  0 98  0  0
+ 7  0      0 1114262656 19842428 2890101248    0    0     0   516 46337 132045  2  1 97  0  0
+=== iostat ===
+Linux 5.15.152.bsk.9-amd64 (n116-077-207) 	09/06/2026 	_x86_64_	(216 CPU)
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+           1.45    0.02    0.41    0.02    0.00   98.10
+
+Device            r/s     rkB/s   rrqm/s  %rrqm r_await rareq-sz     w/s     wkB/s   wrqm/s  %wrqm w_await wareq-sz     d/s     dkB/s   drqm/s  %drqm d_await dareq-sz     f/s f_await  aqu-sz  %util
+nvme0n1          4.87    255.96     0.32   6.11    0.26    52.59    2.33     92.07     1.73  42.53    0.44    39.50    0.17   1205.81     0.00   0.00    0.16  7288.84    0.00    0.05    0.00   0.08
+nvme1n1          6.09     48.84     0.79  11.45    0.16     8.02    3.37    332.10     2.40  41.58    2.43    98.57    0.44    700.86     0.00   0.00    0.11  1594.95    0.00    0.05    0.01   0.11
+nvme2n1          3.82    341.66     0.03   0.86    0.35    89.43    1.12    802.97     0.10   7.89    8.76   716.50    0.05   1477.86     0.00   0.00    0.28 32183.99    0.00    0.06    0.01   0.11
+nvme3n1          3.63    206.08     0.16   4.24    0.21    56.79    2.92     98.76     3.70  55.84    0.32    33.78    0.36   1057.11     0.00   0.00    0.29  2964.84    0.00    0.04    0.00   0.12
+nvme4n1          1.77     53.04     0.05   2.74    0.96    29.96   34.51    259.23     3.80   9.92    1.51     7.51    0.10    144.45     0.00   0.00    9.51  1425.06    0.00    0.00    0.05   0.66
+nvme5n1          9.51    244.15     0.68   6.67    0.67    25.66   23.49   2177.62    19.32  45.13   18.11    92.69    2.15   4613.78     0.00   0.00    9.95  2143.27    0.00    0.00    0.45   2.68
+nvme6n1          2.42    139.91     0.16   6.32    0.24    57.79    0.97     35.70     2.11  68.38    0.40    36.64    0.16    183.36     0.00   0.00    0.10  1150.14    0.00    0.05    0.00   0.06
+nvme7n1          1.85    123.09     0.23  11.17    0.24    66.59    1.75    473.87     1.43  45.01    8.55   270.64    0.16    866.54     0.00   0.00    0.22  5280.00    0.00    0.04    0.02   0.08
+nvme8n1         16.37   1895.41     0.42   2.51    0.30   115.80    1.21    706.42     0.97  44.39   31.57   582.04    0.32   1322.14     0.00   0.00    0.12  4075.37    0.00    0.05    0.04   0.17
+nvme9n1          1.84    160.82     0.10   4.99    0.25    87.17    0.43    130.50     0.20  31.71    8.28   303.46    0.03    787.27     0.00   0.00    0.25 23699.65    0.00    0.06    0.00   0.04
+
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+           1.80    0.00    0.57    0.00    0.00   97.62
+
+Device            r/s     rkB/s   rrqm/s  %rrqm r_await rareq-sz     w/s     wkB/s   wrqm/s  %wrqm w_await wareq-sz     d/s     dkB/s   drqm/s  %drqm d_await dareq-sz     f/s f_await  aqu-sz  %util
+nvme1n1          0.00      0.00     0.00   0.00    0.00     0.00    2.00     52.00    11.00  84.62    0.50    26.00    0.00      0.00     0.00   0.00    0.00     0.00    0.00    0.00    0.00   0.10
+nvme5n1          0.00      0.00     0.00   0.00    0.00     0.00    1.00      4.00     0.00   0.00    1.00     4.00    0.00      0.00     0.00   0.00    0.00     0.00    0.00    0.00    0.00   0.20
+
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+           1.81    0.00    0.64    0.00    0.00   97.55
+
+Device            r/s     rkB/s   rrqm/s  %rrqm r_await rareq-sz     w/s     wkB/s   wrqm/s  %wrqm w_await wareq-sz     d/s     dkB/s   drqm/s  %drqm d_await dareq-sz     f/s f_await  aqu-sz  %util
+nvme5n1          0.00      0.00     0.00   0.00    0.00     0.00    1.00     28.00     0.00   0.00    1.00    28.00    0.00      0.00     0.00   0.00    0.00     0.00    0.00    0.00    0.00   0.20
+
+
+=== pidstat ===
+Linux 5.15.152.bsk.9-amd64 (n116-077-207) 	09/06/2026 	_x86_64_	(216 CPU)
+
+07:35:50 PM   UID       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+07:35:51 PM  1018   2176064  100.00    0.00    0.00    1.00  100.00    15  python
+07:35:52 PM  1018   2176064  100.00    0.00    0.00    0.00  100.00    15  python
+07:35:53 PM  1018   2176064   99.01    0.00    0.00    0.00   99.01    15  python
+Average:     1018   2176064   99.67    0.00    0.00    0.33   99.67     -  python

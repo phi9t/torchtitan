@@ -1,0 +1,16 @@
+PARSE ERROR:
+             Required argument missing: {pid | enable | disable | jstart | jstop | job | jremove | jremoveall}
+
+Usage:
+   dcgmi stats --host <IP/FQDN> -g <groupId> -e -u <> -m <>
+   dcgmi stats --host <IP/FQDN> -g <groupId> -d
+   dcgmi stats --host <IP/FQDN> -g <groupId> -p <pid> -v
+   dcgmi stats --host <IP/FQDN> -g <groupId> -s <job id>
+   dcgmi stats --host <IP/FQDN> -x <job id>
+   dcgmi stats --host <IP/FQDN> -j <job id> -v --host <IP/FQDN> -r <job id>
+        -v
+   dcgmi stats --host <IP/FQDN> -a -v
+
+
+For complete USAGE and HELP type:
+   dcgmi stats --help

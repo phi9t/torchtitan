@@ -1,0 +1,6427 @@
+Sampling at 49 Hertz of all threads by user + kernel stack for 3 secs.
+
+    [unknown]
+    -                python3 (2543771)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                mi-scavenger (1467820)
+        1
+
+    rcu_read_unlock_strict
+    rcu_read_unlock_strict
+    __cgroup_throttle_swaprate
+    __handle_mm_fault
+    handle_mm_fault
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    [unknown]
+    -                python3 (2543872)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    __raw_callee_save___pv_queued_spin_unlock
+    __raw_callee_save___pv_queued_spin_unlock
+    get_page_from_freelist
+    __alloc_pages
+    alloc_pages_vma
+    __handle_mm_fault
+    handle_mm_fault
+    __get_user_pages
+    populate_vma_page_range
+    __mm_populate
+    vm_mmap_pgoff
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __mmap
+    -                atop (1276431)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                mi-scavenger (1774157)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [Missed Kernel Stack]
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    update_blocked_averages
+    update_blocked_averages
+    _nohz_idle_balance.constprop.0.isra.0
+    __softirqentry_text_start
+    run_ksoftirqd
+    smpboot_thread_fn
+    kthread
+    ret_from_fork
+    -                ksoftirqd/0 (14)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (2543871)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    try_to_wake_up
+    wake_up_q
+    futex_wake
+    do_futex
+    __x64_sys_futex
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    pthread_cond_signal
+    [unknown]
+    -                node (2332041)
+        1
+
+    do_user_addr_fault
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    v8::internal::ArrayBufferSweeper::SweepingJob::SweepYoung()
+    v8::internal::ArrayBufferSweeper::SweepingJob::Sweep()
+    v8::internal::ArrayBufferSweeper::DoSweep(v8::internal::ArrayBufferSweeper::SweepingType, v8::internal::ThreadKind, unsigned long)
+    std::_Function_handler<void (), v8::internal::ArrayBufferSweeper::RequestSweep(v8::internal::ArrayBufferSweeper::SweepingType, v8::internal::ArrayBufferSweeper::TreatAllYoungAsPromoted)::{lambda()#1}>::_M_invoke(std::_Any_data const&)
+    node::(anonymous namespace)::PlatformWorkerThread(void*)
+    [unknown]
+    -                node (2332041)
+        1
+
+    lookup_fast
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    absl::lts_20230802::synchronization_internal::KernelTimeout::MakeRelativeTimespec() const
+    absl::lts_20230802::synchronization_internal::FutexWaiter::WaitUntil(std::atomic<int>*, int, absl::lts_20230802::synchronization_internal::KernelTimeout)
+    absl::lts_20230802::synchronization_internal::FutexWaiter::Wait(absl::lts_20230802::synchronization_internal::KernelTimeout)
+    AbslInternalPerThreadSemWait_lts_20230802
+    absl::lts_20230802::CondVar::WaitCommon(absl::lts_20230802::Mutex*, absl::lts_20230802::synchronization_internal::KernelTimeout) [clone .cold]
+    absl::lts_20230802::CondVar::WaitWithTimeout(absl::lts_20230802::Mutex*, absl::lts_20230802::Duration)
+    gpr_cv_wait
+    pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    grpc_pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    cq_next(grpc_completion_queue*, gpr_timespec, void*)
+    grpc::CompletionQueue::AsyncNextInternal(void**, bool*, gpr_timespec)
+    ray::rpc::GrpcServer::PollEventsFromCompletionQueue(int)
+    execute_native_thread_routine
+    [unknown]
+    std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (ray::rpc::GrpcServer::*)(int), ray::rpc::GrpcServer*, int> > >::~_State_impl()
+    [unknown]
+    -                server.poll35 (832961)
+        1
+
+    fsnotify
+    fsnotify
+    fsnotify_perm.part.0
+    do_dentry_open
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    sre_ucs1_match
+    _sre_SRE_Pattern_match
+    cfunction_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.13599239034337034159
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    v8::internal::Factory::NewJSPromiseWithoutHook()
+    v8::internal::Factory::NewJSPromise()
+    v8::Promise::Resolver::New(v8::Local<v8::Context>)
+    node::fs::GetReqWrap(v8::FunctionCallbackInfo<v8::Value> const&, int, bool)
+    node::fs::Stat(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterScanDir(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    _rmGpuLocksRelease.isra.0
+    ioctl
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    nvmlDeviceGetHandleByIndex_v2
+    ffi_call_unix64
+    [unknown]
+    -                python (833558)
+        1
+
+    tuple_iter
+    map_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyArg_ParseTuple_SizeT
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    syscall_enter_from_user_mode
+    syscall_enter_from_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    [unknown]
+    -                python (4117573)
+        1
+
+    tupledealloc
+    _PyFrame_ClearExceptCode
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    PyUnicode_Concat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [Missed Kernel Stack]
+    getdents64
+    -                python (4117573)
+        1
+
+    readdir
+    [unknown]
+    -                python (4117573)
+        1
+
+    __d_lookup
+    __d_lookup
+    lookup_fast
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    -                sh (2543798)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                journalctl (1036969)
+        1
+
+    [unknown]
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyObject_GenericGetAttrWithDict
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    generic_permission
+    generic_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    mm_update_next_owner
+    mm_update_next_owner
+    do_exit
+    do_group_exit
+    __x64_sys_exit_group
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    -                ollama (2543802)
+        1
+
+    mntput_no_expire
+    mntput_no_expire
+    terminate_walk
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyObject_Free
+    _sre_SRE_Pattern_match
+    cfunction_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.13599239034337034159
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    walk_component
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    unmap_page_range
+    unmap_page_range
+    unmap_vmas
+    exit_mmap
+    __mmput
+    begin_new_exec
+    load_elf_binary
+    bprm_execve
+    do_execveat_common.isra.0
+    __x64_sys_execve
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    -                node (2543867)
+        1
+
+    [unknown]
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    try_to_wake_up
+    wake_up_q
+    futex_wake
+    do_futex
+    __x64_sys_futex
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __lll_lock_wake_private
+    -                node (2332041)
+        1
+
+    futex_wake
+    futex_wake
+    do_futex
+    __x64_sys_futex
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    pthread_cond_signal
+    uv__work_submit
+    uv_fs_scandir
+    node::fs::ReadDir(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FileHandle::CloseReq::Resolve()
+    node::fs::FileHandle::ClosePromise()::{lambda(uv_fs_s*)#1}::_FUN(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    [unknown]
+    [unknown]
+    -                V8Worker (3459796)
+        1
+
+    adler32_z
+    -                atop (1276431)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    arch_local_save_flags
+    arch_local_save_flags
+    mod_objcg_state
+    memcg_slab_free_hook
+    kmem_cache_free
+    rcu_do_batch
+    rcu_core
+    __softirqentry_text_start
+    run_ksoftirqd
+    smpboot_thread_fn
+    kthread
+    ret_from_fork
+    -                ksoftirqd/123 (632)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    pthread_rwlock_unlock
+    -                python3 (4091841)
+        1
+
+    __check_object_size
+    __check_object_size
+    strncpy_from_user
+    getname_flags.part.0
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                tmux: server (3047634)
+        1
+
+    vsnprintf
+    vsnprintf
+    seq_printf
+    show_cpuinfo
+    seq_read_iter
+    new_sync_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    lookup_fast
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    PyUnicode_Concat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyArg_ParseTuple_SizeT
+    unicode_startswith
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    gen_dealloc
+    _PyFrame_ClearExceptCode
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    do_epoll_wait
+    do_epoll_wait
+    __x64_sys_epoll_wait
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    epoll_wait
+    NetIoLib::EndpointMgr::EndpointThread(void*)
+    start_thread
+    -                pingmeshagent (23106)
+        1
+
+    generic_permission
+    generic_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    dict_traverse
+    gc_collect_main
+    _PyObject_GC_New
+    PyWeakref_NewProxy
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    slot_tp_init
+    type_call
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    slot_tp_init
+    type_call
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    [unknown]
+    [unknown]
+    -                python (833558)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    get_pid_task
+    get_pid_task
+    pid_revalidate
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    user_path_at_empty
+    do_readlinkat
+    __x64_sys_readlink
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    readlink
+    worker
+    [unknown]
+    -                libuv-worker (3459796)
+        1
+
+    kfree
+    kfree
+    free_rb_tree_fname
+    ext4_release_dir
+    __fput
+    task_work_run
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __close_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    PyUnicode_DecodeFSDefaultAndSize
+    ScandirIterator_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    [unknown]
+    [unknown]
+    -                python (833558)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    -                python3 (2543872)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    v8::internal::BackingStore::Allocate(v8::internal::Isolate*, unsigned long, v8::internal::SharedFlag, v8::internal::InitializedFlag)
+    v8::internal::Factory::NewJSArrayBufferAndBackingStore(unsigned long, unsigned long, v8::internal::InitializedFlag, v8::internal::ResizableFlag, v8::internal::AllocationType)
+    v8::ArrayBuffer::New(v8::Isolate*, unsigned long, v8::BackingStoreInitializationMode)
+    node::AliasedBufferBase<double, v8::Float64Array>::AliasedBufferBase(v8::Isolate*, unsigned long, unsigned long const*)
+    node::fs::GetReqWrap(v8::FunctionCallbackInfo<v8::Value> const&, int, bool)
+    node::fs::ReadLink(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::ResolveStat(uv_stat_t const*)
+    node::fs::AfterStat(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    grpc_pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    cq_next(grpc_completion_queue*, gpr_timespec, void*)
+    grpc::(anonymous namespace)::CallbackAlternativeCQ::Ref()::{lambda(void*)#1}::_FUN(void*)
+    grpc_core::(anonymous namespace)::ThreadInternalsPosix::ThreadInternalsPosix(char const*, void (*)(void*), void*, bool*, grpc_core::Thread::Options const&)::{lambda(void*)#1}::_FUN(void*)
+    [unknown]
+    -                nexting_thread (836037)
+        1
+
+    security_inode_permission
+    security_inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    eventfd_write
+    eventfd_write
+    vfs_write
+    ksys_write
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __write
+    worker
+    [unknown]
+    -                libuv-worker (3459796)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    __close_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    pipe_poll
+    pipe_poll
+    ep_item_poll.isra.0
+    do_epoll_wait
+    do_epoll_pwait.part.0
+    __x64_sys_epoll_pwait
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                agent (34622)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    v8::internal::Object::CheckContextualStoreToJSGlobalObject(v8::internal::LookupIterator*, v8::Maybe<v8::internal::ShouldThrow>)
+    v8::internal::Runtime::SetObjectProperty(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::Object>, v8::internal::StoreOrigin, v8::Maybe<v8::internal::ShouldThrow>)
+    v8::Object::Set(v8::Local<v8::Context>, v8::Local<v8::Value>, v8::Local<v8::Value>)
+    node::UVException(v8::Isolate*, int, char const*, char const*, char const*, char const*)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterScanDir(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    readdir
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::Object>, int, v8::internal::Handle<v8::internal::Object>*)
+    v8::Object::CallAsFunction(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*)
+    node::PromiseRejectCallback(v8::PromiseRejectMessage)
+    v8::internal::Isolate::ReportPromiseReject(v8::internal::Handle<v8::internal::JSPromise>, v8::internal::Handle<v8::internal::Object>, v8::PromiseRejectEvent)
+    v8::internal::Runtime_PromiseRevokeReject(int, unsigned long*, v8::internal::Isolate*)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    filldir64
+    filldir64
+    call_filldir
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                atop (1276431)
+        1
+
+    do_dentry_open
+    do_dentry_open
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (2543771)
+        1
+
+    _PyUnicode_FastCopyCharacters
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    unicode_subscript
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    PyMem_Free
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _$LT$ratatui_core..buffer..diff..BufferDiff$u20$as$u20$core..iter..traits..iterator..Iterator$GT$::next::h37ac87ba7436d454
+    -                traecli-main (1337512)
+        1
+
+    _PyUnicode_FastCopyCharacters
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    do_user_addr_fault
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    [unknown]
+    -                V8Worker (3459796)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    worker
+    [unknown]
+    -                libuv-worker (2332041)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    syscall_enter_from_user_mode
+    syscall_enter_from_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    PyUnicode_Concat
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    tuple_iter
+    map_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    finish_task_switch.isra.0
+    finish_task_switch.isra.0
+    __schedule
+    schedule
+    schedule_hrtimeout_range_clock
+    do_epoll_wait
+    __x64_sys_epoll_wait
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    epoll_wait
+    pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    grpc_pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    cq_next(grpc_completion_queue*, gpr_timespec, void*)
+    grpc::(anonymous namespace)::CallbackAlternativeCQ::Ref()::{lambda(void*)#1}::_FUN(void*)
+    grpc_core::(anonymous namespace)::ThreadInternalsPosix::ThreadInternalsPosix(char const*, void (*)(void*), void*, bool*, grpc_core::Thread::Options const&)::{lambda(void*)#1}::_FUN(void*)
+    [unknown]
+    -                nexting_thread (840740)
+        1
+
+    [unknown]
+    worker
+    [unknown]
+    -                libuv-worker (2332041)
+        1
+
+    alloc::raw_vec::RawVecInner$LT$A$GT$::reserve::do_reserve_and_handle::h49a065adfa63043a
+    [unknown]
+    -                send_record (1036961)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    do_task_stat
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readall_impl
+    cfunction_vectorcall_NOARGS
+    _io__Buffered_read
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                claude (1774157)
+        1
+
+    pid_revalidate
+    pid_revalidate
+    lookup_fast
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    cgroup_rstat_flush_locked
+    cgroup_rstat_flush_locked
+    cgroup_rstat_flush
+    do_flush_stats
+    memory_stat_format
+    memory_stat_show
+    seq_read_iter
+    new_sync_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    -                raylet (835474)
+        1
+
+    NetIoLib::TimeHelper::Now64()
+    PingmeshClient::OnTimer(unsigned long long)
+    NetIoLib::TimerManager::RunOnce()
+    NetIoLib::EndpointContainer::Run()
+    NetIoLib::EndpointMgr::EndpointThread(void*)
+    start_thread
+    -                pingmeshagent (23106)
+        1
+
+    walk_component
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    grpc_core::promise_filter_detail::ServerCallData::RecvTrailingMetadataReady(absl::lts_20230802::Status)
+    grpc_core::promise_filter_detail::ServerCallData::RecvTrailingMetadataReadyCallback(void*, absl::lts_20230802::Status)
+    grpc_core::ExecCtx::Flush()
+    grpc_core::ExecCtx::~ExecCtx()
+    grpc_call_start_batch
+    grpc::internal::CallOpSet<grpc::internal::CallOpSendInitialMetadata, grpc::internal::CallOpSendMessage, grpc::internal::CallOpServerSendStatus, grpc::internal::CallNoOp<4>, grpc::internal::CallNoOp<5>, grpc::internal::CallNoOp<6> >::ContinueFillOpsAfterInterception()
+    ray::rpc::ServerCallImpl<ray::rpc::TaskInfoGcsServiceHandler, ray::rpc::AddTaskEventDataRequest, ray::rpc::AddTaskEventDataReply, (ray::rpc::AuthType)1>::SendReply(ray::Status const&)
+    boost::asio::detail::executor_op<boost::asio::detail::binder0<ray::rpc::ServerCallImpl<ray::rpc::TaskInfoGcsServiceHandler, ray::rpc::AddTaskEventDataRequest, ray::rpc::AddTaskEventDataReply, (ray::rpc::AuthType)1>::HandleRequestImpl(bool)::{lambda(ray::Status, std::function<void ()>, std::function<void ()>)#2}::operator()(ray::Status, std::function<void ()>, std::function<void ()>) const::{lambda()#1}>, std::allocator<void>, boost::asio::detail::scheduler_operation>::do_complete(void*, boost::asio::detail::scheduler_operation*, boost::system::error_code const&, unsigned long)
+    boost::asio::detail::scheduler::do_run_one(boost::asio::detail::conditionally_enabled_mutex::scoped_lock&, boost::asio::detail::scheduler_thread_info&, boost::system::error_code const&)
+    boost::asio::detail::scheduler::run(boost::system::error_code&)
+    boost::asio::detail::posix_thread::func<boost::asio::thread_pool::thread_function>::run()
+    boost_asio_detail_posix_thread_function
+    [unknown]
+    -                gcs_server (832961)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (2543872)
+        1
+
+    pid_nr_ns
+    pid_nr_ns
+    next_tgid
+    proc_pid_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (835534)
+        1
+
+    dict_traverse
+    gc_collect_main
+    _PyObject_GC_New
+    PyWeakref_NewProxy
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    slot_tp_init
+    type_call
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    slot_tp_init
+    type_call
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    [unknown]
+    [unknown]
+    -                python (833558)
+        1
+
+    ext4fs_dirhash
+    ext4fs_dirhash
+    htree_dirblock_to_tree
+    ext4_htree_fill_tree
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    v8::Object::Set(v8::Local<v8::Context>, v8::Local<v8::Value>, v8::Local<v8::Value>)
+    node::UVException(v8::Isolate*, int, char const*, char const*, char const*, char const*)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterScanDir(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    security_inode_permission
+    security_inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    [unknown]
+    [unknown]
+    -                python (835534)
+        1
+
+    _PyObject_Free
+    _sre_SRE_Pattern_match
+    cfunction_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.13599239034337034159
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    task_dump_owner
+    task_dump_owner
+    pid_revalidate
+    lookup_fast
+    walk_component
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    do_statx
+    __x64_sys_statx
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    syscall
+    uv__fs_statx
+    uv__fs_work
+    worker
+    [unknown]
+    -                libuv-worker (3459796)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    cfree
+    -                python (4117573)
+        1
+
+    PyObject_IsTrue
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    [unknown]
+    -                python3 (2543771)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    PyUnicode_New
+    -                python3 (4091841)
+        1
+
+    __pthread_once
+    uv__work_submit
+    uv_fs_stat
+    node::fs::Stat(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterScanDir(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::Object>, int, v8::internal::Handle<v8::internal::Object>*)
+    v8::Object::CallAsFunction(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*)
+    node::AsyncWrap::EmitAsyncInit(node::Environment*, v8::Local<v8::Object>, v8::Local<v8::String>, double, double)
+    node::AsyncWrap::AsyncWrap(node::Environment*, v8::Local<v8::Object>, node::AsyncWrap::ProviderType, double)
+    node::fs::GetReqWrap(v8::FunctionCallbackInfo<v8::Value> const&, int, bool)
+    node::fs::ReadDir(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    __d_lookup
+    __d_lookup
+    lookup_fast
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _raw_spin_lock
+    _raw_spin_lock
+    alloc_fd
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                launcher (33395)
+        1
+
+    [unknown]
+    -                atop (1276431)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                python3 (2543771)
+        1
+
+    [unknown]
+    -                ps (2543868)
+        1
+
+    _PyErr_SetObject
+    PyErr_SetFromErrnoWithFilenameObjects
+    DirEntry_fetch_stat.cold
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    do_task_stat
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    [unknown]
+    [unknown]
+    -                python (833558)
+        1
+
+    lookup_fast
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    lookup_fast
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    rb_next
+    rb_next
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python3 (4091841)
+        1
+
+    __d_lookup
+    __d_lookup
+    d_hash_and_lookup
+    proc_fill_cache
+    proc_pid_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    -                sh (2543798)
+        1
+
+    PyUnicode_DecodeFSDefaultAndSize
+    ScandirIterator_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    bitmap_list_string.constprop.0
+    bitmap_list_string.constprop.0
+    vsnprintf
+    seq_printf
+    proc_pid_status
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                kinit.py (2543866)
+        1
+
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::SetReturnValue(v8::FunctionCallbackInfo<v8::Value> const&)
+    node::fs::ReadDir(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    try_to_wake_up
+    wake_up_q
+    futex_wake
+    do_futex
+    __x64_sys_futex
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    pthread_cond_signal
+    uv__work_submit
+    uv_fs_stat
+    node::fs::Stat(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    __d_lookup
+    __d_lookup
+    lookup_fast
+    walk_component
+    path_lookupat
+    filename_lookup
+    user_path_at_empty
+    do_readlinkat
+    __x64_sys_readlink
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    readlink
+    worker
+    [unknown]
+    -                libuv-worker (2332041)
+        1
+
+    walk_page_vma
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (835534)
+        1
+
+    pid_revalidate
+    pid_revalidate
+    lookup_fast
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    smaps_pte_range
+    smaps_pte_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        1
+
+    inode_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::ResolveStat(uv_stat_t const*)
+    node::fs::AfterStat(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    pagecache_get_page
+    pagecache_get_page
+    __find_get_block
+    bdev_getblk
+    ext4_getblk
+    ext4_bread
+    __ext4_read_dirblock
+    htree_dirblock_to_tree
+    ext4_htree_fill_tree
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    PyUnicode_Concat
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    memcmp
+    -                traecli-main (1337512)
+        1
+
+    __libc_malloc
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    nvmlInitWithFlags
+    ffi_call_unix64
+    [unknown]
+    -                python (835534)
+        1
+
+    map_next
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    -                timeout (2543770)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    __slab_free
+    __slab_free
+    kfree
+    free_rb_tree_fname
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python3 (4091841)
+        1
+
+    PyUnicode_Concat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    __d_lookup
+    __d_lookup
+    lookup_fast
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    exit_to_user_mode_prepare
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __close_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    __slab_free
+    __slab_free
+    kfree
+    free_rb_tree_fname
+    ext4_release_dir
+    __fput
+    task_work_run
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __close_nocancel
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    walk_component
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    __fget_files
+    __fget_files
+    __fget_light
+    do_epoll_wait
+    do_epoll_pwait.part.0
+    __x64_sys_epoll_pwait
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    epoll_pwait
+    -                MainThread (3459796)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    sem_trywait
+    acquire_timed
+    rlock_acquire
+    method_vectorcall_VARARGS_KEYWORDS
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        1
+
+    next_zone
+    next_zone
+    refresh_cpu_vm_stats
+    vmstat_update
+    process_one_work
+    worker_thread
+    kthread
+    ret_from_fork
+    -                kworker/176:2 (2495304)
+        1
+
+    __libc_malloc
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    step_into
+    step_into
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [Missed User Stack]
+    -                node (2332041)
+        1
+
+    pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    grpc_pollset_work(grpc_pollset*, grpc_pollset_worker**, grpc_core::Timestamp)
+    cq_next(grpc_completion_queue*, gpr_timespec, void*)
+    grpc::(anonymous namespace)::CallbackAlternativeCQ::Ref()::{lambda(void*)#1}::_FUN(void*)
+    grpc_core::(anonymous namespace)::ThreadInternalsPosix::ThreadInternalsPosix(char const*, void (*)(void*), void*, bool*, grpc_core::Thread::Options const&)::{lambda(void*)#1}::_FUN(void*)
+    [unknown]
+    -                nexting_thread (840740)
+        1
+
+    inode_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    PyType_GenericAlloc
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyObject_Free
+    tupledealloc
+    map_dealloc
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    smaps_pte_range
+    smaps_pte_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (835534)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                claude (1774157)
+        1
+
+    step_into
+    step_into
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    generic_permission
+    generic_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    user_path_at_empty
+    do_readlinkat
+    __x64_sys_readlink
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    readlink
+    worker
+    [unknown]
+    -                libuv-worker (2332041)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    find_vma
+    find_vma
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    epoll_wait
+    NetIoLib::EndpointMgr::EndpointThread(void*)
+    start_thread
+    -                pingmeshagent (23106)
+        1
+
+    __fdget_pos
+    __fdget_pos
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _compound_head
+    _compound_head
+    copy_present_pte
+    copy_page_range
+    copy_process
+    kernel_clone
+    __do_sys_clone
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    _Fork
+    -                node (2332041)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                claude (1774157)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    sqlite3GetVarint
+    sqlite3VdbeFinishMoveto
+    sqlite3VdbeExec
+    sqlite3_step
+    _$LT$sqlx_sqlite..connection..execute..ExecuteIter$u20$as$u20$core..iter..traits..iterator..Iterator$GT$::next::h727b9a7b3bc2e336
+    [unknown]
+    [unknown]
+    [unknown]
+    -                sqlx-sqlite-wor (2878332)
+        1
+
+    generic_permission
+    generic_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    v8::internal::Factory::InitializeJSObjectBody(v8::internal::Tagged<v8::internal::JSObject>, v8::internal::Tagged<v8::internal::Map>, int)
+    v8::internal::Factory::InitializeJSObjectFromMap(v8::internal::Tagged<v8::internal::JSObject>, v8::internal::Tagged<v8::internal::Object>, v8::internal::Tagged<v8::internal::Map>, v8::internal::NewJSObjectType)
+    v8::internal::Factory::NewJSArrayBufferView(v8::internal::DirectHandle<v8::internal::Map>, v8::internal::DirectHandle<v8::internal::FixedArrayBase>, v8::internal::DirectHandle<v8::internal::JSArrayBuffer>, unsigned long, unsigned long)
+    v8::internal::Factory::NewJSTypedArray(v8::internal::ExternalArrayType, v8::internal::DirectHandle<v8::internal::JSArrayBuffer>, unsigned long, unsigned long, bool)
+    v8::Float64Array::New(v8::Local<v8::ArrayBuffer>, unsigned long, unsigned long)
+    node::AliasedBufferBase<double, v8::Float64Array>::AliasedBufferBase(v8::Isolate*, unsigned long, unsigned long const*)
+    node::fs::GetReqWrap(v8::FunctionCallbackInfo<v8::Value> const&, int, bool)
+    node::fs::ReadLink(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::ResolveStat(uv_stat_t const*)
+    node::fs::AfterStat(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    PyUnicode_Append
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    do_nanosleep
+    hrtimer_nanosleep
+    __x64_sys_nanosleep
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [Missed User Stack]
+    -                ckg_server (273270)
+        1
+
+    __d_lookup
+    __d_lookup
+    d_hash_and_lookup
+    proc_fill_cache
+    proc_pid_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (833558)
+        1
+
+    unmap_page_range
+    unmap_page_range
+    unmap_vmas
+    exit_mmap
+    __mmput
+    begin_new_exec
+    load_elf_binary
+    bprm_execve
+    do_execveat_common.isra.0
+    __x64_sys_execve
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    -                node (2543769)
+        1
+
+    unmap_page_range
+    unmap_page_range
+    unmap_vmas
+    exit_mmap
+    __mmput
+    begin_new_exec
+    load_elf_binary
+    bprm_execve
+    do_execveat_common.isra.0
+    __x64_sys_execve
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    -                node (2543772)
+        1
+
+    [unknown]
+    os_scandir
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    generic_permission
+    generic_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    PyTuple_GetSlice
+    oserror_init
+    OSError_new
+    type_call
+    PyObject_Call
+    PyErr_SetFromErrnoWithFilenameObjects
+    DirEntry_fetch_stat.cold
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (2543871)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    slab_free_freelist_hook.constprop.0
+    slab_free_freelist_hook.constprop.0
+    kfree
+    free_rb_tree_fname
+    ext4_release_dir
+    __fput
+    task_work_run
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __close_nocancel
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    do_task_stat
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    inode_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    smaps_account
+    smaps_account
+    smaps_pte_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    tupleiter_dealloc
+    tupledealloc
+    map_dealloc
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    do_user_addr_fault
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    [unknown]
+    -                python3 (2543768)
+        1
+
+    [unknown]
+    [unknown]
+    -                task_event_buff (840739)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::Object>, int, v8::internal::Handle<v8::internal::Object>*)
+    v8::Object::CallAsFunction(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*)
+    node::InternalCallbackScope::Close()
+    node::InternalMakeCallback(node::Environment*, v8::Local<v8::Object>, v8::Local<v8::Object>, v8::Local<v8::Function>, int, v8::Local<v8::Value>*, node::async_context, v8::Local<v8::Value>)
+    node::AsyncWrap::MakeCallback(v8::Local<v8::Function>, int, v8::Local<v8::Value>*)
+    node::ReportWritesToJSStreamListener::OnStreamAfterReqFinished(node::StreamReq*, int)
+    node::ShutdownWrap::OnDone(int)
+    node::LibuvStreamWrap::AfterUvShutdown(uv_shutdown_s*, int)
+    node::MakeLibuvRequestCallback<uv_shutdown_s, void (*)(uv_shutdown_s*, int)>::Wrapper(uv_shutdown_s*, int)
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    mutex_unlock
+    mutex_unlock
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (4117573)
+        1
+
+    PyObject_IsTrue
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    v8::Data::IsValue() const
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStat(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (272997)
+        1
+
+    _PyObject_Free
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (2543768)
+        1
+
+    [unknown]
+    -                python3 (2543768)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    __check_heap_object
+    __check_heap_object
+    __check_object_size
+    strncpy_from_user
+    getname_flags.part.0
+    __x64_sys_statx
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    syscall
+    uv__fs_statx
+    uv__fs_work
+    worker
+    [unknown]
+    -                libuv-worker (2332041)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _raw_spin_lock
+    _raw_spin_lock
+    __handle_mm_fault
+    handle_mm_fault
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    [unknown]
+    -                node (2332041)
+        1
+
+    lookup_fast
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    PyUnicode_New
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    node::UVException(v8::Isolate*, int, char const*, char const*, char const*, char const*)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterStringPtr(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyFrame_ClearExceptCode
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    filldir64
+    filldir64
+    call_filldir
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (2543872)
+        1
+
+    v8::internal::GlobalHandles::Create(v8::internal::Tagged<v8::internal::Object>)
+    v8::api_internal::GlobalizeReference(v8::internal::Isolate*, unsigned long)
+    node::BaseObject::BaseObject(node::Realm*, v8::Local<v8::Object>)
+    node::AsyncWrap::AsyncWrap(node::Environment*, v8::Local<v8::Object>, node::AsyncWrap::ProviderType, double)
+    node::fs::GetReqWrap(v8::FunctionCallbackInfo<v8::Value> const&, int, bool)
+    node::fs::ReadLink(v8::FunctionCallbackInfo<v8::Value> const&)
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::ResolveStat(uv_stat_t const*)
+    node::fs::AfterStat(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                MainThread (3459796)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                launcher (33398)
+        1
+
+    readdir
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    super_getattro
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    slot_tp_init
+    type_call
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    [unknown]
+    [unknown]
+    -                python (835534)
+        1
+
+    kmem_cache_free
+    kmem_cache_free
+    unix_stream_read_generic
+    unix_stream_recvmsg
+    sock_recvmsg
+    __sys_recvfrom
+    __x64_sys_recvfrom
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    recv
+    sock_call_ex
+    sock_recv_guts
+    sock_recv
+    cfunction_call
+    [unknown]
+    [unknown]
+    -                python (835534)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    memcpy_erms
+    memcpy_erms
+    ext4_htree_store_dirent
+    htree_dirblock_to_tree
+    ext4_htree_fill_tree
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    cq_next(grpc_completion_queue*, gpr_timespec, void*)
+    grpc::CompletionQueue::AsyncNextInternal(void**, bool*, gpr_timespec)
+    ray::rpc::ClientCallManager::PollEventsFromCompletionQueue(int)
+    execute_native_thread_routine
+    -                client.poll0 (736821)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    object_recursive_isinstance.llvm.15020498924722923392
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    syscall_enter_from_user_mode
+    syscall_enter_from_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    map_next
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    find_vma
+    find_vma
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    [unknown]
+    -                node (2543801)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (2543768)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    __cond_resched
+    __cond_resched
+    kmem_cache_alloc
+    __alloc_file
+    alloc_empty_file
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    skb_page_frag_refill
+    skb_page_frag_refill
+    sk_page_frag_refill
+    tcp_sendmsg_locked
+    tcp_sendmsg
+    __sock_sendmsg
+    ____sys_sendmsg
+    ___sys_sendmsg
+    __sys_sendmsg
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    sendmsg
+    tcp_flush((anonymous namespace)::grpc_tcp*, absl::lts_20230802::Status*)
+    tcp_write(grpc_endpoint*, grpc_slice_buffer*, grpc_closure*, void*, int)
+    write_action_begin_locked(void*, absl::lts_20230802::Status)
+    grpc_combiner_continue_exec_ctx()
+    grpc_core::ExecCtx::Flush()
+    grpc_core::ExecCtx::~ExecCtx()
+    grpc_call_start_batch
+    grpc::internal::CallOpSet<grpc::internal::CallOpSendInitialMetadata, grpc::internal::CallOpSendMessage, grpc::internal::CallOpServerSendStatus, grpc::internal::CallNoOp<4>, grpc::internal::CallNoOp<5>, grpc::internal::CallNoOp<6> >::ContinueFillOpsAfterInterception()
+    ray::rpc::ServerCallImpl<ray::rpc::TaskInfoGcsServiceHandler, ray::rpc::AddTaskEventDataRequest, ray::rpc::AddTaskEventDataReply, (ray::rpc::AuthType)1>::SendReply(ray::Status const&)
+    boost::asio::detail::executor_op<boost::asio::detail::binder0<ray::rpc::ServerCallImpl<ray::rpc::TaskInfoGcsServiceHandler, ray::rpc::AddTaskEventDataRequest, ray::rpc::AddTaskEventDataReply, (ray::rpc::AuthType)1>::HandleRequestImpl(bool)::{lambda(ray::Status, std::function<void ()>, std::function<void ()>)#2}::operator()(ray::Status, std::function<void ()>, std::function<void ()>) const::{lambda()#1}>, std::allocator<void>, boost::asio::detail::scheduler_operation>::do_complete(void*, boost::asio::detail::scheduler_operation*, boost::system::error_code const&, unsigned long)
+    boost::asio::detail::scheduler::do_run_one(boost::asio::detail::conditionally_enabled_mutex::scoped_lock&, boost::asio::detail::scheduler_thread_info&, boost::system::error_code const&)
+    boost::asio::detail::scheduler::run(boost::system::error_code&)
+    boost::asio::detail::posix_thread::func<boost::asio::thread_pool::thread_function>::run()
+    boost_asio_detail_posix_thread_function
+    [unknown]
+    -                gcs_server (832961)
+        1
+
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    step_into
+    step_into
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [Missed User Stack]
+    -                ps (2543868)
+        1
+
+    handle_dots
+    handle_dots
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    thread_group_cputime
+    thread_group_cputime
+    thread_group_cputime_adjusted
+    do_task_stat
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    PyObject_IsTrue
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    __d_lookup_rcu
+    __d_lookup_rcu
+    lookup_fast
+    walk_component
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    grpc_core::promise_filter_detail::ServerCallData::StartBatch(grpc_transport_stream_op_batch*)
+    grpc_core::promise_filter_detail::BaseCallData::Flusher::~Flusher()
+    grpc_core::promise_filter_detail::ServerCallData::StartBatch(grpc_transport_stream_op_batch*)
+    grpc_core::ExecCtx::Flush()
+    grpc_core::ExecCtx::~ExecCtx()
+    grpc_call_start_batch
+    grpc::internal::CallOpSet<grpc::internal::CallOpSendInitialMetadata, grpc::internal::CallOpSendMessage, grpc::internal::CallOpServerSendStatus, grpc::internal::CallNoOp<4>, grpc::internal::CallNoOp<5>, grpc::internal::CallNoOp<6> >::ContinueFillOpsAfterInterception()
+    ray::rpc::ServerCallImpl<ray::rpc::NodeManagerServiceHandler, ray::rpc::ReportWorkerBacklogRequest, ray::rpc::ReportWorkerBacklogReply, (ray::rpc::AuthType)0>::SendReply(ray::Status const&)
+    boost::asio::detail::executor_op<boost::asio::detail::binder0<ray::rpc::ServerCallImpl<ray::rpc::NodeManagerServiceHandler, ray::rpc::ReportWorkerBacklogRequest, ray::rpc::ReportWorkerBacklogReply, (ray::rpc::AuthType)0>::HandleRequestImpl(bool)::{lambda(ray::Status, std::function<void ()>, std::function<void ()>)#2}::operator()(ray::Status, std::function<void ()>, std::function<void ()>) const::{lambda()#1}>, std::allocator<void>, boost::asio::detail::scheduler_operation>::do_complete(void*, boost::asio::detail::scheduler_operation*, boost::system::error_code const&, unsigned long)
+    boost::asio::detail::scheduler::do_run_one(boost::asio::detail::conditionally_enabled_mutex::scoped_lock&, boost::asio::detail::scheduler_thread_info&, boost::system::error_code const&)
+    boost::asio::detail::scheduler::run(boost::system::error_code&)
+    boost::asio::detail::posix_thread::func<boost::asio::thread_pool::thread_function>::run()
+    boost_asio_detail_posix_thread_function
+    [unknown]
+    -                raylet (835474)
+        1
+
+    pthread_rwlock_rdlock
+    strerror_l
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    unicode_startswith
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    htree_dirblock_to_tree
+    htree_dirblock_to_tree
+    ext4_htree_fill_tree
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (2543871)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    [unknown]
+    -                dpkg-query (2543791)
+        1
+
+    pid_nr_ns
+    pid_nr_ns
+    next_tgid
+    proc_pid_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    [unknown]
+    -                libuv-worker (2332041)
+        1
+
+    mutex_unlock
+    mutex_unlock
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    __fdget_pos
+    __fdget_pos
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    do_user_addr_fault
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    [unknown]
+    [unknown]
+    -                node (2332041)
+        1
+
+    [unknown]
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [unknown]
+    -                ps (2543868)
+        1
+
+    task_cputime
+    task_cputime
+    thread_group_cputime
+    thread_group_cputime_adjusted
+    do_task_stat
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readall_impl
+    cfunction_vectorcall_NOARGS
+    _io__Buffered_read
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    tupledealloc
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    __libc_malloc
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    get_cached_acl_rcu
+    get_cached_acl_rcu
+    generic_permission
+    inode_permission
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    strncpy_from_user
+    strncpy_from_user
+    getname_flags.part.0
+    vfs_fstatat
+    __do_sys_newstat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    [Missed Kernel Stack]
+    fstatat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    try_to_wake_up
+    wake_up_q
+    futex_wake
+    do_futex
+    __x64_sys_futex
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    pthread_cond_signal
+    [unknown]
+    -                node (2332041)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (2543871)
+        1
+
+    PyObject_Free
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_lookupat
+    filename_lookup
+    vfs_statx
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    PyObject_IsInstance
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    proc_pid_status
+    proc_pid_status
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    -                python3 (2543768)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    filldir64
+    filldir64
+    call_filldir
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python3 (4091841)
+        1
+
+    map_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    memcpy_erms
+    memcpy_erms
+    seq_puts
+    render_sigset_t
+    proc_pid_status
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543864)
+        1
+
+    [unknown]
+    ScandirIterator_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    PyObject_Free
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python3 (2543871)
+        1
+
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (835534)
+        1
+
+    _raw_spin_unlock_irqrestore
+    _raw_spin_unlock_irqrestore
+    do_io_accounting
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    -                python (187916)
+        1
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    -                python3 (4091841)
+        1
+
+    memcg_slab_free_hook
+    memcg_slab_free_hook
+    kfree
+    free_rb_tree_fname
+    ext4_release_dir
+    __fput
+    task_work_run
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __close_nocancel
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    -                python3 (4091841)
+        1
+
+    walk_pgd_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (835534)
+        1
+
+    ext4fs_dirhash
+    ext4fs_dirhash
+    htree_dirblock_to_tree
+    ext4_htree_fill_tree
+    ext4_readdir
+    iterate_dir
+    __x64_sys_getdents64
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    getdents64
+    -                python (4117573)
+        1
+
+    [Missed Kernel Stack]
+    __xstat64
+    os_DirEntry_stat_impl.cold
+    DirEntry_test_mode.cold
+    os_DirEntry_is_dir
+    method_vectorcall_FASTCALL_KEYWORDS_METHOD.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (2543771)
+        1
+
+    pagecache_get_page
+    pagecache_get_page
+    filemap_fault
+    __do_fault
+    __handle_mm_fault
+    handle_mm_fault
+    do_user_addr_fault
+    exc_page_fault
+    asm_exc_page_fault
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ollama (2543802)
+        1
+
+    getname_flags.part.0
+    getname_flags.part.0
+    vfs_fstatat
+    __do_sys_newfstatat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    fstatat
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    uv__fs_work
+    worker
+    [unknown]
+    -                libuv-worker (3459796)
+        1
+
+    _PyFrame_Clear
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    [unknown]
+    [unknown]
+    -                python (833558)
+        1
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    copy_present_pte
+    copy_present_pte
+    copy_page_range
+    copy_process
+    kernel_clone
+    __do_sys_clone
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    _Fork
+    -                node (2332041)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    task_work_run
+    task_work_run
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __close_nocancel
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _raw_spin_lock
+    _raw_spin_lock
+    ptrace_may_access
+    do_task_stat
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    [unknown]
+    [unknown]
+    [unknown]
+    -                ps (2543868)
+        1
+
+    unicode_startswith
+    method_vectorcall_VARARGS.llvm.3910419756552030184
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    [unknown]
+    v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&)
+    v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*)
+    v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*)
+    v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*)
+    node::InternalCallbackScope::Close()
+    node::InternalCallbackScope::~InternalCallbackScope()
+    node::fs::FSReqPromise<node::AliasedBufferBase<double, v8::Float64Array> >::Reject(v8::Local<v8::Value>)
+    node::fs::FSReqAfterScope::Reject(uv_fs_s*)
+    node::fs::AfterScanDir(uv_fs_s*)
+    node::MakeLibuvRequestCallback<uv_fs_s, void (*)(uv_fs_s*)>::Wrapper(uv_fs_s*)
+    uv__work_done
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        1
+
+    [Missed User Stack]
+    -                python (4117573)
+        1
+
+    PyEval_SaveThread
+    [unknown]
+    -                python3 (4091841)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    _PyObject_Malloc
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        1
+
+    [unknown]
+    -                python (835534)
+        1
+
+    [unknown]
+    [unknown]
+    -                python (833558)
+        1
+
+    [Missed User Stack]
+    -                python3 (4091841)
+        2
+
+    _PyObject_GenericGetAttrWithDict
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        2
+
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    v8::internal::ScavengerCollector::CollectGarbage()
+    v8::internal::Heap::Scavenge()
+    v8::internal::Heap::PerformGarbageCollection(v8::internal::GarbageCollector, v8::internal::GarbageCollectionReason, char const*)
+    v8::internal::Heap::CollectGarbage(v8::internal::AllocationSpace, v8::internal::GarbageCollectionReason, v8::GCCallbackFlags)::{lambda()#2}::operator()() const
+    void heap::base::Stack::SetMarkerAndCallbackImpl<v8::internal::Heap::CollectGarbage(v8::internal::AllocationSpace, v8::internal::GarbageCollectionReason, v8::GCCallbackFlags)::{lambda()#2}>(heap::base::Stack*, void*, void const*)
+    [unknown]
+    v8::internal::Heap::CollectGarbage(v8::internal::AllocationSpace, v8::internal::GarbageCollectionReason, v8::GCCallbackFlags)
+    v8::internal::MinorGCJob::Task::RunInternal()
+    node::PerIsolatePlatformData::RunForegroundTask(std::unique_ptr<v8::Task, std::default_delete<v8::Task> >) [clone .part.0]
+    node::PerIsolatePlatformData::FlushForegroundTasksInternal()
+    uv__async_io.part.0
+    uv__io_poll
+    uv_run
+    node::SpinEventLoopInternal(node::Environment*)
+    node::NodeMainInstance::Run()
+    node::Start(int, char**)
+    [unknown]
+    -                node (2332041)
+        2
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    task_cputime
+    task_cputime
+    thread_group_cputime
+    thread_group_cputime_adjusted
+    do_task_stat
+    proc_single_show
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    -                python (187916)
+        2
+
+    eventfd_write
+    eventfd_write
+    vfs_write
+    ksys_write
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __write
+    worker
+    [unknown]
+    -                libuv-worker (2332041)
+        2
+
+    smaps_account
+    smaps_account
+    smaps_pte_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_VectorcallWARNING: 9 stack traces could not be displayed. Consider increasing --stack-storage-size.
+
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (835534)
+        2
+
+    __libc_malloc
+    -                python (4117573)
+        2
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    smaps_pte_range
+    smaps_pte_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (835534)
+        2
+
+    [unknown]
+    -                python3 (4091841)
+        2
+
+    link_path_walk.part.0.constprop.0
+    link_path_walk.part.0.constprop.0
+    path_openat
+    do_filp_open
+    do_sys_openat2
+    __x64_sys_openat
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __open64_nocancel
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    gen_iternext
+    list_extend.llvm.13378006918307908163
+    list_vectorcall
+    _PyEval_EvalFrameDefault
+    PyEval_EvalCode
+    run_mod.llvm.1674218720025423447
+    PyRun_SimpleStringFlags
+    Py_RunMain.warm
+    pymain_main.llvm.815721468954410071
+    main
+    [unknown]
+    -                python (4117573)
+        3
+
+    [unknown]
+    -                atop (1276431)
+        3
+
+    [unknown]
+    -                python3 (4091841)
+        3
+
+    smaps_pte_range
+    smaps_pte_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        5
+
+    smaps_account
+    smaps_account
+    smaps_pte_range
+    walk_pgd_range
+    __walk_page_range
+    walk_page_vma
+    show_smaps_rollup
+    seq_read_iter
+    seq_read
+    vfs_read
+    ksys_read
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    read
+    _io_FileIO_readinto
+    method_vectorcall_O
+    PyObject_VectorcallMethod
+    _bufferedreader_raw_read
+    _buffered_readline
+    buffered_iternext
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    _PyEval_EvalFrameDefault
+    _PyFunction_Vectorcall
+    method_vectorcall
+    thread_run
+    pythread_wrapper
+    [unknown]
+    -                python (833558)
+        6
+
+    [unknown]
+    -                atop (1276431)
+        6
+
+    release_task
+    release_task
+    do_exit
+    do_group_exit
+    get_signal
+    arch_do_signal_or_restart
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    -                ollama (2543802)
+        7
+
+    arch_local_irq_enable
+    arch_local_irq_enable
+    do_exit
+    do_group_exit
+    get_signal
+    arch_do_signal_or_restart
+    exit_to_user_mode_prepare
+    syscall_exit_to_user_mode
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    -                ollama (2543802)
+        14

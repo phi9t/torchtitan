@@ -1,0 +1,66 @@
+Tracing off-CPU time (us) of PID 2619929 by user + kernel stack for 5 secs.
+
+    finish_task_switch.isra.0
+    __schedule
+    schedule
+    exit_to_user_mode_prepare
+    irqentry_exit_to_user_mode
+    asm_sysvec_apic_timer_interrupt
+    [unknown]
+    clock_gettime
+    -                python3 (2619929)
+        3
+
+    finish_task_switch.isra.0
+    __schedule
+    schedule
+    exit_to_user_mode_prepare
+    irqentry_exit_to_user_mode
+    asm_sysvec_apic_timer_interrupt
+    _PyEval_EvalFrameDefault
+    [unknown]
+    -                python3 (2619929)
+        55
+
+    finish_task_switch.isra.0
+    __schedule
+    schedule
+    exit_to_user_mode_prepare
+    irqentry_exit_to_user_mode
+    asm_sysvec_apic_timer_interrupt
+    [unknown]
+    [unknown]
+    -                python3 (2619929)
+        57
+
+    finish_task_switch.isra.0
+    __schedule
+    schedule
+    exit_to_user_mode_prepare
+    irqentry_exit_to_user_mode
+    asm_sysvec_apic_timer_interrupt
+    [unknown]
+    -                python3 (2619929)
+        59
+
+    finish_task_switch.isra.0
+    __schedule
+    schedule
+    exit_to_user_mode_prepare
+    irqentry_exit_to_user_mode
+    asm_sysvec_apic_timer_interrupt
+    _PyEval_EvalFrameDefault
+    [unknown]
+    [unknown]
+    -                python3 (2619929)
+        60
+
+    finish_task_switch.isra.0
+    __schedule
+    schedule
+    exit_to_user_mode_prepare
+    irqentry_exit_to_user_mode
+    asm_sysvec_apic_timer_interrupt
+    [unknown]
+    -                python3 (2619929)
+        60

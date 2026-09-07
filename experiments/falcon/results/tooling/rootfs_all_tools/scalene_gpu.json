@@ -1,0 +1,2279 @@
+{
+    "alloc_samples": 0,
+    "args": [
+        "--cli",
+        "experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py"
+    ],
+    "async_profile": true,
+    "combined_stacks": [
+        [
+            [
+                {
+                    "display_name": "<module>",
+                    "filename_or_module": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py",
+                    "ip": null,
+                    "kind": "py",
+                    "line": 2,
+                    "offset": null
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690792886730,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "Py_BytesMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7063325,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 45
+                },
+                {
+                    "display_name": "Py_RunMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7064242,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 562
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 7065218,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "PyObject_Vectorcall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5544245,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 53
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6172499,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 51923
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "_PyObject_MakeTpCall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5541886,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 318
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774431,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688464711516,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "torch::utils::device_lazy_init(c10::DeviceType)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_python.so",
+                    "ip": 140688473205691,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 219
+                },
+                {
+                    "display_name": "PyObject_CallMethod",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5547140,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 852
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "PyObject_Vectorcall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5544245,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 53
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5773386,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688473970142,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687704095692,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "c10::cuda::detail::init_p2p_access_cache(long)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libc10_cuda.so",
+                    "ip": 140690754632852,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 20
+                }
+            ],
+            1
+        ],
+        [
+            [
+                {
+                    "display_name": "<module>",
+                    "filename_or_module": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py",
+                    "ip": null,
+                    "kind": "py",
+                    "line": 2,
+                    "offset": null
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 7065218,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "PyObject_Vectorcall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5544245,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 53
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6172499,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 51923
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "_PyObject_MakeTpCall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5541886,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 318
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774431,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688464711861,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::randn::call(c10::ArrayRef<c10::SymInt>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688148466760,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 1112
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688149140806,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688155775679,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::randn::redispatch(c10::DispatchKeySet, c10::ArrayRef<c10::SymInt>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688147667317,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 213
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688158509578,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::native::randn(c10::ArrayRef<long>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688142625359,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 63
+                },
+                {
+                    "display_name": "at::native::randn(c10::ArrayRef<long>, std::optional<at::Generator>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688142625067,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 219
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688142554513,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::empty_memory_format::call(c10::ArrayRef<c10::SymInt>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688152141657,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 1129
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688152820402,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688155781161,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::empty_memory_format::redispatch(c10::DispatchKeySet, c10::ArrayRef<c10::SymInt>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688151331850,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 218
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687747071324,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687747071042,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::native::empty_cuda(c10::ArrayRef<long>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cuda.so",
+                    "ip": 140687707535235,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 67
+                },
+                {
+                    "display_name": "at::detail::empty_cuda(c10::ArrayRef<long>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cuda.so",
+                    "ip": 140687704091150,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 110
+                },
+                {
+                    "display_name": "at::detail::empty_cuda(c10::ArrayRef<long>, c10::ScalarType, std::optional<c10::Device>, std::optional<c10::MemoryFormat>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cuda.so",
+                    "ip": 140687704090623,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 127
+                },
+                {
+                    "display_name": "at::detail::empty_generic(c10::ArrayRef<long>, c10::Allocator*, c10::DispatchKeySet, c10::ScalarType, std::optional<c10::MemoryFormat>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688133909235,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 1427
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690754558598,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "c10::cuda::getCurrentCUDAStream(signed char)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libc10_cuda.so",
+                    "ip": 140690754625583,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 15
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690754625016,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690754623647,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "cudaDeviceGetStreamPriorityRange",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/../../nvidia/cu13/lib/libcudart.so.13",
+                    "ip": 140690751548672,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 416
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751302776,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751519265,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751522488,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751520691,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751520340,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751520073,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "cuDevicePrimaryCtxRetain",
+                    "filename_or_module": "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
+                    "ip": 140690043308288,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 32
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690043356202,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690041675609,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042543676,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042543302,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042534130,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042258750,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042232162,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044641094,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690043921197,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044601385,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044338203,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044331582,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044321947,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044318964,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044313850,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044846076,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044697244,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044817050,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690044767944,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "ioctl",
+                    "filename_or_module": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+                    "ip": 140690793913885,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 61
+                }
+            ],
+            1
+        ],
+        [
+            [
+                {
+                    "display_name": "<module>",
+                    "filename_or_module": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py",
+                    "ip": null,
+                    "kind": "py",
+                    "line": 5,
+                    "offset": null
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690792886730,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "Py_BytesMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7063325,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 45
+                },
+                {
+                    "display_name": "Py_RunMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7064242,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 562
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 7065218,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "PyObject_Vectorcall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5544245,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 53
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6172499,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 51923
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6128800,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 8224
+                },
+                {
+                    "display_name": "PyNumber_MatrixMultiply",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 4438462,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 27
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5488133,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 4620326,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5910623,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5575496,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688463441462,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688463441059,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::matmul::call(at::Tensor const&, at::Tensor const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688155123353,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 729
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688149121904,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688159750895,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::native::matmul(at::Tensor const&, at::Tensor const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688139939375,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 47
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688139935684,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::mm::call(at::Tensor const&, at::Tensor const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688153780729,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 729
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688149121904,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688196124226,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688196122475,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::mm::redispatch(c10::DispatchKeySet, at::Tensor const&, at::Tensor const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688153428360,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 232
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687748392931,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::native::structured_mm_out_cuda::impl(at::Tensor const&, at::Tensor const&, at::Tensor const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cuda.so",
+                    "ip": 140687750713076,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 68
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687750704583,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687750103668,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "cublasSgemm_v2",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/nvidia/cu13/lib/libcublas.so.13",
+                    "ip": 140689982811243,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 171
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140689984519776,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140689983444645,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140689983436365,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140689983432110,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "cublasLtSSSMatmulAlgoGetHeuristic",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/nvidia/cu13/lib/libcublasLt.so.13",
+                    "ip": 140690163153344,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 896
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690162789223,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690162787745,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690161874124,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690161634008,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690161341699,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690163817838,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690163810930,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690163808844,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690163802963,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690168729702,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690168728192,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690163618054,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "cuLibraryLoadData",
+                    "filename_or_module": "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
+                    "ip": 140690043318995,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 35
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690043390892,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690041798103,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042992154,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042988571,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042606597,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042847151,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690794425338,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                }
+            ],
+            1
+        ],
+        [
+            [
+                {
+                    "display_name": "<module>",
+                    "filename_or_module": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py",
+                    "ip": null,
+                    "kind": "py",
+                    "line": 5,
+                    "offset": null
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690792886730,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "Py_BytesMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7063325,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 45
+                },
+                {
+                    "display_name": "Py_RunMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7064242,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 562
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 7065218,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "PyObject_Vectorcall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5544245,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 53
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6172499,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 51923
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "_PyObject_MakeTpCall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5541886,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 318
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774431,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688465250972,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::linalg_vector_norm::call(at::Tensor const&, c10::Scalar const&, c10::OptionalArrayRef<long>, bool, std::optional<c10::ScalarType>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688153962403,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 1347
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688196111255,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688196109711,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::linalg_vector_norm::redispatch(c10::DispatchKeySet, at::Tensor const&, c10::Scalar const&, c10::OptionalArrayRef<long>, bool, std::optional<c10::ScalarType>)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688153622852,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 228
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687748373426,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::native::structured_linalg_vector_norm_out::impl(at::Tensor const&, c10::Scalar const&, c10::OptionalArrayRef<long>, bool, std::optional<c10::ScalarType>, at::Tensor const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688140048783,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 1135
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687750825105,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687730463440,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "__cudaGetKernel",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/../../nvidia/cu13/lib/libcudart.so.13",
+                    "ip": 140690751376587,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 139
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751396414,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751396193,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751394239,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751386448,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751789720,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751504001,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "cuLibraryLoadData",
+                    "filename_or_module": "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
+                    "ip": 140690043318995,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 35
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690043390892,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690041798103,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042992154,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042988072,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042986747,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042982505,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042845450,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690045307490,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690045266092,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690056205050,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                }
+            ],
+            1
+        ],
+        [
+            [
+                {
+                    "display_name": "<module>",
+                    "filename_or_module": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py",
+                    "ip": null,
+                    "kind": "py",
+                    "line": 5,
+                    "offset": null
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690792886730,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "Py_BytesMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7063325,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 45
+                },
+                {
+                    "display_name": "Py_RunMain",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 7064242,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 562
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 7065218,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6123273,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2697
+                },
+                {
+                    "display_name": "PyObject_Vectorcall",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5544245,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 53
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6172499,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 51923
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5774045,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 6107100,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "PyEval_EvalCode",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6116427,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 347
+                },
+                {
+                    "display_name": "_PyEval_EvalFrameDefault",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 6128800,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 8224
+                },
+                {
+                    "display_name": "PyNumber_Add",
+                    "filename_or_module": "/usr/bin/python",
+                    "ip": 5487777,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 145
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5919883,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 5575496,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688463598982,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688463598255,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::add_Tensor::call(at::Tensor const&, at::Tensor const&, c10::Scalar const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688152073395,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 739
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688149148963,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688193536309,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140688193534790,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::_ops::add_Tensor::redispatch(c10::DispatchKeySet, at::Tensor const&, at::Tensor const&, c10::Scalar const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cpu.so",
+                    "ip": 140688151439476,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 244
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687748202146,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687748201975,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "at::native::add_kernel(at::TensorIteratorBase&, c10::Scalar const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cuda.so",
+                    "ip": 140687749819193,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 9
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140687749816566,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "void at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctorOnSelf_add<float> >(at::TensorIteratorBase&, at::native::CUDAFunctorOnSelf_add<float> const&)",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/libtorch_cuda.so",
+                    "ip": 140687749933862,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 2742
+                },
+                {
+                    "display_name": "__cudaGetKernel",
+                    "filename_or_module": "/usr/local/lib/python3.12/dist-packages/torch/lib/../../nvidia/cu13/lib/libcudart.so.13",
+                    "ip": 140690751376587,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 139
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751396414,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751396193,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751394239,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751386448,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751789720,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690751504001,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "cuLibraryLoadData",
+                    "filename_or_module": "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
+                    "ip": 140690043318995,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 35
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690043390892,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690041798103,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042992154,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042988412,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690042513025,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                },
+                {
+                    "display_name": "",
+                    "filename_or_module": "",
+                    "ip": 140690793478766,
+                    "kind": "native",
+                    "line": null,
+                    "offset": 0
+                }
+            ],
+            1
+        ]
+    ],
+    "combined_stacks_timeline": [
+        {
+            "count": 1,
+            "stack_index": 0,
+            "t_sec": 0.0,
+            "thread_id": 140690792710464
+        },
+        {
+            "count": 1,
+            "stack_index": 1,
+            "t_sec": 0.0,
+            "thread_id": 140690792710464
+        },
+        {
+            "count": 1,
+            "stack_index": 2,
+            "t_sec": 0.23039,
+            "thread_id": 140690792710464
+        },
+        {
+            "count": 1,
+            "stack_index": 3,
+            "t_sec": 0.287481,
+            "thread_id": 140690792710464
+        },
+        {
+            "count": 1,
+            "stack_index": 4,
+            "t_sec": 0.318776,
+            "thread_id": 140690792710464
+        }
+    ],
+    "elapsed_time_sec": 0.581291913986206,
+    "entrypoint_dir": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools",
+    "filename": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools",
+    "files": {
+        "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py": {
+            "functions": [],
+            "imports": [
+                "import torch"
+            ],
+            "leaks": {},
+            "lines": [
+                {
+                    "async_task_names": [],
+                    "cpu_samples_list": [],
+                    "end_function_line": 0,
+                    "end_outermost_loop": 1,
+                    "end_region_line": 1,
+                    "is_coroutine": false,
+                    "line": "import torch\n",
+                    "lineno": 1,
+                    "memory_samples": [],
+                    "n_async_await_percent": 0.0,
+                    "n_async_concurrency_mean": 0.0,
+                    "n_async_concurrency_peak": 0.0,
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0,
+                    "start_function_line": 0,
+                    "start_outermost_loop": 1,
+                    "start_region_line": 1
+                },
+                {
+                    "async_task_names": [],
+                    "cpu_samples_list": [
+                        1183444.387915592
+                    ],
+                    "end_function_line": 0,
+                    "end_outermost_loop": 2,
+                    "end_region_line": 2,
+                    "is_coroutine": false,
+                    "line": "x = torch.randn(256, 256, device=\"cuda\")\n",
+                    "lineno": 2,
+                    "memory_samples": [],
+                    "n_async_await_percent": 0.0,
+                    "n_async_concurrency_mean": 0.0,
+                    "n_async_concurrency_peak": 0.0,
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.00022431883675715187,
+                    "n_cpu_percent_c": 2.1413846306057285,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 628.0,
+                    "n_gpu_peak_memory_mb": 628.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 42.05382375048312,
+                    "n_usage_fraction": 0,
+                    "start_function_line": 0,
+                    "start_outermost_loop": 2,
+                    "start_region_line": 2
+                },
+                {
+                    "async_task_names": [],
+                    "cpu_samples_list": [],
+                    "end_function_line": 0,
+                    "end_outermost_loop": 5,
+                    "end_region_line": 5,
+                    "is_coroutine": false,
+                    "line": "for _ in range(20):\n",
+                    "lineno": 3,
+                    "memory_samples": [],
+                    "n_async_await_percent": 0.0,
+                    "n_async_concurrency_mean": 0.0,
+                    "n_async_concurrency_peak": 0.0,
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0,
+                    "start_function_line": 0,
+                    "start_outermost_loop": 3,
+                    "start_region_line": 3
+                },
+                {
+                    "async_task_names": [],
+                    "cpu_samples_list": [],
+                    "end_function_line": 0,
+                    "end_outermost_loop": 5,
+                    "end_region_line": 5,
+                    "is_coroutine": false,
+                    "line": "    x = x @ x\n",
+                    "lineno": 4,
+                    "memory_samples": [],
+                    "n_async_await_percent": 0.0,
+                    "n_async_concurrency_mean": 0.0,
+                    "n_async_concurrency_peak": 0.0,
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0,
+                    "start_function_line": 0,
+                    "start_outermost_loop": 3,
+                    "start_region_line": 3
+                },
+                {
+                    "async_task_names": [],
+                    "cpu_samples_list": [
+                        1183444.61830589,
+                        1183444.675396534,
+                        1183444.706691177
+                    ],
+                    "end_function_line": 0,
+                    "end_outermost_loop": 5,
+                    "end_region_line": 5,
+                    "is_coroutine": false,
+                    "line": "    x = x / (x.norm() + 1e-6)\n",
+                    "lineno": 5,
+                    "memory_samples": [],
+                    "n_async_await_percent": 0.0,
+                    "n_async_concurrency_mean": 0.0,
+                    "n_async_concurrency_peak": 0.0,
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0025021108178897317,
+                    "n_cpu_percent_c": 28.108333466624128,
+                    "n_cpu_percent_python": 2.0516974581239946,
+                    "n_gpu_avg_memory_mb": 789.3333333333334,
+                    "n_gpu_peak_memory_mb": 820.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 25.644760694163033,
+                    "n_usage_fraction": 0,
+                    "start_function_line": 0,
+                    "start_outermost_loop": 3,
+                    "start_region_line": 3
+                },
+                {
+                    "async_task_names": [],
+                    "cpu_samples_list": [],
+                    "end_function_line": 0,
+                    "end_outermost_loop": 6,
+                    "end_region_line": 6,
+                    "is_coroutine": false,
+                    "line": "torch.cuda.synchronize()\n",
+                    "lineno": 6,
+                    "memory_samples": [],
+                    "n_async_await_percent": 0.0,
+                    "n_async_concurrency_mean": 0.0,
+                    "n_async_concurrency_peak": 0.0,
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0,
+                    "start_function_line": 0,
+                    "start_outermost_loop": 6,
+                    "start_region_line": 6
+                },
+                {
+                    "async_task_names": [],
+                    "cpu_samples_list": [],
+                    "end_function_line": 0,
+                    "end_outermost_loop": 7,
+                    "end_region_line": 7,
+                    "is_coroutine": false,
+                    "line": "print(float(x[0, 0]))\n",
+                    "lineno": 7,
+                    "memory_samples": [],
+                    "n_async_await_percent": 0.0,
+                    "n_async_concurrency_mean": 0.0,
+                    "n_async_concurrency_peak": 0.0,
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0,
+                    "start_function_line": 0,
+                    "start_outermost_loop": 7,
+                    "start_region_line": 7
+                }
+            ],
+            "percent_cpu_time": 100.0
+        }
+    },
+    "gpu": true,
+    "gpu_device": "GPU",
+    "growth_rate": 0.0,
+    "main_thread_id": 140690792710464,
+    "max_footprint_fname": null,
+    "max_footprint_lineno": null,
+    "max_footprint_mb": 0,
+    "max_footprint_python_fraction": 0,
+    "memory": false,
+    "memory_stacks": [],
+    "native_allocations_mb": 0,
+    "program": "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py",
+    "samples": [],
+    "stacks": [
+        [
+            [
+                "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py <module>:2;"
+            ],
+            {
+                "c_time": 0.4342109647247597,
+                "count": 1,
+                "cpu_samples": 0.44195208381088846,
+                "python_time": 0.007741119086128775
+            }
+        ],
+        [
+            [
+                "/workspace/torchtitan/experiments/falcon/results/tooling/rootfs_all_tools/cuda_toy.py <module>:5;"
+            ],
+            {
+                "c_time": 0.5200855714550053,
+                "count": 3,
+                "cpu_samples": 0.5580479161891115,
+                "python_time": 0.037962344734106195
+            }
+        ]
+    ],
+    "start_time_absolute": 1788729830.8032508,
+    "start_time_perf": 1183444.131754728
+}

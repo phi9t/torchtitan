@@ -1,0 +1,32 @@
+### PATH
+/project/venvs/b200-runtime/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+### BCC cachestat
+    HITS   MISSES  DIRTIES HITRATIO   BUFFERS_MB  CACHED_MB
+  581757        0       46  100.00%        19464    2778243
+### BCC runqlat
+      2048 -> 4095       : 0        |                                        |
+      4096 -> 8191       : 0        |                                        |
+      8192 -> 16383      : 2        |                                        |
+### BCC profile -p
+    clock_gettime
+    -                python3 (2612125)
+        49
+
+### BCC offcputime
+    -                ray::RoutingRep (187916)
+        3023142
+
+### BCC biolatency
+      2048 -> 4095       : 25       |*******                                 |
+      4096 -> 8191       : 11       |***                                     |
+      8192 -> 16383      : 1        |                                        |
+### bpftool prog
+27: cgroup_device  tag ab4bc4523b7fe6b4
+	loaded_at 2026-08-24T04:41:47+0000  uid 0
+### bpftool feature
+JIT compiler is enabled
+### dcgmi
+GPU 4      35           0                 0
+GPU 5      44           0                 0
+GPU 6      34           0                 0
+GPU 7      43           0                 0

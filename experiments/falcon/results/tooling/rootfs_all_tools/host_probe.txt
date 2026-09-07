@@ -1,0 +1,64 @@
+=== identity ===
+uid=1018(philip.yang) gid=1018(philip.yang) groups=1018(philip.yang),27(sudo),991(ollama),993(docker),1000(tiger)
+Linux n116-077-207 5.15.152.bsk.9-amd64 #5.15.152.bsk.9 SMP veLinux 5.15.152.bsk.9 Mon Aug 4 12:30:49 UT x86_64 GNU/Linux
+=== bpf / perf sysctls ===
+kernel.unprivileged_bpf_disabled = 1
+kernel.perf_event_paranoid = 2
+kernel.kptr_restrict = 1
+kernel.yama.ptrace_scope = 0
+=== caps ===
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	000001ffffffffff
+CapAmb:	0000000000000000
+Current: =
+Bounding set =cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_fsetid,cap_kill,cap_setgid,cap_setuid,cap_setpcap,cap_linux_immutable,cap_net_bind_service,cap_net_broadcast,cap_net_admin,cap_net_raw,cap_ipc_lock,cap_ipc_owner,cap_sys_module,cap_sys_rawio,cap_sys_chroot,cap_sys_ptrace,cap_sys_pacct,cap_sys_admin,cap_sys_boot,cap_sys_nice,cap_sys_resource,cap_sys_time,cap_sys_tty_config,cap_mknod,cap_lease,cap_audit_write,cap_audit_control,cap_setfcap,cap_mac_override,cap_mac_admin,cap_syslog,cap_wake_alarm,cap_block_suspend,cap_audit_read,cap_perfmon,cap_bpf,cap_checkpoint_restore
+Ambient set =
+Current IAB:
+Securebits: 00/0x0/1'b0 (no-new-privs=0)
+ secure-noroot: no (unlocked)
+ secure-no-suid-fixup: no (unlocked)
+ secure-keep-caps: no (unlocked)
+ secure-no-ambient-raise: no (unlocked)
+uid=1018(philip.yang) euid=1018(philip.yang)
+gid=1018(philip.yang)
+groups=27(sudo),991(ollama),993(docker),1000(tiger),1018(philip.yang)
+Guessed mode: HYBRID (4)
+=== btf/debugfs/bpf ===
+ls: cannot access '/sys/kernel/debug/tracing': Permission denied
+drwx-----T  2 root root       0 Aug 24 04:40 /sys/fs/bpf
+dr-xr-xr-x 18 root root       0 Sep  1 05:30 /sys/fs/cgroup
+drwxr-xr-x  2 root root       0 Aug 25 04:18 /sys/kernel/btf
+-r--r--r--  1 root root 3886075 Aug 26 07:50 /sys/kernel/btf/vmlinux
+drwx------ 37 root root       0 Aug 24 04:39 /sys/kernel/debug
+drwx------  7 root root       0 Aug 24 04:39 /sys/kernel/tracing
+=== host tools ===
+bpftool                /usr/sbin/bpftool
+bpftrace               MISSING
+bcc-tools              MISSING
+dtrace                 MISSING
+perf                   /usr/bin/perf
+docker                 /usr/bin/docker
+sudo                   /usr/bin/sudo
+ncu                    MISSING
+nsys                   MISSING
+compute-sanitizer      MISSING
+dcgmi                  /usr/bin/dcgmi
+ls: cannot access '/usr/bin/bpftool': No such file or directory
+ls: cannot access '/usr/sbin/bpftrace': No such file or directory
+ls: cannot access '/usr/share/bcc/tools': No such file or directory
+/usr/sbin/bpftool
+=== docker ===
+docker_ok
+philip.yang sudo ollama docker tiger
+=== sudo -n ===
+=== apt cache bpf ===
+bpfcc-introspection - tool to help introspect BPF programs
+bpfcc-lua - Standalone tool to run BCC tracers written in Lua
+bpfcc-tools - tools for BPF Compiler Collection (BCC)
+bpftrace - high-level tracing language for Linux eBPF
+libbpfcc - shared library for BPF Compiler Collection (BCC)
+libbpfcc-dev - shared library for BPF Compiler Collection (BCC)
+linux-tools - Performance analysis tools for Linux 6.6.40.bsk.1-amd64
+python3-bpfcc - Python 3 wrappers for BPF Compiler Collection (BCC)

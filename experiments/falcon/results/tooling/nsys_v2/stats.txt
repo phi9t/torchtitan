@@ -1,0 +1,9 @@
+Generating SQLite file experiments/falcon/results/tooling/nsys_v2/a5_200.sqlite from experiments/falcon/results/tooling/nsys_v2/a5_200.nsys-rep
+Processing [experiments/falcon/results/tooling/nsys_v2/a5_200.sqlite] with [/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/host-linux-x64/reports/cuda_gpu_kern_sum.py]...
+SKIPPED: experiments/falcon/results/tooling/nsys_v2/a5_200.sqlite does not contain CUDA kernel data.
+
+Processing [experiments/falcon/results/tooling/nsys_v2/a5_200.sqlite] with [/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/host-linux-x64/reports/cuda_gpu_mem_time_sum.py]...
+SKIPPED: experiments/falcon/results/tooling/nsys_v2/a5_200.sqlite does not contain GPU memory data.
+
+Processing [experiments/falcon/results/tooling/nsys_v2/a5_200.sqlite] with [/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/host-linux-x64/reports/cuda_api_sum.py]...
+SKIPPED: experiments/falcon/results/tooling/nsys_v2/a5_200.sqlite does not contain CUDA trace data.

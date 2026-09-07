@@ -1,0 +1,12 @@
+PARSE ERROR: Argument: 2
+             Couldn't find match for argument
+
+Usage:
+   dcgmi health --host <IP/FQDN> -g <groupId> -c -j
+   dcgmi health --host <IP/FQDN> -g <groupId> -f -j
+   dcgmi health --host <IP/FQDN> -g <groupId> -s <flags> -j -m <seconds> -u
+        <seconds>
+
+
+For complete USAGE and HELP type:
+   dcgmi health --help

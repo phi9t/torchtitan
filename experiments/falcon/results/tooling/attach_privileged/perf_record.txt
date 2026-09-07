@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 0.046 MB /workspace/torchtitan/experiments/falcon/results/tooling/attach_privileged/perf.data ]

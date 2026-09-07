@@ -1,0 +1,179 @@
+=== dmon default fields 8s ===
+#Entity    TMPTR        POWER             GPUTL             MCUTL             FBUSD
+ID          C            W
+GPU 0      58           751.949           98                27                20913
+GPU 1      47           214.264           0                 0                 0
+GPU 2      34           190.902           0                 0                 0
+GPU 3      43           199.306           0                 0                 0
+GPU 4      34           187.559           0                 0                 0
+GPU 5      43           203.638           0                 0                 0
+GPU 6      34           188.097           0                 0                 0
+GPU 7      42           192.408           0                 0                 0
+GPU 0      59           749.285           98                27                20913
+GPU 1      48           214.296           0                 0                 0
+GPU 2      34           190.914           0                 0                 0
+GPU 3      43           199.419           0                 0                 0
+GPU 4      34           187.574           0                 0                 0
+GPU 5      43           203.600           0                 0                 0
+GPU 6      34           188.080           0                 0                 0
+GPU 7      42           192.447           0                 0                 0
+GPU 0      58           751.973           97                27                20913
+GPU 1      48           214.424           0                 0                 0
+GPU 2      34           190.868           0                 0                 0
+GPU 3      43           198.528           0                 0                 0
+GPU 4      34           187.577           0                 0                 0
+GPU 5      43           203.693           0                 0                 0
+GPU 6      34           188.076           0                 0                 0
+GPU 7      42           192.470           0                 0                 0
+GPU 0      59           749.003           97                26                20913
+GPU 1      48           214.572           0                 0                 0
+GPU 2      34           191.097           0                 0                 3
+GPU 3      43           199.627           0                 0                 0
+GPU 4      34           187.624           0                 0                 0
+GPU 5      43           203.687           0                 0                 0
+GPU 6      34           188.064           0                 0                 0
+GPU 7      42           192.431           0                 0                 0
+GPU 0      59           749.318           97                30                20913
+GPU 1      48           214.565           0                 0                 0
+GPU 2      34           190.928           0                 0                 3
+GPU 3      43           199.123           0                 0                 0
+GPU 4      34           187.544           0                 0                 0
+GPU 5      43           203.599           0                 0                 0
+GPU 6      34           188.088           0                 0                 0
+GPU 7      42           192.394           0                 0                 0
+GPU 0      58           749.539           97                27                20913
+GPU 1      48           214.610           0                 0                 0
+GPU 2      34           190.983           0                 0                 3
+GPU 3      43           198.722           0                 0                 0
+GPU 4      34           187.599           0                 0                 0
+GPU 5      43           203.626           0                 0                 0
+GPU 6      34           188.101           0                 0                 0
+GPU 7      42           192.432           0                 0                 0
+GPU 0      60           749.838           98                26                20913
+GPU 1      48           214.735           0                 0                 0
+GPU 2      34           190.946           0                 0                 3
+GPU 3      43           199.666           0                 0                 0
+GPU 4      34           187.558           0                 0                 0
+GPU 5      43           203.557           0                 0                 0
+GPU 6      34           188.093           0                 0                 0
+GPU 7      42           192.406           0                 0                 0
+GPU 0      58           753.264           96                28                20913
+GPU 1      48           216.210           0                 0                 0
+GPU 2      34           192.774           0                 0                 26
+GPU 3      43           199.143           0                 0                 0
+GPU 4      34           188.037           0                 0                 0
+GPU 5      43           204.458           0                 0                 0
+GPU 6      34           188.027           0                 0                 0
+GPU 7      42           192.943           0                 0                 0
+=== profile --list ===
++----------------+----------+------------------------------------------------------+
+| Group.Subgroup | Field ID | Field Tag                                            |
++----------------+----------+------------------------------------------------------+
+| A.0            | 1001     | gr_engine_active                                     |
+| A.0            | 1002     | sm_active                                            |
+| A.0            | 1003     | sm_occupancy                                         |
+| A.0            | 1004     | tensor_active                                        |
+| A.0            | 1005     | dram_active                                          |
+| A.0            | 1006     | fp64_active                                          |
+| A.0            | 1007     | fp32_active                                          |
+| A.0            | 1008     | fp16_active                                          |
+| A.0            | 1009     | pcie_tx_bytes                                        |
+| A.0            | 1010     | pcie_rx_bytes                                        |
+| A.0            | 1011     | nvlink_tx_bytes                                      |
+| A.0            | 1012     | nvlink_rx_bytes                                      |
+| A.0            | 1013     | tensor_imma_active                                   |
+| A.0            | 1014     | tensor_hmma_active                                   |
+| A.0            | 1015     | tensor_dfma_active                                   |
+| A.0            | 1016     | integer_active                                       |
+| A.0            | 1017     | nvdec0_active                                        |
+| A.0            | 1018     | nvdec1_active                                        |
+| A.0            | 1019     | nvdec2_active                                        |
+| A.0            | 1020     | nvdec3_active                                        |
+| A.0            | 1021     | nvdec4_active                                        |
+| A.0            | 1022     | nvdec5_active                                        |
+| A.0            | 1023     | nvdec6_active                                        |
+| A.0            | 1024     | nvdec7_active                                        |
+| A.0            | 1025     | nvjpg0_active                                        |
+| A.0            | 1026     | nvjpg1_active                                        |
+| A.0            | 1027     | nvjpg2_active                                        |
+| A.0            | 1028     | nvjpg3_active                                        |
+| A.0            | 1029     | nvjpg4_active                                        |
+| A.0            | 1030     | nvjpg5_active                                        |
+| A.0            | 1031     | nvjpg6_active                                        |
+| A.0            | 1032     | nvjpg7_active                                        |
+| A.0            | 1033     | nvofa0_active                                        |
+| A.0            | 1034     | nvofa1_active                                        |
+| B.0            | 1040     | nvlink_l0_tx_bytes                                   |
+| B.0            | 1041     | nvlink_l0_rx_bytes                                   |
+| B.0            | 1042     | nvlink_l1_tx_bytes                                   |
+| B.0            | 1043     | nvlink_l1_rx_bytes                                   |
+| B.0            | 1044     | nvlink_l2_tx_bytes                                   |
+| B.0            | 1045     | nvlink_l2_rx_bytes                                   |
+| B.0            | 1046     | nvlink_l3_tx_bytes                                   |
+| B.0            | 1047     | nvlink_l3_rx_bytes                                   |
+| B.0            | 1048     | nvlink_l4_tx_bytes                                   |
+| B.0            | 1049     | nvlink_l4_rx_bytes                                   |
+| B.0            | 1050     | nvlink_l5_tx_bytes                                   |
+| B.0            | 1051     | nvlink_l5_rx_bytes                                   |
+| B.0            | 1052     | nvlink_l6_tx_bytes                                   |
+| B.0            | 1053     | nvlink_l6_rx_bytes                                   |
+| B.0            | 1054     | nvlink_l7_tx_bytes                                   |
+| B.0            | 1055     | nvlink_l7_rx_bytes                                   |
+| B.0            | 1056     | nvlink_l8_tx_bytes                                   |
+| B.0            | 1057     | nvlink_l8_rx_bytes                                   |
+| B.0            | 1058     | nvlink_l9_tx_bytes                                   |
+| B.0            | 1059     | nvlink_l9_rx_bytes                                   |
+| B.0            | 1060     | nvlink_l10_tx_bytes                                  |
+| B.0            | 1061     | nvlink_l10_rx_bytes                                  |
+| B.0            | 1062     | nvlink_l11_tx_bytes                                  |
+| B.0            | 1063     | nvlink_l11_rx_bytes                                  |
+| B.0            | 1064     | nvlink_l12_tx_bytes                                  |
+| B.0            | 1065     | nvlink_l12_rx_bytes                                  |
+| B.0            | 1066     | nvlink_l13_tx_bytes                                  |
+| B.0            | 1067     | nvlink_l13_rx_bytes                                  |
+| B.0            | 1068     | nvlink_l14_tx_bytes                                  |
+| B.0            | 1069     | nvlink_l14_rx_bytes                                  |
+| B.0            | 1070     | nvlink_l15_tx_bytes                                  |
+| B.0            | 1071     | nvlink_l15_rx_bytes                                  |
+| B.0            | 1072     | nvlink_l16_tx_bytes                                  |
+| B.0            | 1073     | nvlink_l16_rx_bytes                                  |
+| B.0            | 1074     | nvlink_l17_tx_bytes                                  |
+| B.0            | 1075     | nvlink_l17_rx_bytes                                  |
+| B.0            | 1076     | c2c_tx_all_bytes                                     |
+| B.0            | 1077     | c2c_tx_data_bytes                                    |
+| B.0            | 1078     | c2c_rx_all_bytes                                     |
+| B.0            | 1079     | c2c_rx_data_bytes                                    |
+| B.0            | 1080     | hostmem_cache_hit                                    |
+| B.0            | 1081     | hostmem_cache_miss                                   |
+| B.0            | 1082     | peermem_cache_hit                                    |
+| B.0            | 1083     | peermem_cache_miss                                   |
++----------------+----------+------------------------------------------------------+
+=== health ===
+Error: Health watches not enabled. Please enable watches.
+=== nvlink ===
++----------------------+
+|  NvLink Link Status  |
++----------------------+
+GPUs:
+    gpuId 0:
+        U U U U U U U U U U U U U U U U U U
+    gpuId 1:
+        U U U U U U U U U U U U U U U U U U
+    gpuId 2:
+        U U U U U U U U U U U U U U U U U U
+    gpuId 3:
+        U U U U U U U U U U U U U U U U U U
+    gpuId 4:
+        U U U U U U U U U U U U U U U U U U
+    gpuId 5:
+        U U U U U U U U U U U U U U U U U U
+    gpuId 6:
+        U U U U U U U U U U U U U U U U U U
+    gpuId 7:
+        U U U U U U U U U U U U U U U U U U
+NvSwitches:
+    No NvSwitches found.
+
+Key: Up=U, Down=D, Disabled=X, Not Supported=_
+=== gpm -g ===
+GPM stream state: DISABLED

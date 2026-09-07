@@ -1,0 +1,64 @@
+sys.remote_exec is not available in this Python version
+Debugger command line: gdb -batch -p 2553470 -nx -nw '-iex=set auto-solib-add off' '-ex=set $rtld_now=2' '-ex=set $libpath="/usr/local/lib/python3.12/dist-packages/memray/_inject.abi3.so"' '-ex=set $port=19069' -x=/usr/local/lib/python3.12/dist-packages/memray/commands/_attach.gdb
+debugger return code: 0
+debugger output:
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Enable debuginfod for this session? (y or [n]) [answered N; input not from terminal]
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007f735a7b6a7a in clock_nanosleep () from /usr/lib/x86_64-linux-gnu/libc.so.6
+$1 = "MEMRAY: Attached to process."
+From                To                  Syms Read   Shared Object Library
+0x00007f735a934420  0x00007f735a9b23a6  No          /usr/lib/x86_64-linux-gnu/libm.so.6
+0x00007f735a90a260  0x00007f735a91bc40  No          /usr/lib/x86_64-linux-gnu/libz.so.1
+0x00007f735a8e0210  0x00007f735a8fc473  No          /usr/lib/x86_64-linux-gnu/libexpat.so.1
+0x00007f735a6f2800  0x00007f735a879d39  Yes (*)     /usr/lib/x86_64-linux-gnu/libc.so.6
+0x00007f735aa10000  0x00007f735aa3a195  No          /lib64/ld-linux-x86-64.so.2
+(*): Shared library is missing debugging information.
+$2 = "MEMRAY: Checking if process is Python 3.7+."
+$3 = {<text variable, no debug info>} 0x587130 <PyMem_Malloc>
+$4 = {<text variable, no debug info>} 0x5872b0 <PyMem_Calloc>
+$5 = {<text variable, no debug info>} 0x588540 <PyMem_Realloc>
+$6 = {<text variable, no debug info>} 0x5876f0 <PyMem_Free>
+$7 = "MEMRAY: Process is Python 3.7+."
+$8 = 0
+$9 = "Checking if we can access the library"
+Breakpoint 1 at 0x7f735a777678
+Breakpoint 2 at 0x7f735a7787c0
+Breakpoint 3 at 0x7f735a7780c8
+Breakpoint 4 at 0x7f735a777d50
+Breakpoint 5 at 0x587138
+Breakpoint 6 at 0x5872b8
+Breakpoint 7 at 0x588548
+Breakpoint 8 at 0x5876f0
+Breakpoint 9 at 0x635a08
+Breakpoint 10 at 0x584fe0
+
+Breakpoint 10, 0x0000000000584fe0 in PyCallable_Check ()
+#0  0x0000000000584fe0 in PyCallable_Check ()
+#1  0x00000000006a6b57 in ?? ()
+#2  0x00000000006a6abb in ?? ()
+#3  0x00000000005fc126 in ?? ()
+#4  0x00000000005e135f in _PyEval_EvalFrameDefault ()
+#5  0x00000000005d544b in PyEval_EvalCode ()
+#6  0x00000000006085a2 in ?? ()
+#7  0x00000000006b5033 in ?? ()
+#8  0x00000000006b4d9a in _PyRun_SimpleFileObject ()
+#9  0x00000000006b4bcf in _PyRun_AnyFileObject ()
+#10 0x00000000004b4b63 in PyRun_AnyFileExFlags ()
+#11 0x00000000004c0c08 in ?? ()
+#12 0x00000000006bc71d in Py_BytesMain ()
+#13 0x00007f735a6f41ca in ?? () from /usr/lib/x86_64-linux-gnu/libc.so.6
+#14 0x00007f735a6f428b in __libc_start_main () from /usr/lib/x86_64-linux-gnu/libc.so.6
+#15 0x0000000000657bc5 in _start ()
+$10 = (void *) 0x1968240
+$11 = 0x0
+[New Thread 0x7f7359d4a6c0 (LWP 2553648)]
+$12 = "SUCCESS"
+[Inferior 1 (process 2553470) detached]
+
+memray: tracking PID 2553470 for 6s in the background. Run `memray detach 2553470` to stop early.
