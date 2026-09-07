@@ -4,13 +4,28 @@ Read this guide whenever Ultron-related work chooses or validates a base branch.
 
 ## Dual mainlines
 
-Each canonical repository keeps two distinct lines:
+Each canonical repository in the Ultron fleet keeps two distinct lines:
 
 - `upstream_mainline` is the repository's native `main` or `master` and remains upstream-facing.
-- `ultron_mainline` is the local-only `ultron/mainline` integration line for Ultron-related work.
+- `ultron_mainline` is the `ultron/mainline` integration line for Ultron-related work.
 - `ultron_mainline_bootstrap` is the immutable approved commit used only for initial creation.
 
-The integration branch has no upstream. It is never implicitly published, rebased, reset, force-updated, or rewritten. Agents do not edit, commit on, advance, or publish it.
+The fleet default is that `ultron/mainline` has no upstream and is never
+implicitly published, rebased, reset, force-updated, or rewritten.
+
+### TorchTitan exception (ADR 0006)
+
+This repository already published `ultron/mainline` as the research trunk
+on `origin`. GitHub's default branch is `ultron/mainline`. `main` is
+deprecated and is not the integration line. Topic branches merge back
+with fast-forward only.
+
+Agents still do not commit on, rebase, reset, or force-update
+`ultron/mainline`. A human authorizes each fast-forward and each push.
+`python tools/ultron_mainline.py --check` encodes the fleet default
+(no configured upstream) and will disagree with this published trunk;
+do not treat a failed `--check` on TorchTitan as a reason to unpublish
+or rewrite the trunk.
 
 ## Before Ultron-related work
 
