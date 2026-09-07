@@ -1,0 +1,6 @@
+initial_load_model_only=True has no effect without an initial_load_path.
+Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+initial_load_model_only=True has no effect without an initial_load_path.
+torch.distributed.set_timeout is unavailable; keeping existing ProcessGroup timeouts.
+[falcon-smoke] OK steps=5 initial_loss=3.46574 final_loss=3.34011 all_finite=True

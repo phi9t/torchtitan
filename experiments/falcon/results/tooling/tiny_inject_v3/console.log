@@ -1,0 +1,796 @@
++ NGPU=1
++ export LOG_RANK=0
++ LOG_RANK=0
++ MODULE=falcon
++ CONFIG=falcon_tiny_overfit
++ COMM_MODE=
+++ python3 -c 'import uuid; print(uuid.uuid4())'
++ TORCHTITAN_RUN_ID=2fcb43e2-b2f4-43b7-9595-267b30a04511
+++ python3 -c 'import uuid; print(uuid.uuid4())'
++ TORCHTITAN_ATTEMPT_ID=b0782e28-858b-4a3b-9085-99a20036b099
++ export TORCHTITAN_RUN_ID TORCHTITAN_ATTEMPT_ID
++ TORCHFT_LIGHTHOUSE=http://localhost:29510
++ TORCHTITAN_RDZV_ENDPOINT=127.0.0.1:0
++ TORCHTITAN_LOCAL_ADDR=127.0.0.1
++ '[' -n '' ']'
++ PYTORCH_ALLOC_CONF=expandable_segments:True
++ TORCHFT_LIGHTHOUSE=http://localhost:29510
++ torchrun --nproc_per_node=1 --rdzv_id 2fcb43e2-b2f4-43b7-9595-267b30a04511 --rdzv_backend c10d --rdzv_endpoint=127.0.0.1:0 --local_addr=127.0.0.1 --local-ranks-filter 0 --role rank --tee 3 -m torchtitan.train --module falcon --config falcon_tiny_overfit --training.steps 30000 --lr_scheduler.total_steps 30000 --lr_scheduler.warmup_steps 1 --lr_scheduler.decay_ratio 0.8 --metrics.log_freq 200 --dump_folder ./experiments/falcon/results/tooling/tiny_inject_v3
+[W906 19:34:56.515248148 socket.cpp:207] [c10d] The hostname of the client socket cannot be retrieved. err=-3
+[rank0]:[W906 19:35:00.321904951 socket.cpp:207] [c10d] The hostname of the client socket cannot be retrieved. err=-3
+[rank0]:[titan] 2026-09-06 19:35:00,533 - root - INFO - torchtitan version: 0.2.2 (0.0.0 means __version__ is not defined correctly).
+[rank0]:[titan] 2026-09-06 19:35:00,537 - root - WARNING - initial_load_model_only=True has no effect without an initial_load_path.
+[rank0]:[titan] 2026-09-06 19:35:00,615 - root - WARNING - initial_load_model_only=True has no effect without an initial_load_path.
+[rank0]:[titan] 2026-09-06 19:35:00,624 - torchtitan.observability.structured_logger.structured_logging - INFO - Structured logging disabled via DebugConfig.enable_structured_logging=False
+[rank0]:[titan] 2026-09-06 19:35:00,992 - root - WARNING - ENV[TORCH_NCCL_ASYNC_ERROR_HANDLING] = 1 will be overridden to 3 based on job config
+[rank0]:[titan] 2026-09-06 19:35:00,994 - root - INFO - Building device mesh with parallelism: pp=1, dp_replicate=1, dp_shard=1, cp=1, tp=1, ep=1
+[rank0]:[titan] 2026-09-06 19:35:01,000 - root - INFO - Successfully created meshes with active dimensions: []
+[rank0]:[titan] 2026-09-06 19:35:01,000 - root - INFO - [GC] Initial GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:01,000 - root - INFO - Building falcon tiny_overfit
+[rank0]:[titan] 2026-09-06 19:35:01,004 - root - INFO - CUDA capacity: NVIDIA B200 with 178.35GiB memory
+[rank0]:[titan] 2026-09-06 19:35:01,004 - root - WARNING - Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+[rank0]:[titan] 2026-09-06 19:35:01,004 - root - INFO - [34mModel falcon tiny_overfit [31msize: 23,216 total parameters[39m
+[rank0]:[titan] 2026-09-06 19:35:01,063 - root - WARNING - Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+[rank0]:[titan] 2026-09-06 19:35:01,063 - root - INFO - Peak FLOPS used for computing MFU: 2.250e+15
+[rank0]:[titan] 2026-09-06 19:35:01,063 - root - INFO - CUDA memory usage for model: 0.00GiB(0.00%)
+[rank0]:[titan] 2026-09-06 19:35:01,063 - root - INFO - Optimizer AdamW (model_part=0): 29 params [.*] {'fused': True, 'foreach': False, 'lr': 0.03, 'betas': (0.9, 0.95), 'eps': 1e-08, 'weight_decay': 0.0}
+[rank0]:[titan] 2026-09-06 19:35:01,064 - root - INFO - Loading tokenizer from tokenizer.json
+[rank0]:[titan] 2026-09-06 19:35:01,069 - root - WARNING - initial_load_model_only=True has no effect without an initial_load_path.
+[rank0]:[titan] 2026-09-06 19:35:01,069 - root - INFO - Trainer is initialized with local batch size 8, global batch size 8, gradient accumulation steps 1, sequence length 16, total steps 30000 (warmup 1)
+[rank0]:[titan] 2026-09-06 19:35:01,069 - root - INFO - Training starts at step 1
+[rank0]:[titan] 2026-09-06 19:35:01,692 - root - INFO - [31mstep:  1  [32mloss:  3.48966  [38;2;180;60;0mgrad_norm:  1.0517  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 186  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:01,692 - root - INFO - Synchronizing and adjusting timeout for all ProcessGroups to 0:01:40
+[rank0]:[titan] 2026-09-06 19:35:01,692 - root - WARNING - torch.distributed.set_timeout is unavailable; keeping existing ProcessGroup timeouts.
+[rank0]:[titan] 2026-09-06 19:35:02,133 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:02,589 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:03,044 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:03,490 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:03,500 - root - INFO - [31mstep: 200  [32mloss:  0.01085  [38;2;180;60;0mgrad_norm:  0.0065  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,091  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:03,934 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:04,378 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:04,824 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:05,269 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:05,278 - root - INFO - [31mstep: 400  [32mloss:  0.25251  [38;2;180;60;0mgrad_norm:  4.6946  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,400  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:05,713 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:06,158 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:06,602 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:07,049 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:07,058 - root - INFO - [31mstep: 600  [32mloss:  0.01085  [38;2;180;60;0mgrad_norm:  0.0043  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,383  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:07,494 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:07,937 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:08,381 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:08,824 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:08,834 - root - INFO - [31mstep: 800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0008  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,420  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:09,269 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:09,712 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:10,156 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:10,607 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:10,616 - root - INFO - [31mstep: 1000  [32mloss:  0.01088  [38;2;180;60;0mgrad_norm:  0.0007  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,362  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:11,059 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:11,511 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:11,963 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:12,415 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:12,424 - root - INFO - [31mstep: 1200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0009  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,163  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:12,867 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:13,318 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:13,769 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:14,220 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:14,230 - root - INFO - [31mstep: 1400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,179  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:14,667 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:15,112 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:15,556 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:15,999 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:16,008 - root - INFO - [31mstep: 1600  [32mloss:  0.01363  [38;2;180;60;0mgrad_norm:  0.0513  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,395  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:16,443 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:16,886 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:17,329 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:17,772 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:17,781 - root - INFO - [31mstep: 1800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0012  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,443  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:18,215 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:18,658 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:19,102 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:19,545 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:19,554 - root - INFO - [31mstep: 2000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0009  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,443  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:19,988 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:20,432 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:20,875 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:21,318 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:21,327 - root - INFO - [31mstep: 2200  [32mloss:  0.01843  [38;2;180;60;0mgrad_norm:  0.3514  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,441  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:21,761 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:22,204 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:22,649 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:23,093 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:23,102 - root - INFO - [31mstep: 2400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0010  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,423  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:23,537 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:23,980 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:24,423 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:24,867 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:24,877 - root - INFO - [31mstep: 2600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,431  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:25,312 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:25,757 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:26,202 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:26,646 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:26,655 - root - INFO - [31mstep: 2800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,393  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:27,091 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:27,535 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:27,979 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:28,424 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:28,433 - root - INFO - [31mstep: 3000  [32mloss:  0.01106  [38;2;180;60;0mgrad_norm:  0.0221  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,406  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:28,868 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:29,312 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:29,756 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:30,201 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:30,210 - root - INFO - [31mstep: 3200  [32mloss:  0.01485  [38;2;180;60;0mgrad_norm:  1.2041  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,408  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:30,645 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:31,089 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:31,534 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:31,979 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:31,989 - root - INFO - [31mstep: 3400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0011  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,394  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:32,425 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:32,869 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:33,314 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:33,758 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:33,768 - root - INFO - [31mstep: 3600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0006  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,392  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:34,203 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:34,647 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:35,092 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:35,538 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:35,547 - root - INFO - [31mstep: 3800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0007  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,389  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:35,983 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:36,428 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:36,874 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:37,320 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:37,329 - root - INFO - [31mstep: 4000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,370  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:37,766 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:38,212 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:38,658 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:39,103 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:39,112 - root - INFO - [31mstep: 4200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0008  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,355  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:39,549 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:39,995 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:40,441 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:40,886 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:40,896 - root - INFO - [31mstep: 4400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,359  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:41,332 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:41,778 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:42,223 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:42,667 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:42,677 - root - INFO - [31mstep: 4600  [32mloss:  0.01215  [38;2;180;60;0mgrad_norm:  0.0998  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,376  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:43,111 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:43,555 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:43,999 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:44,443 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:44,452 - root - INFO - [31mstep: 4800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,417  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:44,887 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:45,330 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:45,774 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:46,217 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:46,227 - root - INFO - [31mstep: 5000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,431  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:46,661 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:47,105 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:47,549 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:47,992 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:48,002 - root - INFO - [31mstep: 5200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,424  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:48,437 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:48,881 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:49,325 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:49,768 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:49,777 - root - INFO - [31mstep: 5400  [32mloss:  0.01134  [38;2;180;60;0mgrad_norm:  0.0899  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,424  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:50,211 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:50,654 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:51,097 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:51,541 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:51,550 - root - INFO - [31mstep: 5600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,442  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:51,984 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:52,427 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:52,871 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:53,314 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:53,324 - root - INFO - [31mstep: 5800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,434  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:53,759 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:54,204 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:54,648 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:55,092 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:55,102 - root - INFO - [31mstep: 6000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,401  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:55,537 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:55,981 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:56,425 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:56,869 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:56,878 - root - INFO - [31mstep: 6200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,411  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:57,314 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:57,758 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:58,202 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:58,646 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:58,655 - root - INFO - [31mstep: 6400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,412  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:35:59,090 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:59,534 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:35:59,978 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:00,422 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:00,431 - root - INFO - [31mstep: 6600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,411  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:00,866 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:01,310 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:01,753 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:02,196 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:02,205 - root - INFO - [31mstep: 6800  [32mloss:  0.01690  [38;2;180;60;0mgrad_norm:  0.9366  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,434  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:02,640 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:03,083 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:03,527 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:03,970 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:03,979 - root - INFO - [31mstep: 7000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0006  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,432  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:04,415 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:04,859 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:05,304 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:05,747 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:05,756 - root - INFO - [31mstep: 7200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,409  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:06,191 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:06,636 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:07,082 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:07,526 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:07,536 - root - INFO - [31mstep: 7400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,390  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:07,971 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:08,415 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:08,859 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:09,304 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:09,313 - root - INFO - [31mstep: 7600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,404  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:09,750 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:10,196 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:10,642 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:11,087 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:11,097 - root - INFO - [31mstep: 7800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,357  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:11,534 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:11,979 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:12,425 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:12,871 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:12,880 - root - INFO - [31mstep: 8000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,356  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:13,317 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:13,763 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:14,209 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:14,654 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:14,663 - root - INFO - [31mstep: 8200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,361  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:15,099 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:15,545 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:15,990 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:16,435 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:16,444 - root - INFO - [31mstep: 8400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,373  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:16,881 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:17,325 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:17,771 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:18,216 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:18,225 - root - INFO - [31mstep: 8600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,380  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:18,661 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:19,106 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:19,552 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:19,997 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:20,006 - root - INFO - [31mstep: 8800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,376  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:20,443 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:20,888 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:21,333 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:21,778 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:21,787 - root - INFO - [31mstep: 9000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,376  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:22,224 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:22,668 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:23,113 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:23,558 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:23,568 - root - INFO - [31mstep: 9200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,380  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:24,003 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:24,448 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:24,892 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:25,338 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:25,347 - root - INFO - [31mstep: 9400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,385  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:25,783 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:26,229 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:26,674 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:27,118 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:27,127 - root - INFO - [31mstep: 9600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,387  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:27,562 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:28,005 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:28,450 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:28,894 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:28,904 - root - INFO - [31mstep: 9800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,412  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:29,340 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:29,785 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:30,230 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:30,675 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:30,684 - root - INFO - [31mstep: 10000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,384  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:31,119 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:31,565 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:32,009 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:32,453 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:32,462 - root - INFO - [31mstep: 10200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,395  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:32,900 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:33,345 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:33,789 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:34,235 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:34,244 - root - INFO - [31mstep: 10400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,368  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:34,679 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:35,123 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:35,569 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:36,012 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:36,021 - root - INFO - [31mstep: 10600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,409  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:36,456 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:36,901 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:37,346 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:37,790 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:37,800 - root - INFO - [31mstep: 10800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,398  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:38,236 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:38,681 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:39,124 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:39,569 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:39,578 - root - INFO - [31mstep: 11000  [32mloss:  0.01089  [38;2;180;60;0mgrad_norm:  0.0273  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,394  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:40,014 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:40,459 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:40,902 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:41,345 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:41,354 - root - INFO - [31mstep: 11200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,420  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:41,790 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:42,234 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:42,677 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:43,123 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:43,132 - root - INFO - [31mstep: 11400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,402  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:43,569 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:44,015 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:44,461 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:44,906 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:44,915 - root - INFO - [31mstep: 11600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,360  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:45,351 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:45,797 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:46,242 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:46,687 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:46,696 - root - INFO - [31mstep: 11800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,376  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:47,133 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:47,578 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:48,022 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:48,468 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:48,477 - root - INFO - [31mstep: 12000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,376  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:48,912 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:49,356 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:49,801 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:50,245 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:50,254 - root - INFO - [31mstep: 12200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,409  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:50,689 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:51,134 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:51,578 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:52,022 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:52,031 - root - INFO - [31mstep: 12400  [32mloss:  0.05536  [38;2;180;60;0mgrad_norm:  3.3969  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,410  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:52,468 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:52,911 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:53,354 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:53,799 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:53,808 - root - INFO - [31mstep: 12600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,408  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:54,243 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:54,686 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:55,130 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:55,573 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:55,583 - root - INFO - [31mstep: 12800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,429  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:56,016 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:56,503 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:57,029 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:57,558 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:57,573 - root - INFO - [31mstep: 13000  [32mloss:  0.01084  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 12,864  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:36:58,071 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:58,593 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:59,117 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:59,628 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:36:59,638 - root - INFO - [31mstep: 13200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 12,401  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:00,136 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:00,649 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:01,146 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:01,609 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:01,619 - root - INFO - [31mstep: 13400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 12,924  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:02,053 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:02,497 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:02,940 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:03,384 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:03,393 - root - INFO - [31mstep: 13600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0007  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,428  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:03,828 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:04,271 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:04,715 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:05,158 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:05,167 - root - INFO - [31mstep: 13800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,431  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:05,602 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:06,046 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:06,489 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:06,934 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:06,943 - root - INFO - [31mstep: 14000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,420  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:07,378 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:07,821 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:08,265 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:08,708 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:08,717 - root - INFO - [31mstep: 14200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,430  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:09,152 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:09,595 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:10,038 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:10,482 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:10,491 - root - INFO - [31mstep: 14400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,438  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:10,925 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:11,369 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:11,812 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:12,255 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:12,264 - root - INFO - [31mstep: 14600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,438  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:12,699 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:13,142 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:13,585 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:14,028 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:14,038 - root - INFO - [31mstep: 14800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,437  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:14,472 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:14,915 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:15,360 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:15,805 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:15,814 - root - INFO - [31mstep: 15000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,411  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:16,251 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:16,696 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:17,141 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:17,586 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:17,595 - root - INFO - [31mstep: 15200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,377  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:18,031 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:18,476 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:18,921 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:19,365 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:19,374 - root - INFO - [31mstep: 15400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,391  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:19,810 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:20,255 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:20,700 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:21,145 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:21,154 - root - INFO - [31mstep: 15600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,384  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:21,591 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:22,035 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:22,479 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:22,923 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:22,932 - root - INFO - [31mstep: 15800  [32mloss:  0.01084  [38;2;180;60;0mgrad_norm:  0.0063  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,404  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:23,367 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:23,811 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:24,254 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:24,698 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:24,707 - root - INFO - [31mstep: 16000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,427  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:25,142 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:25,585 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:26,029 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:26,473 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:26,482 - root - INFO - [31mstep: 16200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,419  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:26,917 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:27,362 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:27,807 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:28,251 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:28,260 - root - INFO - [31mstep: 16400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,404  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:28,695 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:29,139 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:29,582 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:30,026 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:30,035 - root - INFO - [31mstep: 16600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,426  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:30,469 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:30,913 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:31,357 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:31,800 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:31,809 - root - INFO - [31mstep: 16800  [32mloss:  0.01849  [38;2;180;60;0mgrad_norm:  1.2455  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,433  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:32,243 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:32,687 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:33,132 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:33,576 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:33,585 - root - INFO - [31mstep: 17000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,414  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:34,020 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:34,464 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:34,908 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:35,352 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:35,362 - root - INFO - [31mstep: 17200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,412  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:35,797 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:36,242 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:36,686 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:37,130 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:37,139 - root - INFO - [31mstep: 17400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,405  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:37,575 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:38,019 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:38,463 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:38,907 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:38,916 - root - INFO - [31mstep: 17600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0004  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,406  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:39,351 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:39,795 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:40,239 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:40,683 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:40,692 - root - INFO - [31mstep: 17800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0006  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,421  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:41,126 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:41,570 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:42,013 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:42,458 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:42,467 - root - INFO - [31mstep: 18000  [32mloss:  0.01084  [38;2;180;60;0mgrad_norm:  0.0015  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,426  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:42,901 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:43,345 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:43,792 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:44,237 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:44,247 - root - INFO - [31mstep: 18200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0006  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,385  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:44,683 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:45,127 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:45,572 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:46,017 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:46,026 - root - INFO - [31mstep: 18400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,391  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:46,461 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:46,906 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:47,350 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:47,795 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:47,804 - root - INFO - [31mstep: 18600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,396  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:48,240 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:48,687 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:49,134 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:49,582 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:49,592 - root - INFO - [31mstep: 18800  [32mloss:  0.01085  [38;2;180;60;0mgrad_norm:  0.0049  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,326  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:50,029 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:50,475 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:50,925 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:51,372 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:51,381 - root - INFO - [31mstep: 19000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0006  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,310  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:51,818 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:52,265 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:52,710 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:53,157 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:53,166 - root - INFO - [31mstep: 19200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0005  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,345  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:53,603 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:54,050 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:54,499 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:54,945 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:54,954 - root - INFO - [31mstep: 19400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0003  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,320  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:55,390 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:55,836 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:56,285 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:56,732 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:56,741 - root - INFO - [31mstep: 19600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,323  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:57,179 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:57,625 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:58,070 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:58,515 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:58,524 - root - INFO - [31mstep: 19800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,364  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:37:58,960 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:59,406 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:37:59,852 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:00,298 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:00,308 - root - INFO - [31mstep: 20000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,356  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:00,747 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:01,193 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:01,638 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:02,082 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:02,092 - root - INFO - [31mstep: 20200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,351  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:02,527 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:02,973 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:03,418 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:03,862 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:03,872 - root - INFO - [31mstep: 20400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,384  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:04,308 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:04,754 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:05,200 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:05,646 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:05,655 - root - INFO - [31mstep: 20600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,358  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:06,090 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:06,535 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:06,983 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:07,427 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:07,437 - root - INFO - [31mstep: 20800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,370  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:07,872 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:08,319 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:08,764 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:09,211 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:09,220 - root - INFO - [31mstep: 21000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,360  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:09,655 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:10,099 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:10,543 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:10,986 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:10,995 - root - INFO - [31mstep: 21200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,422  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:11,431 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:11,875 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:12,319 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:12,764 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:12,773 - root - INFO - [31mstep: 21400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,402  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:13,208 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:13,653 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:14,097 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:14,541 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:14,551 - root - INFO - [31mstep: 21600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,403  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:14,986 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:15,430 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:15,876 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:16,321 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:16,330 - root - INFO - [31mstep: 21800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,385  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:16,767 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:17,212 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:17,657 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:18,100 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:18,110 - root - INFO - [31mstep: 22000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,392  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:18,544 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:18,988 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:19,432 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:19,877 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:19,886 - root - INFO - [31mstep: 22200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,410  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:20,324 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:20,770 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:21,216 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:21,662 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:21,671 - root - INFO - [31mstep: 22400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,344  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:22,108 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:22,554 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:23,000 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:23,448 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:23,458 - root - INFO - [31mstep: 22600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,335  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:23,896 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:24,342 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:24,789 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:25,235 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:25,244 - root - INFO - [31mstep: 22800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,332  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:25,682 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:26,130 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:26,577 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:27,024 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:27,034 - root - INFO - [31mstep: 23000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,308  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:27,473 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:27,921 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:28,369 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:28,817 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:28,826 - root - INFO - [31mstep: 23200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,283  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:29,264 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:29,712 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:30,160 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:30,606 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:30,616 - root - INFO - [31mstep: 23400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,308  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:31,054 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:31,500 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:31,946 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:32,394 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:32,403 - root - INFO - [31mstep: 23600  [32mloss:  0.05857  [38;2;180;60;0mgrad_norm:  2.6282  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,325  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:32,841 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:33,288 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:33,735 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:34,181 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:34,190 - root - INFO - [31mstep: 23800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,329  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:34,627 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:35,072 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:35,516 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:35,960 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:35,969 - root - INFO - [31mstep: 24000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,389  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:36,404 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:36,848 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:37,298 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:37,755 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:37,764 - root - INFO - [31mstep: 24200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,264  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:38,210 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:38,655 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:39,099 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:39,543 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:39,553 - root - INFO - [31mstep: 24400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,317  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:39,988 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:40,432 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:40,875 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:41,320 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:41,329 - root - INFO - [31mstep: 24600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,415  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:41,764 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:42,208 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:42,653 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:43,096 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:43,106 - root - INFO - [31mstep: 24800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,409  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:43,541 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:43,984 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:44,429 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:44,873 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:44,882 - root - INFO - [31mstep: 25000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,416  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:45,317 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:45,760 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:46,204 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:46,647 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:46,656 - root - INFO - [31mstep: 25200  [32mloss:  0.01125  [38;2;180;60;0mgrad_norm:  0.1581  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,428  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:47,091 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:47,535 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:47,979 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:48,422 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:48,431 - root - INFO - [31mstep: 25400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,427  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:48,866 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:49,310 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:49,753 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:50,197 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:50,206 - root - INFO - [31mstep: 25600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,424  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:50,641 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:51,084 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:51,527 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:51,971 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:51,980 - root - INFO - [31mstep: 25800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,434  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:52,415 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:52,859 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:53,303 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:53,746 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:53,755 - root - INFO - [31mstep: 26000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,422  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:54,190 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:54,633 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:55,077 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:55,521 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:55,530 - root - INFO - [31mstep: 26200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,428  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:55,965 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:56,408 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:56,852 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:57,297 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:57,306 - root - INFO - [31mstep: 26400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,420  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:57,741 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:58,185 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:58,629 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:59,073 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:59,082 - root - INFO - [31mstep: 26600  [32mloss:  0.01085  [38;2;180;60;0mgrad_norm:  0.0074  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,411  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:38:59,517 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:38:59,961 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:00,406 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:00,849 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:00,858 - root - INFO - [31mstep: 26800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,417  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:01,293 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:01,736 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:02,180 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:02,624 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:02,633 - root - INFO - [31mstep: 27000  [32mloss:  0.01098  [38;2;180;60;0mgrad_norm:  0.0467  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,427  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:03,068 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:03,511 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:03,954 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:04,397 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:04,406 - root - INFO - [31mstep: 27200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0002  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,440  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:04,841 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:05,286 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:05,734 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:06,180 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:06,189 - root - INFO - [31mstep: 27400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,364  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:06,627 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:07,076 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:07,523 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:07,972 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:07,982 - root - INFO - [31mstep: 27600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,280  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:08,422 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:08,870 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:09,319 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:09,768 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:09,778 - root - INFO - [31mstep: 27800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,256  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:10,217 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:10,666 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:11,115 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:11,564 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:11,574 - root - INFO - [31mstep: 28000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,256  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:12,013 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:12,464 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:12,912 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:13,362 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:13,371 - root - INFO - [31mstep: 28200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,245  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:13,810 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:14,257 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:14,705 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:15,152 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:15,161 - root - INFO - [31mstep: 28400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,304  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:15,600 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:16,048 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:16,496 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:16,943 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:16,953 - root - INFO - [31mstep: 28600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,291  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:17,390 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:17,835 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:18,279 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:18,724 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:18,733 - root - INFO - [31mstep: 28800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,383  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:19,169 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:19,613 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:20,057 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:20,502 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:20,511 - root - INFO - [31mstep: 29000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,400  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:20,946 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:21,393 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:21,838 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:22,282 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:22,292 - root - INFO - [31mstep: 29200  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0001  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,379  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:22,727 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:23,172 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:23,617 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:24,061 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:24,070 - root - INFO - [31mstep: 29400  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,397  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:24,506 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:24,950 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:25,394 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:25,839 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:25,849 - root - INFO - [31mstep: 29600  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,397  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:26,284 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:26,728 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:27,172 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:27,617 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:27,626 - root - INFO - [31mstep: 29800  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,401  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:28,062 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:28,508 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:28,953 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:29,399 - root - INFO - [GC] Performing periodic GC collection took 0.00 seconds
+[rank0]:[titan] 2026-09-06 19:39:29,408 - root - INFO - [31mstep: 30000  [32mloss:  0.01083  [38;2;180;60;0mgrad_norm:  0.0000  [38;2;54;234;195mmemory:  0.04GiB(0.02%)  [34mtps: 14,372  [36mtflops: 0.00  [35mmfu: 0.00%[39m
+[rank0]:[titan] 2026-09-06 19:39:29,408 - root - INFO - Sleeping 2 seconds for other ranks to complete
+[rank0]:[titan] 2026-09-06 19:39:31,408 - root - INFO - Training completed
+[rank0]:[titan] 2026-09-06 19:39:31,409 - root - INFO - Process group destroyed

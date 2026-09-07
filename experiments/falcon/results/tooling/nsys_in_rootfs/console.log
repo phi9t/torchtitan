@@ -1,0 +1,51 @@
+initial_load_model_only=True has no effect without an initial_load_path.
+{
+  "claim_label": "smoke",
+  "purpose": "perf_tooling_base",
+  "arm": "A5",
+  "mixer": "falcon",
+  "variant": "falcon1a",
+  "alignment": "delayed",
+  "phi": "l2",
+  "steps": 20,
+  "seed": 0,
+  "seq_len": 512,
+  "local_batch_size": 32,
+  "tokens_per_step": 16384,
+  "dtype": "float32",
+  "started_utc": "2026-09-06T19:56:51.836210+00:00",
+  "pid": 34,
+  "cuda_visible_devices": "3"
+}
+[W906 19:56:52.497845449 socket.cpp:207] [c10d] The hostname of the client socket cannot be retrieved. err=-3
+Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+initial_load_model_only=True has no effect without an initial_load_path.
+torch.distributed.set_timeout is unavailable; keeping existing ProcessGroup timeouts.
+{
+  "claim_label": "smoke",
+  "purpose": "perf_tooling_base",
+  "arm": "A5",
+  "mixer": "falcon",
+  "variant": "falcon1a",
+  "alignment": "delayed",
+  "phi": "l2",
+  "steps": 20,
+  "seed": 0,
+  "seq_len": 512,
+  "local_batch_size": 32,
+  "tokens_per_step": 16384,
+  "dtype": "float32",
+  "started_utc": "2026-09-06T19:56:51.836210+00:00",
+  "pid": 34,
+  "cuda_visible_devices": "3",
+  "completed_steps": 20,
+  "elapsed_sec": 4.59,
+  "finished_utc": "2026-09-06T19:56:56.425274+00:00"
+}
+[rank0]:[W906 19:56:56.956070718 ProcessGroupNCCL.cpp:1624] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+Collecting data...
+Generating '/project/tmp/nsys-report-c68a.qdstrm'
+[1/1] [0%                          ] a5_20.nsys-rep[1/1] [0%                          ] a5_20.nsys-rep[1/1] [0%                          ] a5_20.nsys-rep[1/1] [13%                         ] a5_20.nsys-rep[1/1] [9%                          ] a5_20.nsys-rep[1/1] [7%                          ] a5_20.nsys-rep[1/1] [5%                          ] a5_20.nsys-rep[1/1] [5%                          ] a5_20.nsys-rep[1/1] [6%                          ] a5_20.nsys-rep[1/1] [7%                          ] a5_20.nsys-rep[1/1] [8%                          ] a5_20.nsys-rep[1/1] [14%                         ] a5_20.nsys-rep[1/1] [=15%                        ] a5_20.nsys-rep[1/1] [==21%                       ] a5_20.nsys-rep[1/1] [===24%                      ] a5_20.nsys-rep[1/1] [====26%                     ] a5_20.nsys-rep[1/1] [====27%                     ] a5_20.nsys-rep[1/1] [====28%                     ] a5_20.nsys-rep[1/1] [=====29%                    ] a5_20.nsys-rep[1/1] [=======37%                  ] a5_20.nsys-rep[1/1] [=========44%                ] a5_20.nsys-rep[1/1] [===========51%              ] a5_20.nsys-rep[1/1] [============54%             ] a5_20.nsys-rep[1/1] [========================100%] a5_20.nsys-rep[1/1] [========================100%] a5_20.nsys-rep
+Generated:
+	/workspace/torchtitan/experiments/falcon/results/tooling/nsys_in_rootfs/a5_20.nsys-rep

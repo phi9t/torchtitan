@@ -1,0 +1,75 @@
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_target.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_host.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libToolsInjectionProxy64.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libLinuxKeyboardInterceptorProxy.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_target.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_host.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libToolsInjectionProxy64.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libLinuxKeyboardInterceptorProxy.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_target.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_host.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libToolsInjectionProxy64.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libLinuxKeyboardInterceptorProxy.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_target.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_host.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libToolsInjectionProxy64.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libLinuxKeyboardInterceptorProxy.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_target.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_host.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libToolsInjectionProxy64.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libLinuxKeyboardInterceptorProxy.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_target.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libnvperf_host.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libToolsInjectionProxy64.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+ERROR: ld.so: object '/data00/home/zfc/cuda_13_2/nsight-systems-2025.6.3/target-linux-x64/libLinuxKeyboardInterceptorProxy.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+initial_load_model_only=True has no effect without an initial_load_path.
+{
+  "claim_label": "smoke",
+  "purpose": "perf_tooling_base",
+  "arm": "A5",
+  "mixer": "falcon",
+  "variant": "falcon1a",
+  "alignment": "delayed",
+  "phi": "l2",
+  "steps": 200,
+  "seed": 0,
+  "seq_len": 512,
+  "local_batch_size": 32,
+  "tokens_per_step": 16384,
+  "dtype": "float32",
+  "started_utc": "2026-09-06T19:37:43.585774+00:00",
+  "pid": 2,
+  "cuda_visible_devices": "1"
+}
+[W906 19:37:43.167437933 socket.cpp:207] [c10d] The hostname of the client socket cannot be retrieved. err=-3
+Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+Error running lspci: [Errno 2] No such file or directory: 'lspci', fallback to use device_name
+initial_load_model_only=True has no effect without an initial_load_path.
+torch.distributed.set_timeout is unavailable; keeping existing ProcessGroup timeouts.
+{
+  "claim_label": "smoke",
+  "purpose": "perf_tooling_base",
+  "arm": "A5",
+  "mixer": "falcon",
+  "variant": "falcon1a",
+  "alignment": "delayed",
+  "phi": "l2",
+  "steps": 200,
+  "seed": 0,
+  "seq_len": 512,
+  "local_batch_size": 32,
+  "tokens_per_step": 16384,
+  "dtype": "float32",
+  "started_utc": "2026-09-06T19:37:43.585774+00:00",
+  "pid": 2,
+  "cuda_visible_devices": "1",
+  "completed_steps": 200,
+  "elapsed_sec": 14.56,
+  "finished_utc": "2026-09-06T19:37:58.145561+00:00"
+}
+[rank0]:[W906 19:37:58.676733653 ProcessGroupNCCL.cpp:1624] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+Collecting data...
+Generating '/data02/home/philip.yang/workspace/torchtitan/experiments/falcon/results/tooling/nsys_v2/tmp/nsys-report-04f7.qdstrm'
+[1/1] [0%                          ] a5_200.nsys-rep[1/1] [0%                          ] a5_200.nsys-rep[1/1] [10%                         ] a5_200.nsys-rep[1/1] [11%                         ] a5_200.nsys-rep[1/1] [==20%                       ] a5_200.nsys-rep[1/1] [=====29%                    ] a5_200.nsys-rep[1/1] [=====30%                    ] a5_200.nsys-rep[1/1] [==========47%               ] a5_200.nsys-rep[1/1] [==============63%           ] a5_200.nsys-rep[1/1] [==============64%           ] a5_200.nsys-rep[1/1] [==================76%       ] a5_200.nsys-rep[1/1] [=====================88%    ] a5_200.nsys-rep[1/1] [=====================89%    ] a5_200.nsys-rep[1/1] [======================90%   ] a5_200.nsys-rep[1/1] [======================91%   ] a5_200.nsys-rep[1/1] [======================92%   ] a5_200.nsys-rep[1/1] [=======================93%  ] a5_200.nsys-rep[1/1] [=======================94%  ] a5_200.nsys-rep[1/1] [=======================95%  ] a5_200.nsys-rep[1/1] [=======================96%  ] a5_200.nsys-rep[1/1] [========================97% ] a5_200.nsys-rep[1/1] [========================98% ] a5_200.nsys-rep[1/1] [========================100%] a5_200.nsys-rep[1/1] [========================100%] a5_200.nsys-rep[1/1] [========================100%] a5_200.nsys-rep
+Generated:
+	/data02/home/philip.yang/workspace/torchtitan/experiments/falcon/results/tooling/nsys_v2/a5_200.nsys-rep
