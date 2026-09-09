@@ -97,10 +97,12 @@ arms) before 8k-step seeds. Plumbing only. Then spend tokens.
 "interpret" the collapsed table.
 
 **Winner rule is declared before looking.** Falcon froze
-`falcon1a + delayed + l2` (A5): best Falcon PPL, best addition ID,
-within ~6 PPL of softmax, beat GDN. Alignment (delayed vs same-step)
-was a **tie**. Addition ID was seed-noisy (0.70 vs 0.29); OOD was 0
-everywhere — reported as a declared gap, not a win. Hero must not
+`falcon1a + delayed + l2` (A5): best replicated Falcon PPL and within
+~6 PPL of softmax. It beat the single completed GDN seed on LM PPL.
+Alignment (delayed vs same-step) was a **tie**. The reported addition
+ID subset overlapped its training bank, no GDN addition run existed,
+and OOD was 0 everywhere. Treat the ID values as optimization
+diagnostics and OOD as a declared no-transfer result. Hero must not
 reopen knobs because of that fog.
 
 **Claim the scale you ran.** 131M tokens/arm is

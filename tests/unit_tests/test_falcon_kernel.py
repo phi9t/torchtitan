@@ -169,6 +169,26 @@ def test_falcon_recurrent_forward_rejects_unknown_alignment():
         )
 
 
+@pytest.mark.parametrize(
+    ("field", "kwargs"),
+    [
+        ("qk_norm_eps", {"qk_norm_eps": -1.0e-6}),
+        ("nlms_denom_eps", {"nlms_denom_eps": -1.0e-6}),
+    ],
+)
+def test_falcon_recurrent_forward_rejects_invalid_split_eps(field, kwargs):
+    ones = torch.ones(1, 1, 1, 2)
+    with pytest.raises(ValueError, match=field):
+        falcon_recurrent_forward(
+            ones,
+            ones,
+            ones,
+            torch.ones(1, 1, 1),
+            torch.zeros(1, 1, 1),
+            **kwargs,
+        )
+
+
 def _random_falcon_inputs(
     *, batch: int, seq_len: int, heads: int, key_dim: int, value_dim: int, seed: int
 ):
@@ -267,4 +287,24 @@ def test_masked_parallel_rejects_unknown_alignment():
             torch.ones(1, 1, 1),
             torch.zeros(1, 1, 1),
             alignment="lagged",
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "kwargs"),
+    [
+        ("qk_norm_eps", {"qk_norm_eps": float("nan")}),
+        ("nlms_denom_eps", {"nlms_denom_eps": float("inf")}),
+    ],
+)
+def test_masked_parallel_rejects_nonfinite_split_eps(field, kwargs):
+    ones = torch.ones(1, 1, 1, 2)
+    with pytest.raises(ValueError, match=field):
+        falcon_masked_parallel_forward(
+            ones,
+            ones,
+            ones,
+            torch.ones(1, 1, 1),
+            torch.zeros(1, 1, 1),
+            **kwargs,
         )

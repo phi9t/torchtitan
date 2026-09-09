@@ -26,6 +26,43 @@ Tests: `test_delayed_alignment_first_write_uses_k0_with_v1`,
 `test_falcon_config_alignment_defaults_to_delayed`,
 `test_falcon_mixer_threads_same_step_alignment_to_the_kernel`.
 
+## RMS/L2 scale transform: `scale_compensation`
+
+The kernel keeps two epsilon roles separate:
+
+- `qk_norm_eps` belongs only to the QK feature map `phi(q), phi(k)`.
+- `nlms_denom_eps` belongs only to the NLMS denominator
+  `||x_t||^2 + lambda_t + nlms_denom_eps`.
+
+Both default to `1e-6`. Negative or non-finite values fail with the exact field
+name; zero remains valid for direct worked examples.
+
+`FalconConfig.scale_compensation="rms_to_l2"` is a high-level mechanism knob
+for proving that RMS-normalized Falcon-1A can exactly materialize the L2 arm at
+head dimension `d`. It is valid only for `mixer="falcon"` and `phi="rms"`.
+The mixer resolves:
+
+- `qk_norm_eps -> qk_norm_eps / d`
+- post-softplus `lambda -> d * lambda`
+- `nlms_denom_eps -> d * nlms_denom_eps`
+
+It does not scale beta, values, `eps_gamma`, projection parameters, or add an
+output multiplier. With these substitutions, `phi_rms(q) = sqrt(d) phi_l2(q)`,
+the final adjusted state satisfies `S_l2 = sqrt(d) * S_rms`, and outputs plus
+raw-input and parameter gradients match. The proof gate is
+`tests/unit_tests/test_falcon_scale_transform.py`.
+
+Mechanism arms are separate from the older A-arm campaign mapping:
+
+- `M0`: delayed RMS Falcon-1A, no scale compensation.
+- `M1`: same-step RMS Falcon-1A, no scale compensation.
+- `M2`: delayed L2 Falcon-1A, no scale compensation.
+- `M3`: same-step L2 Falcon-1A, no scale compensation.
+- `M4`: delayed RMS Falcon-1A with `rms_to_l2` compensation.
+
+All M arms force `mixer="falcon"` and `variant="falcon1a"`. The legacy
+`_ARM_KNOBS` map is intentionally unchanged.
+
 ## Silent-failure modes
 
 1. **Same-step write as the default.** If `alignment` silently defaulted to
@@ -43,6 +80,10 @@ Tests: `test_delayed_alignment_first_write_uses_k0_with_v1`,
    documents. Not implemented in this campaign step; the tiny overfit bank is
    one document per row, so no reset is needed yet. This is a known future
    requirement, not a current bug.
+4. **Conflating QK and NLMS epsilons.** A single shared `eps` makes the RMS/L2
+   transform impossible to prove when base epsilons are nonzero. Guarded by the
+   scale-transform theorem, mixer/model gradient identity, and deterministic
+   optimizer trajectory tests.
 
 ## Other Step 1 invariants (already held)
 

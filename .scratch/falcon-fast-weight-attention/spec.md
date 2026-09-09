@@ -247,10 +247,10 @@ These are the paper's actual claims, not a kitchen sink:
 | --- | --- | --- |
 | A0 | Softmax Transformer + RoPE | paper Table 1 control |
 | A1 | Gated DeltaNet-style same-step residual write | strongest published recurrent neighbor. Implement as a mixer switch in the **same Falcon decoder shell**, using the existing Qwen3.5/Mini-K3 gated-delta *math* (`state <- gS + k((v-k^T S)β)^T` on `k_t`). Do not load `qwen3_5` or Mini-K3. |
-| A2 | Falcon-1A, delayed, QK-RMSNorm, ctx-η/λ | paper LM default family |
-| A3 | Falcon-1, delayed, QK-RMSNorm, ctx-η/λ | paper's best FineWeb PPL variant |
+| A2 | Falcon-1A, delayed, QK-RMSNorm, context-beta + uncoupled lambda | local RMS comparison; not a named paper main-table variant |
+| A3 | Falcon-1, delayed, QK-RMSNorm, context-beta + uncoupled lambda | local Falcon-1 comparison; not the paper's `ctxeta-ctxlambda` row |
 | A4 | Falcon-1A, **same-step** write | alignment ablation; if A4 ≈ A2, delayed pairing is not buying anything |
-| A5 | Falcon-1A, delayed, QK-ℓ2 | paper 1A.1 vs 1A.3 |
+| A5 | Falcon-1A, delayed, QK-ℓ2 | closest to paper 1A.1; local L2 contrast |
 
 Optional, only if A2/A3 are healthy and cheap:
 
@@ -368,20 +368,23 @@ calling a local hero "Table 1"; calling teacher-forced addition
 
 ## Current tree vs this spec
 
-Already done (keep, do not redo unless a mixer change invalidates it):
+Completed and preserved unless a mixer change invalidates the nearest gate:
 
-- Falcon-1 / 1A recurrent CPU kernel + worked-example tests
-- Tiny LM + repeating bank + overfit gate (Step 3)
-- `MODULE=falcon CONFIG=falcon_tiny_overfit`
+- Falcon-1 / 1A recurrent kernel, worked examples, same-step switch, and
+  harness contract (Step 1)
+- recurrent/masked-parallel identity and finite-backward gates (Step 2)
+- tiny LM, repeating bank, and overfit gate (Step 3)
+- science model, FineWeb wiring, addition task, and scoped ablation table
+  (Step 4)
+- all three local hero runs and full final checkpoints (Step 5)
 
-Not done:
+Remaining after the 2026-09-07 evidence audit:
 
-- Same-step ablation switch and harness note (Step 1 remainder)
-- Masked-parallel identity (Step 2)
-- Science-scale model, FineWeb/C4 wiring, ablation matrix (Step 4)
-- Hero runs (Step 5)
-- Addition task + replicated eval (Step 6)
-- Falcon-2/3, chunk-parallel, Qwen3.5 swap (out of campaign)
+- versioned legacy import and native Falcon attempt evidence (ticket 09)
+- uncontaminated addition and multi-region LM evaluation seams (tickets 10-11)
+- the GDN spend-or-omit decision and repaired Campaign B closeout
+  (tickets 12-13)
+- Falcon-2/3, chunk-parallel, and Qwen3.5 swap remain out of campaign
 
 ## Ticket decomposition
 
@@ -393,7 +396,13 @@ Filed under `issues/`. Campaign B omits a paper-scale hero ticket.
 - `06` Step 4 science config + addition data (blocked by 03, 04, 05)
 - `07` Step 4 ablation runs (blocked by 06)
 - `08` Step 5 local hero (blocked by 05, 07)
-- `09` Step 6 eval close (blocked by 06, 08)
+- `09` versioned Falcon evidence + legacy import (original Step-6 umbrella
+  decomposed after 08)
+- `10` uncontaminated addition tracer (blocked by 09)
+- `11` fixed-region LM checkpoint-evaluation tracer (blocked by 09)
+- `12` GDN addition spend-or-omit decision (blocked by 10)
+- `13` repaired Campaign B closeout (blocked by 10, 11, 12 and the external
+  mechanism terminal decision)
 
 ## Exclusions
 
@@ -408,3 +417,50 @@ Filed under `issues/`. Campaign B omits a paper-scale hero ticket.
 
 Experiment-only. This spec is the durable methodology. Session
 file-and-code lists are non-authoritative.
+
+## 2026-09-07 evidence and closure amendment
+
+This amendment preserves Campaign B's completed history while correcting its
+claim scope. It does not reopen hero knobs or authorize new training variants.
+
+- Step 4 has replicated LM and addition records for A0, A2, A4, and A5. A1
+  has one completed LM seed and no addition record. A3 has no completed full
+  run. The research owner accepted A1/A3 as explicit performance-based
+  omissions because their O(L) reference implementations were 30-40x slower.
+  `replicated_eval` therefore applies only to the completed replicated subset.
+- A5 remains the frozen local winner because it is the best completed Falcon
+  arm on replicated LM PPL. The evidence supports an A5-versus-A1 LM comparison
+  for one seed; it does not support an A5-versus-A1 addition comparison.
+- Existing addition ID evaluation overlaps its finite training bank. Those
+  values are reclassified as diagnostic training-bank exact-suffix accuracy,
+  not held-out ID or transfer evidence. Existing OOD widths are disjoint and
+  all scores are zero.
+- All three Step-5 hero runs completed at 20,000 steps with finite losses and
+  full `step-20000` checkpoints. Step 5 is resolved at
+  `representative_training`, one seed, 327.68M tokens per arm.
+- Historical raw artifacts remain immutable. Closure work imports them into a
+  canonical ledger with source hashes and explicit `legacy_import` missing
+  fields. It never fabricates run-attempt provenance.
+- Campaign B closes only after disjoint addition evaluation, multi-region LM
+  evaluation, accurate omission records, and a written evidence table. A GDN
+  addition control receives a 100-step preflight and runs fully only if its
+  projected replicated cost is at most two B200 GPU-hours.
+- New normalization, alignment, and scaling arms belong to the separate
+  `falcon-fwa-mechanism` campaign. They do not retroactively change Campaign
+  B's frozen hero decision.
+- The approved closure decomposition repurposes ticket 09 as the versioned
+  evidence/import gate, adds tickets 10-12 for disjoint addition, multi-region
+  LM evaluation, and the GDN spend-or-omit decision, and moves the preserved
+  Step-6 integration intent to ticket 13. Final closeout waits for the separate
+  mechanism campaign's terminal ticket 05 decision.
+- A0/A5 addition preflight, training, retries, diagnostics, checkpoints, and
+  evaluation sum to at most one B200 GPU-hour, with at most one retry per
+  logical run. Exceeding either limit requires a new human decision. GDN retains
+  its separate two-B200-hour spend-or-omit ceiling.
+- Campaign B's practical LM no-regression rule is aggregate A5 hero CE no more
+  than 0.01 worse than aggregate A1 hero CE across the same fixed regions. A
+  larger gap is reported as `lm_regression`; it does not invalidate the
+  completed evaluation.
+- The checkout's context-conditioned-beta plus uncoupled-lambda parameterization
+  is not the paper's strongest `ctxeta-ctxlambda` configuration. Campaign B is
+  a local process-faithful comparison, not a paper reproduction.

@@ -12,6 +12,7 @@ State S is stored as ``state_BNKV``.
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 import torch
@@ -23,6 +24,27 @@ FalconAlignment = Literal["delayed", "same_step"]
 # identity (kernel identity tests). Legacy callers pass normalize_qk; see
 # _resolve_phi for how the two are reconciled.
 FalconPhi = Literal["rms", "l2", "none"]
+
+
+def _validate_eps(name: str, value: float) -> None:
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+    if value < 0.0:
+        raise ValueError(f"{name} must be >= 0")
+
+
+def _resolve_eps_pair(
+    *,
+    eps: float | None,
+    qk_norm_eps: float,
+    nlms_denom_eps: float,
+) -> tuple[float, float]:
+    if eps is not None:
+        qk_norm_eps = eps
+        nlms_denom_eps = eps
+    _validate_eps("qk_norm_eps", qk_norm_eps)
+    _validate_eps("nlms_denom_eps", nlms_denom_eps)
+    return qk_norm_eps, nlms_denom_eps
 
 
 def _rms_normalize(x_BLND: torch.Tensor, eps: float) -> torch.Tensor:
@@ -66,7 +88,9 @@ def falcon_recurrent_forward(
     alignment: FalconAlignment = "delayed",
     normalize_qk: bool = True,
     phi: FalconPhi | None = None,
-    eps: float = 1.0e-6,
+    eps: float | None = None,
+    qk_norm_eps: float = 1.0e-6,
+    nlms_denom_eps: float = 1.0e-6,
     eps_gamma: float = 1.0e-6,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Read-after-write Falcon recurrence.
@@ -97,6 +121,11 @@ def falcon_recurrent_forward(
         raise ValueError("q and v must share B, L, and N")
     if beta_BLN.shape != q_BLNK.shape[:3] or lambda_BLN.shape != q_BLNK.shape[:3]:
         raise ValueError("beta and lambda must have shape BLN")
+    qk_norm_eps, nlms_denom_eps = _resolve_eps_pair(
+        eps=eps,
+        qk_norm_eps=qk_norm_eps,
+        nlms_denom_eps=nlms_denom_eps,
+    )
 
     phi_kind = _resolve_phi(phi, normalize_qk)
     q_work = q_BLNK.float()
@@ -104,8 +133,8 @@ def falcon_recurrent_forward(
     v_work = v_BLNV.float()
     beta_work = beta_BLN.float()
     lambda_work = lambda_BLN.float()
-    q_work = _apply_phi(q_work, phi_kind, eps)
-    k_work = _apply_phi(k_work, phi_kind, eps)
+    q_work = _apply_phi(q_work, phi_kind, qk_norm_eps)
+    k_work = _apply_phi(k_work, phi_kind, qk_norm_eps)
 
     batch, seq_len, heads, key_dim = q_work.shape
     value_dim = v_work.shape[-1]
@@ -129,7 +158,7 @@ def falcon_recurrent_forward(
             energy_BN = x_BNK.pow(2).sum(dim=-1)
             lambda_BN = lambda_work[:, step]
             beta_BN = beta_work[:, step]
-            denom_BN = energy_BN + lambda_BN + eps
+            denom_BN = energy_BN + lambda_BN + nlms_denom_eps
             eta_BN = torch.where(
                 denom_BN == 0,
                 torch.zeros_like(denom_BN),
@@ -170,7 +199,7 @@ def _falcon_write_terms(
     *,
     variant: FalconVariant,
     alignment: FalconAlignment,
-    eps: float,
+    nlms_denom_eps: float,
     eps_gamma: float,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Precompute per-step write feature, gate, carry, and Hebbian target.
@@ -198,7 +227,7 @@ def _falcon_write_terms(
         x_BLNK = k_work
 
     energy_BLN = x_BLNK.pow(2).sum(dim=-1)
-    denom_BLN = energy_BLN + lambda_work + eps
+    denom_BLN = energy_BLN + lambda_work + nlms_denom_eps
     eta_BLN = torch.where(
         denom_BLN == 0,
         torch.zeros_like(denom_BLN),
@@ -222,6 +251,37 @@ def _falcon_write_terms(
     return x_BLNK, eta_BLN1, carry_BLN, v_work
 
 
+def falcon_observation_terms(
+    q_work: torch.Tensor,
+    k_work: torch.Tensor,
+    v_work: torch.Tensor,
+    beta_work: torch.Tensor,
+    lambda_work: torch.Tensor,
+    *,
+    variant: FalconVariant,
+    alignment: FalconAlignment,
+    nlms_denom_eps: float,
+    eps_gamma: float = 1.0e-6,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Return the write terms used by mechanism diagnostics.
+
+    Diagnostics need the same valid-token eta/gamma/write-feature terms as the
+    recurrence, but must not mutate the model or change the differentiable
+    forward path.
+    """
+    return _falcon_write_terms(
+        q_work,
+        k_work,
+        v_work,
+        beta_work,
+        lambda_work,
+        variant=variant,
+        alignment=alignment,
+        nlms_denom_eps=nlms_denom_eps,
+        eps_gamma=eps_gamma,
+    )
+
+
 def falcon_masked_parallel_forward(
     q_BLNK: torch.Tensor,
     k_BLNK: torch.Tensor,
@@ -233,7 +293,9 @@ def falcon_masked_parallel_forward(
     alignment: FalconAlignment = "delayed",
     normalize_qk: bool = True,
     phi: FalconPhi | None = None,
-    eps: float = 1.0e-6,
+    eps: float | None = None,
+    qk_norm_eps: float = 1.0e-6,
+    nlms_denom_eps: float = 1.0e-6,
     eps_gamma: float = 1.0e-6,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Masked-parallel view of :func:`falcon_recurrent_forward`.
@@ -277,6 +339,11 @@ def falcon_masked_parallel_forward(
         raise ValueError("q and v must share B, L, and N")
     if beta_BLN.shape != q_BLNK.shape[:3] or lambda_BLN.shape != q_BLNK.shape[:3]:
         raise ValueError("beta and lambda must have shape BLN")
+    qk_norm_eps, nlms_denom_eps = _resolve_eps_pair(
+        eps=eps,
+        qk_norm_eps=qk_norm_eps,
+        nlms_denom_eps=nlms_denom_eps,
+    )
 
     q_work = q_BLNK.float()
     k_work = k_BLNK.float()
@@ -284,8 +351,8 @@ def falcon_masked_parallel_forward(
     beta_work = beta_BLN.float()
     lambda_work = lambda_BLN.float()
     phi_kind = _resolve_phi(phi, normalize_qk)
-    q_work = _apply_phi(q_work, phi_kind, eps)
-    k_work = _apply_phi(k_work, phi_kind, eps)
+    q_work = _apply_phi(q_work, phi_kind, qk_norm_eps)
+    k_work = _apply_phi(k_work, phi_kind, qk_norm_eps)
 
     batch, seq_len, heads, key_dim = q_work.shape
     value_dim = v_work.shape[-1]
@@ -298,7 +365,7 @@ def falcon_masked_parallel_forward(
         lambda_work,
         variant=variant,
         alignment=alignment,
-        eps=eps,
+        nlms_denom_eps=nlms_denom_eps,
         eps_gamma=eps_gamma,
     )
 

@@ -6,6 +6,14 @@
 *.bin
 *.lock
 __pycache__/
+results/addition/
+results/addition_preflight/
+results/checkpoint_eval/
+results/evidence/
+results/hero/
+results/mechanism/
+results/mechanism_preflight/
+results/overfit.json
 results/**/tmp/
 results/tooling/nsys_diag/plan.json
 # Generated Fil HTML/SVG (and its upstream typo) stay local.

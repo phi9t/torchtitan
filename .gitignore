@@ -29,6 +29,7 @@ assets/tokenizer/*
 torchtitan/experiments/flux/assets/*
 
 # temp files
+*.pyc
 *.log
 a.out
 error.json

@@ -99,11 +99,13 @@ class FalconTinyModel(BaseModel):
         tokens: torch.Tensor,
         positions: torch.Tensor | None = None,
         attention_masks: object | None = None,
+        mechanism_diagnostics: object | None = None,
     ) -> torch.Tensor:
         return self.inner(
             tokens,
             positions=positions,
             attention_masks=attention_masks,
+            mechanism_diagnostics=mechanism_diagnostics,
         )
 
     def verify_module_protocol(self) -> None:
@@ -177,6 +179,58 @@ def apply_arm(config: "Trainer.Config", arm_id: str) -> "Trainer.Config":
         )
     inner = config.model_spec.model.config
     for key, value in _ARM_KNOBS[arm_id].items():
+        setattr(inner, key, value)
+    return config
+
+
+_MECHANISM_ARM_KNOBS: dict[str, dict[str, str]] = {
+    "M0": {
+        "mixer": "falcon",
+        "variant": "falcon1a",
+        "alignment": "delayed",
+        "phi": "rms",
+        "scale_compensation": "none",
+    },
+    "M1": {
+        "mixer": "falcon",
+        "variant": "falcon1a",
+        "alignment": "same_step",
+        "phi": "rms",
+        "scale_compensation": "none",
+    },
+    "M2": {
+        "mixer": "falcon",
+        "variant": "falcon1a",
+        "alignment": "delayed",
+        "phi": "l2",
+        "scale_compensation": "none",
+    },
+    "M3": {
+        "mixer": "falcon",
+        "variant": "falcon1a",
+        "alignment": "same_step",
+        "phi": "l2",
+        "scale_compensation": "none",
+    },
+    "M4": {
+        "mixer": "falcon",
+        "variant": "falcon1a",
+        "alignment": "delayed",
+        "phi": "rms",
+        "scale_compensation": "rms_to_l2",
+    },
+}
+
+
+def apply_mechanism_arm(config: "Trainer.Config", arm_id: str) -> "Trainer.Config":
+    """Overlay M01 mechanism arm ``arm_id`` knobs onto a config in place."""
+    if arm_id not in _MECHANISM_ARM_KNOBS:
+        raise ValueError(
+            f"unknown Falcon mechanism arm {arm_id!r}; "
+            f"expected one of {list(_MECHANISM_ARM_KNOBS)}"
+        )
+    inner = config.model_spec.model.config
+    for key, value in _MECHANISM_ARM_KNOBS[arm_id].items():
         setattr(inner, key, value)
     return config
 

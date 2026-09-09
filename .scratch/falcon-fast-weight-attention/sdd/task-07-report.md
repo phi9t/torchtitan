@@ -1,5 +1,12 @@
 # Ticket 07 report - Step 4 small-model ablation table
 
+> **Evidence correction (2026-09-07):** The addition "ID" examples below are
+> sampled from the same finite bank used for training. Read every such value as
+> diagnostic training-bank exact-suffix accuracy, not held-out validation or
+> transfer. No GDN addition outcome exists, so this report does not support an
+> A5-versus-GDN addition claim. The frozen A5 choice remains supported by its
+> replicated Falcon LM ranking.
+
 Claim label: `representative_small + replicated_eval` (LM arms), `smoke`
 (dry-run). This is **not** a 130M / 50B result. All Python/CUDA ran inside the
 bwrap rootfs (`scripts/rootfs/enter_rootfs.sh`, `TORCHTITAN_IN_ROOTFS=1`),
@@ -89,9 +96,9 @@ Held-out val CE/PPL on `fineweb_val_000000.bin`. Combined table:
 | A5 | falcon | falcon1a | delayed | l2 | 0 | 4.6013 | 4.7216 | 112.35 |
 | A5 | falcon | falcon1a | delayed | l2 | 1 | 4.6237 | 4.7379 | 114.19 |
 
-### Addition transfer (separate small train per mixer, N=16 ID / M=24 OOD)
+### Addition training-bank diagnostic (separate small train per mixer, N=16 ID / M=24 OOD)
 
-| arm | mixer | variant | alignment | phi | seed | ID acc | OOD acc |
+| arm | mixer | variant | alignment | phi | seed | training-bank acc | OOD acc |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | A0 | softmax | - | - | - | 0 | 0.004 | 0.000 |
 | A0 | softmax | - | - | - | 1 | 0.004 | 0.000 |
@@ -112,9 +119,10 @@ Held-out val CE/PPL on `fineweb_val_000000.bin`. Combined table:
 - **A2 falcon1a delayed RMS: ~122.4** (121.42 / 123.40).
 - A3 falcon1 delayed RMS: see notes (O(L) residual path).
 
-### Addition transfer summary (separate small train per mixer, N=16 ID / M=24 OOD)
+### Addition diagnostic summary (separate small train per mixer, N=16 ID / M=24 OOD)
 
-- **A5: id ~0.50** (0.293 / 0.703) - by far the strongest ID addition.
+- **A5: training-bank ~0.50** (0.293 / 0.703) - the strongest completed
+  diagnostic, not held-out evidence.
 - A4: id ~0.057; A2: id ~0.037; A0 softmax: id ~0.004.
 - **OOD acc is 0.000 for every arm** at this tiny scale / short addition train:
   the science model does not length-extrapolate here. OOD is reported as a
@@ -127,16 +135,17 @@ Held-out val CE/PPL on `fineweb_val_000000.bin`. Combined table:
 Rationale, matching the spec's winner rule and its honesty clause:
 
 - Among the Falcon arms, A5 has the **best held-out PPL** (~113 vs ~121-122 for
-  A2/A4) and by far the **best addition ID accuracy** (~0.50 vs <=0.06).
+  A2/A4). Its training-bank addition diagnostic is ~0.50 vs <=0.06, but that
+  value is not a transfer result.
 - A5 stays within ~6 PPL of the softmax control (A0 ~107) - it does **not**
   regress LM quality into a different band, so it is not an "only works on
   addition" arm.
 - The alignment ablation (A4 same-step ~121 vs A2 delayed ~122) is a **tie
   inside seed noise**: delayed pairing is not buying PPL by itself. The phi
-  choice (L2 vs RMS) is what moves both PPL and addition, so the frozen triple
-  keeps delayed (paper default family) with L2.
-- A5 vs GDN (A1 ~121 PPL): A5 beats the recurrent neighbor on PPL and addition,
-  satisfying the "no-regression vs GDN-style control" gate.
+  choice (L2 vs RMS) is what moves both PPL and training-bank fit, so the frozen
+  triple keeps delayed (paper default family) with L2.
+- A5 vs GDN (A1 ~121 PPL): A5 beats the single completed recurrent-neighbor
+  seed on LM PPL. There is no GDN addition outcome to compare.
 
 ## Coverage notes and honesty
 
@@ -145,8 +154,8 @@ Rationale, matching the spec's winner rule and its honesty clause:
   a single A1 seed took ~3.9 h / ~13,900 s). They were run in a separate
   sequential invocation (`--arms A1`, then `--arms A3`) on the same single B200
   to keep the fast arms' evidence clean.
-  - **A1 (gdn):** seed 0 completed at 8000 steps (val PPL 121.19); seed 1 was
-    launched immediately after and is the recurrent neighbor control. GDN is a
+  - **A1 (gdn):** seed 0 completed at 8000 steps (val PPL 121.19); a report says
+    seed 1 launched, but no outcome artifact exists. GDN is a
     reference-math CPU-style oracle (no fused kernel), so its wall-clock is not
     comparable to the masked-parallel Falcon arms and is not a throughput claim.
   - **A3 (falcon1):** the Falcon-1 residual write rebuilds `S_{s-1}`

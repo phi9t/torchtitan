@@ -1,7 +1,7 @@
 # Step 4: small-model ablation table
 
 Type: task
-Status: claimed
+Status: resolved
 Blocked by: 06
 Parent: ../spec.md
 
@@ -32,8 +32,9 @@ Parent: ../spec.md
 
 ## Answer
 
-Ablation table run and frozen. Claim `representative_small + replicated_eval`
-(LM arms), one B200, sequential arms, `checkpoint.enable=False`, all
+Ablation table run and frozen. Claim `representative_small`; `replicated_eval`
+applies only to the completed A0/A2/A4/A5 LM and addition subsets. One B200,
+sequential arms, `checkpoint.enable=False`, all
 Python/CUDA in the bwrap rootfs, no data fetched, no commit. Full report:
 `../sdd/task-07-report.md`; tables (gitignored) under
 `experiments/falcon/results/ablations/`.
@@ -47,21 +48,28 @@ collapsed every mixer to the same (lm_head-only) trajectory and produced
 identical losses across arms; the reinitializer now restores the RMSNorm gain
 to ones (`test_falcon_meta_init.py`). 70 Falcon unit tests green in rootfs.
 
-Held-out val PPL on `fineweb_val_000000.bin` (mean over seeds, 8000 steps):
+Held-out val PPL on `fineweb_val_000000.bin` (mean over completed seeds,
+8000 steps):
 A0 softmax ~107 (control), **A5 falcon1a/delayed/L2 ~113 (best Falcon arm)**,
-A4 same-step/RMS ~121, A1 gdn ~121, A2 delayed/RMS ~122. Addition ID acc
-(N=16/M=24): **A5 ~0.50** vs A4 ~0.06, A2 ~0.04, A0 ~0.004; OOD acc 0.000 for
-all arms at this scale (declared gap, not a win). Alignment (A4 vs A2) is a tie
-inside seed noise, so delayed pairing alone buys nothing; the phi choice moves
-both PPL and addition.
+A4 same-step/RMS ~121, A1 gdn ~121 (one seed), A2 delayed/RMS ~122. The
+reported addition ID subset overlaps the finite training bank and is therefore
+training-bank accuracy, not held-out transfer: **A5 ~0.50** vs A4 ~0.06,
+A2 ~0.04, A0 ~0.004. OOD widths are disjoint and accuracy is 0.000 for every
+completed arm (declared gap, not a win). Alignment (A4 vs A2) is a tie inside
+seed noise, so delayed pairing alone buys nothing; the phi choice moves LM PPL
+and training-bank addition fit.
 
 **Winner frozen for ticket 08: `mixer=falcon, variant=falcon1a,
 alignment=delayed, phi=l2` (A5).** It has the best Falcon PPL, by far the best
-addition ID accuracy, and stays within ~6 PPL of the softmax control (no
-"only works on addition" regression) and beats the GDN-style neighbor on both
-PPL and addition.
+training-bank addition accuracy, and stays within ~6 PPL of the softmax
+control. It beats the single completed GDN seed on LM PPL. No GDN addition
+result exists, so no Falcon-versus-GDN addition claim is supported.
 
 Coverage note: A1 (gdn) and A3 (falcon1) use O(L) per-timestep scans and are
 ~30-40x slower than the masked-parallel arms; they were run in a separate
-sequential single-B200 invocation. See the report for their exact seed/step
-coverage.
+sequential single-B200 invocation. A1 has one completed LM seed and no addition
+result; A3 has no completed full run. On 2026-09-07 the research owner accepted
+these as explicit performance-based omissions rather than authorizing more
+matched-token work on slow reference implementations. This is a documented
+scope downgrade from the original literal A0-A5/two-seed requirement, not a
+claim that the missing runs completed. See the report for exact coverage.

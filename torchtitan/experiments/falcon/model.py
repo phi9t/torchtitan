@@ -24,8 +24,10 @@ D hidden.
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
@@ -39,6 +41,7 @@ from torchtitan.experiments.falcon.falcon import (
 )
 
 FalconMixerKind = Literal["falcon", "gdn", "softmax"]
+FalconScaleCompensation = Literal["none", "rms_to_l2"]
 
 
 @dataclass(kw_only=True)
@@ -57,6 +60,9 @@ class FalconConfig:
     # QK feature map for the Falcon mixer: "rms" (QK-RMSNorm, paper default) or
     # "l2" (QK-L2, arm A5). Only consumed by the "falcon" mixer.
     phi: FalconPhi = "rms"
+    qk_norm_eps: float = 1.0e-6
+    nlms_denom_eps: float = 1.0e-6
+    scale_compensation: FalconScaleCompensation = "none"
     rope_theta: float = 10000.0
 
 
@@ -68,6 +74,40 @@ def tiny_falcon_config(
     phi: FalconPhi = "rms",
 ) -> FalconConfig:
     return FalconConfig(variant=variant, alignment=alignment, mixer=mixer, phi=phi)
+
+
+def _validate_config_eps(name: str, value: float) -> None:
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+    if value < 0.0:
+        raise ValueError(f"{name} must be >= 0")
+
+
+def _validate_scale_compensation(config: FalconConfig) -> None:
+    if config.scale_compensation not in ("none", "rms_to_l2"):
+        raise ValueError(
+            f"unsupported Falcon scale_compensation: {config.scale_compensation}"
+        )
+    if config.scale_compensation == "none":
+        return
+    if config.mixer != "falcon":
+        raise ValueError("scale_compensation requires mixer='falcon'")
+    if config.phi != "rms":
+        raise ValueError("scale_compensation requires phi='rms'")
+
+
+def _effective_falcon_scales(config: FalconConfig) -> tuple[float, float, float]:
+    _validate_config_eps("qk_norm_eps", config.qk_norm_eps)
+    _validate_config_eps("nlms_denom_eps", config.nlms_denom_eps)
+    _validate_scale_compensation(config)
+    if config.scale_compensation == "rms_to_l2":
+        head_dim = float(config.head_dim)
+        return (
+            config.qk_norm_eps / head_dim,
+            config.nlms_denom_eps * head_dim,
+            head_dim,
+        )
+    return config.qk_norm_eps, config.nlms_denom_eps, 1.0
 
 
 class FalconRMSNorm(nn.Module):
@@ -90,6 +130,7 @@ class FalconMixer(nn.Module):
     def __init__(self, config: FalconConfig) -> None:
         super().__init__()
         self.config = config
+        _effective_falcon_scales(config)
         hidden = config.hidden_size
         inner = config.num_heads * config.head_dim
         self.q_proj = nn.Linear(hidden, inner, bias=False)
@@ -99,7 +140,13 @@ class FalconMixer(nn.Module):
         self.lambda_proj = nn.Linear(hidden, config.num_heads, bias=True)
         self.o_proj = nn.Linear(inner, hidden, bias=False)
 
-    def forward(self, x_BLD: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x_BLD: torch.Tensor,
+        *,
+        mechanism_diagnostics: Any | None = None,
+        layer_idx: int | None = None,
+    ) -> torch.Tensor:
         batch, seq_len, _ = x_BLD.shape
         heads = self.config.num_heads
         head_dim = self.config.head_dim
@@ -108,6 +155,33 @@ class FalconMixer(nn.Module):
         v_BLNV = self.v_proj(x_BLD).view(batch, seq_len, heads, head_dim)
         beta_BLN = 2.0 * torch.sigmoid(self.beta_proj(x_BLD))
         lambda_BLN = F.softplus(self.lambda_proj(x_BLD))
+        qk_norm_eps, nlms_denom_eps, lambda_scale = _effective_falcon_scales(
+            self.config
+        )
+        lambda_BLN = lambda_BLN * lambda_scale
+        if mechanism_diagnostics is not None:
+            if self.config.scale_compensation == "rms_to_l2":
+                state_canonical_scale = math.sqrt(float(head_dim))
+                state_norm_canonical_label = "sqrt_head_dim_times_raw_S_rms"
+            else:
+                state_canonical_scale = 1.0
+                state_norm_canonical_label = "raw_S_rms"
+            mechanism_diagnostics.record_falcon(
+                layer=0 if layer_idx is None else layer_idx,
+                q_BLNK=q_BLNK,
+                k_BLNK=k_BLNK,
+                v_BLNV=v_BLNV,
+                beta_BLN=beta_BLN,
+                lambda_BLN=lambda_BLN,
+                variant=self.config.variant,
+                alignment=self.config.alignment,
+                phi=self.config.phi,
+                qk_norm_eps=qk_norm_eps,
+                nlms_denom_eps=nlms_denom_eps,
+                lambda_scale=lambda_scale,
+                state_canonical_scale=state_canonical_scale,
+                state_norm_canonical_label=state_norm_canonical_label,
+            )
         # Use the masked-parallel view for training: it is bitwise-close to the
         # recurrent oracle (see test_falcon_kernel identity gate) but avoids the
         # Python-level sequential scan, which is prohibitively slow at seq 512
@@ -121,6 +195,8 @@ class FalconMixer(nn.Module):
             variant=self.config.variant,
             alignment=self.config.alignment,
             phi=self.config.phi,
+            qk_norm_eps=qk_norm_eps,
+            nlms_denom_eps=nlms_denom_eps,
         )
         return self.o_proj(out_BLNV.reshape(batch, seq_len, heads * head_dim))
 
@@ -202,7 +278,14 @@ class FalconGDNMixer(nn.Module):
         self.gate_proj = nn.Linear(hidden, config.num_heads, bias=True)
         self.o_proj = nn.Linear(inner, hidden, bias=False)
 
-    def forward(self, x_BLD: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x_BLD: torch.Tensor,
+        *,
+        mechanism_diagnostics: Any | None = None,
+        layer_idx: int | None = None,
+    ) -> torch.Tensor:
+        del mechanism_diagnostics, layer_idx
         batch, seq_len, _ = x_BLD.shape
         heads = self.config.num_heads
         head_dim = self.config.head_dim
@@ -251,7 +334,14 @@ class FalconSoftmaxMixer(nn.Module):
         self.v_proj = nn.Linear(hidden, inner, bias=False)
         self.o_proj = nn.Linear(inner, hidden, bias=False)
 
-    def forward(self, x_BLD: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x_BLD: torch.Tensor,
+        *,
+        mechanism_diagnostics: Any | None = None,
+        layer_idx: int | None = None,
+    ) -> torch.Tensor:
+        del mechanism_diagnostics, layer_idx
         batch, seq_len, _ = x_BLD.shape
         heads = self.config.num_heads
         head_dim = self.config.head_dim
@@ -304,8 +394,18 @@ class FalconDecoderLayer(nn.Module):
         self.w2 = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
         self.w3 = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
 
-    def forward(self, x_BLD: torch.Tensor) -> torch.Tensor:
-        x_BLD = x_BLD + self.mixer(self.input_norm(x_BLD))
+    def forward(
+        self,
+        x_BLD: torch.Tensor,
+        *,
+        mechanism_diagnostics: Any | None = None,
+        layer_idx: int | None = None,
+    ) -> torch.Tensor:
+        x_BLD = x_BLD + self.mixer(
+            self.input_norm(x_BLD),
+            mechanism_diagnostics=mechanism_diagnostics,
+            layer_idx=layer_idx,
+        )
         ff_in = self.post_norm(x_BLD)
         return x_BLD + self.w2(F.silu(self.w1(ff_in)) * self.w3(ff_in))
 
@@ -315,6 +415,9 @@ class FalconForCausalLM(nn.Module):
         super().__init__()
         if config.hidden_size != config.num_heads * config.head_dim:
             raise ValueError("hidden_size must equal num_heads * head_dim")
+        _validate_config_eps("qk_norm_eps", config.qk_norm_eps)
+        _validate_config_eps("nlms_denom_eps", config.nlms_denom_eps)
+        _validate_scale_compensation(config)
         self.config = config
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
@@ -328,9 +431,14 @@ class FalconForCausalLM(nn.Module):
         tokens: torch.Tensor,
         positions: torch.Tensor | None = None,
         attention_masks: object | None = None,
+        mechanism_diagnostics: Any | None = None,
     ) -> torch.Tensor:
         del positions, attention_masks
         hidden_BLD = self.embed_tokens(tokens)
-        for layer in self.layers:
-            hidden_BLD = layer(hidden_BLD)
+        for layer_idx, layer in enumerate(self.layers):
+            hidden_BLD = layer(
+                hidden_BLD,
+                mechanism_diagnostics=mechanism_diagnostics,
+                layer_idx=layer_idx,
+            )
         return self.lm_head(self.norm(hidden_BLD))
