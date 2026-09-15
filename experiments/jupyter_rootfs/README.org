@@ -1,0 +1,131 @@
+#+TITLE: Rootfs-Hosted Jupyter for Doom emacs-jupyter
+#+AUTHOR: TorchTitan experiments
+#+STARTUP: showall
+
+* Purpose
+
+Attach Doom Emacs' =emacs-jupyter= to a Jupyter server whose kernels run
+inside the TorchTitan bwrap rootfs, so an interactive REPL executes real
+GPU torch code against the same sandbox the training jobs use.
+
+The workflow keeps the rootfs boundary intact: the server and every kernel
+run under =scripts/rootfs/enter_rootfs.sh=, while Emacs (a client) runs on
+the host and talks to the server over loopback HTTP/websocket.
+
+* Layout
+
+- =run_common.sh= :: Single source of truth for the repo root, loopback
+  port (default =8899=), tmux session name, kernelspec name, and the
+  git-ignored =.cache/jupyter-rootfs/= state/log directory. Also carries the
+  rootfs re-exec guard =jupyter_enter_rootfs_if_needed=.
+- =run_server.sh= :: Host-side orchestrator. Mints a random token, preflight
+  checks the session and port, and launches the server in a detached tmux
+  session. Does no Python work itself.
+- =server_entry.sh= :: Runs inside the rootfs. Ensures server deps exist in
+  =.venv-rootfs=, registers the kernelspec, and execs =jupyter lab= on
+  loopback with token-only auth.
+- =stop_server.sh= :: Reaps live kernels via REST, then kills the tmux
+  session. Idempotent.
+- =verify.sh= + =verify_attach.el= :: Headless =emacs-jupyter= self-check
+  that drives the =jupyter-run-server-repl= codepath and asserts the kernel
+  is on GPU inside the rootfs. Exits non-zero on any drift.
+- =requirements.txt= :: Pinned server stack installed idempotently inside
+  =.venv-rootfs=.
+
+* Launch
+
+Run from the repo root:
+
+#+begin_src bash
+experiments/jupyter_rootfs/run_server.sh
+#+end_src
+
+It prints the loopback URL, the token file path, and the server log path.
+Override the port or tmux session with environment variables:
+
+#+begin_src bash
+PORT=8901 SESSION=jlab experiments/jupyter_rootfs/run_server.sh
+#+end_src
+
+The launcher fails loudly if the tmux session already exists or the port is
+already bound. Tear the old one down first with =stop_server.sh=.
+
+* Attach from Emacs
+
+In Doom Emacs, with the server running:
+
+- =M-x jupyter-run-server-repl=
+- Server URL: the =http://127.0.0.1:PORT= printed by the launcher
+- Token: paste the contents of =.cache/jupyter-rootfs/token.txt=
+- Kernel: choose =torchtitan-rootfs=
+
+The resulting REPL runs =.venv-rootfs/bin/python= inside the rootfs. You can
+also open an Org buffer and use =#+begin_src jupyter-python :session ...=
+blocks against the same server, since the =(org +jupyter)= Doom module is
+enabled.
+
+* Verify (headless drift check)
+
+#+begin_src bash
+experiments/jupyter_rootfs/verify.sh
+#+end_src
+
+This drives the same =jupyter-run-server-repl= path under =emacs --batch=
+and asserts, against a freshly launched kernel:
+
+- =sys.prefix= ends with =.venv-rootfs=
+- =torch.cuda.is_available()= is True
+- =torch.cuda.device_count()= meets the minimum (default 1)
+- =/opt/cuda-synth= exists and =CUDA_HOME= points at it
+- =HOME= is =/project/home= (the rootfs project home)
+- a real CUDA matmul runs
+
+Require all eight GPUs:
+
+#+begin_src bash
+JUPYTER_VERIFY_MIN_GPUS=8 experiments/jupyter_rootfs/verify.sh
+#+end_src
+
+Confirm the check actually catches drift by pointing it at a wrong port; it
+must exit non-zero:
+
+#+begin_src bash
+JUPYTER_VERIFY_URL=http://127.0.0.1:9 experiments/jupyter_rootfs/verify.sh
+#+end_src
+
+* Stop
+
+#+begin_src bash
+experiments/jupyter_rootfs/stop_server.sh
+#+end_src
+
+Kernels are reaped through the REST API, the tmux session is killed, and the
+per-launch token/URL files are removed.
+
+* Security posture
+
+- Loopback only. =--ServerApp.ip=127.0.0.1= means the server never binds a
+  routable interface; reach it over SSH port-forwarding if remote.
+- Token-only identity. A fresh =secrets.token_urlsafe(32)= is minted per
+  launch and stored =0600= at =.cache/jupyter-rootfs/token.txt=. There is no
+  password fallback (=--ServerApp.password=''=).
+- Tradeoff: the token appears once on the tmux command line that starts the
+  server, so it is visible to =ps= for the owning user while the server
+  runs. The token file remains the canonical source and is deleted on stop.
+
+* Rootfs invariants this proves
+
+- The server process is a =bwrap ... TORCHTITAN_IN_ROOTFS=1= sandbox; confirm
+  with =ps= against the tmux child.
+- Kernel children are =.venv-rootfs/bin/python -m ipykernel_launcher=.
+- Kernels see the rootfs CUDA toolkit at =/opt/cuda-synth= and the rootfs
+  project =HOME= at =/project/home=, matching the training environment.
+
+* Reuse notes
+
+- The rootfs boundary and =TORCHTITAN_ROOTFS_NETWORK=networked= come from
+  =scripts/rootfs/enter_rootfs.sh=; nothing is reimplemented here.
+- The re-exec guard mirrors
+  =experiments/countdown_search_distill/run_common.sh=.
+- =.cache= and =.venv-rootfs= are already git-ignored; only source and this
+  doc are committed. Generated tokens, logs, and the venv stay out of git.
