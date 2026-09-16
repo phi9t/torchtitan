@@ -1,16 +1,16 @@
 === query-gpu ===
 index, uuid, name, utilization.gpu [%], utilization.memory [%], memory.used [MiB], memory.total [MiB], temperature.gpu, power.draw [W], power.limit [W], clocks.current.sm [MHz], clocks.current.memory [MHz], clocks_event_reasons.active
-0, GPU-c3f9bd88-bb24-8f3d-4665-888ff03c16d0, NVIDIA B200, 97 %, 29 %, 20914 MiB, 183359 MiB, 53, 740.78 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000000
-1, GPU-eaed2f0d-2541-8ca8-b6c4-3e2e45e86619, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 45, 210.94 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
-2, GPU-1e9d22ee-6ee8-b5af-b909-1c1df26a6531, NVIDIA B200, 0 %, 0 %, 4 MiB, 183359 MiB, 34, 190.44 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
-3, GPU-b7107eca-4d5c-b8cd-1a6b-61310990dd9f, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 43, 199.42 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
-4, GPU-99a059a0-8875-2b34-e42c-d2167a3293c6, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 34, 187.59 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
-5, GPU-813d5936-26d2-159c-c21b-12ecc2b4ac8f, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 43, 203.65 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
-6, GPU-4eec4163-dfe4-2397-c2f1-b82ef547f0fe, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 34, 188.08 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
-7, GPU-2c694d6a-56cd-c4ae-a6d8-724411e1fe7d, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 42, 192.46 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+0, GPU-REDACTED, NVIDIA B200, 97 %, 29 %, 20914 MiB, 183359 MiB, 53, 740.78 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000000
+1, GPU-REDACTED, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 45, 210.94 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+2, GPU-REDACTED, NVIDIA B200, 0 %, 0 %, 4 MiB, 183359 MiB, 34, 190.44 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+3, GPU-REDACTED, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 43, 199.42 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+4, GPU-REDACTED, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 34, 187.59 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+5, GPU-REDACTED, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 43, 203.65 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+6, GPU-REDACTED, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 34, 188.08 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
+7, GPU-REDACTED, NVIDIA B200, 0 %, 0 %, 0 MiB, 183359 MiB, 42, 192.46 W, 1000.00 W, 1965 MHz, 3996 MHz, 0x0000000000000001
 === compute-apps ===
 gpu_uuid, pid, process_name, used_gpu_memory [MiB]
-GPU-c3f9bd88-bb24-8f3d-4665-888ff03c16d0, 2176064, python, 20900 MiB
+GPU-REDACTED, 2176064, python, 20900 MiB
 === dmon 8s ===
 # gpu    pwr  gtemp  mtemp     sm    mem    enc    dec    jpg    ofa   mclk   pclk  pviol  tviol     fb   bar1   ccpm  sbecc  dbecc    pci  rxpci  txpci
 # Idx      W      C      C      %      %      %      %      %      %    MHz    MHz      %   bool     MB     MB     MB   errs   errs   errs   MB/s   MB/s
@@ -129,7 +129,7 @@ NIC Legend:
   NIC7: mlx5_7
 
 === nvlink ===
-GPU 0: NVIDIA B200 (UUID: GPU-c3f9bd88-bb24-8f3d-4665-888ff03c16d0)
+GPU 0: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s
@@ -148,7 +148,7 @@ GPU 0: NVIDIA B200 (UUID: GPU-c3f9bd88-bb24-8f3d-4665-888ff03c16d0)
 	 Link 15: 53.125 GB/s
 	 Link 16: 53.125 GB/s
 	 Link 17: 53.125 GB/s
-GPU 1: NVIDIA B200 (UUID: GPU-eaed2f0d-2541-8ca8-b6c4-3e2e45e86619)
+GPU 1: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s
@@ -167,7 +167,7 @@ GPU 1: NVIDIA B200 (UUID: GPU-eaed2f0d-2541-8ca8-b6c4-3e2e45e86619)
 	 Link 15: 53.125 GB/s
 	 Link 16: 53.125 GB/s
 	 Link 17: 53.125 GB/s
-GPU 2: NVIDIA B200 (UUID: GPU-1e9d22ee-6ee8-b5af-b909-1c1df26a6531)
+GPU 2: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s
@@ -186,7 +186,7 @@ GPU 2: NVIDIA B200 (UUID: GPU-1e9d22ee-6ee8-b5af-b909-1c1df26a6531)
 	 Link 15: 53.125 GB/s
 	 Link 16: 53.125 GB/s
 	 Link 17: 53.125 GB/s
-GPU 3: NVIDIA B200 (UUID: GPU-b7107eca-4d5c-b8cd-1a6b-61310990dd9f)
+GPU 3: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s
@@ -205,7 +205,7 @@ GPU 3: NVIDIA B200 (UUID: GPU-b7107eca-4d5c-b8cd-1a6b-61310990dd9f)
 	 Link 15: 53.125 GB/s
 	 Link 16: 53.125 GB/s
 	 Link 17: 53.125 GB/s
-GPU 4: NVIDIA B200 (UUID: GPU-99a059a0-8875-2b34-e42c-d2167a3293c6)
+GPU 4: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s
@@ -224,7 +224,7 @@ GPU 4: NVIDIA B200 (UUID: GPU-99a059a0-8875-2b34-e42c-d2167a3293c6)
 	 Link 15: 53.125 GB/s
 	 Link 16: 53.125 GB/s
 	 Link 17: 53.125 GB/s
-GPU 5: NVIDIA B200 (UUID: GPU-813d5936-26d2-159c-c21b-12ecc2b4ac8f)
+GPU 5: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s
@@ -243,7 +243,7 @@ GPU 5: NVIDIA B200 (UUID: GPU-813d5936-26d2-159c-c21b-12ecc2b4ac8f)
 	 Link 15: 53.125 GB/s
 	 Link 16: 53.125 GB/s
 	 Link 17: 53.125 GB/s
-GPU 6: NVIDIA B200 (UUID: GPU-4eec4163-dfe4-2397-c2f1-b82ef547f0fe)
+GPU 6: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s
@@ -262,7 +262,7 @@ GPU 6: NVIDIA B200 (UUID: GPU-4eec4163-dfe4-2397-c2f1-b82ef547f0fe)
 	 Link 15: 53.125 GB/s
 	 Link 16: 53.125 GB/s
 	 Link 17: 53.125 GB/s
-GPU 7: NVIDIA B200 (UUID: GPU-2c694d6a-56cd-c4ae-a6d8-724411e1fe7d)
+GPU 7: NVIDIA B200 (UUID: GPU-REDACTED)
 	 Link 0: 53.125 GB/s
 	 Link 1: 53.125 GB/s
 	 Link 2: 53.125 GB/s

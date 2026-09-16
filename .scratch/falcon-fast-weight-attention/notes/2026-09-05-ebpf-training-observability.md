@@ -171,7 +171,7 @@ Join key back to the run bundle: host hostname, host PID, GPU UUID, `run_id` /
 
 ## This host (2026-09-05 snapshot)
 
-Checked on `n116-077-207`, kernel `5.15.152.bsk.9`, `perf_event_paranoid=2`.
+Checked on `HOST`, kernel `KERNEL`, `perf_event_paranoid=2`.
 
 - Present: `perf`, `bpftool`, `nvidia-smi`, `dcgmi` 4.4.1.
 - Missing: `bcc`, `bpftrace`, `py-spy`.

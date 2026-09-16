@@ -14,11 +14,11 @@ The DAPO-Math base recipe is `rl_dapo_qwen3_4b_math_8k`. It builds Qwen3-4B-Base
 with varlen attention, an fp32 LM head converter, 150 train steps, 8 prompt groups
 per optimizer step, 16 completions per prompt, `target_offpolicy_steps=4`, a
 TP=2 trainer, and six TP=1 generators
-([config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:65),
-[config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:74),
-[config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:95),
-[config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:120),
-[config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:140)).
+([config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:65),
+[config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:74),
+[config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:95),
+[config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:120),
+[config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:140)).
 
 The two experiment entrypoints live in the same example registry so they are
 discoverable through the normal RL launcher:
@@ -35,14 +35,14 @@ discoverable through the normal RL launcher:
 
 The no-BI arm keeps the base topology and disables W&B while enabling
 TensorBoard under `outputs/rl_batch_invariance_async/no_bi`
-([config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:175),
-[config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:194)).
+([config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:175),
+[config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:194)).
 
 The BI arm uses flex attention plus `BatchInvariantFlexConverter`, pads each
 sample to the flex block size, sets `DebugConfig(batch_invariant=True,
 deterministic=True)`, disables trainer sequence parallelism, and changes to
 three TP=2 generators so trainer and generator tensor parallelism match
-([config_registry.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:201)).
+([config_registry.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/examples/dapo_math/config_registry.py:201)).
 This topology still uses all eight local GPUs: two for the trainer and six for
 generation.
 
@@ -50,26 +50,26 @@ generation.
 
 `ConfigManager` loads a config function selected by `--module` and `--config`,
 then applies CLI overrides before validation and launch
-([manager.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/config/manager.py:34),
-[manager.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/config/manager.py:49)).
+([manager.py](/home/USER/workspace/torchtitan/torchtitan/config/manager.py:34),
+[manager.py](/home/USER/workspace/torchtitan/torchtitan/config/manager.py:49)).
 The RL launcher builds the controller, computes trainer and generator world
 sizes, spawns separate Monarch proc meshes for trainer and generator actors, and
 then calls `setup_async()` followed by `run()`
-([train.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/train.py:291)).
+([train.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/train.py:291)).
 
 Rollout generation starts from a dataset sample. The rollouter builds one
 environment per sibling completion, drives all siblings concurrently through the
 generator, scores the completed rollouts, and attaches group advantages
-([rollouter.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/rollout/rollouter.py:158)).
+([rollouter.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/rollout/rollouter.py:158)).
 Each rollout turn stores the prompt token ids, completion token ids, generator
 completion logprobs, and the policy version range sampled by the generator
-([types.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/rollout/types.py:82)).
+([types.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/rollout/types.py:82)).
 
 The batcher consumes rollout groups rather than raw samples. It waits for
 `num_prompts_per_train_step` trainable groups and packs them into microbatches
 with the configured local batch size and sequence length
-([batcher.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/components/batcher.py:64),
-[batcher.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/components/batcher.py:103)).
+([batcher.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/components/batcher.py:64),
+[batcher.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/components/batcher.py:103)).
 
 ## Off-Policy Windowing
 
@@ -80,25 +80,25 @@ max_active_rollout_groups = (target_offpolicy_steps + 1) * num_prompts_per_train
 ```
 
 This is implemented directly in `AsyncLoopConfig.max_active_rollout_groups`
-([controller.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/controller.py:220)).
+([controller.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/controller.py:220)).
 `target_offpolicy_steps` is a target, not a guaranteed observed age; generation
 bottlenecks can lower the observed age, while windowed FIFO may increase it up
 to the derived max
-([controller.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/controller.py:167)).
+([controller.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/controller.py:167)).
 
 The work buffer charges active slots when work is admitted and only releases
 them after training/weight sync, which prevents born-stale rollout groups from
 accumulating beyond the configured window
-([work_buffer.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/components/work_buffer.py:54),
-[work_buffer.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/components/work_buffer.py:64)).
+([work_buffer.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/components/work_buffer.py:54),
+[work_buffer.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/components/work_buffer.py:64)).
 Windowed FIFO can choose a finalized group inside the anchored window while
 leaving later groups blocked
-([work_buffer.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/components/work_buffer.py:174)).
+([work_buffer.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/components/work_buffer.py:174)).
 
 At consumption time, the trainer computes policy age from the live trainer
 policy version and the sampled policy versions in the packed batch, then raises
 if the max age exceeds the configured bound
-([controller_metrics.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/controller_metrics.py:167)).
+([controller_metrics.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/controller_metrics.py:167)).
 
 ## Weight Sync
 
@@ -106,10 +106,10 @@ Weight sync is deliberately overlapped with the training step. The manager waits
 for the previous trainer push before mutating weights, runs the optimizer step,
 waits for the previous generator pull before overwriting the shared key, then
 starts the next push-pull chain in the background
-([weight_sync.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/components/weight_sync.py:24)).
+([weight_sync.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/components/weight_sync.py:24)).
 After the generator pull completes, the manager releases active rollout slots so
 new rollouts are admitted only after generators hold the latest policy version
-([weight_sync.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/components/weight_sync.py:109)).
+([weight_sync.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/components/weight_sync.py:109)).
 
 ## Logprob Mismatch Measurement
 
@@ -124,12 +124,12 @@ bit_wise/logprob_diff/max
 
 Those metrics are emitted by the DAPO loss after masking non-finite generator
 logprobs and non-loss tokens
-([dapo.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/losses/dapo.py:81),
-[dapo.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/losses/dapo.py:107)).
+([dapo.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/losses/dapo.py:81),
+[dapo.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/losses/dapo.py:107)).
 The metrics processor prints `bit_wise/logprob_diff/max` to the console by
 default and sends every reduced metric to TensorBoard when enabled
-([processor.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/observability/metrics/processor.py:55),
-[processor.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/observability/metrics/processor.py:165)).
+([processor.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/observability/metrics/processor.py:55),
+[processor.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/observability/metrics/processor.py:165)).
 
 ## Batch-Invariant Wiring
 
@@ -138,20 +138,20 @@ outputs identical regardless of what other inputs share the batch. The documente
 mechanisms are batch-invariant kernels for `mm`, `addmm`, `log_softmax`, and
 `mean.dim`; deterministic NCCL settings; reduced-precision/TF32 disablement; and
 single-split flash attention
-([README.md](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/README.md:93)).
+([README.md](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/README.md:93)).
 
 This checkout only supports logprob bitwise parity when trainer and generator
 parallelism match
-([README.md](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/README.md:104)).
+([README.md](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/README.md:104)).
 The controller also validates that batch-invariant mode is deterministic, that
 the trainer forward uses bf16 via FSDP mixed precision, that the generator dtype
 is bf16, and that trainer sequence parallelism is disabled
-([controller.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/controller.py:368)).
+([controller.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/controller.py:368)).
 
 Generator startup applies batch-invariant mode before vLLM initialization, then
 patches `bmm` and routes vLLM's token-logprob path through the trainer logprob
 function so the generator does not bypass the batch-invariant Aten overrides
-([generator.py](/data02/home/philip.yang/workspace/torchtitan/torchtitan/experiments/rl/actors/generator.py:797)).
+([generator.py](/home/USER/workspace/torchtitan/torchtitan/experiments/rl/actors/generator.py:797)).
 
 ## Blog Mapping
 

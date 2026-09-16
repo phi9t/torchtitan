@@ -103,7 +103,7 @@ The BI stop was not reported as a Python trainer exception. The decisive trace
 is:
 
 ```text
-Unhandled monarch error on the root actor, hostname=n116-077-207, PID=19581 at time 2026-08-08 04:30:02.710087:
+Unhandled monarch error on the root actor, hostname=HOST, PID=19581 at time 2026-08-08 04:30:02.710087:
 The actor logger-dpTS2Qh7THp{'gpus': 0/2} and all its descendants have failed:
   the process this actor was running on failed: Killed(sig=15)
 [actor=<root>] Interrupted; attempting graceful shutdown...

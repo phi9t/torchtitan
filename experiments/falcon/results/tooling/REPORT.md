@@ -61,7 +61,7 @@ Host RSS ~2.8 GiB. HBM 20.9 / 183 GiB. Disk `%util` ~0–3%.
 | docker-priv tracepoints | live-sample | `ioctl=0`, `sched_switch=203/8s`, `futex=176`. Same spin signature as 2026-09-05. |
 | BCC / bpftrace | — | Still not installed. |
 | host `nsys` wrapping `enter_rootfs.sh` | launch-wrap | Wrote 3.6M `.nsys-rep` but **no CUDA kernels**. Injection libs
-  (`/data00/home/zfc/cuda_13_2/nsight-systems-...`) fail `LD_PRELOAD`
+  (`/data00/home/USER/cuda_13_2/nsight-systems-...`) fail `LD_PRELOAD`
   inside bwrap. Do not do this. |
 | py-spy `--native` | live-sample | `UNW_EBADREG` (libunwind vs this CPU). |
 | py-spy Python-only | live-sample | Host → bwrap pid works. V3: 998 samples, 0 errors, process lived.

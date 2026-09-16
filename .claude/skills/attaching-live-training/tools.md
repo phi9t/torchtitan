@@ -156,7 +156,7 @@ Evidence: `experiments/falcon/results/tooling/REPORT.md` (2026-09-06).
   in any tracing path. Proof:
   `experiments/falcon/results/tooling/rootfs_privileged/REPORT.md`.
 - [x] **Host `perf`/`bpftool` in the rootfs.** The rootfs copies are
-  distro wrappers that look for a `5.15.152.bsk.9` package. The bound
+  distro wrappers that look for a `KERNEL` package. The bound
   host binaries then hit `file too short` because the image ships
   zero-byte placeholders for host-only libs (libunwind, libbfd, ...).
   `enter_rootfs.sh` fills those from `ldd`, only where the rootfs copy

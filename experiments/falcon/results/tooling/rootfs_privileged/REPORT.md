@@ -46,9 +46,9 @@ not an escalation: `CAP_BPF`, `CAP_PERFMON`, `CAP_SYS_ADMIN`,
 looked like a sandbox problem. Two layered causes:
 
 1. The rootfs `/usr/bin/perf` and `/usr/sbin/bpftool` are distro wrappers
-   that dispatch on `uname -r`. This is a `5.15.152.bsk.9` vendor kernel with
+   that dispatch on `uname -r`. This is a `KERNEL` vendor kernel with
    no matching `linux-tools` package, so they print
-   `WARNING: perf not found for kernel 5.15.152.bsk.9`.
+   `WARNING: perf not found for kernel KERNEL`.
 2. Binding the host binaries over them then fails with
    `libunwind-x86_64.so.8: file too short`, because the image ships
    **zero-byte** files where host-only libraries belong. `[[ -e ]]` finds
@@ -63,7 +63,7 @@ library. As a side effect `perf` also works in the default sandbox now.
 ## Rejected alternative: keep the sandbox unprivileged
 
 Ambient capabilities do survive a drop back to the invoking uid, so
-`setpriv --reuid=1018 --ambient-caps=+cap_19,+cap_21,+cap_34,+cap_38,+cap_39`
+`setpriv --reuid=1000 --ambient-caps=+cap_19,+cap_21,+cap_34,+cap_38,+cap_39`
 inside a root bwrap yields `CapEff: 000000c400280000` as uid 1018. This was
 rejected: `bpftrace` refuses to start with
 `ERROR: bpftrace currently only supports running as the root user`, and BCC

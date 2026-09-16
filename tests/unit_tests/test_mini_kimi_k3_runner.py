@@ -680,7 +680,9 @@ def test_mini_kimi_k3_stage1_remote_readiness_blocks_without_modal_auth(
             del env
             self.calls.append(list(argv))
             if argv == ["getent", "hosts", "huggingface.co"]:
-                return CommandResult(return_code=0, stdout="1.2.3.4 huggingface.co\n")
+                return CommandResult(
+                    return_code=0, stdout="192.0.2.10 huggingface.co\n"
+                )
             if argv == ["uv", "tool", "run", "--from", "modal", "modal", "--version"]:
                 return CommandResult(
                     return_code=0, stdout="modal client version: 1.5.4\n"
@@ -749,7 +751,9 @@ def test_mini_kimi_k3_stage1_remote_readiness_reports_modal_config_path(
             del cwd
             del env
             if argv == ["getent", "hosts", "huggingface.co"]:
-                return CommandResult(return_code=0, stdout="1.2.3.4 huggingface.co\n")
+                return CommandResult(
+                    return_code=0, stdout="192.0.2.10 huggingface.co\n"
+                )
             if argv == ["uv", "tool", "run", "--from", "modal", "modal", "--version"]:
                 return CommandResult(
                     return_code=0, stdout="modal client version: 1.5.4\n"
@@ -821,7 +825,9 @@ def test_mini_kimi_k3_stage1_remote_readiness_loads_modal_env_file(
             del cwd
             self.env_by_call.append(dict(env) if env is not None else None)
             if argv == ["getent", "hosts", "huggingface.co"]:
-                return CommandResult(return_code=0, stdout="1.2.3.4 huggingface.co\n")
+                return CommandResult(
+                    return_code=0, stdout="192.0.2.10 huggingface.co\n"
+                )
             if argv == ["uv", "tool", "run", "--from", "modal", "modal", "--version"]:
                 return CommandResult(
                     return_code=0, stdout="modal client version: 1.5.4\n"
@@ -891,7 +897,9 @@ def test_mini_kimi_k3_stage1_remote_readiness_blocks_without_networked_rootfs(
             del cwd
             del env
             if argv == ["getent", "hosts", "huggingface.co"]:
-                return CommandResult(return_code=0, stdout="1.2.3.4 huggingface.co\n")
+                return CommandResult(
+                    return_code=0, stdout="192.0.2.10 huggingface.co\n"
+                )
             if argv == ["uv", "tool", "run", "--from", "modal", "modal", "--version"]:
                 return CommandResult(
                     return_code=0, stdout="modal client version: 1.5.4\n"
@@ -8017,7 +8025,7 @@ def test_mini_kimi_k3_r1_training_smoke_records_gpu_holder_evidence(
             {
                 "pid": 1958391,
                 "ppid": 1958387,
-                "user": "philip.yang",
+                "user": "USER",
                 "stat": "Sl+",
                 "etime": "17:28:38",
                 "command": "python",
@@ -8026,7 +8034,7 @@ def test_mini_kimi_k3_r1_training_smoke_records_gpu_holder_evidence(
             {
                 "pid": 1959989,
                 "ppid": 1958391,
-                "user": "philip.yang",
+                "user": "USER",
                 "stat": "Rl+",
                 "etime": "17:28:24",
                 "command": "sglang::scheduler_TP0",
@@ -8040,7 +8048,7 @@ def test_mini_kimi_k3_r1_training_smoke_records_gpu_holder_evidence(
         {
             "pid": 1958391,
             "ppid": 1958387,
-            "user": "philip.yang",
+            "user": "USER",
             "stat": "Sl+",
             "etime": "17:28:38",
             "command": "python",
@@ -8049,7 +8057,7 @@ def test_mini_kimi_k3_r1_training_smoke_records_gpu_holder_evidence(
         {
             "pid": 1959989,
             "ppid": 1958391,
-            "user": "philip.yang",
+            "user": "USER",
             "stat": "Rl+",
             "etime": "17:28:24",
             "command": "sglang::scheduler_TP0",

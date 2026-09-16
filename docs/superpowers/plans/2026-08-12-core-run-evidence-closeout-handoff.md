@@ -29,10 +29,10 @@ then run a whole-branch standards/spec/readiness review.
 ## Global Constraints
 
 - Work only in
-  `/data02/home/philip.yang/workspace/torchtitan/.worktrees/core-run-evidence`
+  `/home/USER/workspace/torchtitan/.worktrees/core-run-evidence`
   on branch `codex/core-run-evidence`.
 - Use binaries from
-  `/data02/home/philip.yang/workspace/torchtitan/.venv/bin`; the linked
+  `/home/USER/workspace/torchtitan/.venv/bin`; the linked
   worktree does not contain its own `.venv`.
 - Preserve all four prepared documentation changes and both existing smoke
   bundles. Do not clean, reset, overwrite, or delete them.
@@ -42,7 +42,7 @@ then run a whole-branch standards/spec/readiness review.
 - The main checkout is also dirty with three modified and four untracked files
   under `experiments/scaffold_to_policy/`. Those changes belong to another
   effort. Do not checkout, merge, clean, reset, or otherwise mutate the main
-  checkout at `/data02/home/philip.yang/workspace/torchtitan`.
+  checkout at `/home/USER/workspace/torchtitan`.
 - Base this feature review on `main` commit
   `cec1afd76ec7935040e149583ef7294defc9172a`.
 - Keep the dependency direction `experiments -> core`; core must not acquire an
@@ -70,7 +70,7 @@ then run a whole-branch standards/spec/readiness review.
 At handoff-plan creation, before the plan-only commit:
 
 ```text
-worktree: /data02/home/philip.yang/workspace/torchtitan/.worktrees/core-run-evidence
+worktree: /home/USER/workspace/torchtitan/.worktrees/core-run-evidence
 branch:   codex/core-run-evidence
 implementation HEAD: 797ef563595029acf40cbada657355f6625f13d1
 base:     cec1afd76ec7935040e149583ef7294defc9172a (main)
@@ -232,7 +232,7 @@ This branch does not implement or certify:
 Run:
 
 ```bash
-cd /data02/home/philip.yang/workspace/torchtitan/.worktrees/core-run-evidence
+cd /home/USER/workspace/torchtitan/.worktrees/core-run-evidence
 git branch --show-current
 git rev-parse HEAD
 git status --short
@@ -246,7 +246,7 @@ Expected: branch `codex/core-run-evidence`; HEAD at or descended from
 Run:
 
 ```bash
-bash /data02/home/philip.yang/.codex/plugins/cache/openai-curated-remote/superpowers/6.2.0/skills/subagent-driven-development/scripts/review-package \
+bash /home/USER/.codex/plugins/cache/openai-curated-remote/superpowers/6.2.0/skills/subagent-driven-development/scripts/review-package \
   docs/superpowers/plans/2026-08-12-core-run-evidence-foundation.md \
   eeb7bbe098761e2af307019dc7773708df0e041c \
   797ef563595029acf40cbada657355f6625f13d1 \
@@ -281,7 +281,7 @@ Run the complete focused file for both RED and GREEN so no dynamically named
 test is accidentally omitted:
 
 ```bash
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/pytest -q \
+/home/USER/workspace/torchtitan/.venv/bin/pytest -q \
   tests/unit_tests/test_configurable.py
 ```
 
@@ -359,7 +359,7 @@ implemented schema or the final serializer boundary.
 Run exactly:
 
 ```bash
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/pytest -q \
+/home/USER/workspace/torchtitan/.venv/bin/pytest -q \
   tests/unit_tests/test_configurable.py \
   tests/unit_tests/test_config_manager.py \
   tests/unit_tests/observability/test_run_evidence.py \
@@ -387,15 +387,15 @@ environment; neither its name nor value may enter the evidence bundle.
 ```bash
 (
 set -euo pipefail
-cd /data02/home/philip.yang/workspace/torchtitan/.worktrees/core-run-evidence
+cd /home/USER/workspace/torchtitan/.worktrees/core-run-evidence
 mkdir -p outputs
 smoke_dir="$(mktemp -d ./outputs/run_evidence_local_tensor_smoke.XXXXXX)"
 printf 'smoke_dir=%s\n' "$smoke_dir"
 TORCHTITAN_RUN_EVIDENCE_SENTINEL=run-evidence-smoke-secret-must-not-appear \
-PATH="/data02/home/philip.yang/workspace/torchtitan/.venv/bin:$PATH" \
+PATH="/home/USER/workspace/torchtitan/.venv/bin:$PATH" \
   MODULE=llama3 CONFIG=llama3_debugmodel NGPU=2 COMM_MODE=local_tensor \
   ./run_train.sh --dump_folder="$smoke_dir"
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/python \
+/home/USER/workspace/torchtitan/.venv/bin/python \
   - "$smoke_dir" <<'PY'
 from __future__ import annotations
 
@@ -527,8 +527,8 @@ Run:
 bash -n run_train.sh
 bash -n multinode_trainer.slurm
 git diff --check
-PATH="/data02/home/philip.yang/workspace/torchtitan/.venv/bin:$PATH" \
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/pre-commit run --files \
+PATH="/home/USER/workspace/torchtitan/.venv/bin:$PATH" \
+/home/USER/workspace/torchtitan/.venv/bin/pre-commit run --files \
   CONTEXT.md \
   docs/run_evidence.md \
   docs/debugging.md \
@@ -565,7 +565,7 @@ PATH="/data02/home/philip.yang/workspace/torchtitan/.venv/bin:$PATH" \
 If the Pyrefly adapter alone fails for the known environment reason, run:
 
 ```bash
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/python -m pyrefly check \
+/home/USER/workspace/torchtitan/.venv/bin/python -m pyrefly check \
   torchtitan/config/configurable.py \
   torchtitan/observability/run_evidence.py \
   torchtitan/observability/structured_logger/structured_logging.py \
@@ -581,9 +581,9 @@ If the Pyrefly adapter alone fails for the known environment reason, run:
   --disable-project-excludes-heuristics=true \
   --project-excludes does-not-match \
   --python-interpreter-path \
-    /data02/home/philip.yang/workspace/torchtitan/.venv/bin/python \
+    /home/USER/workspace/torchtitan/.venv/bin/python \
   --site-package-path \
-    /data02/home/philip.yang/workspace/torchtitan/.venv/lib/python3.11/site-packages \
+    /home/USER/workspace/torchtitan/.venv/lib/python3.11/site-packages \
   --remove-unused-ignores \
   --summary=full
 ```
@@ -631,7 +631,7 @@ package:
 docs_head="$(git rev-parse HEAD)"
 docs_base="$(git rev-parse HEAD^)"
 git diff --name-only "$docs_base..$docs_head" | sort
-bash /data02/home/philip.yang/.codex/plugins/cache/openai-curated-remote/superpowers/6.2.0/skills/subagent-driven-development/scripts/review-package \
+bash /home/USER/.codex/plugins/cache/openai-curated-remote/superpowers/6.2.0/skills/subagent-driven-development/scripts/review-package \
   docs/superpowers/plans/2026-08-12-core-run-evidence-foundation.md \
   "$docs_base" \
   "$docs_head" \
@@ -846,8 +846,8 @@ git_common="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)"
 worktree_path="$(git rev-parse --show-toplevel)"
 printf 'git_dir=%s\ngit_common=%s\nworktree=%s\n' \
   "$git_dir" "$git_common" "$worktree_path"
-git -C /data02/home/philip.yang/workspace/torchtitan branch --show-current
-git -C /data02/home/philip.yang/workspace/torchtitan status --short
+git -C /home/USER/workspace/torchtitan branch --show-current
+git -C /home/USER/workspace/torchtitan status --short
 ```
 
 This is a named feature branch in a linked worktree. The repository's main
@@ -881,9 +881,9 @@ so use this explicit existing-branch path only after the user chooses option 1:
 ```bash
 (
 set -euo pipefail
-integration_path=/data02/home/philip.yang/workspace/torchtitan/.worktrees/core-run-evidence-main-integration
+integration_path=/home/USER/workspace/torchtitan/.worktrees/core-run-evidence-main-integration
 case "$integration_path" in
-  /data02/home/philip.yang/workspace/torchtitan/.worktrees/*) ;;
+  /home/USER/workspace/torchtitan/.worktrees/*) ;;
   *) printf 'unsafe integration path: %s\n' "$integration_path" >&2; exit 1 ;;
 esac
 if test -e "$integration_path"; then
@@ -911,7 +911,7 @@ If `integration_base` differs from
 changes for compatibility before merging. Then run:
 
 ```bash
-cd /data02/home/philip.yang/workspace/torchtitan/.worktrees/core-run-evidence-main-integration
+cd /home/USER/workspace/torchtitan/.worktrees/core-run-evidence-main-integration
 git merge --no-ff codex/core-run-evidence
 ```
 
@@ -920,7 +920,7 @@ pytest, shell, diff, pre-commit, and direct-Pyrefly gates. For the Task 5 Step 2
 smoke, copy the Task 2 Step 3 block but replace its hard-coded `cd` line with:
 
 ```bash
-cd /data02/home/philip.yang/workspace/torchtitan/.worktrees/core-run-evidence-main-integration
+cd /home/USER/workspace/torchtitan/.worktrees/core-run-evidence-main-integration
 ```
 
 Leave every other smoke/validator line unchanged. This ensures the post-merge

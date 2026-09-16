@@ -86,7 +86,7 @@ The smoke records rootfs execution metadata:
 | `TORCHTITAN_IN_ROOTFS` | true |
 | Python | `/usr/bin/python` |
 | Python version | `3.12.3` |
-| Platform | `Linux-5.15.152.bsk.9-amd64-x86_64-with-glibc2.39` |
+| Platform | `Linux-KERNEL-x86_64-with-glibc2.39` |
 | Git | `git version 2.43.0` |
 | Docker inside rootfs | not found |
 | bwrap inside rootfs | not found |

@@ -1,6 +1,6 @@
 === identity ===
-uid=1018(philip.yang) gid=1018(philip.yang) groups=1018(philip.yang),27(sudo),991(ollama),993(docker),1000(tiger)
-Linux n116-077-207 5.15.152.bsk.9-amd64 #5.15.152.bsk.9 SMP veLinux 5.15.152.bsk.9 Mon Aug 4 12:30:49 UT x86_64 GNU/Linux
+uid=1000(USER) gid=1000(USER) groups=1000(USER)
+Linux HOST KERNEL SMP x86_64 GNU/Linux
 === bpf / perf sysctls ===
 kernel.unprivileged_bpf_disabled = 1
 kernel.perf_event_paranoid = 2
@@ -21,9 +21,9 @@ Securebits: 00/0x0/1'b0 (no-new-privs=0)
  secure-no-suid-fixup: no (unlocked)
  secure-keep-caps: no (unlocked)
  secure-no-ambient-raise: no (unlocked)
-uid=1018(philip.yang) euid=1018(philip.yang)
-gid=1018(philip.yang)
-groups=27(sudo),991(ollama),993(docker),1000(tiger),1018(philip.yang)
+uid=1000(USER) euid=1000(USER)
+gid=1000(USER)
+groups=27(sudo),991(ollama),993(docker),1000(tiger),1000(USER)
 Guessed mode: HYBRID (4)
 === btf/debugfs/bpf ===
 ls: cannot access '/sys/kernel/debug/tracing': Permission denied
@@ -51,7 +51,7 @@ ls: cannot access '/usr/share/bcc/tools': No such file or directory
 /usr/sbin/bpftool
 === docker ===
 docker_ok
-philip.yang sudo ollama docker tiger
+USER sudo ollama docker tiger
 === sudo -n ===
 === apt cache bpf ===
 bpfcc-introspection - tool to help introspect BPF programs
@@ -60,5 +60,5 @@ bpfcc-tools - tools for BPF Compiler Collection (BCC)
 bpftrace - high-level tracing language for Linux eBPF
 libbpfcc - shared library for BPF Compiler Collection (BCC)
 libbpfcc-dev - shared library for BPF Compiler Collection (BCC)
-linux-tools - Performance analysis tools for Linux 6.6.40.bsk.1-amd64
+linux-tools - Performance analysis tools for Linux KERNEL
 python3-bpfcc - Python 3 wrappers for BPF Compiler Collection (BCC)

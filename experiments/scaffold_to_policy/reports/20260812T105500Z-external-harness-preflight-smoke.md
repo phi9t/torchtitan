@@ -74,7 +74,7 @@ The corrected raw preflight artifacts report:
 - tau2 Python:
   `experiments/scaffold_to_policy/results/external_harness_preflight_corrected/.venv-tau2-preflight/bin/python`
 - Python version: `3.12.3`
-- platform: `Linux-5.15.152.bsk.9-amd64-x86_64-with-glibc2.39`
+- platform: `Linux-KERNEL-x86_64-with-glibc2.39`
 - `git`: `git version 2.43.0`
 - `docker`: unavailable inside the rootfs environment
 - `bwrap`: unavailable as an inner-rootfs command

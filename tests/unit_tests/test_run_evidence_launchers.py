@@ -115,7 +115,7 @@ def launcher_stubs(tmp_path: Path) -> tuple[Path, Path, Path]:
         set -eu
 
         if [ "${1:-}" = "--nodes=1" ]; then
-            printf '%s\n' "10.20.30.40"
+            printf '%s\n' "192.0.2.40"
             exit 0
         fi
 
@@ -428,7 +428,7 @@ def test_multinode_launcher_propagates_identity_topology_and_rendezvous(
         "--rdzv_backend",
         "c10d",
         "--rdzv_endpoint",
-        "10.20.30.40:29500",
+        "192.0.2.40:29500",
         "-m",
         "torchtitan.train",
         "--module",

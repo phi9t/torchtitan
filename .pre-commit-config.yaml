@@ -115,3 +115,11 @@ repos:
         - "--retry-wait-time=10"
         - "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       types_or: [markdown, python]
+
+    # Block reintroduction of machine- and person-identifiable tokens.
+    - id: check-no-pii
+      name: check-no-pii
+      entry: python scripts/check_no_pii.py
+      language: system
+      pass_filenames: true
+      exclude: '^tests/assets/c4_test/data\.json$'

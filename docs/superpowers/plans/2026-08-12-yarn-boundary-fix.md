@@ -119,7 +119,7 @@ Mutation check:
 Run:
 
 ```bash
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/pytest \
+/home/USER/workspace/torchtitan/.venv/bin/pytest \
   -q tests/unit_tests/test_yarn_rope.py
 ```
 
@@ -154,7 +154,7 @@ Do not change the cutoff calculation or the ramp/interpolation expression.
 Run:
 
 ```bash
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/pytest \
+/home/USER/workspace/torchtitan/.venv/bin/pytest \
   -q tests/unit_tests/test_yarn_rope.py
 ```
 
@@ -165,7 +165,7 @@ Expected: `3 passed` with no warnings.
 Run:
 
 ```bash
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/pytest -q \
+/home/USER/workspace/torchtitan/.venv/bin/pytest -q \
   tests/unit_tests/test_helion_rope.py::TestHelionRoPEKernel::test_backward_custom_op_opcheck_with_noncontiguous_grads
 ```
 
@@ -177,7 +177,7 @@ Expected: the test passes rather than failing while constructing
 Run:
 
 ```bash
-/data02/home/philip.yang/workspace/torchtitan/.venv/bin/pytest -q \
+/home/USER/workspace/torchtitan/.venv/bin/pytest -q \
   tests/unit_tests/test_yarn_rope.py \
   tests/unit_tests/test_helion_rope.py
 ```
@@ -191,7 +191,7 @@ CPU regression tests must run.
 Run:
 
 ```bash
-/data02/home/philip.yang/.local/bin/pre-commit run --files \
+/home/USER/.local/bin/pre-commit run --files \
   torchtitan/models/common/rope.py tests/unit_tests/test_yarn_rope.py
 git diff --check -- torchtitan/models/common/rope.py tests/unit_tests/test_yarn_rope.py
 git diff --stat

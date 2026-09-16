@@ -1,8 +1,8 @@
 # Ultron TorchTitan Seam Analysis
 
 Status: ready-for-agent
-Parent spec: /data02/home/philip.yang/workspace/ultron/.scratch/ultron-build/spec.md
-Parent ticket: /data02/home/philip.yang/workspace/ultron/.scratch/ultron-build/issues/07-torchtitan-run-evidence-spike.md
+Parent spec: /home/USER/workspace/ultron/.scratch/ultron-build/spec.md
+Parent ticket: /home/USER/workspace/ultron/.scratch/ultron-build/issues/07-torchtitan-run-evidence-spike.md
 
 ## Intent
 
