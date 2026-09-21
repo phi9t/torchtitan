@@ -40,13 +40,13 @@ if ! "${VENV_PY}" -c 'import jupyter_server, jupyterlab' >/dev/null 2>&1; then
 fi
 
 # Register/refresh the rootfs kernelspec so a fresh checkout has the
-# torchtitan-rootfs kernel verify.sh expects. Idempotent.
-if ! "${VENV_PY}" -m jupyter kernelspec list 2>/dev/null \
-    | grep -q "${JUPYTER_ROOTFS_KERNEL}"; then
-  "${VENV_PY}" -m ipykernel install --user \
-    --name "${JUPYTER_ROOTFS_KERNEL}" \
-    --display-name "TorchTitan (rootfs, torch cu130)"
-fi
+# torchtitan-rootfs kernel verify.sh expects. The kernel must not inherit a
+# host-only shell like /usr/bin/zsh, because IPython !cmd expansion runs inside
+# the rootfs where that shell may not exist.
+"${VENV_PY}" -m ipykernel install --user \
+  --name "${JUPYTER_ROOTFS_KERNEL}" \
+  --display-name "TorchTitan (rootfs, torch cu130)" \
+  --env SHELL /bin/bash
 
 printf 'jupyter-rootfs: starting jupyter lab on %s:%s\n' \
   "${JUPYTER_ROOTFS_HOST}" "${JUPYTER_ROOTFS_PORT}" | tee -a "${JUPYTER_ROOTFS_SERVER_LOG}"

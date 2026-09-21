@@ -2,22 +2,23 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 #
-# Headless drift self-check for the rootfs-hosted Jupyter server. The wrapper
-# re-enters the bwrap rootfs with the repo-owned literate Emacs profile, then
-# runs verify_attach.el under `emacs --batch'. That elisp launches the pinned
-# kernel through emacs-jupyter and asserts the kernel is on GPU inside the
-# rootfs. Any drift exits non-zero.
-#
-# Usage:
-#   experiments/jupyter_rootfs/verify.sh
-#   JUPYTER_VERIFY_MIN_GPUS=8 experiments/jupyter_rootfs/verify.sh
+# Execute an Org Babel literate notebook through the rootfs-hosted Jupyter
+# server. The verifier re-enters bwrap with the repo-owned literate Emacs
+# profile, and every jupyter-python block executes in the torchtitan-rootfs
+# kernel inside bwrap.
 
 set -euo pipefail
 
 # shellcheck source=experiments/jupyter_rootfs/run_common.sh
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/run_common.sh"
-jupyter_enter_rootfs_with_emacs_if_needed "verify.sh" "$@"
+jupyter_enter_rootfs_with_emacs_if_needed "verify_org_babel.sh" "$@"
 jupyter_setup_env
+
+ORG_FILE="${1:-experiments/modded_nanogpt_b200/hack.org}"
+if [[ "${ORG_FILE}" != /* ]]; then
+  ORG_FILE="${REPO_ROOT}/${ORG_FILE}"
+fi
+[[ -f "${ORG_FILE}" ]] || jupyter_die "org file not found: ${ORG_FILE}"
 
 [[ -f "${JUPYTER_ROOTFS_TOKEN_FILE}" ]] \
   || jupyter_die "no token at ${JUPYTER_ROOTFS_TOKEN_FILE}; is the server running? (run_server.sh)"
@@ -36,23 +37,21 @@ if [[ "${TORCHTITAN_IN_ROOTFS:-0}" == "1" ]]; then
   export TMP=/project/tmp
 fi
 
-# Allow a wrong-port smoke test: JUPYTER_VERIFY_URL overrides the derived URL
-# so a deliberate mispoint confirms the script exits non-zero on drift.
 VERIFY_URL="${JUPYTER_VERIFY_URL:-http://${JUPYTER_ROOTFS_HOST}:${JUPYTER_ROOTFS_PORT}}"
-
-printf 'jupyter-rootfs: verifying %s (kernel %s, min-gpus %s)\n' \
-  "${VERIFY_URL}" "${JUPYTER_ROOTFS_KERNEL}" "${JUPYTER_VERIFY_MIN_GPUS:-1}"
+VERIFY_ORG_SESSION="${JUPYTER_VERIFY_ORG_SESSION:-torchtitan-literate-$$}"
+printf 'jupyter-rootfs: verifying org babel %s via %s (kernel %s)\n' \
+  "${ORG_FILE}" "${VERIFY_URL}" "${JUPYTER_ROOTFS_KERNEL}"
 
 jupyter_reap_disconnected_kernels "${TOKEN}"
 
 JUPYTER_VERIFY_URL="${VERIFY_URL}" \
 JUPYTER_VERIFY_TOKEN="${TOKEN}" \
 JUPYTER_VERIFY_KERNEL="${JUPYTER_ROOTFS_KERNEL}" \
-JUPYTER_VERIFY_MIN_GPUS="${JUPYTER_VERIFY_MIN_GPUS:-1}" \
+JUPYTER_VERIFY_ORG_SESSION="${VERIFY_ORG_SESSION}" \
+JUPYTER_VERIFY_ORG_FILE="${ORG_FILE}" \
   timeout "${JUPYTER_VERIFY_TIMEOUT:-360}" "${EMACS}" --batch \
     --init-directory "${EMACS_PROFILE}" \
     -l "${EMACS_PROFILE}/init.el" \
-    -l "${JUPYTER_DIR}/verify_attach.el" 2>&1 \
+    -l "${JUPYTER_DIR}/verify_org_babel.el" 2>&1 \
   | grep -aE "PASS|FAIL|VERIFY-OK|VERIFY-FAIL"
-# Propagate emacs's exit code, not grep's.
 exit "${PIPESTATUS[0]}"

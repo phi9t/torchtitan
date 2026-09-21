@@ -583,6 +583,77 @@ def test_enter_rootfs_can_emit_networked_plan(tmp_path: Path):
     assert validate_bwrap_plan(plan)["ok"] is True
 
 
+def test_enter_rootfs_can_bind_host_emacs_for_jupyter_verifiers(tmp_path: Path):
+    rootfs = _minimal_rootfs(tmp_path)
+    host_home = tmp_path / "home" / "philip.yang"
+    for relative in (
+        "devx",
+        ".emacs.d/.local/straight",
+        "standalone-spack",
+    ):
+        (host_home / relative).mkdir(parents=True)
+    output = tmp_path / "bwrap_plan.json"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "HOME": str(host_home),
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_BIND_EMACS": "1",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    plan = json.loads(output.read_text())
+    mounts = {mount["target"]: mount for mount in plan["mounts"]}
+    assert mounts[str(host_home / "devx")] == {
+        "kind": "ro-bind",
+        "source": str(host_home / "devx"),
+        "target": str(host_home / "devx"),
+        "writable": False,
+    }
+    assert mounts["/project/home/.emacs.d"]["source"] == str(
+        REPO_ROOT / "experiments" / "jupyter_rootfs" / "emacs_profile"
+    )
+    assert mounts["/project/home/.emacs.d"]["kind"] == "ro-bind"
+    assert str(host_home / ".emacs.d") not in mounts
+    assert mounts[str(host_home / ".emacs.d" / ".local" / "straight")][
+        "source"
+    ] == str(host_home / ".emacs.d" / ".local" / "straight")
+    assert (
+        mounts[str(host_home / ".emacs.d" / ".local" / "straight")]["kind"]
+        == "ro-bind"
+    )
+    assert mounts["/project/emacs-packages/straight"]["source"] == str(
+        host_home / ".emacs.d" / ".local" / "straight"
+    )
+    assert mounts["/project/emacs-packages/straight"]["kind"] == "ro-bind"
+    assert mounts[str(host_home / "standalone-spack")]["source"] == str(
+        host_home / "standalone-spack"
+    )
+    assert plan["environment"]["TORCHTITAN_ROOTFS_BIND_EMACS"] == "1"
+    assert plan["environment"]["TORCHTITAN_ROOTFS_HOST_HOME"] == str(host_home)
+    assert plan["environment"]["TORCHTITAN_EMACS_PROFILE"] == "/project/home/.emacs.d"
+    assert (
+        plan["environment"]["TORCHTITAN_EMACS_PACKAGE_ROOT"]
+        == "/project/emacs-packages/straight"
+    )
+    assert validate_bwrap_plan(plan)["ok"] is True
+
+
 def test_enter_rootfs_rejects_invalid_network_mode(tmp_path: Path):
     rootfs = _minimal_rootfs(tmp_path)
     output = tmp_path / "bwrap_plan.json"

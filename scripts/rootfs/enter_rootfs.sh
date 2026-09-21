@@ -85,6 +85,9 @@ Environment:
                   require Docker, such as Harbor/Terminal-Bench.
                   Also binds this checkout at its host path so Docker daemon
                   bind mounts see the same paths as processes inside rootfs.
+  TORCHTITAN_ROOTFS_BIND_EMACS=1
+                  Bind the repo-owned Emacs literate verifier profile and the
+                  host Emacs runtime/package sources read-only into the rootfs.
   TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY=1
                   Emit the resolved bwrap plan as JSON and exit before running
                   bwrap. Writes to TORCHTITAN_ROOTFS_PLAN_OUTPUT when set,
@@ -319,6 +322,17 @@ EOF
     \"TORCHTITAN_ROOTFS_BIND_DOCKER\": \"1\",
     \"TORCHTITAN_ROOTFS_HOST_REPO_ROOT\": ${repo_root_json}"
   fi
+  if [[ "${TORCHTITAN_ROOTFS_BIND_EMACS:-0}" == "1" ]]; then
+    local host_home_json emacs_profile_json emacs_package_root_json
+    host_home_json="$(json_escape "${HOME:?HOME is required for TORCHTITAN_ROOTFS_BIND_EMACS}")"
+    emacs_profile_json="$(json_escape "/project/home/.emacs.d")"
+    emacs_package_root_json="$(json_escape "/project/emacs-packages/straight")"
+    plan+=",
+    \"TORCHTITAN_ROOTFS_BIND_EMACS\": \"1\",
+    \"TORCHTITAN_ROOTFS_HOST_HOME\": ${host_home_json},
+    \"TORCHTITAN_EMACS_PROFILE\": ${emacs_profile_json},
+    \"TORCHTITAN_EMACS_PACKAGE_ROOT\": ${emacs_package_root_json}"
+  fi
   if [[ "$ROOTFS_SHARE_PID" -eq 1 ]]; then
     plan+=",
     \"TORCHTITAN_ROOTFS_SHARE_PID\": \"1\""
@@ -531,6 +545,13 @@ rootfs_ro_bind /usr/bin/lspci
 if [[ -x "${HOME:-}/.local/bin/py-spy" ]]; then
   rootfs_ro_bind "${HOME}/.local/bin/py-spy" /usr/local/bin/py-spy
 fi
+if [[ "${TORCHTITAN_ROOTFS_BIND_EMACS:-0}" == "1" ]]; then
+  rootfs_ro_bind "${HOME:?HOME is required for TORCHTITAN_ROOTFS_BIND_EMACS}/devx"
+  rootfs_ro_bind "${HOME}/standalone-spack"
+  rootfs_ro_bind "${REPO_ROOT}/experiments/jupyter_rootfs/emacs_profile" /project/home/.emacs.d
+  rootfs_ro_bind "${HOME}/.emacs.d/.local/straight"
+  rootfs_ro_bind "${HOME}/.emacs.d/.local/straight" /project/emacs-packages/straight
+fi
 if [[ "$ROOTFS_PRIVILEGED" -eq 1 ]]; then
   # BCC compiles each BPF program at runtime against the running kernel, so
   # it needs that kernel's headers and module tree by their host paths.
@@ -572,6 +593,12 @@ fi
 if [[ "${TORCHTITAN_ROOTFS_BIND_DOCKER:-0}" == "1" ]]; then
   bwrap_args+=(--setenv TORCHTITAN_ROOTFS_BIND_DOCKER 1)
   bwrap_args+=(--setenv TORCHTITAN_ROOTFS_HOST_REPO_ROOT "$REPO_ROOT")
+fi
+if [[ "${TORCHTITAN_ROOTFS_BIND_EMACS:-0}" == "1" ]]; then
+  bwrap_args+=(--setenv TORCHTITAN_ROOTFS_BIND_EMACS 1)
+  bwrap_args+=(--setenv TORCHTITAN_ROOTFS_HOST_HOME "${HOME:?HOME is required for TORCHTITAN_ROOTFS_BIND_EMACS}")
+  bwrap_args+=(--setenv TORCHTITAN_EMACS_PROFILE /project/home/.emacs.d)
+  bwrap_args+=(--setenv TORCHTITAN_EMACS_PACKAGE_ROOT /project/emacs-packages/straight)
 fi
 bwrap_args+=(--setenv NVIDIA_VISIBLE_DEVICES "${NVIDIA_VISIBLE_DEVICES:-all}")
 if [[ "$ROOTFS_SHARE_PID" -eq 1 ]]; then

@@ -27,6 +27,21 @@ jupyter_enter_rootfs_if_needed() {
   fi
 }
 
+# Re-enter the rootfs for headless Emacs client checks as well. The Jupyter
+# server and kernels already run inside the rootfs; this option mounts the
+# repo-owned literate Emacs profile and read-only package/runtime sources so
+# Org/Jupyter verification has the same sandbox boundary.
+jupyter_enter_rootfs_with_emacs_if_needed() {
+  local script_path="$1"
+  shift
+  if [[ "${TORCHTITAN_IN_ROOTFS:-0}" != "1" ]]; then
+    exec env TORCHTITAN_ROOTFS_NETWORK="${TORCHTITAN_ROOTFS_NETWORK:-networked}" \
+      TORCHTITAN_ROOTFS_BIND_EMACS=1 \
+      "${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh" -- \
+      "experiments/jupyter_rootfs/${script_path}" "$@"
+  fi
+}
+
 # Shared env and directory layout. Kept identical on the host and inside the
 # rootfs so the token/pid/log paths resolve to the same repo-relative files.
 jupyter_setup_env() {
@@ -50,6 +65,34 @@ jupyter_setup_env() {
   export JUPYTER_ROOTFS_ROOT_DIR="${JUPYTER_ROOTFS_ROOT_DIR:-/workspace/torchtitan}"
 
   mkdir -p "${JUPYTER_ROOTFS_STATE_DIR}" "${JUPYTER_ROOTFS_LOG_DIR}"
+}
+
+# Reap disconnected kernels through the Jupyter REST API. Batch Emacs verifier
+# runs start short-lived kernels; if an earlier run is interrupted, stale idle
+# kernels can confuse emacs-jupyter's startup idle probe on later runs.
+jupyter_reap_disconnected_kernels() {
+  local token="$1"
+  python3 - "${JUPYTER_ROOTFS_HOST}" "${JUPYTER_ROOTFS_PORT}" "${token}" <<'PY'
+import json
+import sys
+import urllib.request
+
+host, port, token = sys.argv[1:4]
+base = f"http://{host}:{port}/api"
+headers = {"Authorization": f"token {token}"}
+
+
+def request(method, path):
+    req = urllib.request.Request(f"{base}{path}", method=method, headers=headers)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        body = resp.read()
+        return json.loads(body) if body else None
+
+
+for kernel in request("GET", "/kernels") or []:
+    if kernel.get("connections", 0) == 0:
+        request("DELETE", f"/kernels/{kernel['id']}")
+PY
 }
 
 # Loud failure per repo error discipline. Prefix with a marker the callers and

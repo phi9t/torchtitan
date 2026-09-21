@@ -1,0 +1,115 @@
+#+TITLE: Modded NanoGPT B200 Rootfs Jupyter Probe
+#+AUTHOR: TorchTitan experiments
+#+STARTUP: showall
+#+PROPERTY: header-args:jupyter-python :session /jpy:127.0.0.1#8899:torchtitan-literate :kernel torchtitan-rootfs :results replace output :exports both
+
+* Purpose
+
+This is the literate scratchpad for the modded NanoGPT B200 rootfs Jupyter
+environment. The source blocks execute in the =torchtitan-rootfs= Jupyter
+kernel, so Python, Torch, CUDA, and shell commands run inside the bwrap rootfs
+rather than on the host.
+
+The companion verifier is:
+
+#+begin_src bash
+experiments/jupyter_rootfs/verify_org_babel.sh experiments/modded_nanogpt_b200/hack.org
+#+end_src
+
+* Rootfs Kernel Context
+
+#+name: rootfs-context
+#+begin_src jupyter-python
+import json
+import os
+import sys
+from pathlib import Path
+
+context = {
+    "cwd": str(Path.cwd().resolve()),
+    "in_rootfs": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+    "python": sys.executable,
+    "shell": os.environ.get("SHELL"),
+    "sys_prefix": sys.prefix,
+}
+print(json.dumps(context, indent=2, sort_keys=True))
+#+end_src
+
+#+RESULTS: rootfs-context
+: {
+:   "cwd": "/workspace/torchtitan",
+:   "in_rootfs": true,
+:   "python": "/workspace/torchtitan/.venv-rootfs/bin/python",
+:   "shell": "/bin/bash",
+:   "sys_prefix": "/workspace/torchtitan/.venv-rootfs"
+: }
+
+* Modded NanoGPT FSDP Probe
+
+The interactive default is one rank, because a single notebook kernel is not an
+eight-rank =torchrun= launch. For interactive distributed work, keep the
+notebook as rank 0 and launch ranks 1..7 as sidecar worker processes with a
+shared rendezvous.
+
+#+name: hack-probe
+#+begin_src jupyter-python
+import json
+from experiments.modded_nanogpt_b200 import hack
+
+result = hack.probe()
+print(json.dumps(result, indent=2, sort_keys=True))
+#+end_src
+
+#+RESULTS: hack-probe
+: {
+:   "context": {
+:     "cwd": "/workspace/torchtitan",
+:     "in_rootfs": true,
+:     "python": "/workspace/torchtitan/.venv-rootfs/bin/python",
+:     "shell": "/bin/bash",
+:     "sys_prefix": "/workspace/torchtitan/.venv-rootfs"
+:   },
+:   "cuda_available": true,
+:   "cuda_devices": 8,
+:   "device": "NVIDIA B200",
+:   "fsdp_mesh": {
+:     "names": [
+:       "fsdp"
+:     ],
+:     "shape": [
+:       1
+:     ]
+:   },
+:   "fsdp_module": true,
+:   "loss": 0.02686094492673874,
+:   "rank": 0,
+:   "torch": "2.14.0.dev20260805+cu130",
+:   "torch_git": "f012e05e101851dce4c495559849318cbb7ed119",
+:   "world_mesh": {
+:     "names": [
+:       "world"
+:     ],
+:     "shape": [
+:       1
+:     ]
+:   },
+:   "world_size": 1
+: }
+
+* Eight-rank interactive worker pattern
+
+Start workers, run the distributed probe on all ranks, then shut the workers
+down when the experiment is finished. Every collective in the rank 0 cell must
+have matching work in the workers; otherwise the process group will block.
+
+#+begin_src jupyter-python :eval never
+from experiments.modded_nanogpt_b200 import hack
+
+workers = hack.launch_jupyter_workers(world_size=8)
+try:
+    result = hack.distributed_probe(workers)
+finally:
+    hack.shutdown_jupyter_workers(workers)
+
+result
+#+end_src

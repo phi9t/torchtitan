@@ -9,15 +9,22 @@ inside the TorchTitan bwrap rootfs, so an interactive REPL executes real
 GPU torch code against the same sandbox the training jobs use.
 
 The workflow keeps the rootfs boundary intact: the server and every kernel
-run under =scripts/rootfs/enter_rootfs.sh=, while Emacs (a client) runs on
-the host and talks to the server over loopback HTTP/websocket.
+run under =scripts/rootfs/enter_rootfs.sh=. The headless verifier scripts also
+re-enter that rootfs, load the repo-owned Emacs profile from
+=emacs_profile/=, and talk to the server over loopback HTTP/websocket.
+
+The intended verifier shape is literate: human-readable Org text records the
+claim, the source-grounded reasoning, executable code blocks, and the observed
+=#+RESULTS=. The same profile enables Org/Jupyter execution today and leaves a
+small place to add HTML/PDF export support for diagrams, LaTeX, and polished
+reports as these verifier artifacts become more central.
 
 * Layout
 
 - =run_common.sh= :: Single source of truth for the repo root, loopback
   port (default =8899=), tmux session name, kernelspec name, and the
   git-ignored =.cache/jupyter-rootfs/= state/log directory. Also carries the
-  rootfs re-exec guard =jupyter_enter_rootfs_if_needed=.
+  rootfs re-exec guards for the server and Emacs-backed verifiers.
 - =run_server.sh= :: Host-side orchestrator. Mints a random token, preflight
   checks the session and port, and launches the server in a detached tmux
   session. Does no Python work itself.
@@ -27,8 +34,20 @@ the host and talks to the server over loopback HTTP/websocket.
 - =stop_server.sh= :: Reaps live kernels via REST, then kills the tmux
   session. Idempotent.
 - =verify.sh= + =verify_attach.el= :: Headless =emacs-jupyter= self-check
-  that drives the =jupyter-run-server-repl= codepath and asserts the kernel
-  is on GPU inside the rootfs. Exits non-zero on any drift.
+  that runs batch Emacs inside the rootfs, launches the pinned kernel through
+  emacs-jupyter, and asserts the kernel is on GPU inside the rootfs. Exits
+  non-zero on any drift.
+- =verify_org_babel.sh= + =verify_org_babel.el= :: Headless Org Babel
+  self-check for literate probes. It runs batch Emacs inside the rootfs,
+  executes =jupyter-python= source blocks through the same rootfs-hosted
+  =torchtitan-rootfs= kernel, and verifies that recorded results preserve the
+  rootfs/CUDA invariants.
+- =emacs_profile/= :: Minimal rootfs-local Emacs profile for literate
+  verifiers. It enables Org, Org Babel, Jupyter, and Org HTML/LaTeX exporters
+  without loading the user's full host Doom configuration. The current bwrap
+  plan mounts the host Doom package/runtime trees read-only as a package
+  source; the verifier config itself is repo-owned and can be bundled into the
+  rootfs later.
 - =requirements.txt= :: Pinned server stack installed idempotently inside
   =.venv-rootfs=.
 
@@ -70,8 +89,10 @@ enabled.
 experiments/jupyter_rootfs/verify.sh
 #+end_src
 
-This drives the same =jupyter-run-server-repl= path under =emacs --batch=
-and asserts, against a freshly launched kernel:
+This drives emacs-jupyter under =emacs --batch= from inside bwrap. The rootfs
+entrypoint uses =TORCHTITAN_ROOTFS_BIND_EMACS=1= to mount the repo profile at
+=/project/home/.emacs.d= and the current package/runtime source read-only,
+then asserts against a freshly launched kernel:
 
 - =sys.prefix= ends with =.venv-rootfs=
 - =torch.cuda.is_available()= is True
@@ -92,6 +113,48 @@ must exit non-zero:
 #+begin_src bash
 JUPYTER_VERIFY_URL=http://127.0.0.1:9 experiments/jupyter_rootfs/verify.sh
 #+end_src
+
+* Verify Org Babel literate probes
+
+Run the modded NanoGPT B200 scratchpad through Org Babel:
+
+#+begin_src bash
+experiments/jupyter_rootfs/verify_org_babel.sh experiments/modded_nanogpt_b200/hack.org
+#+end_src
+
+The verifier loads the repo-owned literate Emacs profile in rootfs-bound batch
+Emacs, attaches to the running rootfs Jupyter server with the token from
+=.cache/jupyter-rootfs=, starts one explicit server-backed kernel client, and
+executes every =jupyter-python= block in the Org file through that client. This
+means all blocks in a file share one live Python namespace, so a verifier can
+record REPL-like internal state across blocks. Before execution it reaps
+disconnected kernels from the server so repeated batch runs do not reuse stale
+Org/Jupyter state.
+
+Use =JUPYTER_VERIFY_REQUIRED_RESULTS= to make an Org file assert its own
+evidence contract. The value is a semicolon-separated list of
+=block-name=needle= checks. A verifier should check the minimum claim-bearing
+needles, not every byte of output.
+
+* Literate verifier design
+
+- Treat each checked Org file as the durable artifact: it should state the
+  claim, link to source anchors, execute the smallest useful probe, and keep
+  the observed =#+RESULTS= in the same file.
+- Use shared session state deliberately. Early blocks can set named diagnostic
+  variables, and later blocks can inspect those variables plus loaded Torch
+  modules, dynamic library paths, distributed state, mesh objects, or compiler
+  wrappers.
+- Keep rootfs execution mandatory for substantive Python, CUDA, or distributed
+  checks. The Emacs process, Org Babel execution, Jupyter server, and kernel
+  all run through the same bwrap wrapper.
+- Keep the Emacs interface small. Verifier callers should know only the Org
+  file path and optional required-result needles; package layout, token
+  handling, session naming, and stale-kernel cleanup stay behind
+  =verify_org_babel.sh=.
+- Prefer source-grounded checks over screenshots or prose-only reports. Export
+  to HTML/PDF should consume the same Org artifact after execution, so published
+  reports remain tied to the exact code and results that were verified.
 
 * Stop
 
@@ -117,6 +180,9 @@ per-launch token/URL files are removed.
 
 - The server process is a =bwrap ... TORCHTITAN_IN_ROOTFS=1= sandbox; confirm
   with =ps= against the tmux child.
+- Headless Emacs verifiers also run with =TORCHTITAN_IN_ROOTFS=1= and
+  =HOME=/project/home=; the repo-owned verifier profile is mounted at
+  =/project/home/.emacs.d= only when =TORCHTITAN_ROOTFS_BIND_EMACS=1=.
 - Kernel children are =.venv-rootfs/bin/python -m ipykernel_launcher=.
 - Kernels see the rootfs CUDA toolkit at =/opt/cuda-synth= and the rootfs
   project =HOME= at =/project/home=, matching the training environment.
