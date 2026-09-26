@@ -3541,3 +3541,668 @@ def test_tier0_runner_help_states_it_is_not_a_gate(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout
     assert "not a gate" in result.stdout
     assert not formal_log.exists()
+
+
+# ---------------------------------------------------------------------------
+# The quantified protocol theorems (tickets 13 and 14).
+#
+# Every assertion below about what a checker DOES runs the checker. The one
+# source-level test here is a uniformity check over five runner scripts, and its
+# docstring says why running is not the stronger option for that one.
+# ---------------------------------------------------------------------------
+
+PROTOCOL_RUNNER = FORMAL_DIR / "run_lean_scout_b_protocol.sh"
+SCOUT_A_LEAN_RUNNER = FORMAL_DIR / "run_lean_scout_a.sh"
+
+# The obligations that must each be reported separately. A missing one silently
+# weakens the inductive-invariant claim, which is the whole reason the runner
+# emits one token per theorem instead of one aggregate token.
+PROTOCOL_OBLIGATIONS = ("initiation", "consecution", "sufficiency")
+
+
+def _lean_toolchain() -> str:
+    """Locate the pinned Lean 4.34.0 in the mounted formal cache."""
+
+    cache = Path(os.environ.get("TORCHTITAN_FORMAL_CACHE", "/project/formal-cache"))
+    vendor = cache / "bazel" / "vendor"
+    lean = sorted(vendor.glob("*lean_4_34_0*/bin/lean"))
+    if not lean:
+        pytest.skip(
+            f"pinned Lean toolchain is not materialized under {vendor}; run "
+            "scripts/run_formal_checks.sh --networked once to vendor it"
+        )
+    return str(lean[0])
+
+
+def _run_lean_runner(
+    tmp_path: Path,
+    runner: Path,
+    overrides: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a Lean runner script over a copy of the fixtures with real Lean.
+
+    `overrides` replaces the text of named fixture files, which is how a
+    deliberately broken module is fed to the real checker. Each override must
+    name a fixture that exists, so a renamed module fails the test rather than
+    quietly adding a file the runner never stages.
+    """
+
+    lean = _lean_toolchain()
+    srcdir = tmp_path / "srcdir"
+    fixtures = srcdir / "_main" / "experiments" / "qwen3_formal_verifier" / "formal"
+    fixtures.mkdir(parents=True, exist_ok=True)
+    for source in FORMAL_DIR.iterdir():
+        if source.is_file():
+            (fixtures / source.name).write_bytes(source.read_bytes())
+    for name, text in (overrides or {}).items():
+        target = fixtures / name
+        assert target.is_file(), f"override names a missing fixture: {name}"
+        target.write_text(text)
+    test_tmpdir = tmp_path / "tmp" / runner.stem
+    test_tmpdir.mkdir(parents=True, exist_ok=True)
+    return subprocess.run(
+        ["bash", str(runner), lean],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "TEST_SRCDIR": str(srcdir),
+            "TEST_WORKSPACE": "_main",
+            "TEST_TMPDIR": str(test_tmpdir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=900,
+    )
+
+
+def test_protocol_runner_reports_each_obligation_as_its_own_theorem_token(
+    tmp_path: Path,
+) -> None:
+    """Positive control, by running the real Lean checker.
+
+    The three inductive obligations must each appear under their own token, and
+    every protocol token must be labelled kind=theorem with bound=none: that is
+    what distinguishes these results from the trace evaluations in the same
+    sealed log. Asserting the runner's source text instead would keep passing if
+    the loop that emits the tokens never executed.
+    """
+
+    result = _run_lean_runner(tmp_path, PROTOCOL_RUNNER)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "SCOUT_B_PROTOCOL_LEAN_TOOLCHAIN checker=lean version=4.34.0" in (
+        result.stdout
+    )
+    for index, obligation in enumerate(PROTOCOL_OBLIGATIONS, start=1):
+        expected = (
+            "SCOUT_B_PROTOCOL_LEAN_THEOREM"
+            f" theorem=Qwen3Formal.ScoutBProtocol.{obligation}"
+            " kind=theorem scope=all-topologies-all-schedules bound=none"
+            f" role=obligation-{index}-{obligation} axioms=[] exit=0"
+        )
+        assert expected in result.stdout, result.stdout
+
+    # The general protocol theorem and the negative that shows its acyclicity
+    # hypothesis is load-bearing.
+    assert (
+        "theorem=Qwen3Formal.ScoutBProtocol."
+        "orderAgreementAndAcyclicWaitGraphExcludeBothHazards" in result.stdout
+    )
+    assert "theorem=Qwen3Formal.ScoutBProtocol.acyclicityIsLoadBearing" in result.stdout
+    assert (
+        "SCOUT_B_PROTOCOL_LEAN_NEGATIVE proposition=Qwen3Formal.ScoutBProtocol."
+        "ControlledInvalidWaitGraphProposition kind=theorem-negative"
+        " scope=fixed-instance bound=2 result=rejected exit=1" in result.stdout
+    )
+    # No token here claims a trace.
+    assert "scope=observed-trace" not in result.stdout
+
+    # And each token must carry the vocabulary its RESULT deserves, which is
+    # not the same vocabulary for all of them. A blanket `bound=none`
+    # assertion used to live here, and it made an overclaim pass a test:
+    # `by decide` over one fixed topology whose maxIssues is 2 is not a
+    # statement about all schedule lengths.
+    theorem_lines = [
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith("SCOUT_B_PROTOCOL_LEAN_THEOREM")
+    ]
+    assert len(theorem_lines) >= 20, theorem_lines
+    labels = {
+        line.split("theorem=Qwen3Formal.ScoutBProtocol.")[1].split(" ")[0]: line
+        for line in theorem_lines
+    }
+    general = (
+        "idxOfOn_spec",
+        "idxOfOn_isSome_of_le",
+        "opAtOn_append_of_le",
+        "initiation",
+        "consecution",
+        "sufficiency",
+        "invOfReachable",
+        "safetyOfReachable",
+        "blockerOfStuckPending",
+        "noChainInAcyclicRelation",
+        "noCircularWaitOfAcyclicWaitGraph",
+        "deadlockFreeOfAcyclicWaitGraph",
+        "orderAgreementAndAcyclicWaitGraphExcludeBothHazards",
+    )
+    for name in general:
+        assert (
+            "kind=theorem scope=all-topologies-all-schedules bound=none" in labels[name]
+        ), labels[name]
+    # Fixed-instance results, with the instance's own bound reported.
+    for name in (
+        "cyclicWitnessIsStuck",
+        "waitGraphWitnessIsNotVacuous",
+        "cyclicWitnessIsWaitClosed",
+        "cyclicWitnessHasTwoCycle",
+        "cyclicWitnessAdmitsNoRankFunction",
+    ):
+        assert "kind=witness scope=fixed-instance bound=2" in labels[name], labels[name]
+    assert (
+        "kind=witness scope=fixed-instance bound=1"
+        in labels["commFifoAloneIsNotInductive"]
+    ), labels["commFifoAloneIsNotInductive"]
+    assert (
+        "kind=theorem-negative scope=fixed-instance bound=2"
+        in labels["acyclicityIsLoadBearing"]
+    ), labels["acyclicityIsLoadBearing"]
+    # No general theorem may claim a fixed instance, and no fixed-instance
+    # result may claim bound=none.
+    for name in general:
+        assert "fixed-instance" not in labels[name], labels[name]
+    for name in labels:
+        if name not in general:
+            assert "bound=none" not in labels[name], labels[name]
+
+    # Conditionality must be a field, not free text inside role=. A reader who
+    # meets `deadlockFreeOfAcyclicWaitGraph ... bound=none` and nothing else
+    # would read an unconditional deadlock-freedom claim.
+    for name in (
+        "noCircularWaitOfAcyclicWaitGraph",
+        "deadlockFreeOfAcyclicWaitGraph",
+        "orderAgreementAndAcyclicWaitGraphExcludeBothHazards",
+    ):
+        assert "conditional=acyclic-wait-for-graph" in labels[name], labels[name]
+    assert "conditional=" not in labels["safetyOfReachable"], labels[
+        "safetyOfReachable"
+    ]
+
+
+def test_protocol_runner_refuses_a_missing_obligation(tmp_path: Path) -> None:
+    """One token per obligation must be enforced, not merely emitted.
+
+    Removing `#print axioms consecution` leaves a module that still compiles
+    and still contains the theorem, so a runner that only checked the exit
+    status would report success with the consecution result absent. That is
+    exactly the silent weakening the per-obligation tokens exist to prevent.
+    """
+
+    source = (FORMAL_DIR / "ScoutBInductiveInvariant.lean").read_text()
+    assert "#print axioms consecution" in source
+    result = _run_lean_runner(
+        tmp_path,
+        PROTOCOL_RUNNER,
+        {
+            "ScoutBInductiveInvariant.lean": source.replace(
+                "#print axioms consecution\n", ""
+            )
+        },
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "consecution" in result.stderr, result.stderr
+    # Initiation precedes consecution in the loop, so its token must already
+    # have been emitted: the refusal is specific, not a blanket failure.
+    assert "role=obligation-1-initiation" in result.stdout, result.stdout
+    assert "role=obligation-3-sufficiency" not in result.stdout, result.stdout
+
+
+def test_protocol_runner_refuses_a_sorry_in_a_protocol_theorem(
+    tmp_path: Path,
+) -> None:
+    """The axiom gate must actually cover these modules.
+
+    `sufficiency` is the cheapest theorem to replace with `sorry`, and doing so
+    makes Lean report `sorryAx` for it and for everything downstream. The runner
+    must refuse rather than print an axioms=[] token, and it must not have been
+    necessary to widen `formal_classify_lean_valid` to get there.
+    """
+
+    source = (FORMAL_DIR / "ScoutBInductiveInvariant.lean").read_text()
+    needle = "  ⟨h.2.2.1, h.1, h.2.1, h.2.2.2⟩"
+    assert needle in source
+    result = _run_lean_runner(
+        tmp_path,
+        PROTOCOL_RUNNER,
+        {"ScoutBInductiveInvariant.lean": source.replace(needle, "  sorry")},
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "sufficiency" in result.stderr, result.stderr
+    assert "role=obligation-3-sufficiency" not in result.stdout, result.stdout
+
+
+def test_protocol_negative_must_be_refuted_not_compiled(tmp_path: Path) -> None:
+    """A negative that compiles is a failure of the suite, not a success.
+
+    Flipping the controlled proposition to the TRUE reading -- the witness IS
+    stuck -- makes ScoutBProtocolInvalid.lean compile. The runner must then
+    refuse, because `formal_classify_lean_negative` requires the `decide`
+    diagnostic rather than merely a non-zero exit somewhere.
+    """
+
+    source = (FORMAL_DIR / "ScoutBProtocolInvalid.lean").read_text()
+    needle = "stuckB cyclicTopology cyclicState = false"
+    assert needle in source
+    result = _run_lean_runner(
+        tmp_path,
+        PROTOCOL_RUNNER,
+        {
+            "ScoutBProtocolInvalid.lean": source.replace(
+                needle, "stuckB cyclicTopology cyclicState = true"
+            )
+        },
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "did not reject the named proposition" in result.stderr, result.stderr
+    assert "SCOUT_B_PROTOCOL_LEAN_NEGATIVE" not in result.stdout, result.stdout
+
+
+def test_safety_theorem_statement_does_not_mention_the_bound(
+    tmp_path: Path,
+) -> None:
+    """Ticket 13's acceptance criterion, checked by asking Lean for the type.
+
+    `MaxIssues` must be gone from the SAFETY CLAIM, not merely absent from a
+    comment. The elaborated type of `safetyOfReachable` is the claim, so this
+    prints it with the real Lean and asserts `maxIssues` does not occur in it,
+    while asserting it DOES occur in the type of a definition that genuinely
+    depends on the bound. Without that second half the test would pass against
+    a Lean that printed nothing useful.
+    """
+
+    lean = _lean_toolchain()
+    work = tmp_path / "statement"
+    work.mkdir(parents=True, exist_ok=True)
+    for name in (
+        "ScoutBProtocol.lean",
+        "ScoutBInductiveInvariant.lean",
+        "ScoutBWaitGraph.lean",
+    ):
+        (work / name).write_text((FORMAL_DIR / name).read_text())
+    (work / "Statement.lean").write_text(
+        "import ScoutBWaitGraph\n"
+        "open Qwen3Formal.ScoutBProtocol\n"
+        "set_option pp.fullNames true\n"
+        "#check @safetyOfReachable\n"
+        "#print allDoneB\n"
+        "#check @orderAgreementAndAcyclicWaitGraphExcludeBothHazards\n"
+    )
+    env = {**os.environ, "LEAN_PATH": "."}
+    for name in (
+        "ScoutBProtocol",
+        "ScoutBInductiveInvariant",
+        "ScoutBWaitGraph",
+    ):
+        built = subprocess.run(
+            [lean, "-o", f"{name}.olean", f"{name}.lean"],
+            cwd=work,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=900,
+        )
+        assert built.returncode == 0, built.stdout
+
+    printed = subprocess.run(
+        [lean, "Statement.lean"],
+        cwd=work,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=900,
+    )
+    assert printed.returncode == 0, printed.stdout
+    blocks = printed.stdout.split("safetyOfReachable")
+    assert len(blocks) >= 2, printed.stdout
+    safety_type, rest = blocks[1].split("allDoneB", 1)
+    # The claim: the elaborated statement names Topology, State and Reachable
+    # and does not name the bound.
+    assert "maxIssues" not in safety_type, printed.stdout
+    assert "Topology" in safety_type, printed.stdout
+    assert "Reachable" in safety_type, printed.stdout
+    # Non-vacuity: this Lean invocation does surface maxIssues where it occurs,
+    # so the absence above is a property of the statement rather than of the
+    # printer. allDoneB is a definition of this encoding that genuinely uses
+    # the bound.
+    assert "maxIssues" in rest, printed.stdout
+
+    # The flagship theorem must deliver the whole of Safety, not just
+    # RendezvousOpAgreement. That conjunct compares two Options and holds
+    # vacuously where a running communicator is short of a member's issue;
+    # RendezvousMembership, which travels inside Safety, is what forces both
+    # sides to `some`. Projecting it out would make the theorem read stronger
+    # than it is.
+    flagship = printed.stdout.split(
+        "orderAgreementAndAcyclicWaitGraphExcludeBothHazards"
+    )[-1]
+    assert "Safety" in flagship, printed.stdout
+    assert "maxIssues" not in flagship, printed.stdout
+
+
+def test_observed_trace_lean_tokens_are_labelled_as_evaluations(
+    tmp_path: Path,
+) -> None:
+    """The relabelling must reach the sealed log, by running a real runner.
+
+    Scout A's Lean runner is the cheap end-to-end witness for the evaluation
+    label: its modules are small, so this asserts the emitted token text rather
+    than the printf that produces it.
+    """
+
+    result = _run_lean_runner(tmp_path, SCOUT_A_LEAN_RUNNER)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (
+        "SCOUT_A_LEAN_VALID theorem=Qwen3Formal.ScoutA.validLifecycle"
+        " kind=evaluation scope=observed-trace axioms=[] exit=0" in result.stdout
+    )
+    assert (
+        "SCOUT_A_LEAN_NEGATIVE proposition=Qwen3Formal.ScoutA."
+        "ControlledInvalidProposition kind=evaluation scope=observed-trace"
+        " result=rejected exit=1" in result.stdout
+    )
+    assert "kind=theorem" not in result.stdout, result.stdout
+
+
+def test_every_lean_token_declares_evaluation_or_theorem_exactly_once() -> None:
+    """Uniformity of the label vocabulary across all Lean runners.
+
+    The two behavioural tests above are what establish that each label reaches
+    the sealed log; this one guards against a SIXTH token appearing later with
+    no label at all, which no single run would reveal. Running every Lean runner
+    to check that would cost the 92s Scout B trace check and prove nothing more
+    about the label, so this one reads the printf lines.
+    """
+
+    # Two properties, neither keyed on `printf '`. Keying on that used to let a
+    # token emitted by `echo`, or assembled in a variable, escape the very
+    # check this test exists to make -- and the protocol runner now does take
+    # its label from a variable, which the old form would have passed silently
+    # rather than examined.
+    #
+    #   1. every `kind=` written anywhere in a runner, outside a comment, is one
+    #      of the four recognised vocabularies -- so a fifth cannot appear
+    #      unannounced;
+    #   2. every line that emits a token either carries a vocabulary inline or
+    #      interpolates one, so no token reaches the log unlabelled.
+    #
+    # What the emitted text actually says is asserted by the two tests above,
+    # which run the runners.
+    vocabularies = (
+        "kind=evaluation scope=observed-trace",
+        "kind=theorem scope=all-topologies-all-schedules bound=none",
+        "kind=witness scope=fixed-instance bound=",
+        "kind=theorem-negative",
+        # The toolchain smoke is none of those: it proves the pinned Lean runs
+        # and rejects a false proposition, over no trace and no protocol.
+        "kind=smoke scope=toolchain",
+    )
+    token_name = re.compile(
+        r"""['"]((?:SCOUT_[A-Z0-9_]*|LEAN)_"""
+        r"""(?:VALID|NEGATIVE|MUTATION|THEOREM|TOOLCHAIN))\b"""
+    )
+    runners = sorted(FORMAL_DIR.glob("run_lean_*.sh"))
+    assert len(runners) >= 3, runners
+    labelled = 0
+    interpolated = 0
+    seen_names: set[str] = set()
+    for runner in runners:
+        for line in runner.read_text().splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if "kind=" in stripped:
+                matched = [v for v in vocabularies if v in stripped]
+                assert len(matched) == 1, (runner.name, stripped)
+            match = token_name.search(stripped)
+            if match is None:
+                continue
+            seen_names.add(match.group(1))
+            if match.group(1).endswith("_TOOLCHAIN"):
+                continue
+            if "kind=" in stripped:
+                labelled += 1
+                continue
+            # Label taken from a variable. The label strings themselves are
+            # covered by property 1 above, and the emitted result by the
+            # behavioural tests.
+            assert "%s" in stripped, (runner.name, stripped)
+            interpolated += 1
+    # Guard against a vacuous pass if the emission shape ever changes: the
+    # token names the suites actually print must all have been seen, and both
+    # emission shapes must have been exercised.
+    assert labelled >= 6, labelled
+    assert interpolated >= 1, interpolated
+    assert {
+        "SCOUT_A_LEAN_VALID",
+        "SCOUT_B_LEAN_VALID",
+        "SCOUT_B_PROTOCOL_LEAN_THEOREM",
+        "LEAN_VALID",
+    } <= seen_names, sorted(seen_names)
+
+
+def test_protocol_target_is_wired_into_tier0_and_the_sealed_suite() -> None:
+    """The inductive check belongs in the CPU-only suite AND in the gate.
+
+    Ticket 13 asks for it in the trace-free tier, and tier 0 may only run checks
+    the gate also runs, so both memberships are asserted together.
+    """
+
+    build = BUILD_FILE.read_text()
+    _, sh_tests, suites = _parse_build_targets(build)
+
+    assert "lean_scout_b_protocol_test" in sh_tests
+    for suite in ("tier0_formal_tests", "scout_b_formal_tests"):
+        members = {label.lstrip(":") for label in suites[suite]}
+        assert "lean_scout_b_protocol_test" in members, (suite, members)
+
+    inputs = sh_tests["lean_scout_b_protocol_test"]
+    assert {
+        "ScoutBProtocol.lean",
+        "ScoutBInductiveInvariant.lean",
+        "ScoutBWaitGraph.lean",
+        "ScoutBProtocolInvalid.lean",
+    } <= {label.lstrip(":") for label in inputs}, inputs
+    # It must not read a generated facts module: the theorems are about the
+    # protocol, so a trace dependency here would be a category error as well as
+    # a tier-0 violation.
+    assert not [label for label in inputs if "Facts" in label], inputs
+
+
+def test_protocol_modules_avoid_the_tactics_that_introduce_axioms() -> None:
+    """Regression guard for the axiom discipline, at the source level.
+
+    `omega` (propext, Quot.sound) and `simp` (propext) both compile fine and
+    both make `#print axioms` non-empty, so a later edit reaching for either
+    would fail the runner with a diagnostic about axioms rather than about the
+    tactic. Naming the cause here makes that failure legible. The behavioural
+    half is test_protocol_runner_refuses_a_sorry_in_a_protocol_theorem.
+    """
+
+    # Block comments first -- these files explain the discipline in prose, and
+    # reading that prose as code is why the previous regexes had to be narrow.
+    # Then `--` line comments. What is left is code, and the check is on
+    # identifiers rather than on a handful of spellings: bare `simp` on its own
+    # line, `simp_all` and `simp_arith` all escaped the earlier version.
+    banned = re.compile(
+        r"\b(?:omega|simp|simp_all|simp_arith|simp_rw|simpa|norm_num|aesop"
+        r"|linarith|nlinarith|field_simp|funext|propext|sorry|admit)\b"
+        r"|\bQuot\.sound\b|\bClassical\."
+    )
+    checked = 0
+    for name in (
+        "ScoutBProtocol.lean",
+        "ScoutBInductiveInvariant.lean",
+        "ScoutBWaitGraph.lean",
+        "ScoutBProtocolInvalid.lean",
+    ):
+        text = re.sub(r"/-.*?-/", "", (FORMAL_DIR / name).read_text(), flags=re.S)
+        for line in text.splitlines():
+            code = line.split("--")[0]
+            assert not banned.search(code), (name, line)
+            checked += 1
+    # Non-vacuity: stripping must not have eaten the files, and the regex must
+    # fire on the things it is for.
+    assert checked > 1000, checked
+    assert banned.search("  exact (by omega)")
+    assert banned.search("  simp")
+    assert banned.search("  simp_all")
+    assert banned.search("  exact Classical.em _")
+    assert not banned.search("  exact ifPos rfl")
+
+
+_TOPOLOGY_WITHOUT_COMMS_COMPLETE = """import ScoutBProtocol
+open Qwen3Formal.ScoutBProtocol
+
+def incompleteComms : Topology Unit Unit Unit Unit where
+  ranks := [()]
+  comms := [()]
+  member := fun _ _ => true
+  opsAll := [()]
+  admissibleOp := fun _ _ => true
+  streamOf := fun _ => ()
+  maxIssues := 1
+  requireMatchedIssueOrder := true
+  requireUniformProgramOps := true
+  requireUniformProgramComms := true
+  requireStreamOrder := true
+  membersInRanks := by
+    intro _ r _
+    cases r
+    exact List.Mem.head _
+  admissibleInOps := by
+    intro _ op _
+    cases op
+    exact List.Mem.head _
+"""
+
+
+def test_topology_forces_the_comms_completeness_obligation(tmp_path: Path) -> None:
+    """`stuckB` and `allDoneB` quantify only over `T.comms`, so a `comms` list
+    that omitted a live communicator would make them quantify over too little.
+
+    `Topology.commsComplete` turns that into a construction-time obligation
+    rather than an unstated side condition. This checks it by asking the real
+    Lean to elaborate a Topology literal that omits the field, which must fail
+    and must name it. A grep for the field would pass against a field that
+    Lean did not actually require.
+    """
+
+    lean = _lean_toolchain()
+    work = tmp_path / "obligation"
+    work.mkdir(parents=True, exist_ok=True)
+    (work / "ScoutBProtocol.lean").write_text(
+        (FORMAL_DIR / "ScoutBProtocol.lean").read_text()
+    )
+    env = {**os.environ, "LEAN_PATH": "."}
+    built = subprocess.run(
+        [lean, "-o", "ScoutBProtocol.olean", "ScoutBProtocol.lean"],
+        cwd=work,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=900,
+    )
+    assert built.returncode == 0, built.stdout
+
+    (work / "Incomplete.lean").write_text(_TOPOLOGY_WITHOUT_COMMS_COMPLETE)
+    result = subprocess.run(
+        [lean, "Incomplete.lean"],
+        cwd=work,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=900,
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "commsComplete" in result.stdout, result.stdout
+    # The other two carrier obligations must be satisfied by this literal, so
+    # the refusal is specific to the field under test.
+    assert "membersInRanks" not in result.stdout, result.stdout
+    assert "admissibleInOps" not in result.stdout, result.stdout
+
+
+def test_dpxtp_safety_token_names_every_invariant_it_checked() -> None:
+    """Six invariants are checked in one TLC run; the token named none of them.
+
+    `StuckImpliesAllDone` in particular reached the sealed log only inside an
+    aggregate success line, so a reader could not tell it had been checked at
+    all. The fix derives the list from the cfg rather than from a hand-kept
+    string, and this runs that derivation -- the real `formal_cfg_invariants`
+    from checker_contract.sh, over the real cfg -- and compares it against
+    `_cfg_invariants`, the independent Python parse this file already had for
+    the liveness contracts.
+
+    The wiring of that value into the SAFETY token is asserted on the runner's
+    source rather than by running it: the Scout B model runner takes about 290s
+    for its eleven TLC checks, and both `tier0_formal_tests` and
+    `scout_b_formal_tests` already execute it, so a unit test that repeated it
+    would buy a fourth execution of the same code rather than new evidence.
+    """
+
+    cfg = FORMAL_DIR / "ScoutBModel.cfg"
+    parsed = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; formal_cfg_invariants "$2"',
+            "invariants-test",
+            str(CHECKER_CONTRACT),
+            str(cfg),
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    assert parsed.returncode == 0, parsed.stdout
+    from_bash = parsed.stdout.strip().split(",")
+    expected = _cfg_invariants(cfg.read_text())
+    assert from_bash == expected, (from_bash, expected)
+    assert "StuckImpliesAllDone" in from_bash, from_bash
+    assert "DeadlockFreedom" in from_bash, from_bash
+    assert len(from_bash) == 6, from_bash
+
+    # A cfg that declares none must yield nothing rather than a stale list, so
+    # an empty result cannot be mistaken for "all six".
+    empty = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; formal_cfg_invariants "$2"',
+            "invariants-test",
+            str(CHECKER_CONTRACT),
+            str(FORMAL_DIR / "ScoutBModelStreamShape.cfg"),
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    assert empty.returncode == 0, empty.stdout
+    assert empty.stdout.strip() != parsed.stdout.strip(), empty.stdout
+
+    runner = (FORMAL_DIR / "run_tlc_scout_b_model.sh").read_text()
+    assert 'formal_cfg_invariants "${fixture_dir}/ScoutBModel.cfg"' in runner
+    assert "invariants=%s" in runner
+    assert "${safety_invariants}" in runner

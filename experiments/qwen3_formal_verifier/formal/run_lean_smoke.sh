@@ -67,7 +67,7 @@ formal_classify_lean_valid \
   echo "Lean valid smoke was not a clean axiom-free kernel check" >&2
   exit 1
 }
-printf 'LEAN_VALID checker=lean theorem=FormalSmoke.validStepReady axioms=[] exit=%s\n' \
+printf 'LEAN_VALID checker=lean theorem=FormalSmoke.validStepReady kind=smoke scope=toolchain axioms=[] exit=%s\n' \
   "${valid_status}"
 
 set +e
@@ -85,5 +85,5 @@ formal_classify_lean_negative \
   echo "Lean negative smoke did not reject the named proposition" >&2
   exit 1
 }
-printf 'LEAN_NEGATIVE checker=lean proposition=FormalSmoke.ControlledInvalidProposition result=rejected exit=%s\n' \
+printf 'LEAN_NEGATIVE checker=lean proposition=FormalSmoke.ControlledInvalidProposition kind=smoke scope=toolchain result=rejected exit=%s\n' \
   "${invalid_status}"

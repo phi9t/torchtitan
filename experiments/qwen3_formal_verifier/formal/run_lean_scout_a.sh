@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # Kernel-check Scout A lifecycle facts and reject one controlled false fact.
+#
+# Every result here is an EVALUATION of the observed trace: Bool-valued
+# predicates over literal ScoutAFacts data, closed by `rfl` or `decide`. The
+# tokens carry kind=evaluation scope=observed-trace so the sealed log
+# distinguishes them from the quantified protocol theorems emitted by
+# run_lean_scout_b_protocol.sh.
 
 set -euo pipefail
 
@@ -70,7 +76,7 @@ formal_classify_lean_valid \
   echo "Lean Scout A valid theorem was not a clean axiom-free kernel check" >&2
   exit 1
 }
-printf 'SCOUT_A_LEAN_VALID theorem=Qwen3Formal.ScoutA.validLifecycle axioms=[] exit=%s\n' \
+printf 'SCOUT_A_LEAN_VALID theorem=Qwen3Formal.ScoutA.validLifecycle kind=evaluation scope=observed-trace axioms=[] exit=%s\n' \
   "${valid_status}"
 
 set +e
@@ -90,5 +96,5 @@ formal_classify_lean_negative \
   echo "Lean Scout A negative did not reject the named proposition" >&2
   exit 1
 }
-printf 'SCOUT_A_LEAN_NEGATIVE proposition=Qwen3Formal.ScoutA.ControlledInvalidProposition result=rejected exit=%s\n' \
+printf 'SCOUT_A_LEAN_NEGATIVE proposition=Qwen3Formal.ScoutA.ControlledInvalidProposition kind=evaluation scope=observed-trace result=rejected exit=%s\n' \
   "${invalid_status}"

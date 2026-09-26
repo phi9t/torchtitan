@@ -1,3 +1,18 @@
+/-
+EVALUATION OF THE OBSERVED TRACE, not a theorem about the protocol.
+
+Every predicate here is `Bool`-valued, and ScoutAValid.lean applies it to
+literal ScoutAFacts data and closes it with `rfl` or `decide`. What the kernel
+checks is that THIS run satisfies the predicate: genuine, axiom-free, and
+silent about any other trace. The result tokens say so, carrying
+`kind=evaluation scope=observed-trace`.
+
+For theorems quantified over topologies, states and schedule lengths -- which
+mention no trace and no bound -- see ScoutBProtocol.lean,
+ScoutBInductiveInvariant.lean and ScoutBWaitGraph.lean, whose tokens carry
+`kind=theorem scope=all-topologies-all-schedules bound=none`.
+-/
+
 namespace Qwen3Formal
 
 inductive EventKind where

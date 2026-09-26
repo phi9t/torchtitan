@@ -328,6 +328,29 @@ sh_test(
     timeout = "long",
 )
 
+sh_test(
+    name = "lean_scout_b_protocol_test",
+    srcs = ["run_lean_scout_b_protocol.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":ScoutBInductiveInvariant.lean",
+        ":ScoutBProtocol.lean",
+        ":ScoutBProtocolInvalid.lean",
+        ":ScoutBWaitGraph.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    # Separate from lean_scout_b_test on purpose: that target is already the
+    # slowest in the suite at roughly 92s, and these modules read no trace data
+    # so they have no reason to share its runfiles or its wall time.
+    timeout = "long",
+)
+
 test_suite(
     name = "formal_smoke_tests",
     tests = [
@@ -339,11 +362,14 @@ test_suite(
 # Tier 0: the trace-free checks. Every target here reads only hand-written
 # sources, so it runs on CPU without a generated facts module, a GPU or an
 # attempt bundle. Minutes rather than seconds: tlc_scout_b_model_test runs
-# eleven checks over eight communicators. This suite is for iteration and is not
-# a gate: no attempt bundle is sealed from it.
+# eleven checks over eight communicators, and lean_scout_b_protocol_test carries
+# the quantified protocol theorems, which mention no trace and no bound. This
+# suite is for iteration and is not a gate: no attempt bundle is sealed from
+# it.
 test_suite(
     name = "tier0_formal_tests",
     tests = [
+        ":lean_scout_b_protocol_test",
         ":lean_smoke_test",
         ":tlc_scout_a_model_abstract_test",
         ":tlc_scout_b_model_test",
@@ -367,6 +393,7 @@ test_suite(
     name = "scout_b_formal_tests",
     tests = [
         ":lean_scout_a_test",
+        ":lean_scout_b_protocol_test",
         ":lean_scout_b_test",
         ":lean_smoke_test",
         ":tlc_scout_a_model_abstract_test",

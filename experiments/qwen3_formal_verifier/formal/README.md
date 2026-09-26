@@ -58,10 +58,11 @@ experiments/qwen3_formal_verifier/run_formal_tier0.sh --no-fetch
 ```
 
 The `tier0` suite is exactly the targets whose inputs are hand-written:
-`tlc_smoke_test`, `lean_smoke_test`, `tlc_scout_a_model_abstract_test`, and
-`tlc_scout_b_model_test`. The Scout A model checks are split by input set for
-this reason -- `tlc_scout_a_model_abstract_test` reads only `ScoutAModel.tla`,
-its two configurations and `ScoutLifecycle.tla`, while
+`tlc_smoke_test`, `lean_smoke_test`, `tlc_scout_a_model_abstract_test`,
+`tlc_scout_b_model_test`, and `lean_scout_b_protocol_test`. The Scout A model
+checks are split by input set for this reason --
+`tlc_scout_a_model_abstract_test` reads only `ScoutAModel.tla`, its two
+configurations and `ScoutLifecycle.tla`, while
 `tlc_scout_a_model_refine_test` additionally reads the generated
 `ScoutAFacts.tla`. Both halves remain in `scout_a_formal_tests` and
 `scout_b_formal_tests`, so the sealed gate runs every check it ran before the
@@ -188,6 +189,95 @@ The Scout B suite includes all smoke and Scout A targets:
 scripts/run_formal_checks.sh --networked --suite scout-b
 scripts/run_formal_checks.sh --no-fetch --suite scout-b
 ```
+
+## Evaluations of the observed trace versus theorems about the protocol
+
+These are two different kinds of result and the sealed log labels them
+differently, because a reader meets the result there rather than in a source
+comment.
+
+The `SCOUT_B_MODEL_SAFETY` token additionally carries `invariants=`, the list
+TLC was actually given, parsed out of the cfg by `formal_cfg_invariants`.
+Without it the only invariant a log reader ever met by name was whichever one a
+failure reported, and `StuckImpliesAllDone` was named nowhere at all.
+
+Everything described above under Scout A and Scout B is an EVALUATION of the
+observed trace: a `Bool`-valued predicate applied to literal fact data and
+closed by `rfl` or `decide`. That is a kernel-checked, axiom-free statement
+about THIS run, and nothing more. Its tokens -- `SCOUT_A_LEAN_VALID`,
+`SCOUT_A_LEAN_NEGATIVE`, `SCOUT_B_LEAN_VALID`, `SCOUT_B_LEAN_MUTATION`,
+`SCOUT_B_LEAN_NEGATIVE` -- carry `kind=evaluation scope=observed-trace`.
+
+`lean_scout_b_protocol_test` is the other kind. It reads no facts module. Its
+three Lean modules encode the `ScoutBModel.tla` protocol and prove theorems
+quantified over topologies, states and schedule lengths. It emits three
+vocabularies, not one, because labelling all of its results as general theorems
+would repeat the same category error one layer up:
+
+- `kind=theorem scope=all-topologies-all-schedules bound=none` -- universally
+  quantified over `Topology`, `State` and `Step`. `bound=none` means NO
+  PARTICULAR BOUND IS ASSUMED, not that `maxIssues` is absent from the model:
+  `Reachable` does depend on it through `issueAllowedB`, and what makes
+  `bound=none` legitimate is that the `Topology`, hence its `maxIssues`, is
+  universally quantified, so the result holds at every bound including 108.
+- `kind=witness scope=fixed-instance bound=<n>` -- `by decide` over one fixed
+  finite topology whose `maxIssues` is `<n>`. Real kernel-checked results about
+  that instance and nothing more; two of them are existential rather than
+  universal. They are what shows the general theorems' hypotheses and
+  conjunctions carry weight, so they belong in the log under their own label.
+- `kind=theorem-negative scope=fixed-instance bound=<n>` -- a proved NEGATION
+  of a general statement, refuted by a fixed instance.
+
+Three results additionally carry `conditional=acyclic-wait-for-graph`, because
+"DeadlockFreedom holds" and "DeadlockFreedom holds where the wait-for graph is
+acyclic" are different claims and the second must not read as the first.
+
+The modules:
+
+- `ScoutBProtocol.lean` -- the encoding. Its header holds the
+  definition-by-definition correspondence to `ScoutBModel.tla` and ten named
+  divergences, each with the direction it moves the claim. That correspondence
+  is a SECOND reviewable claim: there is no mechanical link between the Lean
+  file and the TLA+ module, so a reviewer has to check it by inspection. Three
+  of the divergences are discharged as Lean lemmas
+  (`idxOfOn_spec`, `idxOfOn_isSome_of_le`, `opAtOn_append_of_le`) rather than
+  left to inspection, and those have their own tokens.
+- `ScoutBInductiveInvariant.lean` -- `initiation`, `consecution` and
+  `sufficiency`, each a separate theorem with a separate token because a
+  missing obligation silently weakens the claim, plus `safetyOfReachable`,
+  whose statement does not mention `maxIssues`. This is what lifts the
+  `MaxIssues = 2` bound off `RendezvousOpAgreement`,
+  `RendezvousMembership` and `CommFifo`. `commFifoAloneIsNotInductive` shows
+  the conjunction is the strengthening rather than decoration.
+- `ScoutBWaitGraph.lean` -- the general protocol theorem
+  (`orderAgreementAndAcyclicWaitGraphExcludeBothHazards`): order agreement plus
+  an acyclic communicator wait-for graph gives neither a rendezvous mismatch
+  nor a stream-ordered circular wait. Its first component is the whole of
+  `Safety T s`, not just `RendezvousOpAgreement`: that conjunct compares two
+  `Option`s and holds vacuously where a running communicator is short of a
+  member's issue, and `RendezvousMembership` -- which travels inside `Safety` --
+  is what forces both sides to `some`. It pairs with
+  `ScoutBModelDivergent.cfg`, which refutes the converse reading in TLC.
+  `acyclicityIsLoadBearing` refutes the statement with the acyclicity
+  hypothesis dropped, and `waitGraphWitnessIsNotVacuous` shows the witness's
+  guards are satisfiable rather than false by construction.
+
+`DeadlockFreedom` is proved only CONDITIONALLY, under the acyclicity
+hypothesis. `StuckImpliesAllDone` has no bound-free version at all, since
+`AllDone` is defined by `Len(issued[r]) = MaxIssues`. Both are stated in
+`ScoutBInductiveInvariant.lean`'s header. The unbounded, unconditional
+deadlock-freedom claim remains open.
+
+`ScoutBProtocolInvalid.lean` is the controlled negative Lean must reject,
+matching the shape of `ScoutAInvalid` and `ScoutBInvalid`: it asserts the
+wait-graph witness is not stuck, `decide` proves that false, and
+`SCOUT_B_PROTOCOL_LEAN_NEGATIVE` records the rejection.
+
+No new toolchain was pinned for any of this and no Mathlib was added. The
+proofs use core Lean 4.34.0 only, which is what keeps `#print axioms` empty:
+`omega` depends on `propext` and `Quot.sound`, `simp` on `propext`, most core
+`List` lemmas on `propext`, and anything classical on `Classical.choice`, so
+none of them appears in these modules.
 
 ## Scout A abstract model and the refinement bridge
 

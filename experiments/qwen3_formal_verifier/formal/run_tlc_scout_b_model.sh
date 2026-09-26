@@ -226,9 +226,14 @@ num_comms="$(set_size CommIds2x2)"
 # The bound belongs in the token. A reader who meets only the state count has
 # no way to tell that this is a claim about schedules of at most max_issues
 # collectives per rank, not about the observed 108-per-rank run.
-printf 'SCOUT_B_MODEL_SAFETY result=success distinct_states=%s max_outdegree=%s bound_max_issues_per_rank=%s bound_ranks=%s bound_communicators=%s bound_issue_skew=unbounded exit=%s\n' \
-  "${safety_states}" "${safety_outdegree}" "${max_issues}" "${num_ranks}" \
-  "${num_comms}" "${safety_status}"
+safety_invariants="$(formal_cfg_invariants "${fixture_dir}/ScoutBModel.cfg")"
+[[ -n "${safety_invariants}" ]] || {
+  echo "could not read the invariant list out of ScoutBModel.cfg" >&2
+  exit 1
+}
+printf 'SCOUT_B_MODEL_SAFETY result=success invariants=%s distinct_states=%s max_outdegree=%s bound_max_issues_per_rank=%s bound_ranks=%s bound_communicators=%s bound_issue_skew=unbounded exit=%s\n' \
+  "${safety_invariants}" "${safety_states}" "${safety_outdegree}" \
+  "${max_issues}" "${num_ranks}" "${num_comms}" "${safety_status}"
 
 # 2. Non-vacuity. Start's guard uses CHOOSE and a stream-head condition that
 # are easy to make unsatisfiable, which would make every safety invariant above

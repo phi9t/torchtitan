@@ -167,6 +167,38 @@ formal_cfg_temporal_properties() {
   ' "$1"
 }
 
+# The invariants a cfg declares, comma-joined, parsed out of its INVARIANT
+# block. The safety stage checks six invariants in one TLC run, so without this
+# the only one a log reader ever meets by name is whichever one a failure
+# reports. StuckImpliesAllDone in particular was named nowhere in any token.
+# Derived from the cfg, so it cannot drift from what was actually checked.
+formal_cfg_invariants() {
+  awk '
+    function is_keyword(word) {
+      return word == "CONSTANT" || word == "CONSTANTS" \
+          || word == "SPECIFICATION" || word == "PROPERTY" \
+          || word == "PROPERTIES" || word == "CONSTRAINT" \
+          || word == "CONSTRAINTS" || word == "ACTION_CONSTRAINT" \
+          || word == "CHECK_DEADLOCK" \
+          || word == "SYMMETRY" || word == "VIEW" || word == "INIT" \
+          || word == "NEXT" || word == "ALIAS" || word == "POSTCONDITION"
+    }
+    { sub(/^[ \t]+/, ""); sub(/[ \t]+$/, "") }
+    $0 == "" { next }
+    /^\\\*/ { next }
+    {
+      if ($1 == "INVARIANT" || $1 == "INVARIANTS") {
+        collecting = 1
+        for (i = 2; i <= NF; i++) out = (out == "" ? $i : out "," $i)
+        next
+      }
+      if (is_keyword($1)) { collecting = 0; next }
+      if (collecting) out = (out == "" ? $1 : out "," $1)
+    }
+    END { print out }
+  ' "$1"
+}
+
 # TLC's liveness diagnostic names no property, so a liveness stage wired to the
 # wrong cfg would still classify. This is what pins the stage to its property.
 formal_cfg_declares_one_property() {
