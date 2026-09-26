@@ -9,9 +9,10 @@ issued collective eventually completes, under weak fairness.
 
 ## Why safety is not enough here
 
-`DeadlockFreedom` is a safety invariant: no reachable state is stuck. That
-rules out a terminal deadlock, but not a livelock in which the system keeps
-taking steps while some collective never starts. For a step model whose whole
+`DeadlockFreedom` is a safety invariant. Since ticket 21 it says: no reachable
+state is stuck with an admissible rendezvous that every member has pending and
+that can never start. That rules out a terminal deadlock, but not a livelock in
+which the system keeps taking steps while some collective never starts. For a step model whose whole
 purpose is to reason about jobs that hang, "the job always has something to
 do" is not the property anyone cares about; "the step finishes" is.
 

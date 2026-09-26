@@ -55,6 +55,68 @@ def _run_classifier(function: str, status: int, output: str, expected: str = "")
     )
 
 
+def test_tlc_constant_false_classifier_matches_the_real_checker_output() -> None:
+    """A constant-level invariant is refuted by a different TLC outcome.
+
+    StreamEdgeIsInert mentions no VARIABLES, so TLC evaluates it as a constant
+    expression and reports a false one as "The invariant of X is equal to FALSE"
+    with exit 151 -- not "violated by the initial state" with exit 12. The shape
+    below is copied from a real run, and the classifier must accept exactly it:
+    a looser one would let the stream-edge stage pass on a crashed run, and the
+    state-predicate classifiers reject this output outright.
+    """
+
+    real = (
+        "TLC2 Version 2.19 of 08 August 2024\n"
+        "Starting... (2026-09-26 10:00:00)\n"
+        "Error: The invariant of StreamEdgeIsInert is equal to FALSE\n"
+        "Finished in 00s at (2026-09-26 10:00:00)\n"
+    )
+
+    accepted = _run_classifier(
+        "formal_classify_tlc_constant_false", 151, real, "StreamEdgeIsInert"
+    )
+    assert accepted.returncode == 0, accepted.stdout
+
+    # A different invariant name must not be accepted.
+    wrong_name = _run_classifier(
+        "formal_classify_tlc_constant_false", 151, real, "SomethingElse"
+    )
+    assert wrong_name.returncode != 0
+
+    # Nor a different exit status, nor a run that died before finishing.
+    wrong_status = _run_classifier(
+        "formal_classify_tlc_constant_false", 12, real, "StreamEdgeIsInert"
+    )
+    assert wrong_status.returncode != 0
+
+    truncated = _run_classifier(
+        "formal_classify_tlc_constant_false",
+        151,
+        "Error: The invariant of StreamEdgeIsInert is equal to FALSE\n",
+        "StreamEdgeIsInert",
+    )
+    assert truncated.returncode != 0, "no orderly finish line, so not a result"
+
+    crashed = _run_classifier(
+        "formal_classify_tlc_constant_false",
+        151,
+        real + 'Exception in thread "main" java.lang.NullPointerException\n',
+        "StreamEdgeIsInert",
+    )
+    assert crashed.returncode != 0, "a crash after the diagnostic is not a result"
+
+    # And the state-predicate classifiers must not accept it, or the stream-edge
+    # stage could be wired to the wrong one and still pass.
+    for function in (
+        "formal_classify_tlc_negative",
+        "formal_classify_tlc_transition_negative",
+        "formal_classify_tlc_valid",
+    ):
+        mismatched = _run_classifier(function, 151, real, "StreamEdgeIsInert")
+        assert mismatched.returncode != 0, function
+
+
 def test_tlc_negative_accepts_only_the_named_invariant_violation() -> None:
     # A real TLC run always prints the search summary; the classifier requires
     # it so a crashed or truncated run cannot be read as a clean negative.
@@ -1106,57 +1168,345 @@ B_MODEL = FORMAL_DIR / "ScoutBModel.tla"
 B_MODEL_RUNNER = FORMAL_DIR / "run_tlc_scout_b_model.sh"
 
 
-def test_dpxtp_model_constrains_operation_not_only_communicator_class() -> None:
-    """Regression: constraining only the class admits a program that cannot run.
+def _tla_definition(module: str, name: str) -> str:
+    """Return the body of a single TLA+ definition, up to the next blank line."""
 
-    An earlier version required ranks to agree on the communicator CLASS at each
-    position but not the operation. TLC immediately found a counterexample in
-    which two members of one communicator issued all_gather and reduce_scatter
-    at the same position, so that communicator could never start and the run
-    hung. The model was wrong, not the protocol: NCCL requires members to agree
-    on the operation, and a single program cannot diverge that way.
+    body = module.split(f"\n{name} ==", 1)[1]
+    return body.split("\n\n", 1)[0]
+
+
+def _tla_constants(module: str) -> set[str]:
+    """Return the names declared in the module's CONSTANTS block."""
+
+    block = module.split("\nCONSTANTS\n", 1)[1].split("\n\n", 1)[0]
+    names = set()
+    for raw in block.splitlines():
+        line = raw.strip().rstrip(",")
+        if not line or line.startswith("\\*"):
+            continue
+        names.add(line)
+    return names
+
+
+def _cfg_settings(cfg: str) -> dict[str, str]:
+    """Parse a TLC cfg into {name: value} for scalar and override bindings."""
+
+    settings: dict[str, str] = {}
+    for raw in cfg.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("\\*"):
+            continue
+        for separator in ("<-", "="):
+            if separator in line:
+                key, _, value = line.partition(separator)
+                if key.strip() and value.strip():
+                    settings[key.strip()] = value.strip()
+                break
+    return settings
+
+
+def _cfg_invariants(cfg: str) -> list[str]:
+    """Return the names in a cfg's INVARIANT / INVARIANTS block, in order.
+
+    Parsed rather than substring-matched: an earlier version asserted
+    `"StuckImpliesAllDone" in cfg`, which a `\\*` comment mentioning the name
+    satisfies, so deleting the invariant from the block was caught by nothing.
+    """
+
+    names: list[str] = []
+    collecting = False
+    for raw in cfg.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("\\*"):
+            continue
+        head = line.split()[0]
+        if head in {"INVARIANT", "INVARIANTS"}:
+            collecting = True
+            names.extend(line.split()[1:])
+            continue
+        if head in {
+            "CONSTANT",
+            "CONSTANTS",
+            "SPECIFICATION",
+            "CONSTRAINT",
+            "PROPERTY",
+            "PROPERTIES",
+            "CHECK_DEADLOCK",
+            "SYMMETRY",
+            "VIEW",
+            "INIT",
+            "NEXT",
+        }:
+            collecting = False
+            continue
+        if collecting:
+            names.append(line)
+    return names
+
+
+B_MODEL_CFGS = (
+    "ScoutBModel.cfg",
+    "ScoutBModelReach.cfg",
+    "ScoutBModelDivergent.cfg",
+    "ScoutBModelWitness.cfg",
+    "ScoutBModelOpMismatch.cfg",
+    "ScoutBModelStreamShape.cfg",
+    "ScoutBModelUnguarded.cfg",
+)
+
+
+def test_dpxtp_schedule_guard_agrees_on_communicator_identity_not_class() -> None:
+    """The guard models one SPMD program, so it must fix the communicator.
+
+    Retraction, recorded rather than quietly dropped. An earlier version made
+    ranks agree on the communicator CLASS and the operation at each position,
+    and claimed that modelled one program. It did not: two ranks could satisfy
+    it while choosing different communicator INSTANCES of the same class, which
+    is exactly the cross-communicator reordering freedom the model exists to
+    constrain. The Small instance passed safety only because each rank held one
+    communicator per class, so the class-only guard forced its choice.
+
+    The guard now fixes the operation per position and fixes communicator
+    IDENTITY wherever two ranks' communicators share a member -- which is
+    precisely where a wait edge can form.
+
+    Class agreement is gone, but not because it is inert. It WAS inert in the old
+    module, where CommOps derived the admissible operations from the class, so
+    requiring operations to agree already forced the class. Here CommOps is per
+    communicator and gives mesh_fsdp all_reduce as well, so the conjunct does
+    restrict: measured, adding a four-way role-agreement conjunct back changes no
+    verdict and cuts the reachable graph from 38321 to 13583 distinct states. It
+    is dropped because what it removes are not hazards -- it forbids rank 0
+    issuing batch02 against rank 1 issuing loss13, which are disjoint and cannot
+    wait on each other.
     """
 
     model = B_MODEL.read_text()
-    schedule = model.split("UniformProgramScheduleOK(candidate) ==")[1]
-    schedule = schedule.split("\n\n")[0]
 
-    assert "CommClass" in schedule, "class agreement must still be required"
-    assert ".op = " in schedule, "operation agreement must also be required"
+    ops_guard = _tla_definition(model, "UniformProgramOpsOK(candidate)")
+    assert ".op = " in ops_guard, "operation agreement must be required"
+
+    comms_guard = _tla_definition(model, "UniformProgramCommsOK(candidate)")
+    assert "SameSite(" in comms_guard, "site agreement must be required"
+
+    same_site = _tla_definition(model, "SameSite(c1, c2)")
+    # Identical, or disjoint members. Anything else is two sites at once.
+    assert "c1 = c2" in same_site
+    assert "CommMembers[c1] \\cap CommMembers[c2] = {}" in same_site
+
+    # The retracted conjunct must be gone, not merely unused: a CommClass
+    # constant left declared would be bound by every cfg and read as a live
+    # part of the guard. The header still names it, to record the retraction.
+    assert "CommClass" not in _tla_constants(model)
+    for name in B_MODEL_CFGS:
+        assert "CommClass" not in (FORMAL_DIR / name).read_text(), name
 
 
-def test_dpxtp_model_carries_streams_because_they_create_the_wait_edge() -> None:
-    """Without streams this model has no deadlock at all.
+def _parse_comm_members(model: str) -> dict[str, frozenset[int]]:
+    """Reconstruct CommMembers2x2, including the unnamed OTHER branch."""
 
-    Every rank would eventually issue everything and every rendezvous would
-    complete. The wait edge exists only because a CUDA stream executes in issue
-    order, so a collective cannot start until earlier work on its stream is
-    done. Removing AtStreamHead would silently make DeadlockFreedom vacuous.
+    body = _tla_definition(model, "CommMembers2x2")
+    members: dict[str, frozenset[int]] = {}
+    for comm, ranks in re.findall(r'c = "(\w+)"\s*->\s*\{([0-9, ]+)\}', body):
+        members[comm] = frozenset(int(r) for r in ranks.split(","))
+    declared = set(re.findall(r'"(\w+)"', _tla_definition(model, "CommIds2x2")))
+    missing = declared - set(members)
+    assert len(missing) == 1, f"unparsed CommMembers2x2 branches: {missing}"
+    other = re.search(r"OTHER\s*->\s*\{([0-9, ]+)\}", body)
+    assert other is not None
+    members[missing.pop()] = frozenset(int(r) for r in other.group(1).split(","))
+    return members
+
+
+def _parse_comm_ops(model: str) -> dict[str, frozenset[str]]:
+    """Reconstruct CommOps2x2, resolving the Ops alias and the OTHER branch."""
+
+    all_ops = frozenset(re.findall(r'"(\w+)"', _tla_definition(model, "Ops")))
+    assert all_ops, "Ops must be a set literal of operation names"
+
+    body = _tla_definition(model, "CommOps2x2")
+
+    def resolve(arm: str) -> frozenset[str]:
+        arm = arm.strip()
+        if arm == "Ops":
+            return all_ops
+        named = frozenset(re.findall(r'"(\w+)"', arm))
+        assert named <= all_ops, f"unknown operations in CommOps2x2: {arm}"
+        assert named, f"empty operation set in CommOps2x2: {arm}"
+        return named
+
+    ops: dict[str, frozenset[str]] = {}
+    for comm, arm in re.findall(r'c = "(\w+)"\s*->\s*(Ops|\{[^}]*\})', body):
+        ops[comm] = resolve(arm)
+    other = re.search(r"OTHER\s*->\s*(Ops|\{[^}]*\})", body)
+    assert other is not None
+    default = resolve(other.group(1))
+    for comm in _parse_comm_members(model):
+        ops.setdefault(comm, default)
+    return ops
+
+
+def _parse_stream_of_issue(model: str) -> dict[str, str]:
+    """Reconstruct StreamOfIssue as {operation: stream}, plus the OTHER arm.
+
+    Returns a mapping with the literal operations it names and the key "OTHER"
+    for the fall-through, so a caller can apply it to any operation. Asserts the
+    definition is keyed on the operation at all: a stream map keyed on e.comm is
+    refined by communicator identity, which is the design that made the
+    stream-head conjunct redundant with per-communicator FIFO.
+    """
+
+    body = _tla_definition(model, "StreamOfIssue(e)")
+    assert "e.op" in body, "StreamOfIssue must be keyed on the operation"
+    assert "e.comm" not in body, (
+        "StreamOfIssue keyed on the communicator makes AtStreamHead redundant "
+        "with per-communicator FIFO and StuckByCircularWait unsatisfiable"
+    )
+    mapping = dict(re.findall(r'e\.op = "(\w+)"\s*->\s*"(\w+)"', body))
+    other = re.search(r'OTHER\s*->\s*"(\w+)"', body)
+    assert other is not None, "StreamOfIssue must have a fall-through arm"
+    mapping["OTHER"] = other.group(1)
+    return mapping
+
+
+def test_dpxtp_instance_puts_distinct_communicators_on_one_rank_stream() -> None:
+    """Derived from the three maps, not asserted: one rank, one stream, two
+    communicators.
+
+    A rank whose communicators never share a stream cannot have a
+    cross-communicator wait edge at all, because per-communicator FIFO already
+    orders everything else. That was true of every instance this module used to
+    define, which is why no configuration could exhibit the hazard: the
+    stream-head conjunct was exactly redundant by construction.
+
+    An earlier version of this test claimed to reconstruct StreamOfIssue and did
+    not: it collected every communicator a rank belonged to, never applied the
+    stream map, and passed under three separate mutations -- a distinct single
+    operation per communicator, StreamOfIssue keyed on e.comm, and AtStreamHead
+    deleted from MemberReady. All three are now caught, the first two here and
+    the third by the assertion at the end.
+    """
+
+    model = B_MODEL.read_text()
+    members = _parse_comm_members(model)
+    comm_ops = _parse_comm_ops(model)
+    stream_of = _parse_stream_of_issue(model)
+
+    def streams_of(comm: str) -> set[str]:
+        return {stream_of.get(op, stream_of["OTHER"]) for op in comm_ops[comm]}
+
+    # Two distinct communicators over the same rank set: without this, the
+    # observed mesh_batch / mesh_fsdp / mesh_loss_mesh overlap is erased.
+    by_member_set: dict[frozenset[int], set[str]] = {}
+    for comm, ranks in members.items():
+        by_member_set.setdefault(ranks, set()).add(comm)
+    assert any(len(comms) >= 2 for comms in by_member_set.values()), members
+
+    # The property the hazard needs: some rank holds two DISTINCT communicators
+    # that can put an issue on one stream.
+    overlaps: dict[tuple[int, str], set[str]] = {}
+    for comm, ranks in members.items():
+        for rank in ranks:
+            for stream in streams_of(comm):
+                overlaps.setdefault((rank, stream), set()).add(comm)
+    shared = {key: comms for key, comms in overlaps.items() if len(comms) >= 2}
+    assert shared, (
+        "no rank can put two different communicators on one stream, so "
+        f"AtStreamHead is redundant with per-communicator FIFO: {overlaps}"
+    )
+
+    # And the conjunct must still gate the rendezvous. Deleting it from
+    # MemberReady leaves the instance shape above intact, so the shape check
+    # alone cannot see it.
+    ready = _tla_definition(model, "MemberReady(c, r)")
+    assert "AtStreamHead" in ready, ready
+
+
+def test_dpxtp_stream_edge_check_replaces_a_tautological_run() -> None:
+    r"""Retraction: the RequireStreamOrder = FALSE rerun could not fail.
+
+    With the stream edge deleted, AtStreamHead is TRUE, so MemberReady(c, r)
+    reduces to CommCount(r, c) >= Front(c) and StartAllowed(c) to
+    FullyPending(c) /\ OpsAgreeAtFront(c) -- which Stuck already denies for
+    every communicator. StuckByCircularWait is therefore unsatisfiable by
+    construction, at any bound on any instance, and the 1146243-state exhaustive
+    search that was shipped here proved a two-line lemma rather than anything
+    about this model. Corroborated two ways by the reviewer: deleting the
+    balance conjunct changed nothing there, and StuckImpliesAllDone WAS violated
+    under that cfg, so removing the stream edge removed the classification
+    rather than the stuckness.
+
+    What is contingent is the lemma's hypothesis, so that is what is checked:
+    StreamEdgeIsInert must be violated on the shipped map, and must hold once
+    StreamOfIssue is substituted with e.comm. Both halves are TLC runs in
+    run_tlc_scout_b_model.sh, and both are instant because the cfg is pinned to
+    the initial state.
+    """
+
+    assert not (
+        FORMAL_DIR / "ScoutBModelStreams.cfg"
+    ).exists(), "the tautological stream cfg must not come back"
+
+    shape = (FORMAL_DIR / "ScoutBModelStreamShape.cfg").read_text()
+    assert _cfg_invariants(shape) == ["StreamEdgeIsInert"], shape
+    # Pinned to the initial state: StreamEdgeIsInert reads only the constants.
+    assert "CONSTRAINT AtInitialState" in shape
+
+    model = B_MODEL.read_text()
+    initial = _tla_definition(model, "AtInitialState")
+    assert "Len(issued[r]) = 0" in initial, initial
+
+    runner = B_MODEL_RUNNER.read_text()
+    stage = runner.split("# 6. The stream edge is load-bearing", 1)[1]
+    stage = stage.split("# 7.", 1)[0]
+    # The shipped map must fail the check...
+    assert "formal_classify_tlc_constant_false" in stage
+    assert "StreamEdgeIsInert" in stage
+    # ...and the mutated map must pass it, or the check has no teeth.
+    assert "StreamOfIssue(e) == e.comm" in stage
+    assert "formal_classify_tlc_valid" in stage
+    # Fail closed if the substitution silently stops applying.
+    assert "the StreamOfIssue mutation did not apply" in stage
+    assert "SCOUT_B_MODEL_STREAM_EDGE" in stage
+    assert "SCOUT_B_MODEL_STREAM_EDGE_MUTANT" in stage
+
+
+def test_dpxtp_witness_shape_is_checked_not_described() -> None:
+    """ "DeadlockFreedom was violated" does not say which stuck state was found.
+
+    This is the guard that would have caught the defect the review found: the
+    first version of StuckByCircularWait required issue counts to be equal on
+    every communicator in the state, so any unrelated imbalance elsewhere
+    reclassified a real deadlock as StuckByBudget. A shape assertion that
+    includes chain balance and a cycle of at least two communicators is
+    satisfiable only by a witness that is genuinely local.
     """
 
     model = B_MODEL.read_text()
 
-    assert "StreamOfIssue" in model
-    assert "AtStreamHead" in model
-    # FSDP's two directional collectives ride dedicated streams; TP rides compute.
-    assert '"rs"' in model and '"ag"' in model and '"compute"' in model
-    # The stream-head condition must gate the rendezvous, not merely exist.
-    ready = model.split("MemberReady(c, r) ==")[1].split("\n\n")[0]
-    assert "AtStreamHead" in ready
+    shape = _tla_definition(model, "NoCrossCommunicatorCycleWitness")
+    assert "Stuck" in shape
+    assert "Len(issued[r]) = MaxIssues" in shape, "no rank may have stopped early"
+    assert "CircularWaitAt(c)" in shape
+    assert "Cardinality(BlockingClosure(c)) >= 2" in shape, "cross-communicator"
+    assert "ChainIssuanceBalanced(BlockingClosure(c))" in shape
 
+    witness = (FORMAL_DIR / "ScoutBModelWitness.cfg").read_text()
+    assert _cfg_invariants(witness) == ["NoCrossCommunicatorCycleWitness"], witness
 
-def test_dpxtp_model_separates_communicators_that_share_a_rank_set() -> None:
-    """mesh_batch, mesh_fsdp and mesh_loss_mesh all span {0,2} but are distinct.
+    # Same constants as the divergent cfg, or the shape is a statement about a
+    # different model. The runner repeats this at run time.
+    divergent = _cfg_settings((FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text())
+    differing = {
+        key
+        for key in set(divergent) | set(_cfg_settings(witness))
+        if divergent.get(key) != _cfg_settings(witness).get(key)
+    }
+    assert differing == set(), differing
 
-    Treating them as one communicator would erase the cross-communicator wait
-    cycle, which is the hazard the model exists to expose.
-    """
-
-    model = B_MODEL.read_text()
-    wide = model.split("CommMembersWide ==")[1].split("\n\n")[0]
-
-    # Two distinct communicators over the same rank set in the wide instance.
-    assert wide.count("{0, 2}") >= 2, wide
+    runner = B_MODEL_RUNNER.read_text()
+    assert "SCOUT_B_MODEL_WITNESS" in runner
+    assert "expected_witness_diff" in runner
 
 
 def test_dpxtp_model_runner_requires_non_vacuity_and_branching() -> None:
@@ -1172,32 +1522,187 @@ def test_dpxtp_model_runner_requires_non_vacuity_and_branching() -> None:
     assert "replay, not a model" in runner
 
 
-def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
-    """The two negatives say different things and must both be reported.
+def test_dpxtp_safety_token_reports_the_bound_it_was_checked_at() -> None:
+    """A state count without a bound reads as a claim about the real run.
 
-    Relaxing the program-schedule requirement deadlocks; additionally relaxing
-    NCCL's matching guard instead runs a mismatched rendezvous. Reporting only
-    one would lose the point that order agreement is necessary but not
-    sufficient.
+    The safety result is a statement about schedules of at most MaxIssues
+    collectives per rank on a fixed instance. The token used to carry only
+    distinct_states and max_outdegree, so a reader met the number without the
+    qualifier, while the bound appeared in the ticket and the commit message
+    only. The runner now derives the bound from the cfg and the module instead
+    of printing a literal, so the reported bound cannot drift from the checked
+    one.
     """
 
     runner = B_MODEL_RUNNER.read_text()
-    assert "SCOUT_B_MODEL_DIVERGENT" in runner
-    assert "SCOUT_B_MODEL_UNGUARDED" in runner
 
-    divergent = (FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text()
-    unguarded = (FORMAL_DIR / "ScoutBModelUnguarded.cfg").read_text()
+    assert "bound_max_issues_per_rank=%s" in runner
+    assert "bound_ranks=%s" in runner
+    assert "bound_communicators=%s" in runner
+    assert "bound_issue_skew=unbounded" in runner
+    assert "cfg_scalar ScoutBModel.cfg MaxIssues" in runner
+    assert "set_size Ranks2x2" in runner
+    assert "set_size CommIds2x2" in runner
 
-    # Each negative config checks exactly one invariant: the shared classifier
-    # requires exactly one Error line, so a config where two invariants are
-    # violable would flake on schedule order.
-    assert divergent.count("INVARIANT") == 1
-    assert unguarded.count("INVARIANT") == 1
-    assert "DeadlockFreedom" in divergent
-    assert "RendezvousOpAgreement" in unguarded
-    # The divergent case keeps NCCL's guard; the unguarded case drops it.
-    assert "RequireMatchedIssueOrder = TRUE" in divergent
-    assert "RequireMatchedIssueOrder = FALSE" in unguarded
+
+def test_dpxtp_model_declares_no_inert_skew_bound() -> None:
+    """MaxSkew was a tautology at MaxIssues = 2 and advertised a bound.
+
+    The guard read `Len(issued[r]) + 1 <= Len(issued[q]) + MaxSkew` for every q.
+    With MaxIssues = 2 the largest reachable left-hand side is 2 and the
+    smallest right-hand side is 0 + 2, so the conjunct was true in every state,
+    while a reader of the cfg saw `MaxSkew = 2` and believed rank skew was
+    bounded. Dropped rather than tightened, because a real bound would have cut
+    interleavings out of the safety claim; skew is now unbounded within
+    MaxIssues, which is what the safety token says.
+    """
+
+    model = B_MODEL.read_text()
+    assert "MaxSkew" not in _tla_constants(model)
+    for name in B_MODEL_CFGS:
+        assert "MaxSkew" not in (FORMAL_DIR / name).read_text(), name
+
+    bounded = _tla_definition(model, "ModelBounded")
+    assert "Len(issued[r]) <= MaxIssues" in bounded
+
+
+def test_dpxtp_model_binds_every_instance_definition_it_declares() -> None:
+    """A dead instance is worse than no instance: it reads as coverage.
+
+    CommIdsWide, CommMembersWide and CommClassWide described the overlap that
+    creates the wait cycle and were bound by no cfg, so the hazard they
+    described was in nothing that was checked, while a test counting "{0, 2}"
+    occurrences in that dead text reported otherwise.
+    """
+
+    model = B_MODEL.read_text()
+    instance_definitions = {
+        name
+        for name in re.findall(r"^([A-Za-z]\w*) ==", model, re.MULTILINE)
+        if re.search(r"(Small|Wide|2x2)$", name)
+    }
+    assert instance_definitions, "no instance definitions found"
+
+    bound = set()
+    for name in B_MODEL_CFGS:
+        for value in _cfg_settings((FORMAL_DIR / name).read_text()).values():
+            bound.add(value)
+    assert instance_definitions <= bound, instance_definitions - bound
+
+
+def test_dpxtp_hazard_classes_partition_the_stuck_states() -> None:
+    """Stuck => AllDone cannot tell a wait cycle from the finite budget.
+
+    AllDone requires every member of a communicator to have issued the same
+    COUNT on it, so a rank spending its budget on one communicator while a peer
+    spends it on another makes AllDone false forever; once both are out of
+    budget, Stuck holds and `Stuck => AllDone` is violated by arithmetic. The
+    module therefore classifies stuck states, and DeadlockFreedom is the
+    circular-wait class directly.
+
+    The balance conjunct is the load-bearing part: without it the class also
+    fires on a chain that a larger budget would resolve, which was observed on
+    a TLC witness before it was added.
+    """
+
+    model = B_MODEL.read_text()
+
+    circular = _tla_definition(model, "StuckByCircularWait")
+    assert "Stuck" in circular
+    assert "CircularWaitAt(c)" in circular
+
+    # The condition must be imposed on the blocking CLOSURE, not on all of
+    # CommIds. The global form was the defect: a circular wait is local to its
+    # chain, so any unrelated imbalance elsewhere in the state reclassified a
+    # real deadlock as StuckByBudget. The review demonstrated it at MaxIssues=2
+    # under ScoutBModelDivergent.cfg -- ranks 1 and 3 in a two-cycle over
+    # fsdp13 and batch13, hung at any budget, discarded because rank 0 had
+    # issued tp01 twice and rank 1 not at all.
+    local = _tla_definition(model, "CircularWaitAt(c)")
+    assert "FullyPending(c)" in local
+    assert "OpsAgreeAtFront(c)" in local
+    assert "BlockingClosure(c)" in local, local
+    assert "IssuanceBalanced" not in local, (
+        "a state-wide balance conjunct turns unrelated imbalance into a false "
+        "negative for the hazard this invariant exists to catch"
+    )
+
+    mismatch = _tla_definition(model, "StuckByOpMismatch")
+    assert "~StuckByCircularWait" in mismatch
+
+    # The budget class is the remainder, so the three are exhaustive over
+    # Stuck /\ ~AllDone by construction rather than by a case analysis that can
+    # drift from the other two definitions.
+    budget = _tla_definition(model, "StuckByBudget")
+    assert "~StuckByCircularWait" in budget
+    assert "~StuckByOpMismatch" in budget
+    assert "~AllDone" in budget
+
+    assert "DeadlockFreedom == ~StuckByCircularWait" in model
+    assert "NoOpMismatchHang == ~StuckByOpMismatch" in model
+    # The old, stronger statement is kept and still checked where it holds,
+    # rather than being deleted along with its name. Checked by parsing the
+    # INVARIANTS block: a mention in a comment must not satisfy this.
+    assert "StuckImpliesAllDone == Stuck => AllDone" in model
+    safety_invariants = _cfg_invariants((FORMAL_DIR / "ScoutBModel.cfg").read_text())
+    assert "StuckImpliesAllDone" in safety_invariants, safety_invariants
+    assert "DeadlockFreedom" in safety_invariants, safety_invariants
+    assert "NoOpMismatchHang" not in safety_invariants, (
+        "NoOpMismatchHang belongs to the op-mismatch negative; adding it here "
+        "would make the safety cfg violate two invariants in one run"
+    )
+
+
+def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
+    """Four relaxations, four invariants, four result tokens.
+
+    Each says something different: relaxing communicator-site agreement
+    deadlocks; deleting the stream edge removes that deadlock; relaxing
+    operation agreement hangs for an unrelated reason; additionally dropping
+    NCCL's matching guard corrupts the rendezvous instead of hanging. Collapsing
+    any two would lose the distinction between an ordering hazard and a
+    divergent-program hazard.
+    """
+
+    runner = B_MODEL_RUNNER.read_text()
+    for token in (
+        "SCOUT_B_MODEL_DIVERGENT",
+        "SCOUT_B_MODEL_WITNESS",
+        "SCOUT_B_MODEL_OPMISMATCH",
+        "SCOUT_B_MODEL_STREAM_EDGE",
+        "SCOUT_B_MODEL_UNGUARDED",
+    ):
+        assert token in runner, token
+
+    expected_invariant = {
+        "ScoutBModelReach.cfg": "ModelNeverCompletes",
+        "ScoutBModelDivergent.cfg": "DeadlockFreedom",
+        "ScoutBModelWitness.cfg": "NoCrossCommunicatorCycleWitness",
+        "ScoutBModelOpMismatch.cfg": "NoOpMismatchHang",
+        "ScoutBModelStreamShape.cfg": "StreamEdgeIsInert",
+        "ScoutBModelUnguarded.cfg": "RendezvousOpAgreement",
+    }
+    for name, invariant in expected_invariant.items():
+        # Each negative config checks exactly one invariant: the shared
+        # classifier requires exactly one Error line, so a config where two
+        # invariants are violable would flake on schedule order. Parsed from
+        # the block, so a comment naming an invariant proves nothing.
+        assert _cfg_invariants((FORMAL_DIR / name).read_text()) == [invariant], name
+
+    divergent = _cfg_settings((FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text())
+    opmismatch = _cfg_settings((FORMAL_DIR / "ScoutBModelOpMismatch.cfg").read_text())
+    unguarded = _cfg_settings((FORMAL_DIR / "ScoutBModelUnguarded.cfg").read_text())
+
+    # The ordering negative keeps operation agreement, which is what makes its
+    # witness an ordering hazard; the mismatch negative is its mirror image.
+    assert divergent["RequireUniformProgramOps"] == "TRUE"
+    assert divergent["RequireUniformProgramComms"] == "FALSE"
+    assert opmismatch["RequireUniformProgramOps"] == "FALSE"
+    assert opmismatch["RequireUniformProgramComms"] == "TRUE"
+    # Both keep NCCL's own guard; only the unguarded case drops it.
+    assert divergent["RequireMatchedIssueOrder"] == "TRUE"
+    assert opmismatch["RequireMatchedIssueOrder"] == "TRUE"
+    assert unguarded["RequireMatchedIssueOrder"] == "FALSE"
 
 
 def test_lint_path_file_does_not_collide_across_runs() -> None:

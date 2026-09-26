@@ -30,10 +30,15 @@ usage() {
   cat <<'EOF'
 Usage: experiments/qwen3_formal_verifier/run_formal_tier0.sh [options]
 
-Run the trace-free tier 0 checks on CPU:
+Run the trace-free tier 0 checks on CPU. It is minutes, not seconds: the
+Scout B model target alone runs seven TLC searches over eight communicators.
+Still no GPU, no observed trace and no sealed bundle.
   1. the tier0 Bazel formal suite (TLC and Lean smoke, the abstract Scout A
-     model plus its relaxed-guard negative, the abstract Scout B DPxTP model
-     plus its non-vacuity, divergence and unguarded negatives);
+     model plus its relaxed-guard negative, and the abstract Scout B DPxTP
+     model with all six of its companion checks: non-vacuity, the
+     order-divergence deadlock, that deadlock's witness shape, the
+     operation-mismatch hang, the stream-edge shape plus its
+     per-communicator-stream mutant, and the unguarded rendezvous);
   2. changed-source lint inside Insula -- a deliberate subset of the
      pre-commit hooks, skipping the slow or gate-only ones
      (no-commit-to-branch, check-added-large-files, lychee-link-checker),
@@ -148,8 +153,9 @@ if ((RUN_LINT)); then
         git add -- "${source_files[@]}"
         # A deliberate subset: the link checker and large-file hooks are slow
         # or network-bound, and no-commit-to-branch is a commit-time concern.
-        # The gate still runs the complete set, so tier 0 stays in the seconds
-        # range without lowering the bar at the commit boundary. The split is
+        # The gate still runs the complete set, so tier 0 stays well under the
+        # model-checking time without lowering the bar at the commit boundary.
+        # The split is
         # pinned by test_tier0_lint_classifies_every_pre_commit_hook, so adding
         # a hook to .pre-commit-config.yaml forces a choice here rather than
         # being skipped silently forever.

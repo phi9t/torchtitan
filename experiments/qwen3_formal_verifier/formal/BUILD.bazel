@@ -58,8 +58,11 @@ filegroup(
         "ScoutBModel.cfg",
         "ScoutBModel.tla",
         "ScoutBModelDivergent.cfg",
+        "ScoutBModelOpMismatch.cfg",
         "ScoutBModelReach.cfg",
+        "ScoutBModelStreamShape.cfg",
         "ScoutBModelUnguarded.cfg",
+        "ScoutBModelWitness.cfg",
     ],
 )
 
@@ -282,8 +285,10 @@ test_suite(
 )
 
 # Tier 0: the trace-free checks. Every target here reads only hand-written
-# sources, so it runs on CPU in seconds without a generated facts module. This
-# suite is for iteration and is not a gate: no attempt bundle is sealed from it.
+# sources, so it runs on CPU without a generated facts module, a GPU or an
+# attempt bundle. Minutes rather than seconds: tlc_scout_b_model_test runs seven
+# TLC searches over eight communicators. This suite is for iteration and is not
+# a gate: no attempt bundle is sealed from it.
 test_suite(
     name = "tier0_formal_tests",
     tests = [

@@ -47,7 +47,9 @@ timeouts, or any other checker/infrastructure error fails the target.
 
 Most of the formal work does not depend on an observed run at all. The abstract
 models, their negatives and the non-vacuity refutations are properties of the
-specifications, so they can be checked on CPU in seconds:
+specifications, so they can be checked on CPU without a trace, a GPU or a
+sealed bundle -- minutes rather than seconds, since the Scout B model target
+runs seven TLC searches over eight communicators:
 
 ```bash
 scripts/run_formal_checks.sh --networked --suite tier0
@@ -64,6 +66,20 @@ its two configurations and `ScoutLifecycle.tla`, while
 `ScoutAFacts.tla`. Both halves remain in `scout_a_formal_tests` and
 `scout_b_formal_tests`, so the sealed gate runs every check it ran before the
 split.
+
+`tlc_scout_b_model_test` is seven TLC searches over the abstract DPxTP protocol,
+each with its own result token: `SCOUT_B_MODEL_SAFETY` (every safety invariant up
+to the bound the token reports), `SCOUT_B_MODEL_NONVACUOUS` (completion is
+reachable), `SCOUT_B_MODEL_DIVERGENT` (relaxing only communicator-site agreement
+makes `DeadlockFreedom` false), `SCOUT_B_MODEL_WITNESS` (and that deadlock is a
+balanced cross-communicator cycle at full budget, not any other stuck state),
+`SCOUT_B_MODEL_OPMISMATCH` (relaxing operation agreement instead hangs on an
+intra-communicator mismatch), `SCOUT_B_MODEL_STREAM_EDGE` plus
+`SCOUT_B_MODEL_STREAM_EDGE_MUTANT` (some rank holds two distinct communicators on
+one stream, and substituting `StreamOfIssue(e) == e.comm` makes that stop being
+true), and `SCOUT_B_MODEL_UNGUARDED` (dropping NCCL's matching guard corrupts the
+rendezvous instead of hanging). The claim inventory in the header of
+`ScoutBModel.tla` states exactly what each one establishes.
 
 `run_formal_tier0.sh` adds changed-source lint and the focused
 `tests/unit_tests/test_formal_toolchain.py` contracts. It is an iteration aid

@@ -112,3 +112,34 @@ HEAD `6a8035ced282`, all stages exit 0: `source_manifest`, `focused_pytest`,
 
 Tier 0 end to end on the same state: 4/4 formal targets, 10 lint hooks passed,
 pyrefly 0 errors, 66 focused tests passed, 25s.
+
+## Operational hazard: the shared formal cache gets wiped
+
+Observed three times in one working session, most recently reducing
+`~/.cache/torchtitan/formal` from 8.9 GB to 20 KB, leaving only the managed
+`tools/` and `locks/` skeletons while the whole `bazel/` tree -- vendored
+dependencies, repository cache and output base -- disappeared. The immediate
+symptom is:
+
+```
+error: pinned Bazel 9.2.0 is not cached for --no-fetch
+```
+
+and the remedy is one `--networked` run, which re-downloads roughly 9 GB.
+
+What it is not: no script under `scripts/` removes that path, disk was at 54%
+with 1.3 TB free, and there is no user crontab. `~/.cache` itself had its mtime
+updated at the moment of the wipe, which is consistent with
+`~/.cache/torchtitan` being removed wholesale and then partially recreated by
+`ensure_cache_dir`. The most likely cause is a concurrent session on this shared
+machine, since two agents reported the same thing while working in parallel.
+
+- [ ] Detect it early and say so. `run_formal_checks.sh --no-fetch` already
+  fails with a clear message; the tier-0 entrypoint should check cache health
+  before doing anything else, so a wipe costs a second rather than a confusing
+  mid-run failure.
+- [ ] Consider making the cache location per-session, or advisory-locking it, so
+  concurrent sessions cannot destroy each other's materialization. A 9 GB
+  re-download is a heavy price for a shared mutable directory with no owner.
+- [ ] Record the remedy where someone hitting it will look: the message names
+  `--no-fetch` but not the fix.

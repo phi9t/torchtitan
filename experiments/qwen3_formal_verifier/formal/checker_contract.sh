@@ -48,6 +48,25 @@ formal_classify_tlc_negative() {
     <<<"${output}"
 }
 
+# An invariant that mentions no VARIABLES is a constant expression, and TLC
+# reports a false one as "The invariant of X is equal to FALSE" with exit 151 --
+# not as an initial-state violation with exit 12, and not through the state
+# predicate paths above. Verified against the real checker, not assumed.
+# StreamEdgeIsInert is deliberately such an invariant: it reads only the
+# constants, so refuting it needs its own classifier rather than being squeezed
+# into one that would then accept a weaker outcome for every other negative.
+formal_classify_tlc_constant_false() {
+  local status="$1"
+  local output="$2"
+  local invariant="$3"
+  [[ "${status}" -eq 151 ]] || return 1
+  ! formal_has_infrastructure_error "${output}" || return 1
+  formal_terminated_normally "${output}" || return 1
+  [[ "$(grep -c '^Error:' <<<"${output}")" -eq 1 ]] || return 1
+  grep -Fxq "Error: The invariant of ${invariant} is equal to FALSE" \
+    <<<"${output}"
+}
+
 formal_classify_tlc_transition_negative() {
   local status="$1"
   local output="$2"
