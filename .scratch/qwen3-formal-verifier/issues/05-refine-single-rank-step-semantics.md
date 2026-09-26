@@ -8,6 +8,22 @@ checked by explicit transition semantics and matching Lean propositions.
 
 **Status:** ready-for-agent
 
+## Status note (2026-09-26): partly delivered by ticket 10
+
+Ticket 10 delivered the TLA+ half: `ScoutAModel.tla` is a real transition
+system (8 variables, 13 guarded actions, 25 distinct states, outdegree 3) with
+the phase-order, gradient-readiness and step-completion invariants checked over
+every interleaving, plus a negative TLC discovers by exploration.
+
+What remains from this ticket:
+
+- The Lean half. Lean expresses these as `Bool` predicates closed by `rfl` over
+  the observed trace, which is an evaluation, not the matching independent
+  statement this ticket asks for. Tracked as ticket 14.
+- The claim that invariants hold for all schedules rather than up to a bound.
+  Tracked as ticket 13.
+
+
 - [ ] The refinement defines the supported phase state machine and the exact
   evidence that advances each transition.
 - [ ] TLA+ and Lean independently express matching invariants for forward before

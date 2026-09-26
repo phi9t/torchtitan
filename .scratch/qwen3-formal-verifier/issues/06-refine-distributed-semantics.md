@@ -8,6 +8,31 @@ work, executor, producer, and causal consistency by both formal backends.
 
 **Status:** ready-for-agent
 
+## Status note (2026-09-26): partly delivered by ticket 11
+
+Ticket 11 delivered the protocol layer: `ScoutBModel.tla` with per-communicator
+FIFO, rendezvous membership and op agreement, stream-head ordering and deadlock
+freedom, checked over every interleaving; `PerCommunicatorIssueOrderAgreement`
+checked against the real 108-collective run; and negatives that TLC discovers,
+including the one showing order agreement is necessary but **not** sufficient.
+
+Two corrections from that work that this ticket's wording predates:
+
+- The global communicator key is `process_group.canonical_id`. There are eight
+  communicator instances, not four; `runtime_pg_id` is per-rank local numbering
+  and denotes different communicators on different ranks.
+- The exported collective order was lexicographic by `work_id`, not issue
+  order. Issue order comes from each work's `collective.enqueued` event.
+
+What remains from this ticket:
+
+- Placement is still two booleans per rank, not the observed 74 per-rank
+  placements. Tracked as ticket 17.
+- Collective payload sizes and dtypes are unmodelled. Tracked as ticket 15.
+- Producer correlation is inferred by positional zip and presented as observed.
+  Tracked as ticket 18 (labelling) and ticket 09 (the joined-key fix).
+
+
 - [ ] TLA+ and Lean independently express matching DP-group and TP-group shape,
   rank-coordinate, tensor-placement, work-membership, and shard-agreement
   invariants.

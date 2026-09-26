@@ -9,6 +9,22 @@ semantics.
 
 **Status:** ready-for-agent
 
+## Status note (2026-09-26): single-rank half delivered by ticket 10
+
+Ticket 10 delivered the 1x1 bridge: `ScoutARefine.tla` plus
+`ScoutARefineBad.tla`, the latter refused for the right reason under four
+invariants (corruption isolated, not admitted, refusal not later than the
+mutation, mutation never emitted).
+
+The 2x2 bridge is tracked separately as ticket 12, because the distributed case
+has a trap this ticket's wording does not anticipate: the observed per-rank
+`started`/`completed` sub-order is **synthetic**, appended contiguously post
+hoc from the Flight Recorder with timestamps dropped. A bridge replaying
+per-rank event order would certify a full serialization that never happened,
+and would pass, since a serialized schedule satisfies every guard. Only the
+`enqueued` sub-order is faithful.
+
+
 - [ ] The bridge consumes a validated stable trace and produces checker inputs
   without changing the trace facts or formal semantics.
 - [ ] A documented refinement relation maps the normalized initial state and
