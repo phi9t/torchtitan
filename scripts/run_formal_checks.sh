@@ -86,11 +86,14 @@ ensure_cache_dir() {
 
 usage() {
   cat <<'EOF'
-Usage: scripts/run_formal_checks.sh --networked|--no-fetch [--suite smoke|scout-a|scout-b]
+Usage: scripts/run_formal_checks.sh --networked|--no-fetch
+                                   [--suite smoke|tier0|scout-a|scout-b]
 
   --networked  Materialize integrity-pinned formal dependencies, then test.
   --no-fetch   Disable network in Insula and Bazel; reuse materialized caches.
-  --suite      Select the smoke, Scout A, or Scout B regression suite.
+  --suite      Select the smoke, tier 0, Scout A, or Scout B suite. tier0 is
+               the trace-free CPU subset; it is an iteration aid and is not a
+               gate, because it checks no generated facts module.
 
 Environment:
   TORCHTITAN_FORMAL_CACHE_HOST  Persistent host cache outside the checkout.
@@ -107,7 +110,8 @@ suite="smoke"
 reentry_args=("${mode_arg}")
 if [[ $# -eq 3 ]]; then
   if [[ "$2" != "--suite" ]] \
-    || [[ "$3" != "smoke" && "$3" != "scout-a" && "$3" != "scout-b" ]]; then
+    || [[ "$3" != "smoke" && "$3" != "tier0" \
+      && "$3" != "scout-a" && "$3" != "scout-b" ]]; then
     usage >&2
     exit 2
   fi
@@ -206,12 +210,13 @@ symlink_prefix="$(ensure_cache_dir bazel/workspace-links)/"
 vendor_dir="$(ensure_cache_dir bazel/vendor)"
 local_registry="file://${vendor_dir}/_registries/bcr.bazel.build"
 vendor_registry="${vendor_dir}/_registries/bcr.bazel.build/bazel_registry.json"
-formal_target="//experiments/qwen3_formal_verifier/formal:formal_smoke_tests"
-if [[ "${suite}" == "scout-a" ]]; then
-  formal_target="//experiments/qwen3_formal_verifier/formal:scout_a_formal_tests"
-elif [[ "${suite}" == "scout-b" ]]; then
-  formal_target="//experiments/qwen3_formal_verifier/formal:scout_b_formal_tests"
-fi
+formal_package="//experiments/qwen3_formal_verifier/formal"
+formal_target="${formal_package}:formal_smoke_tests"
+case "${suite}" in
+  tier0) formal_target="${formal_package}:tier0_formal_tests" ;;
+  scout-a) formal_target="${formal_package}:scout_a_formal_tests" ;;
+  scout-b) formal_target="${formal_package}:scout_b_formal_tests" ;;
+esac
 common_flags=(
   --repository_cache="${repository_cache}"
   --symlink_prefix="${symlink_prefix}"
@@ -230,6 +235,11 @@ printf 'formal rootfs sentinel: TORCHTITAN_IN_ROOTFS=%s\n' "${TORCHTITAN_IN_ROOT
 printf 'formal cache: %s\n' "${formal_cache}"
 printf 'formal mode: %s\n' "${mode}"
 printf 'formal suite: %s\n' "${suite}"
+if [[ "${suite}" == "tier0" ]]; then
+  # Printed into whatever log captures this run so a tier-0 transcript cannot
+  # be mistaken for gate evidence later.
+  printf 'formal tier: 0 trace-free subset; not a gate pass\n'
+fi
 if [[ "${mode}" == "no-fetch" && ! -f "${vendor_registry}" ]]; then
   die "--no-fetch requires materialized Bazel dependencies; run --networked first"
 fi

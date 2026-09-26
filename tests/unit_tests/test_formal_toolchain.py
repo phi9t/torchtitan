@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -813,13 +814,107 @@ def test_model_runner_does_not_clobber_errexit_around_expected_failures() -> Non
     assert "|| status=$?" in helper
 
 
-def test_model_test_is_wired_into_both_formal_suites() -> None:
-    build = BUILD_FILE.read_text()
+def test_both_model_halves_are_wired_into_both_formal_suites() -> None:
+    """The abstract/refinement split must not drop a check from the gate.
 
-    assert 'name = "tlc_scout_a_model_test"' in build
+    The model checks are one target per input set: the abstract half reads only
+    hand-written sources so it can run in tier 0, and the refinement half reads
+    the generated facts. Both must stay in both sealed suites.
+    """
+
+    build = BUILD_FILE.read_text()
+    _, sh_tests, suites = _parse_build_targets(build)
+
+    halves = ("tlc_scout_a_model_abstract_test", "tlc_scout_a_model_refine_test")
+    for half in halves:
+        assert half in sh_tests, half
     for suite in ("scout_a_formal_tests", "scout_b_formal_tests"):
-        block = build.split(f'name = "{suite}"')[1].split(")")[0]
-        assert ":tlc_scout_a_model_test" in block, suite
+        members = {label.lstrip(":") for label in suites[suite]}
+        for half in halves:
+            assert half in members, (suite, half)
+
+
+def test_tier0_lint_classifies_every_pre_commit_hook() -> None:
+    """Tier-0 lint runs a subset, so every hook must be a deliberate choice.
+
+    Tier 0 names the hooks it runs. A hook added to .pre-commit-config.yaml and
+    not named here would be skipped by tier 0 forever with nothing noticing, so
+    the union of the hooks it runs and the ones it deliberately defers to the
+    gate has to account for the whole config.
+    """
+
+    config = (REPO_ROOT / ".pre-commit-config.yaml").read_text()
+    declared = set(re.findall(r"^\s*-\s*id:\s*(\S+)", config, flags=re.MULTILINE))
+
+    runner = TIER0_RUNNER.read_text()
+    loop = runner.split("for hook in \\\n")[1].split("do\n")[0]
+    run_here = set(loop.replace("\\", " ").split())
+
+    # Deferred to the gate: slow or network-bound, or a commit-time concern.
+    # pyrefly-check is not skipped -- tier 0 invokes pyrefly directly on the
+    # changed Python files instead of through pre-commit.
+    deferred = {
+        "no-commit-to-branch",
+        "check-added-large-files",
+        "lychee-link-checker",
+        "pyrefly-check",
+    }
+
+    assert run_here <= declared, run_here - declared
+    assert run_here | deferred == declared, declared - (run_here | deferred)
+    assert "pyrefly" in runner
+
+
+def test_every_suite_maps_to_a_declared_bazel_suite() -> None:
+    """The wrapper's suite switch is the only thing selecting the gate's checks.
+
+    Nothing validates the sealed transcript's result tokens, so if this switch
+    resolved --suite scout-b to the trace-free tier-0 suite the gate would stop
+    checking the facts and the refinement bridge without failing. Tier 0 exists
+    to be weaker, which is exactly why the mapping needs pinning.
+    """
+
+    wrapper = FORMAL_WRAPPER.read_text()
+    _, _, suites = _parse_build_targets(BUILD_FILE.read_text())
+
+    mapping = dict(
+        re.findall(
+            r"^\s*([\w-]+)\)\s*formal_target=" r'"\$\{formal_package\}:(\w+)" ;;',
+            wrapper,
+            flags=re.MULTILINE,
+        )
+    )
+    default_match = re.search(
+        r'^formal_target="\$\{formal_package\}:(\w+)"$', wrapper, flags=re.MULTILINE
+    )
+    assert default_match is not None
+    mapping["smoke"] = default_match.group(1)
+
+    assert mapping == {
+        "smoke": "formal_smoke_tests",
+        "tier0": "tier0_formal_tests",
+        "scout-a": "scout_a_formal_tests",
+        "scout-b": "scout_b_formal_tests",
+    }, mapping
+    for suite in mapping.values():
+        assert suite in suites, suite
+
+
+def test_each_model_half_is_told_to_run_its_own_half() -> None:
+    """Input coverage does not imply the check ran.
+
+    Both halves invoke one runner and are distinguished only by a positional
+    argument, so a target can carry the refinement inputs while being told to
+    run the abstract half. That would silently stop the sealed gate checking
+    that the observed trace is admitted, and an inputs-only test cannot see it.
+    """
+
+    args = _parse_sh_test_args(BUILD_FILE.read_text())
+
+    for half in ("abstract", "refine"):
+        target = f"tlc_scout_a_model_{half}_test"
+        assert target in args, target
+        assert args[target][-1] == half, (target, args[target])
 
 
 def test_generated_checker_products_are_refused_from_source_identity(
@@ -1120,3 +1215,366 @@ def test_lint_path_file_does_not_collide_across_runs() -> None:
         ).read_text()
         assert "mktemp /project/tmp/lint-paths." in runner, name
         assert '"/project/tmp/${lint_identity}.paths"' not in runner, name
+
+
+TIER0_RUNNER = (
+    REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "run_formal_tier0.sh"
+)
+
+
+def _parse_build_targets(
+    build: str,
+) -> tuple[dict[str, set[str]], dict[str, set[str]], dict[str, list[str]]]:
+    """Parse a BUILD file into filegroup srcs, sh_test inputs, and suites.
+
+    Returns (filegroups, sh_tests, suites) where filegroups maps a filegroup
+    name to its srcs, sh_tests maps a test name to its srcs plus data labels,
+    and suites maps a test_suite name to its member labels. Deriving the sets
+    from the BUILD text is the point: a test that pattern-matched an expected
+    label list would pass while the targets behind those labels changed inputs.
+    """
+
+    filegroups: dict[str, set[str]] = {}
+    sh_tests: dict[str, set[str]] = {}
+    suites: dict[str, list[str]] = {}
+    # Rule blocks start at column 0 and end at a lone ")" at column 0.
+    for match in re.finditer(
+        r"^(\w+)\(\n(.*?)^\)$", build, flags=re.DOTALL | re.MULTILINE
+    ):
+        rule, body = match.group(1), match.group(2)
+        name_match = re.search(r'^\s*name = "([^"]+)",', body, flags=re.MULTILINE)
+        if name_match is None:
+            continue
+        name = name_match.group(1)
+
+        def list_attr(attr: str, body: str = body) -> list[str]:
+            attr_match = re.search(
+                rf"^\s*{attr} = \[([^\]]*)\]", body, flags=re.MULTILINE
+            )
+            if attr_match is None:
+                return []
+            return re.findall(r'"([^"]+)"', attr_match.group(1))
+
+        if rule == "filegroup":
+            filegroups[name] = set(list_attr("srcs"))
+        elif rule == "sh_test":
+            sh_tests[name] = set(list_attr("srcs")) | set(list_attr("data"))
+        elif rule == "test_suite":
+            suites[name] = list_attr("tests")
+    return filegroups, sh_tests, suites
+
+
+def _parse_sh_test_args(build: str) -> dict[str, list[str]]:
+    """Map each sh_test name to its args list.
+
+    Kept separate from _parse_build_targets so that helper's callers keep their
+    three-tuple contract. Args matter because after the abstract/refinement
+    split a target's inputs no longer determine which check it runs: both
+    halves share one runner and are told apart by a positional argument.
+    """
+
+    args: dict[str, list[str]] = {}
+    for match in re.finditer(
+        r"^sh_test\(\n(.*?)^\)$", build, flags=re.DOTALL | re.MULTILINE
+    ):
+        body = match.group(1)
+        name_match = re.search(r'^\s*name = "([^"]+)",', body, flags=re.MULTILINE)
+        args_match = re.search(r"^\s*args = \[([^\]]*)\]", body, flags=re.MULTILINE)
+        if name_match is None or args_match is None:
+            continue
+        args[name_match.group(1)] = re.findall(r'"([^"]+)"', args_match.group(1))
+    return args
+
+
+def _suite_input_files(build: str, suite: str) -> set[str]:
+    """Resolve a test_suite to the package-local files its members read."""
+
+    filegroups, sh_tests, suites = _parse_build_targets(build)
+    assert suite in suites, f"{suite} is not declared in the BUILD file"
+    files: set[str] = set()
+    for member in suites[suite]:
+        target = member.lstrip(":")
+        assert target in sh_tests, f"{suite} refers to unknown target {target}"
+        for label in sh_tests[target]:
+            if label.startswith("@"):
+                # External toolchain or archive, not a package source file.
+                continue
+            entry = label.lstrip(":")
+            files |= filegroups.get(entry, {entry})
+    return files
+
+
+def test_tier0_formal_suite_reads_no_generated_facts_module() -> None:
+    """Tier 0 must be runnable without an exported run.
+
+    A *Facts module is generated from a sealed attempt bundle, so a tier-0
+    target that read one would reintroduce the dependency the tier exists to
+    remove. The forbidden set is derived from what the BUILD file actually
+    wires up, not from a list kept in step by hand.
+    """
+
+    build = BUILD_FILE.read_text()
+    tier0_files = _suite_input_files(build, "tier0_formal_tests")
+
+    assert tier0_files, "the tier 0 suite resolved to no input files"
+    facts = sorted(
+        name
+        for name in tier0_files
+        if name.endswith("Facts.tla") or name.endswith("Facts.lean")
+    )
+    assert facts == [], facts
+
+    # Guard against a vacuous check: generated facts modules must exist in the
+    # package, so an empty result above means exclusion, not absence.
+    assert list(FORMAL_DIR.glob("*Facts.tla"))
+    assert list(FORMAL_DIR.glob("*Facts.lean"))
+
+
+def test_tier0_targets_are_a_subset_of_the_sealed_scout_b_suite() -> None:
+    """Tier 0 may only run checks the gate also runs.
+
+    Otherwise a check could pass in iteration and never be sealed, which is the
+    same hole as a tier-0 pass being presented as a gate pass.
+    """
+
+    build = BUILD_FILE.read_text()
+    _, _, suites = _parse_build_targets(build)
+    tier0 = {label.lstrip(":") for label in suites["tier0_formal_tests"]}
+    sealed = {label.lstrip(":") for label in suites["scout_b_formal_tests"]}
+
+    assert tier0, "the tier 0 suite declares no members"
+    assert tier0 <= sealed, tier0 - sealed
+
+
+# Generated from the Python trace IR for reference and read by no checker
+# target. Every other formal source must be reachable from a sealed suite.
+UNCHECKED_FORMAL_SOURCES = {"Qwen3StepTrace.lean", "Qwen3StepTrace.tla"}
+
+
+def _formal_sources(*patterns: str) -> set[str]:
+    return {
+        path.name
+        for pattern in patterns
+        for path in FORMAL_DIR.glob(pattern)
+        if path.suffix in {".tla", ".cfg", ".lean"}
+    }
+
+
+def test_sealed_suites_still_cover_every_checked_formal_source() -> None:
+    """No-regression property for the abstract/refinement split.
+
+    Splitting one target into two renames labels, so the durable invariant is
+    over inputs, not target names: every formal source a checker is supposed to
+    read must still be reachable from the sealed suite that owns it. A split
+    that quietly left the refinement bridge out of the gate would surface here
+    as an uncovered ScoutARefine module.
+    """
+
+    build = BUILD_FILE.read_text()
+
+    sealed = _suite_input_files(build, "scout_b_formal_tests")
+    every_source = _formal_sources("*")
+    assert UNCHECKED_FORMAL_SOURCES < every_source, "stale exception list"
+    uncovered = every_source - UNCHECKED_FORMAL_SOURCES - sealed
+    assert uncovered == set(), sorted(uncovered)
+
+    scout_a = _suite_input_files(build, "scout_a_formal_tests")
+    scout_a_sources = _formal_sources(
+        "ScoutA*", "ScoutLifecycle*", "TlcSmoke*", "LeanSmoke*"
+    )
+    assert scout_a_sources
+    assert scout_a_sources <= scout_a, sorted(scout_a_sources - scout_a)
+
+
+def test_every_scout_a_model_source_stays_in_both_sealed_suites() -> None:
+    """Durable form of the no-regression property, independent of git history.
+
+    Globbed from the package, so a new model or refinement configuration that
+    nothing wires into the sealed suites fails here rather than sitting unused.
+    """
+
+    build = BUILD_FILE.read_text()
+    model_sources = _formal_sources(
+        "ScoutAModel*", "ScoutARefine*", "ScoutLifecycle.tla"
+    )
+    assert model_sources
+
+    for suite in ("scout_a_formal_tests", "scout_b_formal_tests"):
+        covered = _suite_input_files(build, suite)
+        assert model_sources <= covered, (suite, sorted(model_sources - covered))
+
+
+def _tier0_environment(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
+    """Stub the formal wrapper and the rootfs entrypoint for a tier-0 run."""
+
+    formal_log = tmp_path / "formal-checks.args"
+    entrypoint_log = tmp_path / "entrypoint.args"
+    formal_checks = tmp_path / "fake-run-formal-checks.sh"
+    formal_checks.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "%s\\n" "$@" >> "${TIER0_FORMAL_LOG}"\n'
+    )
+    formal_checks.chmod(0o755)
+    entrypoint = tmp_path / "fake-enter-rootfs.sh"
+    entrypoint.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "%s\\n" "${TORCHTITAN_ROOTFS_NETWORK:-}" >> "${TIER0_ENTRY_LOG}"\n'
+    )
+    entrypoint.chmod(0o755)
+    # Deterministic changed-file set: whether this checkout happens to be dirty
+    # must not decide whether the lint stage runs, or the assertions below would
+    # pass or fail with the working tree rather than with the runner.
+    git_stub = tmp_path / "fake-git.sh"
+    git_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case "$*" in\n'
+        "  *ls-files*) : ;;\n"
+        "  *diff*)\n"
+        "    printf 'README.md\\0scripts/run_formal_checks.sh\\0'\n"
+        "    ;;\n"
+        '  *) echo "unexpected git invocation: $*" >&2; exit 2 ;;\n'
+        "esac\n"
+    )
+    git_stub.chmod(0o755)
+    rootfs = tmp_path / "rootfs"
+    rootfs.mkdir()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(tmp_path / "home"),
+            "TIER0_FORMAL_LOG": str(formal_log),
+            "TIER0_ENTRY_LOG": str(entrypoint_log),
+            "TORCHTITAN_FORMAL_CACHE_HOST": str(tmp_path / "formal-cache"),
+            "TORCHTITAN_TIER0_FORMAL_CHECKS": str(formal_checks),
+            "TORCHTITAN_SCOUT_ROOTFS_ENTRYPOINT": str(entrypoint),
+            "TORCHTITAN_SCOUT_ROOTFS": str(rootfs),
+            "TORCHTITAN_SCOUT_GIT": str(git_stub),
+        }
+    )
+    env.pop("TORCHTITAN_IN_ROOTFS", None)
+    return env, formal_log, entrypoint_log
+
+
+def _run_tier0(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", str(TIER0_RUNNER), *args],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+
+def _outputs_snapshot() -> set[str]:
+    outputs = REPO_ROOT / "outputs"
+    if not outputs.exists():
+        return set()
+    return {str(path.relative_to(outputs)) for path in outputs.rglob("*")}
+
+
+def test_tier0_runner_selects_the_tier0_suite_and_seals_no_bundle(
+    tmp_path: Path,
+) -> None:
+    """The whole safety argument of the tier is that it produces no evidence."""
+
+    env, formal_log, entrypoint_log = _tier0_environment(tmp_path)
+    before = _outputs_snapshot()
+
+    result = _run_tier0(env, "--no-fetch")
+
+    assert result.returncode == 0, result.stdout
+    assert formal_log.read_text().splitlines() == [
+        "--no-fetch",
+        "--suite",
+        "tier0",
+    ]
+    # Lint runs networked for hook downloads; the pytest stage stays offline.
+    assert entrypoint_log.read_text().splitlines() == ["networked", "offline"]
+    assert "not-a-gate" in result.stdout
+    assert "NOT a gate pass" in result.stdout
+    assert _outputs_snapshot() == before
+
+
+def test_tier0_runner_defaults_to_networked_and_honours_skips(
+    tmp_path: Path,
+) -> None:
+    env, formal_log, entrypoint_log = _tier0_environment(tmp_path)
+
+    result = _run_tier0(env, "--skip-lint", "--skip-pytest")
+
+    assert result.returncode == 0, result.stdout
+    assert formal_log.read_text().splitlines() == [
+        "--networked",
+        "--suite",
+        "tier0",
+    ]
+    assert not entrypoint_log.exists()
+
+
+@pytest.mark.parametrize(
+    ("args", "diagnostic"),
+    [
+        # The gate's evidence-bundle arguments get their own diagnostic. Testing
+        # only the exit status would pass if these fell into the catch-all, which
+        # would drop the explanation a reader reaching for them needs.
+        pytest.param(
+            ["--attempt-id", "four-rank-dp2-tp2-v1"],
+            "is a gate argument",
+            id="attempt_id",
+        ),
+        pytest.param(
+            ["--output-root", "outputs/x"], "is a gate argument", id="output_root"
+        ),
+        pytest.param(["--run-id", "qfv"], "is a gate argument", id="run_id"),
+        pytest.param(
+            ["--update-artifacts"], "is a gate argument", id="update_artifacts"
+        ),
+        pytest.param(
+            ["--suite", "scout-b"], "unknown argument", id="unknown_suite_argument"
+        ),
+        pytest.param(
+            ["--networked", "extra"], "unknown argument", id="stray_positional"
+        ),
+    ],
+)
+def test_tier0_runner_refuses_gate_and_unknown_arguments(
+    tmp_path: Path, args: list[str], diagnostic: str
+) -> None:
+    """Refuse before running anything, so the refusal cannot be half a run."""
+
+    env, formal_log, _ = _tier0_environment(tmp_path)
+
+    result = _run_tier0(env, *args)
+
+    assert result.returncode != 0
+    assert "Usage:" in result.stdout
+    assert diagnostic in result.stdout, result.stdout
+    assert not formal_log.exists()
+
+
+def test_tier0_runner_refuses_to_run_inside_the_rootfs(tmp_path: Path) -> None:
+    """The formal wrapper needs a fresh sandbox it establishes itself."""
+
+    env, formal_log, _ = _tier0_environment(tmp_path)
+    env["TORCHTITAN_IN_ROOTFS"] = "1"
+
+    result = _run_tier0(env)
+
+    assert result.returncode != 0
+    assert "outside Insula" in result.stdout
+    assert not formal_log.exists()
+
+
+def test_tier0_runner_help_states_it_is_not_a_gate(tmp_path: Path) -> None:
+    env, formal_log, _ = _tier0_environment(tmp_path)
+
+    result = _run_tier0(env, "--help")
+
+    assert result.returncode == 0, result.stdout
+    assert "not a gate" in result.stdout
+    assert not formal_log.exists()

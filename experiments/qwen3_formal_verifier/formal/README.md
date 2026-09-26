@@ -43,6 +43,36 @@ requires the controlled invalid source to reject exactly
 `FormalSmoke.ControlledInvalidProposition`. Tool absence, malformed input,
 timeouts, or any other checker/infrastructure error fails the target.
 
+## Tier 0: the trace-free suite
+
+Most of the formal work does not depend on an observed run at all. The abstract
+models, their negatives and the non-vacuity refutations are properties of the
+specifications, so they can be checked on CPU in seconds:
+
+```bash
+scripts/run_formal_checks.sh --networked --suite tier0
+scripts/run_formal_checks.sh --no-fetch --suite tier0
+experiments/qwen3_formal_verifier/run_formal_tier0.sh --no-fetch
+```
+
+The `tier0` suite is exactly the targets whose inputs are hand-written:
+`tlc_smoke_test`, `lean_smoke_test`, `tlc_scout_a_model_abstract_test`, and
+`tlc_scout_b_model_test`. The Scout A model checks are split by input set for
+this reason -- `tlc_scout_a_model_abstract_test` reads only `ScoutAModel.tla`,
+its two configurations and `ScoutLifecycle.tla`, while
+`tlc_scout_a_model_refine_test` additionally reads the generated
+`ScoutAFacts.tla`. Both halves remain in `scout_a_formal_tests` and
+`scout_b_formal_tests`, so the sealed gate runs every check it ran before the
+split.
+
+`run_formal_tier0.sh` adds changed-source lint and the focused
+`tests/unit_tests/test_formal_toolchain.py` contracts. It is an iteration aid
+and **not** a gate: it takes no `--output-root`, `--run-id` or `--attempt-id`,
+writes nothing under `outputs/`, and seals no evidence, so a tier-0 pass cannot
+be presented as a Scout A or Scout B gate pass. The trace-dependent checks --
+the refinement bridge, the fact modules, artifact synchronization and the real
+CUDA step -- run only in `run_scout_a.sh` and `run_scout_b.sh`.
+
 ## Scout A lifecycle suite
 
 The Scout A fact modules are generated from the normalized trace of a real
