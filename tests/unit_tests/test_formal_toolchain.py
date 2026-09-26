@@ -1005,3 +1005,118 @@ def test_runners_syntax_check_every_shell_file_not_just_the_first() -> None:
         ).read_text()
         assert 'bash -n "${shell_file}"' in runner, name
         assert 'bash -n "${shell_files[@]}"' not in runner, name
+
+
+B_MODEL = FORMAL_DIR / "ScoutBModel.tla"
+B_MODEL_RUNNER = FORMAL_DIR / "run_tlc_scout_b_model.sh"
+
+
+def test_dpxtp_model_constrains_operation_not_only_communicator_class() -> None:
+    """Regression: constraining only the class admits a program that cannot run.
+
+    An earlier version required ranks to agree on the communicator CLASS at each
+    position but not the operation. TLC immediately found a counterexample in
+    which two members of one communicator issued all_gather and reduce_scatter
+    at the same position, so that communicator could never start and the run
+    hung. The model was wrong, not the protocol: NCCL requires members to agree
+    on the operation, and a single program cannot diverge that way.
+    """
+
+    model = B_MODEL.read_text()
+    schedule = model.split("UniformProgramScheduleOK(candidate) ==")[1]
+    schedule = schedule.split("\n\n")[0]
+
+    assert "CommClass" in schedule, "class agreement must still be required"
+    assert ".op = " in schedule, "operation agreement must also be required"
+
+
+def test_dpxtp_model_carries_streams_because_they_create_the_wait_edge() -> None:
+    """Without streams this model has no deadlock at all.
+
+    Every rank would eventually issue everything and every rendezvous would
+    complete. The wait edge exists only because a CUDA stream executes in issue
+    order, so a collective cannot start until earlier work on its stream is
+    done. Removing AtStreamHead would silently make DeadlockFreedom vacuous.
+    """
+
+    model = B_MODEL.read_text()
+
+    assert "StreamOfIssue" in model
+    assert "AtStreamHead" in model
+    # FSDP's two directional collectives ride dedicated streams; TP rides compute.
+    assert '"rs"' in model and '"ag"' in model and '"compute"' in model
+    # The stream-head condition must gate the rendezvous, not merely exist.
+    ready = model.split("MemberReady(c, r) ==")[1].split("\n\n")[0]
+    assert "AtStreamHead" in ready
+
+
+def test_dpxtp_model_separates_communicators_that_share_a_rank_set() -> None:
+    """mesh_batch, mesh_fsdp and mesh_loss_mesh all span {0,2} but are distinct.
+
+    Treating them as one communicator would erase the cross-communicator wait
+    cycle, which is the hazard the model exists to expose.
+    """
+
+    model = B_MODEL.read_text()
+    wide = model.split("CommMembersWide ==")[1].split("\n\n")[0]
+
+    # Two distinct communicators over the same rank set in the wide instance.
+    assert wide.count("{0, 2}") >= 2, wide
+
+
+def test_dpxtp_model_runner_requires_non_vacuity_and_branching() -> None:
+    """Safety invariants are worthless if no state satisfies the guards."""
+
+    runner = B_MODEL_RUNNER.read_text()
+
+    assert "SCOUT_B_MODEL_NONVACUOUS" in runner
+    assert "ModelNeverCompletes" in runner
+    assert "vacuous" in runner
+    assert "max_outdegree" in runner
+    assert "-ge 2" in runner
+    assert "replay, not a model" in runner
+
+
+def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
+    """The two negatives say different things and must both be reported.
+
+    Relaxing the program-schedule requirement deadlocks; additionally relaxing
+    NCCL's matching guard instead runs a mismatched rendezvous. Reporting only
+    one would lose the point that order agreement is necessary but not
+    sufficient.
+    """
+
+    runner = B_MODEL_RUNNER.read_text()
+    assert "SCOUT_B_MODEL_DIVERGENT" in runner
+    assert "SCOUT_B_MODEL_UNGUARDED" in runner
+
+    divergent = (FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text()
+    unguarded = (FORMAL_DIR / "ScoutBModelUnguarded.cfg").read_text()
+
+    # Each negative config checks exactly one invariant: the shared classifier
+    # requires exactly one Error line, so a config where two invariants are
+    # violable would flake on schedule order.
+    assert divergent.count("INVARIANT") == 1
+    assert unguarded.count("INVARIANT") == 1
+    assert "DeadlockFreedom" in divergent
+    assert "RendezvousOpAgreement" in unguarded
+    # The divergent case keeps NCCL's guard; the unguarded case drops it.
+    assert "RequireMatchedIssueOrder = TRUE" in divergent
+    assert "RequireMatchedIssueOrder = FALSE" in unguarded
+
+
+def test_lint_path_file_does_not_collide_across_runs() -> None:
+    """Regression: a derived temp name aborts the stage with an empty log.
+
+    /project/tmp persists between runs, so a path derived from the stage
+    identity already exists when the same output root is reused. The
+    fail-closed existence check then aborted the lint stage before it produced
+    any output, which surfaced only as a zero-byte log.
+    """
+
+    for name in ("run_scout_a.sh", "run_scout_b.sh"):
+        runner = (
+            REPO_ROOT / "experiments" / "qwen3_formal_verifier" / name
+        ).read_text()
+        assert "mktemp /project/tmp/lint-paths." in runner, name
+        assert '"/project/tmp/${lint_identity}.paths"' not in runner, name

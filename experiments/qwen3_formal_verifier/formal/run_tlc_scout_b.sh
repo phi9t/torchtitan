@@ -93,3 +93,31 @@ formal_classify_tlc_transition_negative \
 }
 printf 'SCOUT_B_TLA_NEGATIVE invariant=ScoutBCollectiveProducerCorrelation result=named_violation exit=%s\n' \
   "${invalid_status}"
+
+# Per-communicator issue-order agreement: the NCCL requirement whose violation
+# hangs a job. The facts differ from the observed run in exactly one operation
+# on one member rank, so the violation is attributable to that mutation.
+mkdir -p "${work_dir}/issue-order"
+for name in ScoutDistributed ScoutBFacts ScoutBIssueOrderInvalid; do
+  cp "${fixture_dir}/${name}.tla" "${work_dir}/issue-order/${name}.tla"
+done
+cp "${fixture_dir}/ScoutBIssueOrderInvalid.cfg" \
+  "${work_dir}/issue-order/ScoutBIssueOrderInvalid.cfg"
+
+issue_order_status=0
+(
+  cd "${work_dir}/issue-order"
+  timeout 120 "${java_bin}" -XX:+UseParallelGC -cp "${tla_jar}" tlc2.TLC \
+    -workers 1 -metadir "${work_dir}/issue-order/states" \
+    ScoutBIssueOrderInvalid.tla -config ScoutBIssueOrderInvalid.cfg
+) >"${work_dir}/issue-order.log" 2>&1 || issue_order_status=$?
+issue_order_output="$(<"${work_dir}/issue-order.log")"
+formal_classify_tlc_transition_negative \
+  "${issue_order_status}" "${issue_order_output}" \
+  "ScoutBPerCommunicatorIssueOrder" || {
+  cat "${work_dir}/issue-order.log" >&2
+  echo "TLC Scout B issue-order negative did not violate exactly that invariant" >&2
+  exit 1
+}
+printf 'SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE invariant=ScoutBPerCommunicatorIssueOrder result=named_violation exit=%s\n' \
+  "${issue_order_status}"

@@ -44,12 +44,25 @@ filegroup(
 )
 
 filegroup(
+    name = "tlc_scout_b_model",
+    srcs = [
+        "ScoutBModel.cfg",
+        "ScoutBModel.tla",
+        "ScoutBModelDivergent.cfg",
+        "ScoutBModelReach.cfg",
+        "ScoutBModelUnguarded.cfg",
+    ],
+)
+
+filegroup(
     name = "tlc_scout_b_models",
     srcs = [
         "ScoutBBadFacts.tla",
         "ScoutBFacts.tla",
         "ScoutBInvalid.cfg",
         "ScoutBInvalid.tla",
+        "ScoutBIssueOrderInvalid.cfg",
+        "ScoutBIssueOrderInvalid.tla",
         "ScoutBValid.cfg",
         "ScoutBValid.tla",
         "ScoutDistributed.tla",
@@ -154,6 +167,26 @@ sh_test(
 )
 
 sh_test(
+    name = "tlc_scout_b_model_test",
+    srcs = ["run_tlc_scout_b_model.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_scout_b_model",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
     name = "tlc_scout_b_test",
     srcs = ["run_tlc_scout_b.sh"],
     args = [
@@ -236,6 +269,7 @@ test_suite(
         ":lean_smoke_test",
         ":tlc_scout_a_model_test",
         ":tlc_scout_a_test",
+        ":tlc_scout_b_model_test",
         ":tlc_scout_b_test",
         ":tlc_smoke_test",
     ],

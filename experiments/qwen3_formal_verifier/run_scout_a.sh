@@ -271,8 +271,11 @@ run_lint_and_verify_source() {
       # substitution discards its exit status, so a producer that emitted some
       # paths and then crashed would lint a partial set and still seal as a
       # successful stage.
-      lint_paths_file="/project/tmp/${lint_identity}.paths"
-      [[ ! -e "${lint_paths_file}" ]]
+      # mktemp, not a derived name: /project/tmp persists across runs, so a
+      # name derived from the stage identity collides when the same output
+      # root is reused, and the fail-closed check then aborts the stage before
+      # it writes anything -- an empty log rather than a diagnosis.
+      lint_paths_file="$(mktemp /project/tmp/lint-paths.XXXXXXXX)"
       python -m torchtitan.experiments.qwen3_formal_verifier.scout_a \
         lint-paths --manifest "${source_manifest}" >"${lint_paths_file}"
       while IFS= read -r -d "" source_file; do
