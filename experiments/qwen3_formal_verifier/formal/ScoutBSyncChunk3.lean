@@ -1,0 +1,17 @@
+import ScoutBFacts
+
+namespace Qwen3Formal.ScoutBChecks
+
+set_option maxHeartbeats 0
+set_option maxRecDepth 100000
+
+theorem syncChunk3Valid :
+    crossRankSynchronizationChunkValid
+      ScoutBFacts.eventIdPrefix
+      ScoutBFacts.eventsPerRank
+      ScoutBFacts.crossRankSynchronizationsChunk3 = true := by
+  rfl
+
+#print axioms syncChunk3Valid
+
+end Qwen3Formal.ScoutBChecks

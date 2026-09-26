@@ -1,0 +1,1395 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""Contracts for the observed single-rank Qwen3 formal-verifier scout."""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, cast
+
+import pytest
+
+from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
+    _source_identity_payload,
+    _write_attempt_bundle,
+    _write_immutable,
+    artifact_sync_mismatches,
+    build_scout_a_config,
+    build_source_manifest,
+    export_scout_a_lean_facts,
+    export_scout_a_tla_facts,
+    finalize_evidence_manifest,
+    is_process_source_path,
+    normalize_raw_trace,
+    SCOUT_A_ATTEMPT_ID,
+    SCOUT_A_REQUIRED_STAGES,
+    SCOUT_A_RUN_ID,
+    SCOUT_SCHEMA,
+    source_manifest_lint_paths,
+    SOURCE_MANIFEST_SCHEMA,
+    validate_normalized_trace,
+    verify_evidence_bundle,
+    verify_source_manifest,
+    write_source_manifest,
+)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FORMAL_DIR = REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "formal"
+FIXTURE = (
+    REPO_ROOT
+    / "experiments"
+    / "qwen3_formal_verifier"
+    / "fixtures"
+    / "scout_a.normalized.json"
+)
+RUNNER = REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "run_scout_a.sh"
+RUNNER_LIBRARY = (
+    REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "scout_a_runner_lib.sh"
+)
+CHECKER_CONTRACT = FORMAL_DIR / "checker_contract.sh"
+FORMAL_WRAPPER = REPO_ROOT / "scripts" / "run_formal_checks.sh"
+
+
+def _raw_trace() -> dict[str, Any]:
+    kinds = (
+        ("step.started", "step"),
+        ("batch.observed", "input"),
+        ("forward.started", "forward"),
+        ("forward.completed", "forward"),
+        ("backward.started", "backward"),
+        ("gradient.ready", "backward"),
+        ("backward.completed", "backward"),
+        ("optimizer.started", "optimizer"),
+        ("optimizer.mutated", "optimizer"),
+        ("step.completed", "step"),
+    )
+    events = []
+    for source_order, (kind, phase) in enumerate(kinds, start=1):
+        event_id = f"raw-r0-{source_order:06d}"
+        predecessors = [] if source_order == 1 else [f"raw-r0-{source_order - 1:06d}"]
+        observation: dict[str, object] = {"hook": f"test.{kind}"}
+        if kind == "batch.observed":
+            observation["batch_sha256"] = "3" * 64
+        if kind == "optimizer.mutated":
+            observation.update(
+                {
+                    "before_sha256": "4" * 64,
+                    "after_sha256": "5" * 64,
+                    "mutated": True,
+                }
+            )
+        events.append(
+            {
+                "raw_event_id": event_id,
+                "source_order": source_order,
+                "kind": kind,
+                "phase": phase,
+                "step": 1,
+                "causal_predecessors": predecessors,
+                "observation": observation,
+            }
+        )
+    return {
+        "schema": "qwen3.formal.raw.v0",
+        "identity": {
+            "run_id": SCOUT_A_RUN_ID,
+            "attempt_id": SCOUT_A_ATTEMPT_ID,
+            "process_id": "rank-0",
+            "rank": 0,
+            "local_rank": 0,
+            "world_size": 1,
+        },
+        "device": {
+            "kind": "cuda",
+            "logical_id": "cuda:0",
+            "name": "NVIDIA B200",
+        },
+        "mesh": {
+            "axes": ["dp_replicate", "dp_shard", "cp", "tp", "pp", "ep"],
+            "degrees": [1, 1, 1, 1, 1, 1],
+            "coordinate": [0, 0, 0, 0, 0, 0],
+        },
+        "profile": {
+            "config_module": "qwen3",
+            "config_name": "qwen3_debugmodel",
+            "model_name": "qwen3",
+            "model_flavor": "debugmodel",
+            "optimizer": "AdamW",
+            "dtype": "bfloat16",
+            "local_batch_size": 1,
+            "global_batch_size": 1,
+            "sequence_length": 128,
+            "tokens_per_optimizer_step": 128,
+            "gradient_accumulation_steps": 1,
+            "optimizer_steps": 1,
+            "seed": 42,
+            "deterministic": True,
+            "dataset": "c4_test",
+            "tokenizer_path": "tests/assets/tokenizer",
+            "checkpoint_load": False,
+            "checkpoint_save": False,
+        },
+        "lineage": {
+            "config_sha256": "1" * 64,
+            "model_init_sha256": "2" * 64,
+            "first_batch_sha256": "3" * 64,
+        },
+        "events": events,
+    }
+
+
+def _create_sealable_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    status_bytes: bytes = b"",
+    source_files: dict[str, str] | None = None,
+) -> Path:
+    """Seal a bundle, optionally over a source tree with real status entries.
+
+    ``source_files`` maps repository-relative paths to contents and must agree
+    with ``status_bytes``; both default to an empty source tree.
+    """
+
+    for relative_path, contents in (source_files or {}).items():
+        target = tmp_path / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(contents)
+    attempt = tmp_path / SCOUT_A_RUN_ID / SCOUT_A_ATTEMPT_ID
+    (attempt / "manifests").mkdir(parents=True)
+    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
+    _write_immutable(status_path, status_bytes, root=attempt)
+    source_path = attempt / "manifests" / "source.json"
+    write_source_manifest(
+        status_path=status_path,
+        output_path=source_path,
+        repo_root=tmp_path,
+        head="a" * 40,
+        attempt_dir=attempt,
+    )
+    monkeypatch.setenv("QFV_SCOUT_SOURCE_MANIFEST", str(source_path))
+    monkeypatch.setenv("QFV_SCOUT_EXPECTED_HEAD", "a" * 40)
+    monkeypatch.setenv("QFV_SCOUT_SOURCE_ROOT", str(tmp_path))
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    raw = _raw_trace()
+    normalized = normalize_raw_trace(raw)
+    _write_attempt_bundle(attempt, raw, normalized, ["--fixture"])
+    checker = attempt / "checker"
+    checker.mkdir()
+    journal_lines: list[str] = []
+    for stage_name, relative_log in SCOUT_A_REQUIRED_STAGES:
+        log = attempt / relative_log
+        _write_immutable(log, f"{stage_name}=ok\n", root=attempt)
+        journal_lines.append(f"{stage_name}\t0\t{relative_log}\tcommand:{stage_name}\n")
+    _write_immutable(
+        checker / "stages.tsv",
+        "".join(journal_lines),
+        root=attempt,
+    )
+    return attempt
+
+
+def test_scout_a_profile_comes_from_qwen3_debugmodel_cli_overrides(
+    tmp_path: Path,
+) -> None:
+    config, cli_args = build_scout_a_config(tmp_path)
+
+    assert cli_args[:4] == [
+        "--module",
+        "qwen3",
+        "--config",
+        "qwen3_debugmodel",
+    ]
+    assert config.model_spec is not None
+    assert config.model_spec.name == "qwen3"
+    assert config.model_spec.flavor == "debugmodel"
+    assert config.training.local_batch_size == 1
+    assert config.training.global_batch_size == 1
+    assert config.training.seq_len == 128
+    assert config.training.steps == 1
+    assert config.training.dtype == "bfloat16"
+    assert config.optimizer.param_groups[0].optimizer_name == "AdamW"
+    assert config.dataloader.dataset == "c4_test"
+    assert config.hf_assets_path == "./tests/assets/tokenizer"
+    assert config.parallelism.data_parallel_replicate_degree == 1
+    assert config.parallelism.data_parallel_shard_degree == 1
+    assert config.parallelism.tensor_parallel_degree == 1
+    assert config.parallelism.pipeline_parallel_degree == 1
+    assert config.parallelism.context_parallel_degree == 1
+    assert config.parallelism.expert_parallel_degree == 1
+    assert config.parallelism.enable_sequence_parallel is False
+    assert config.checkpoint.enable is False
+    assert config.checkpoint.initial_load_path is None
+    assert config.checkpoint.initial_load_in_hf is False
+    assert config.debug.seed == 42
+    assert config.debug.deterministic is True
+    assert config.debug.deterministic_warn_only is False
+
+
+def test_normalization_is_deterministic_and_every_fact_has_raw_provenance() -> None:
+    raw = _raw_trace()
+
+    first = normalize_raw_trace(raw)
+    second = normalize_raw_trace(deepcopy(raw))
+    first_events = cast(list[dict[str, Any]], first["events"])
+    raw_events = cast(list[dict[str, Any]], raw["events"])
+    provenance = cast(dict[str, Any], first["provenance"])
+
+    assert first == second
+    assert first["schema"] == SCOUT_SCHEMA
+    assert [event["kind"] for event in first_events] == [
+        event["kind"] for event in raw_events
+    ]
+    assert all(event["provenance"]["raw_event_id"] for event in first_events)
+    assert set(provenance) == {event["event_id"] for event in first_events}
+    assert validate_normalized_trace(first) is None
+
+
+def test_normalization_rejects_duplicate_raw_event_identity() -> None:
+    raw = _raw_trace()
+    events = cast(list[dict[str, Any]], raw["events"])
+    events[1]["raw_event_id"] = events[0]["raw_event_id"]
+
+    with pytest.raises(ValueError, match="duplicate raw event ID"):
+        normalize_raw_trace(raw)
+
+
+def test_validation_rejects_duplicate_normalized_event_identity() -> None:
+    trace = normalize_raw_trace(_raw_trace())
+    events = cast(list[dict[str, Any]], trace["events"])
+    provenance = cast(dict[str, Any], trace["provenance"])
+    duplicate_id = events[0]["event_id"]
+    removed_id = events[1]["event_id"]
+    events[1]["event_id"] = duplicate_id
+    events[1]["provenance"] = deepcopy(events[0]["provenance"])
+    provenance.pop(removed_id)
+    events[2]["causal_predecessors"] = [duplicate_id]
+
+    with pytest.raises(ValueError, match="duplicate normalized event ID"):
+        validate_normalized_trace(trace)
+
+
+def test_validation_rejects_invalid_normalized_event_id_shape() -> None:
+    trace = normalize_raw_trace(_raw_trace())
+    events = cast(list[dict[str, Any]], trace["events"])
+    provenance = cast(dict[str, Any], trace["provenance"])
+    original_id = events[0]["event_id"]
+    forged_id = "forged-event-id"
+    events[0]["event_id"] = forged_id
+    provenance[forged_id] = provenance.pop(original_id)
+    events[1]["causal_predecessors"] = [forged_id]
+
+    with pytest.raises(ValueError, match="event ID"):
+        validate_normalized_trace(trace)
+
+
+def test_validation_rejects_event_and_root_identity_disagreement() -> None:
+    trace = normalize_raw_trace(_raw_trace())
+    events = cast(list[dict[str, Any]], trace["events"])
+    events[3]["rank"] = 1
+
+    with pytest.raises(ValueError, match="root process identity"):
+        validate_normalized_trace(trace)
+
+
+def test_validation_rejects_tampered_content_addressed_trace_id() -> None:
+    trace = normalize_raw_trace(_raw_trace())
+    trace["trace_id"] = f"sha256:{'0' * 64}"
+
+    with pytest.raises(ValueError, match="trace_id"):
+        validate_normalized_trace(trace)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("missing_provenance", "provenance"),
+        ("missing_gradient", "gradient.ready"),
+        ("optimizer_not_mutated", "parameter mutation"),
+        ("wrong_phase", "invalid phase"),
+        ("future_causal_predecessor", "causal order"),
+    ),
+)
+def test_normalized_trace_rejects_single_dimension_corruption(
+    mutation: str,
+    message: str,
+) -> None:
+    trace = normalize_raw_trace(_raw_trace())
+    events = cast(list[dict[str, Any]], trace["events"])
+    if mutation == "missing_provenance":
+        events[4].pop("provenance")
+    elif mutation == "missing_gradient":
+        events[5]["kind"] = "gradient.missing"
+    elif mutation == "optimizer_not_mutated":
+        events[8]["observation"]["mutated"] = False
+    elif mutation == "wrong_phase":
+        events[3]["phase"] = "backward"
+    elif mutation == "future_causal_predecessor":
+        events[3]["causal_predecessors"] = [events[4]["event_id"]]
+
+    with pytest.raises(ValueError, match=message):
+        validate_normalized_trace(trace)
+
+
+def test_exporters_emit_facts_and_identity_without_approving_propositions() -> None:
+    trace = normalize_raw_trace(_raw_trace())
+
+    tla = export_scout_a_tla_facts(trace)
+    lean = export_scout_a_lean_facts(trace)
+
+    assert f'RunId == "{SCOUT_A_RUN_ID}"' in tla
+    assert f'AttemptId == "{SCOUT_A_ATTEMPT_ID}"' in tla
+    assert '"gradient.ready"' in tla
+    assert "EventPredecessors ==" in tla
+    assert "Invariant" not in tla
+    assert "THEOREM" not in tla
+    assert f'def runId : String := "{SCOUT_A_RUN_ID}"' in lean
+    assert "kind := .gradientReady" in lean
+    assert "def observedEvents : List ObservedEvent" in lean
+    assert "theorem" not in lean
+    assert "axiom" not in lean
+
+
+def test_checked_in_scout_a_artifacts_match_normalized_runtime_fixture() -> None:
+    trace = json.loads(FIXTURE.read_text())
+
+    assert artifact_sync_mismatches(trace, FORMAL_DIR, FIXTURE) == ()
+
+
+def test_scout_a_tlc_negative_requires_named_transition_invariant() -> None:
+    # A real TLC run always prints the search summary; the classifier now
+    # requires it so a truncated or crashed run cannot be read as a result.
+    output = (
+        "Error: Invariant ScoutAGradientReadyBeforeOptimizer is violated.\n"
+        "Error: The behavior up to this point is:\n"
+        "12 states generated, 11 distinct states found, 0 states left on queue.\n"
+    )
+
+    accepted = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; formal_classify_tlc_transition_negative "$2" "$3" "$4"',
+            "classifier-test",
+            str(CHECKER_CONTRACT),
+            "12",
+            output,
+            "ScoutAGradientReadyBeforeOptimizer",
+        ],
+        cwd=REPO_ROOT,
+    )
+    wrong_name = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; formal_classify_tlc_transition_negative "$2" "$3" "$4"',
+            "classifier-test",
+            str(CHECKER_CONTRACT),
+            "12",
+            output,
+            "DifferentInvariant",
+        ],
+        cwd=REPO_ROOT,
+    )
+
+    assert accepted.returncode == 0
+    assert wrong_name.returncode != 0
+
+
+def test_formal_wrapper_routes_scout_a_suite_through_fresh_offline_rootfs(
+    tmp_path: Path,
+) -> None:
+    fake_entrypoint = tmp_path / "enter_rootfs.sh"
+    invocation = tmp_path / "invocation.txt"
+    fake_entrypoint.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "%s\\n" "${TORCHTITAN_ROOTFS_NETWORK:-}" "$@" > "${QFV_TEST_LOG}"\n'
+    )
+    fake_entrypoint.chmod(0o755)
+    cache = tmp_path / "formal-cache"
+    env = {
+        "HOME": str(tmp_path / "home"),
+        "PATH": "/usr/bin:/bin",
+        "QFV_TEST_LOG": str(invocation),
+        "TORCHTITAN_FORMAL_CACHE_HOST": str(cache),
+        "TORCHTITAN_ROOTFS_ENTRYPOINT": str(fake_entrypoint),
+    }
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(FORMAL_WRAPPER),
+            "--no-fetch",
+            "--suite",
+            "scout-a",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert invocation.read_text().splitlines() == [
+        "offline",
+        "--",
+        "scripts/run_formal_checks.sh",
+        "--no-fetch",
+        "--suite",
+        "scout-a",
+    ]
+
+
+def test_supported_scout_a_runner_is_insula_aware_and_documents_full_gate() -> None:
+    result = subprocess.run(
+        ["bash", str(RUNNER), "--help"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert "real CUDA Qwen3 optimizer step" in result.stdout
+    assert "focused pytest" in result.stdout
+    assert "artifact sync" in result.stdout
+    assert "networked formal check" in result.stdout
+    assert "no-fetch formal check" in result.stdout
+
+
+def test_supported_runner_stops_before_finalize_when_log_sink_fails(
+    tmp_path: Path,
+) -> None:
+    fake_entrypoint = tmp_path / "enter_rootfs.sh"
+    invocation = tmp_path / "rootfs-invocations.txt"
+    fake_entrypoint.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "%s\\n" "$*" >> "${QFV_TEST_INVOCATIONS}"\n'
+    )
+    fake_entrypoint.chmod(0o755)
+    failing_tee = tmp_path / "failing-tee.sh"
+    failing_tee.write_text("#!/usr/bin/env bash\n" "cat >/dev/null\n" "exit 23\n")
+    failing_tee.chmod(0o755)
+    fake_git = tmp_path / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case "$*" in\n'
+        "  *rev-parse*) printf '%040d\\n' 0 ;;\n"
+        "  *status*) exit 0 ;;\n"
+        "  *diff*) exit 0 ;;\n"
+        "esac\n"
+    )
+    fake_git.chmod(0o755)
+    rootfs = tmp_path / "rootfs"
+    rootfs.mkdir()
+    output = REPO_ROOT / "outputs" / "qfv-scout-a-runner-tests" / tmp_path.name
+    shutil.rmtree(output, ignore_errors=True)
+    env = os.environ.copy()
+    env.update(
+        {
+            "CUDA_VISIBLE_DEVICES": "0",
+            "QFV_TEST_INVOCATIONS": str(invocation),
+            "TORCHTITAN_FORMAL_CACHE_HOST": str(tmp_path / "formal-cache"),
+            "TORCHTITAN_SCOUT_ROOTFS": str(rootfs),
+            "TORCHTITAN_SCOUT_ROOTFS_ENTRYPOINT": str(fake_entrypoint),
+            "TORCHTITAN_SCOUT_TEE": str(failing_tee),
+            "TORCHTITAN_SCOUT_GIT": str(fake_git),
+        }
+    )
+    env.pop("TORCHTITAN_IN_ROOTFS", None)
+    try:
+        result = subprocess.run(
+            [
+                "bash",
+                str(RUNNER),
+                "--output-root",
+                str(output.relative_to(REPO_ROOT)),
+                "--run-id",
+                "sink-failure",
+                "--attempt-id",
+                "attempt-0",
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    finally:
+        shutil.rmtree(output, ignore_errors=True)
+
+    assert result.returncode != 0
+    assert "log sink failed" in result.stdout
+    assert invocation.is_file()
+    assert "finalize" not in invocation.read_text()
+
+
+def test_supported_runner_stops_before_finalize_when_stage_command_fails(
+    tmp_path: Path,
+) -> None:
+    fake_entrypoint = tmp_path / "enter_rootfs.sh"
+    invocation = tmp_path / "rootfs-invocations.txt"
+    fake_entrypoint.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "%s\\n" "$*" >> "${QFV_TEST_INVOCATIONS}"\n'
+        "exit 19\n"
+    )
+    fake_entrypoint.chmod(0o755)
+    fake_git = tmp_path / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case "$*" in\n'
+        "  *rev-parse*) printf '%040d\\n' 0 ;;\n"
+        "  *status*) exit 0 ;;\n"
+        "  *diff*) exit 0 ;;\n"
+        "esac\n"
+    )
+    fake_git.chmod(0o755)
+    rootfs = tmp_path / "rootfs"
+    rootfs.mkdir()
+    output = REPO_ROOT / "outputs" / "qfv-scout-a-runner-tests" / tmp_path.name
+    shutil.rmtree(output, ignore_errors=True)
+    env = os.environ.copy()
+    env.update(
+        {
+            "CUDA_VISIBLE_DEVICES": "0",
+            "QFV_TEST_INVOCATIONS": str(invocation),
+            "TORCHTITAN_FORMAL_CACHE_HOST": str(tmp_path / "formal-cache"),
+            "TORCHTITAN_SCOUT_GIT": str(fake_git),
+            "TORCHTITAN_SCOUT_ROOTFS": str(rootfs),
+            "TORCHTITAN_SCOUT_ROOTFS_ENTRYPOINT": str(fake_entrypoint),
+        }
+    )
+    env.pop("TORCHTITAN_IN_ROOTFS", None)
+    try:
+        result = subprocess.run(
+            [
+                "bash",
+                str(RUNNER),
+                "--output-root",
+                str(output.relative_to(REPO_ROOT)),
+                "--run-id",
+                "command-failure",
+                "--attempt-id",
+                "attempt-0",
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    finally:
+        shutil.rmtree(output, ignore_errors=True)
+
+    assert result.returncode == 19
+    assert "stage command failed with status 19" in result.stdout
+    assert invocation.is_file()
+    assert "finalize" not in invocation.read_text()
+
+
+def test_supported_runner_rejects_nested_output_directory_symlink(
+    tmp_path: Path,
+) -> None:
+    base = REPO_ROOT / "outputs" / "qfv-scout-a-runner-tests" / tmp_path.name
+    escape = base / "escape"
+    escape.mkdir(parents=True)
+    linked_output = base / "linked-output"
+    linked_output.symlink_to(escape, target_is_directory=True)
+    rootfs = tmp_path / "rootfs"
+    rootfs.mkdir()
+    env = os.environ.copy()
+    env.update(
+        {
+            "CUDA_VISIBLE_DEVICES": "0",
+            "TORCHTITAN_FORMAL_CACHE_HOST": str(tmp_path / "formal-cache"),
+            "TORCHTITAN_SCOUT_ROOTFS": str(rootfs),
+        }
+    )
+    env.pop("TORCHTITAN_IN_ROOTFS", None)
+    try:
+        result = subprocess.run(
+            [
+                "bash",
+                str(RUNNER),
+                "--output-root",
+                str(linked_output.relative_to(REPO_ROOT)),
+                "--run-id",
+                "symlink-run",
+                "--attempt-id",
+                "attempt-0",
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    assert result.returncode != 0
+    assert "symlink" in result.stdout.lower()
+
+
+def test_runner_log_creation_rejects_file_symlink(tmp_path: Path) -> None:
+    approved_root = tmp_path / "attempt"
+    checker = approved_root / "checker"
+    checker.mkdir(parents=True)
+    target = tmp_path / "outside.log"
+    target.write_text("must remain intact\n")
+    log = checker / "focused-pytest.log"
+    log.symlink_to(target)
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; scout_create_fresh_log "$2" "$3"',
+            "runner-log-test",
+            str(RUNNER_LIBRARY),
+            str(approved_root),
+            str(log),
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert result.returncode != 0
+    assert "symlink" in result.stdout.lower()
+    assert target.read_text() == "must remain intact\n"
+
+
+def test_runner_directory_guard_rejects_symlink_in_conditional_helper_call(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "directory"
+    directory.mkdir()
+    linked_root = tmp_path / "linked-root"
+    linked_root.symlink_to(directory, target_is_directory=True)
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            """
+source "$1"
+runner_helper_call() {
+  scout_require_directory "$1" || return 1
+  printf 'guard-returned-success\\n'
+}
+runner_helper_call "$2"
+""",
+            "runner-directory-test",
+            str(RUNNER_LIBRARY),
+            str(linked_root),
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert result.returncode != 0
+    assert "symlink" in result.stdout.lower()
+    assert "guard-returned-success" not in result.stdout
+
+
+def test_immutable_writer_rejects_symlink_and_preserves_target(tmp_path: Path) -> None:
+    attempt = tmp_path / "attempt"
+    evidence_dir = attempt / "raw"
+    evidence_dir.mkdir(parents=True)
+    target = tmp_path / "outside.json"
+    target.write_text("same bytes\n")
+    evidence = evidence_dir / "observed.json"
+    evidence.symlink_to(target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        _write_immutable(evidence, "same bytes\n", root=attempt)
+
+    assert target.read_text() == "same bytes\n"
+
+
+def test_immutable_writer_rejects_equal_existing_file_with_wrong_mode(
+    tmp_path: Path,
+) -> None:
+    attempt = tmp_path / "attempt"
+    evidence_dir = attempt / "raw"
+    evidence_dir.mkdir(parents=True)
+    evidence = evidence_dir / "observed.json"
+    evidence.write_text("same bytes\n")
+    evidence.chmod(0o644)
+
+    with pytest.raises(PermissionError, match="read-only mode 0444"):
+        _write_immutable(evidence, "same bytes\n", root=attempt)
+
+
+def test_source_manifest_is_deterministic_and_detects_executable_source_change(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.py"
+    source.write_text("value = 1\n")
+    status = b"?? source.py\0"
+
+    first = build_source_manifest(tmp_path, "b" * 40, status)
+    second = build_source_manifest(tmp_path, "b" * 40, status)
+
+    assert first == second
+    source.write_text("value = 2\n")
+    with pytest.raises(ValueError, match="no longer matches the current source tree"):
+        build_source_manifest(tmp_path, "b" * 40, status, expected=first)
+
+
+@pytest.mark.parametrize(
+    "path_text,expected",
+    [
+        (".scratch/notes.md", True),
+        (".scratch/qwen3-formal-verifier/spec.md", True),
+        (".superpowers/sdd/spec/task-03-report.md", True),
+        (".scratchpad/notes.md", False),
+        (".scratches/notes.md", False),
+        ("scratch/notes.md", False),
+        ("scripts/run.sh", False),
+        ("a/.scratch/notes.md", False),
+    ],
+)
+def test_process_source_path_predicate_is_component_exact(
+    path_text: str,
+    expected: bool,
+) -> None:
+    assert is_process_source_path(path_text) is expected
+
+
+def test_process_document_bytes_do_not_change_source_identity(
+    tmp_path: Path,
+) -> None:
+    """The regression for the ticket-03 post-seal tracker mutation."""
+
+    (tmp_path / "source.py").write_text("value = 1\n")
+    ticket_dir = tmp_path / ".scratch" / "qwen3-formal-verifier" / "issues"
+    ticket_dir.mkdir(parents=True)
+    ticket = ticket_dir / "03-scout-b.md"
+    ticket.write_text("**Status:** review-pending\n")
+    status = b"?? source.py\0?? .scratch/qwen3-formal-verifier/issues/03-scout-b.md\0"
+
+    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+    entries = cast(list[dict[str, Any]], sealed["entries"])
+    assert [entry["path"] for entry in entries] == ["source.py"]
+    section = cast(dict[str, Any], sealed["process_informational"])
+    process = cast(list[dict[str, Any]], section["entries"])
+    assert [entry["path"] for entry in process] == [
+        ".scratch/qwen3-formal-verifier/issues/03-scout-b.md"
+    ]
+
+    # Appending gate evidence and resolving the ticket must stay verifiable.
+    ticket.write_text(
+        "**Status:** resolved\n\n## Gate evidence\n\nevidence_id: sha256:abc\n"
+    )
+    rebuilt = build_source_manifest(tmp_path, "b" * 40, status, expected=sealed)
+    assert rebuilt["source_id"] == sealed["source_id"]
+
+
+def test_process_entries_are_labelled_unverified(tmp_path: Path) -> None:
+    (tmp_path / ".scratch").mkdir()
+    (tmp_path / ".scratch" / "notes.md").write_text("notes\n")
+    status = b"?? .scratch/notes.md\0"
+
+    manifest = build_source_manifest(tmp_path, "b" * 40, status)
+
+    section = cast(dict[str, Any], manifest["process_informational"])
+    assert section["note"]
+    assert section["predicate"]
+    record = cast(list[dict[str, Any]], section["entries"])[0]
+    assert set(record) == {
+        "status",
+        "path",
+        "kind",
+        "mode",
+        "size_bytes",
+        "sha256_at_seal",
+        "verified",
+    }
+    assert record["verified"] is False
+    assert "sha256" not in record
+
+
+def test_process_root_rejects_executable_extension(tmp_path: Path) -> None:
+    (tmp_path / ".scratch").mkdir()
+    (tmp_path / ".scratch" / "tool.py").write_text("value = 1\n")
+
+    with pytest.raises(ValueError, match="may not carry executable"):
+        build_source_manifest(tmp_path, "b" * 40, b"?? .scratch/tool.py\0")
+
+
+def test_source_identity_payload_key_set_is_closed(tmp_path: Path) -> None:
+    (tmp_path / "source.py").write_text("value = 1\n")
+    manifest = build_source_manifest(tmp_path, "b" * 40, b"?? source.py\0")
+
+    payload = _source_identity_payload(manifest)
+
+    assert set(payload) == {
+        "schema",
+        "head",
+        "status_sha256",
+        "entries",
+        "source_id",
+    }
+    assert "process_informational" not in payload
+
+
+def test_lint_paths_cover_verified_and_process_paths(tmp_path: Path) -> None:
+    (tmp_path / "source.py").write_text("value = 1\n")
+    (tmp_path / ".scratch").mkdir()
+    (tmp_path / ".scratch" / "notes.md").write_text("notes\n")
+    status = b"?? source.py\0?? .scratch/notes.md\0"
+    manifest = build_source_manifest(tmp_path, "b" * 40, status)
+
+    assert source_manifest_lint_paths(manifest) == (".scratch/notes.md", "source.py")
+
+    with pytest.raises(ValueError, match="schema must be"):
+        source_manifest_lint_paths({**manifest, "schema": "other.v0"})
+    stripped = {
+        key: manifest[key] for key in manifest if key != "process_informational"
+    }
+    with pytest.raises(ValueError, match="process_informational"):
+        source_manifest_lint_paths(stripped)
+
+
+def test_verify_source_manifest_rejects_superseded_v0_schema(
+    tmp_path: Path,
+) -> None:
+    attempt = tmp_path / "attempt"
+    (attempt / "manifests").mkdir(parents=True)
+    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
+    _write_immutable(status_path, b"", root=attempt)
+    manifest_path = attempt / "manifests" / "source.json"
+    _write_immutable(
+        manifest_path,
+        json.dumps(
+            {
+                "schema": "qwen3.formal.scout.source-manifest.v0",
+                "head": "b" * 40,
+                "status_sha256": "0" * 64,
+                "entries": [],
+                "source_id": "sha256:" + "0" * 64,
+            }
+        ),
+        root=attempt,
+    )
+
+    with pytest.raises(ValueError, match="unsupported schema"):
+        verify_source_manifest(
+            manifest_path,
+            status_path,
+            repo_root=tmp_path,
+            expected_head="b" * 40,
+            attempt_dir=attempt,
+        )
+
+
+def test_verify_rejects_process_entry_that_fails_predicate(tmp_path: Path) -> None:
+    attempt = tmp_path / "attempt"
+    (attempt / "manifests").mkdir(parents=True)
+    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
+    _write_immutable(status_path, b"", root=attempt)
+    manifest_path = attempt / "manifests" / "source.json"
+    _write_immutable(
+        manifest_path,
+        json.dumps(
+            {
+                "schema": SOURCE_MANIFEST_SCHEMA,
+                "head": "b" * 40,
+                "status_sha256": "0" * 64,
+                "entries": [],
+                "source_id": "sha256:" + "0" * 64,
+                "process_informational": {
+                    "note": "n",
+                    "predicate": "p",
+                    "entries": [
+                        {
+                            "status": "??",
+                            "path": "scripts/run.sh",
+                            "kind": "file",
+                            "mode": "0644",
+                            "size_bytes": 1,
+                            "sha256_at_seal": "0" * 64,
+                            "verified": False,
+                        }
+                    ],
+                },
+            }
+        ),
+        root=attempt,
+    )
+
+    with pytest.raises(ValueError, match="fails the process predicate"):
+        verify_source_manifest(
+            manifest_path,
+            status_path,
+            repo_root=tmp_path,
+            expected_head="b" * 40,
+            attempt_dir=attempt,
+        )
+
+
+def test_sealed_bundle_survives_process_document_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Informational process bytes may drift; executable source may not."""
+
+    status = b"?? source.py\0?? .scratch/qwen3-formal-verifier/issues/03.md\0"
+    attempt = _create_sealable_bundle(
+        tmp_path,
+        monkeypatch,
+        status_bytes=status,
+        source_files={
+            "source.py": "value = 1\n",
+            ".scratch/qwen3-formal-verifier/issues/03.md": "**Status:** claimed\n",
+        },
+    )
+    finalize_evidence_manifest(
+        attempt, expected_head="a" * 40, source_root=str(tmp_path)
+    )
+
+    ticket = tmp_path / ".scratch" / "qwen3-formal-verifier" / "issues" / "03.md"
+    ticket.write_text("**Status:** resolved\n\n## Gate evidence\n\nid: sha256:abc\n")
+    verify_evidence_bundle(attempt, expected_head="a" * 40, source_root=str(tmp_path))
+
+    (tmp_path / "source.py").write_text("value = 2\n")
+    with pytest.raises(ValueError, match="no longer matches the current source tree"):
+        verify_evidence_bundle(
+            attempt, expected_head="a" * 40, source_root=str(tmp_path)
+        )
+
+
+def test_sealed_process_section_is_byte_sealed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Informational does not mean unprotected inside the bundle."""
+
+    status = b"?? .scratch/notes.md\0"
+    attempt = _create_sealable_bundle(
+        tmp_path,
+        monkeypatch,
+        status_bytes=status,
+        source_files={".scratch/notes.md": "notes\n"},
+    )
+    finalize_evidence_manifest(
+        attempt, expected_head="a" * 40, source_root=str(tmp_path)
+    )
+
+    source_json = attempt / "manifests" / "source.json"
+    manifest = json.loads(source_json.read_text())
+    manifest["process_informational"]["entries"][0]["sha256_at_seal"] = "0" * 64
+    source_json.chmod(0o644)
+    source_json.write_text(json.dumps(manifest))
+    source_json.chmod(0o444)
+
+    with pytest.raises(ValueError, match="manifests/source.json"):
+        verify_evidence_bundle(
+            attempt, expected_head="a" * 40, source_root=str(tmp_path)
+        )
+
+
+def test_finalization_rejects_tampered_runtime_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt = _create_sealable_bundle(tmp_path, monkeypatch)
+    raw = attempt / "raw" / "observed.json"
+    raw.chmod(0o644)
+    raw.write_text(raw.read_text() + "tampered\n")
+    raw.chmod(0o444)
+
+    with pytest.raises(ValueError, match="raw/observed.json"):
+        finalize_evidence_manifest(
+            attempt,
+            expected_head="a" * 40,
+            source_root=tmp_path,
+        )
+
+    assert not (attempt / "manifests" / "evidence.json").exists()
+
+
+def test_finalization_rejects_writable_checker_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt = _create_sealable_bundle(tmp_path, monkeypatch)
+    log = attempt / "checker" / "focused-pytest.log"
+    log.chmod(0o644)
+
+    with pytest.raises(PermissionError, match="read-only mode 0444"):
+        finalize_evidence_manifest(
+            attempt,
+            expected_head="a" * 40,
+            source_root=tmp_path,
+        )
+
+
+def test_complete_sealed_bundle_verification_detects_log_tampering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt = _create_sealable_bundle(tmp_path, monkeypatch)
+    manifest = finalize_evidence_manifest(
+        attempt,
+        expected_head="a" * 40,
+        source_root=tmp_path,
+    )
+
+    assert manifest.is_file()
+    assert verify_evidence_bundle(
+        attempt,
+        expected_head="a" * 40,
+        source_root=tmp_path,
+    )["trace_id"]
+
+    log = attempt / "checker" / "owning-pytest.log"
+    log.chmod(0o644)
+    log.write_text(log.read_text() + "tampered\n")
+    log.chmod(0o444)
+    with pytest.raises(ValueError, match="checker/owning-pytest.log"):
+        verify_evidence_bundle(
+            attempt,
+            expected_head="a" * 40,
+            source_root=tmp_path,
+        )
+
+
+def test_complete_sealed_bundle_rejects_unmanaged_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt = _create_sealable_bundle(tmp_path, monkeypatch)
+    finalize_evidence_manifest(
+        attempt,
+        expected_head="a" * 40,
+        source_root=tmp_path,
+    )
+    unmanaged = attempt / "checker" / "unmanaged.log"
+    unmanaged.write_text("not sealed\n")
+    unmanaged.chmod(0o444)
+
+    with pytest.raises(ValueError, match="unmanaged or missing files"):
+        verify_evidence_bundle(
+            attempt,
+            expected_head="a" * 40,
+            source_root=tmp_path,
+        )
+
+
+def _v1_manifest_with_process(
+    entries: list[dict[str, Any]],
+    process_entries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Hand-build a v1 manifest so forged process sections can be exercised."""
+
+    return {
+        "schema": SOURCE_MANIFEST_SCHEMA,
+        "head": "b" * 40,
+        "status_sha256": "0" * 64,
+        "entries": entries,
+        "source_id": "sha256:" + "0" * 64,
+        "process_informational": {
+            "note": "n",
+            "predicate": "p",
+            "entries": process_entries,
+        },
+    }
+
+
+def _good_process_entry(path_text: str = ".scratch/notes.md") -> dict[str, Any]:
+    return {
+        "status": "??",
+        "path": path_text,
+        "kind": "file",
+        "mode": "0644",
+        "size_bytes": 6,
+        "sha256_at_seal": "a" * 64,
+        "verified": False,
+    }
+
+
+def test_lint_paths_accepts_a_well_formed_process_section() -> None:
+    manifest = _v1_manifest_with_process([], [_good_process_entry()])
+
+    assert source_manifest_lint_paths(manifest) == (".scratch/notes.md",)
+
+
+@pytest.mark.parametrize(
+    "mutate,expected",
+    [
+        pytest.param(
+            lambda e: {**e, "verified": True},
+            "verified=false",
+            id="claims_verified",
+        ),
+        pytest.param(
+            lambda e: {**e, "sha256_at_seal": "not-hex"},
+            "hex sha256_at_seal",
+            id="non_hex_digest",
+        ),
+        pytest.param(
+            lambda e: {k: v for k, v in e.items() if k != "sha256_at_seal"},
+            "unexpected key set",
+            id="missing_digest",
+        ),
+        pytest.param(
+            lambda e: {**e, "sha256": "b" * 64},
+            "unexpected key set",
+            id="smuggles_verified_sha256_key",
+        ),
+        pytest.param(
+            lambda e: {**e, "kind": "symlink"},
+            "may not be symlinks",
+            id="symlink",
+        ),
+        pytest.param(
+            lambda e: {**e, "mode": "0755"},
+            "may not be executable",
+            id="executable_mode",
+        ),
+        pytest.param(
+            lambda e: {**e, "path": ".scratch/tool.PY"},
+            "executable or formal source",
+            id="uppercase_python_suffix",
+        ),
+        pytest.param(
+            lambda e: {**e, "path": ".scratch/rules.bazel"},
+            "executable or formal source",
+            id="bazel_suffix",
+        ),
+        pytest.param(
+            lambda e: {**e, "path": ".scratch/Makefile"},
+            "prose documents",
+            id="extensionless",
+        ),
+        pytest.param(
+            lambda e: {**e, "path": ".scratch/model.cfg"},
+            "prose documents",
+            id="cfg_suffix",
+        ),
+        pytest.param(
+            lambda e: {**e, "path": ".scratch/script.rb"},
+            "prose documents",
+            id="unlisted_interpreted_language",
+        ),
+        pytest.param(
+            lambda e: {**e, "path": "scripts/run.sh"},
+            "fails the process predicate",
+            id="non_process_path",
+        ),
+        pytest.param(
+            lambda e: {**e, "kind": "directory"},
+            "unsupported kind",
+            id="unsupported_kind",
+        ),
+    ],
+)
+def test_forged_process_entries_are_rejected(
+    mutate: Any,
+    expected: str,
+) -> None:
+    """A forged process section must never reach lint or verification."""
+
+    manifest = _v1_manifest_with_process([], [mutate(_good_process_entry())])
+
+    with pytest.raises(ValueError, match=expected):
+        source_manifest_lint_paths(manifest)
+
+
+def test_process_entry_cannot_hide_a_present_file_as_deleted(
+    tmp_path: Path,
+) -> None:
+    """The forgery that would drop a live document from lint coverage.
+
+    A ``deleted`` record is skipped by lint. If the file is actually present,
+    that record removes a real document from the linted set while leaving
+    source verification untouched, because the process section is informational.
+    """
+
+    attempt = tmp_path / "attempt"
+    (attempt / "manifests").mkdir(parents=True)
+    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
+    _write_immutable(status_path, b"", root=attempt)
+    (tmp_path / ".scratch").mkdir()
+    (tmp_path / ".scratch" / "notes.md").write_text("present\n")
+
+    forged = _v1_manifest_with_process(
+        [],
+        [
+            {
+                "status": "??",
+                "path": ".scratch/notes.md",
+                "kind": "deleted",
+                "verified": False,
+            }
+        ],
+    )
+    manifest_path = attempt / "manifests" / "source.json"
+    _write_immutable(manifest_path, json.dumps(forged), root=attempt)
+
+    # Lint alone cannot see it, which is why verification must.
+    assert source_manifest_lint_paths(forged) == ()
+    with pytest.raises(ValueError, match="recorded deleted but the file is present"):
+        verify_source_manifest(
+            manifest_path,
+            status_path,
+            repo_root=tmp_path,
+            expected_head="b" * 40,
+            attempt_dir=attempt,
+        )
+
+
+def test_malformed_manifest_raises_value_error_not_programmer_error() -> None:
+    """Manifests come from disk, so malformed ones are invalid input."""
+
+    with pytest.raises(ValueError, match="identity key set"):
+        source_manifest_lint_paths(
+            {
+                "schema": SOURCE_MANIFEST_SCHEMA,
+                "process_informational": {
+                    "note": "n",
+                    "predicate": "p",
+                    "entries": [],
+                },
+            }
+        )
+    manifest = _v1_manifest_with_process([{"path": ".scratch/x.md"}], [])
+    with pytest.raises(ValueError, match="never reach the verified source entry list"):
+        source_manifest_lint_paths(manifest)
+
+
+def test_process_membership_changes_source_id_but_content_does_not(
+    tmp_path: Path,
+) -> None:
+    """Pin both halves of the content-versus-membership boundary.
+
+    Tracker text may drift without changing identity; adding a tracker path is a
+    change to the attempt's path set and does change it, through status_sha256.
+    """
+
+    (tmp_path / "source.py").write_text("value = 1\n")
+    scratch = tmp_path / ".scratch"
+    scratch.mkdir()
+    (scratch / "one.md").write_text("one\n")
+    status_one = b"?? source.py\0?? .scratch/one.md\0"
+
+    baseline = build_source_manifest(tmp_path, "b" * 40, status_one)
+
+    (scratch / "one.md").write_text("substantially rewritten tracker text\n")
+    text_changed = build_source_manifest(tmp_path, "b" * 40, status_one)
+    assert text_changed["source_id"] == baseline["source_id"]
+
+    (scratch / "two.md").write_text("two\n")
+    status_two = b"?? source.py\0?? .scratch/one.md\0?? .scratch/two.md\0"
+    path_added = build_source_manifest(tmp_path, "b" * 40, status_two)
+    assert path_added["source_id"] != baseline["source_id"]
+    assert path_added["entries"] == baseline["entries"]
+
+
+def test_process_roster_omission_is_rejected(tmp_path: Path) -> None:
+    """Shape validation cannot catch an entry that simply is not there.
+
+    Omitting a process entry would drop that document from lint coverage while
+    source verification still passed, because process bytes are outside
+    ``source_id``. Only a completeness check against the status closes it.
+    """
+
+    (tmp_path / "source.py").write_text("value = 1\n")
+    scratch = tmp_path / ".scratch"
+    scratch.mkdir()
+    (scratch / "kept.md").write_text("kept\n")
+    (scratch / "hidden.md").write_text("hidden\n")
+    status = b"?? source.py\0?? .scratch/kept.md\0?? .scratch/hidden.md\0"
+
+    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+    section = cast(dict[str, Any], sealed["process_informational"])
+    assert len(cast(list[dict[str, Any]], section["entries"])) == 2
+
+    forged = json.loads(json.dumps(sealed))
+    forged["process_informational"]["entries"] = [
+        entry
+        for entry in forged["process_informational"]["entries"]
+        if entry["path"] != ".scratch/hidden.md"
+    ]
+    # The forgery is invisible to lint on its own -- it just returns less.
+    assert ".scratch/hidden.md" not in source_manifest_lint_paths(forged)
+
+    with pytest.raises(ValueError, match="process roster does not match"):
+        build_source_manifest(tmp_path, "b" * 40, status, expected=forged)
+
+
+def test_process_roster_addition_is_rejected(tmp_path: Path) -> None:
+    (tmp_path / ".scratch").mkdir()
+    (tmp_path / ".scratch" / "real.md").write_text("real\n")
+    status = b"?? .scratch/real.md\0"
+    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+
+    forged = json.loads(json.dumps(sealed))
+    forged["process_informational"]["entries"].append(
+        {
+            "status": "??",
+            "path": ".scratch/phantom.md",
+            "kind": "file",
+            "mode": "0644",
+            "size_bytes": 1,
+            "sha256_at_seal": "c" * 64,
+            "verified": False,
+        }
+    )
+
+    with pytest.raises(ValueError, match="process roster does not match"):
+        build_source_manifest(tmp_path, "b" * 40, status, expected=forged)
+
+
+@pytest.mark.parametrize(
+    "bad_manifest",
+    [
+        pytest.param("not a mapping", id="string"),
+        pytest.param(["entries"], id="list"),
+        pytest.param(None, id="none"),
+    ],
+)
+def test_malformed_manifest_root_raises_value_error(bad_manifest: Any) -> None:
+    """Malformed input must be ValueError, never AttributeError or TypeError."""
+
+    with pytest.raises(ValueError, match="must be a mapping"):
+        source_manifest_lint_paths(bad_manifest)
+
+
+def test_deleting_a_captured_process_path_fails_verification(
+    tmp_path: Path,
+) -> None:
+    """Removal is not symmetric with addition, and the README says so."""
+
+    (tmp_path / ".scratch").mkdir()
+    tracker = tmp_path / ".scratch" / "notes.md"
+    tracker.write_text("notes\n")
+    status = b"?? .scratch/notes.md\0"
+    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+
+    tracker.unlink()
+    with pytest.raises(ValueError, match="missing without deletion status"):
+        build_source_manifest(tmp_path, "b" * 40, status, expected=sealed)

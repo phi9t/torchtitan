@@ -1,0 +1,16 @@
+package(default_visibility = ["//visibility:public"])
+
+# Keep the single executable target separate so $(location) remains valid. The
+# library tree supplies Lean's shared libraries and standard modules as
+# Bazel-owned external runfiles without copying the wider distribution.
+exports_files(["bin/lean"])
+
+filegroup(
+    name = "lean",
+    srcs = ["bin/lean"],
+)
+
+filegroup(
+    name = "lean_runtime",
+    srcs = glob(["lib/**"], allow_empty = False),
+)

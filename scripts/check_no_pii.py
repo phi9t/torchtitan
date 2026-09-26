@@ -89,6 +89,11 @@ _IDENTITY_RE = re.compile(
 # Candidate IPv4 -- validated further below to exclude non-routable ranges and
 # reject dotted version strings.
 _IPV4_CANDIDATE_RE = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+_BCR_MODULE_METADATA_KEY_RE = re.compile(
+    r'^\s*"https://bcr\.bazel\.build/modules/'
+    r"[a-z](?:[a-z0-9._-]*[a-z0-9])?/"
+    r'(?P<version>[0-9][A-Za-z0-9._+-]*)/(?:MODULE\.bazel|source\.json)"\s*:'
+)
 
 # Emails with an allowlist of benign / RFC-2606 reserved addresses.
 _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
@@ -150,14 +155,18 @@ def _looks_like_version(line: str, start: int, end: int) -> bool:
 
     A version-context guard: if the dotted-number run is immediately adjacent
     to ``==``, ``>=``, ``-``, or an alphabetic character (e.g.
-    ``nvidia-curand==10.4.0.35`` or a driver token), it is a
-    version, not an address.
+    ``nvidia-curand==10.4.0.35`` or a driver token), it is a version, not an
+    address. Official BCR metadata keys also place the version between a valid
+    module name and a fixed metadata filename.
     """
     before = line[:start]
     after = line[end:]
     if before.endswith(("==", ">=", "<=", "~=", "-")) or before[-1:].isalpha():
         return True
     if after[:1].isalpha() or after.startswith(("-", "==", ">=")):
+        return True
+    bcr_key = _BCR_MODULE_METADATA_KEY_RE.match(line)
+    if bcr_key is not None and bcr_key.span("version") == (start, end):
         return True
     return False
 

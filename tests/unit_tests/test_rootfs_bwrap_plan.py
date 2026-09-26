@@ -583,9 +583,109 @@ def test_enter_rootfs_can_emit_networked_plan(tmp_path: Path):
     assert validate_bwrap_plan(plan)["ok"] is True
 
 
+def test_enter_rootfs_binds_formal_cache_outside_checkout(tmp_path: Path):
+    rootfs = _minimal_rootfs(tmp_path)
+    output = tmp_path / "bwrap_plan.json"
+    formal_cache = tmp_path / "formal-cache"
+    formal_cache.mkdir()
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST": str(formal_cache),
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    plan = json.loads(output.read_text())
+    mounts = {mount["target"]: mount for mount in plan["mounts"]}
+    assert mounts["/project/formal-cache"] == {
+        "kind": "bind",
+        "source": str(formal_cache.resolve()),
+        "target": "/project/formal-cache",
+        "writable": True,
+    }
+    assert plan["environment"]["TORCHTITAN_FORMAL_CACHE"] == ("/project/formal-cache")
+
+
+def test_enter_rootfs_rejects_formal_cache_inside_checkout(tmp_path: Path):
+    rootfs = _minimal_rootfs(tmp_path)
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST": str(REPO_ROOT),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode != 0
+    assert "formal cache" in proc.stdout.lower()
+
+
+@pytest.mark.parametrize("managed_dir", ("bazel", "tools", "locks"))
+def test_enter_rootfs_rejects_formal_cache_managed_symlink(
+    tmp_path: Path,
+    managed_dir: str,
+) -> None:
+    rootfs = _minimal_rootfs(tmp_path)
+    formal_cache = tmp_path / "formal-cache"
+    formal_cache.mkdir()
+    (formal_cache / managed_dir).symlink_to(REPO_ROOT, target_is_directory=True)
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST": str(formal_cache),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode != 0
+    assert "symlink" in proc.stdout.lower()
+
+
 def test_enter_rootfs_can_bind_host_emacs_for_jupyter_verifiers(tmp_path: Path):
     rootfs = _minimal_rootfs(tmp_path)
-    host_home = tmp_path / "home" / "philip.yang"
+    host_home = tmp_path / "home" / "philip.yang"  # pii-allow
     for relative in (
         "devx",
         ".emacs.d/.local/straight",
@@ -630,12 +730,11 @@ def test_enter_rootfs_can_bind_host_emacs_for_jupyter_verifiers(tmp_path: Path):
     )
     assert mounts["/project/home/.emacs.d"]["kind"] == "ro-bind"
     assert str(host_home / ".emacs.d") not in mounts
-    assert mounts[str(host_home / ".emacs.d" / ".local" / "straight")][
-        "source"
-    ] == str(host_home / ".emacs.d" / ".local" / "straight")
+    assert mounts[str(host_home / ".emacs.d" / ".local" / "straight")]["source"] == str(
+        host_home / ".emacs.d" / ".local" / "straight"
+    )
     assert (
-        mounts[str(host_home / ".emacs.d" / ".local" / "straight")]["kind"]
-        == "ro-bind"
+        mounts[str(host_home / ".emacs.d" / ".local" / "straight")]["kind"] == "ro-bind"
     )
     assert mounts["/project/emacs-packages/straight"]["source"] == str(
         host_home / ".emacs.d" / ".local" / "straight"

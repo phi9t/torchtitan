@@ -15,6 +15,7 @@ ROOTFS_MUTABLE_ALLOWED="true"
 ROOTFS_SHARE_PID=0
 ROOTFS_PROFILE=0
 ROOTFS_PRIVILEGED=0
+ROOTFS_FORMAL_CACHE_HOST="${TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST:-}"
 # bpf() and the tracing perf_event_open() paths check capabilities against the
 # *initial* user namespace. BPF is not user-namespace aware, so capabilities
 # minted inside an unprivileged bwrap user namespace can never satisfy them
@@ -165,6 +166,39 @@ die() {
   exit 1
 }
 
+resolve_formal_cache() {
+  local requested="$1"
+  [[ -n "${requested}" ]] || die "formal cache path is empty"
+  [[ -d "${requested}" ]] || die "formal cache directory does not exist: ${requested}"
+  [[ ! -L "${requested}" ]] || die "formal cache directory must not be a symlink: ${requested}"
+
+  local canonical
+  canonical="$(cd -P -- "${requested}" && pwd)" \
+    || die "cannot resolve formal cache directory: ${requested}"
+  case "${canonical}/" in
+    "${REPO_ROOT}/"*) die "formal cache must be outside the checkout: ${canonical}" ;;
+  esac
+  [[ -w "${canonical}" ]] || die "formal cache directory is not writable: ${canonical}"
+
+  local managed_path candidate managed_canonical
+  for managed_path in bazel tools locks; do
+    candidate="${canonical}/${managed_path}"
+    [[ ! -L "${candidate}" ]] \
+      || die "formal cache managed directory must not be a symlink: ${candidate}"
+    if [[ -e "${candidate}" ]]; then
+      [[ -d "${candidate}" ]] \
+        || die "formal cache managed path is not a directory: ${candidate}"
+      managed_canonical="$(cd -P -- "${candidate}" && pwd)" \
+        || die "cannot resolve formal cache managed directory: ${candidate}"
+      case "${managed_canonical}/" in
+        "${canonical}/"*) ;;
+        *) die "formal cache managed directory escapes cache root: ${candidate}" ;;
+      esac
+    fi
+  done
+  printf '%s\n' "${canonical}"
+}
+
 json_escape() {
   python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
 }
@@ -232,6 +266,11 @@ EOF
     bind_source_json="$(json_escape "$ROOTFS_RUNTIME_STATE_ROOT/$bind_name")"
     append_mount "{\"kind\":\"bind\",\"source\":${bind_source_json},\"target\":\"$(rootfs_runtime_path_for "$bind_name")\",\"writable\":true}"
   done
+  if [[ -n "${ROOTFS_FORMAL_CACHE_HOST}" ]]; then
+    local formal_cache_json
+    formal_cache_json="$(json_escape "${ROOTFS_FORMAL_CACHE_HOST}")"
+    append_mount "{\"kind\":\"bind\",\"source\":${formal_cache_json},\"target\":\"/project/formal-cache\",\"writable\":true}"
+  fi
   if [[ "${ROOTFS_NETWORK_MODE}" == "networked" ]]; then
     for f in /etc/resolv.conf /etc/hosts; do
       if [[ -e "$f" ]]; then
@@ -312,6 +351,10 @@ EOF
     \"TORCH_HOME\": \"${ROOTFS_RUNTIME_PROJECT}/.cache/torch\",
     \"MPLCONFIGDIR\": \"/project/xdg-cache/matplotlib\",
     \"NVIDIA_VISIBLE_DEVICES\": ${nvidia_visible_json}"
+  if [[ -n "${ROOTFS_FORMAL_CACHE_HOST}" ]]; then
+    plan+=",
+    \"TORCHTITAN_FORMAL_CACHE\": \"/project/formal-cache\""
+  fi
   if [[ "${CUDA_VISIBLE_DEVICES+set}" == set ]]; then
     cuda_visible_json="$(json_escape "$CUDA_VISIBLE_DEVICES")"
     plan+=",
@@ -400,6 +443,10 @@ if [[ -z "${ROOTFS_STORE_ROOT}" && "${TORCHTITAN_ROOTFS_REQUIRE_MANIFEST:-0}" ==
 fi
 rootfs_runtime_set_store_id "${ROOTFS_STORE_ID}"
 
+if [[ -n "${ROOTFS_FORMAL_CACHE_HOST}" ]]; then
+  ROOTFS_FORMAL_CACHE_HOST="$(resolve_formal_cache "${ROOTFS_FORMAL_CACHE_HOST}")"
+fi
+
 REPO_MNT=/workspace/torchtitan
 HOST_LIBDIR=/usr/lib/x86_64-linux-gnu
 ROOTFS_NETWORK_MODE="${TORCHTITAN_ROOTFS_NETWORK:-offline}"
@@ -487,6 +534,9 @@ bwrap_args+=(
   --chdir "$REPO_MNT"
 )
 rootfs_runtime_add_bwrap_binds bwrap_args
+if [[ -n "${ROOTFS_FORMAL_CACHE_HOST}" ]]; then
+  bwrap_args+=(--bind "${ROOTFS_FORMAL_CACHE_HOST}" /project/formal-cache)
+fi
 
 if [[ "${ROOTFS_NETWORK_MODE}" == "networked" ]]; then
   bwrap_args+=(--share-net)
@@ -586,6 +636,9 @@ bwrap_args+=(
   --setenv LD_LIBRARY_PATH "$HOST_LIBDIR:/opt/cuda-synth/lib64"
 )
 rootfs_runtime_add_bwrap_env bwrap_args
+if [[ -n "${ROOTFS_FORMAL_CACHE_HOST}" ]]; then
+  bwrap_args+=(--setenv TORCHTITAN_FORMAL_CACHE /project/formal-cache)
+fi
 
 if [[ "${CUDA_VISIBLE_DEVICES+set}" == set ]]; then
   bwrap_args+=(--setenv CUDA_VISIBLE_DEVICES "$CUDA_VISIBLE_DEVICES")

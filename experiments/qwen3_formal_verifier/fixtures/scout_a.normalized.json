@@ -1,0 +1,893 @@
+{
+  "attempt_id": "single-rank-cuda-fix1",
+  "device": {
+    "compute_capability": [
+      10,
+      0
+    ],
+    "kind": "cuda",
+    "logical_id": "cuda:0",
+    "name": "NVIDIA B200",
+    "total_memory_bytes": 191503138816,
+    "visible_index": 0
+  },
+  "events": [
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 1
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000001",
+      "kind": "step.started",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "config_manager": "torchtitan.config.manager.ConfigManager",
+        "method": "Trainer.train",
+        "owner": "torchtitan.trainer.Trainer"
+      },
+      "phase": "step",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000001",
+        "raw_sha256": "cb0f0bbbd0dea6e89e59afe3d3fd1374dfd18533d06a71c420bca048cd062179"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000001:work",
+        "role": "step.started"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000001"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 2
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000002",
+      "kind": "batch.observed",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "tensors": {
+          "input.input": {
+            "dtype": "int64",
+            "sha256": "8f8bd03b595080a6531296bc5607fcf9a6a0f269ef772d28339715293ed8a276",
+            "shape": [
+              1,
+              128
+            ]
+          },
+          "input.positions": {
+            "dtype": "int64",
+            "sha256": "3e4f0a2fd9498da7c1440a355a22b6292161a5216c63aa0bc59b5a4742fd1e36",
+            "shape": [
+              1,
+              128
+            ]
+          },
+          "labels": {
+            "dtype": "int64",
+            "sha256": "3623193d5fea9afae389b8b321d99796d19248efcdbb12f14d44bc55f1f30f04",
+            "shape": [
+              1,
+              128
+            ]
+          }
+        }
+      },
+      "phase": "input",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000002",
+        "raw_sha256": "1578756bf8bf35d16711ceb2f588970ca6e0de163f430cd1608a288e7d530353"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000002:work",
+        "role": "batch.observed"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000002"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 3
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000003",
+      "kind": "forward.started",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "hook": "Module.register_forward_pre_hook",
+        "num_args": 1
+      },
+      "phase": "forward",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000003",
+        "raw_sha256": "d4bca226a35681ceeb63330dee83accca804dd3d473c43b93ed15e51bc7bcf03"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000003:work",
+        "role": "forward.started"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000003"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 4
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000004",
+      "kind": "forward.completed",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "hook": "Module.register_forward_hook",
+        "output_shapes": [
+          [
+            1,
+            128,
+            256
+          ]
+        ]
+      },
+      "phase": "forward",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000004",
+        "raw_sha256": "c352a201cfa387b42c5b4c9651bb5e5f22da213f45be33b1d8bfc69f98c56c7b"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000004:work",
+        "role": "forward.completed"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000004"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 5
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000005",
+      "kind": "backward.started",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "hook": "Module.register_full_backward_pre_hook",
+        "num_grad_outputs": 1
+      },
+      "phase": "backward",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000005",
+        "raw_sha256": "263d2c3b13063cbfdf4e1c760c36414ba343ccd9a553e25eb54ee1bab34b4df7"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000005:work",
+        "role": "backward.started"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000005"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 6
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000006",
+      "kind": "gradient.ready",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "gradient": {
+          "dtype": "bfloat16",
+          "sha256": "3ebf8dafd40115c7955ec5e90c41d192972939c49e5ed9ccda24d25f0d03d89e",
+          "shape": [
+            2048,
+            256
+          ]
+        },
+        "hook": "Parameter.register_post_accumulate_grad_hook",
+        "hook_calls": 1,
+        "parameter": "tok_embeddings.weight"
+      },
+      "phase": "backward",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000006",
+        "raw_sha256": "6feb4a4059da4c5b05a40179145d682ffc911452164d2c5af3172c91ea197ebb"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000006:work",
+        "role": "gradient.ready"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000006"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 7
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000007",
+      "kind": "backward.completed",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "hook": "Module.register_full_backward_hook",
+        "num_grad_inputs": 1,
+        "num_grad_outputs": 1
+      },
+      "phase": "backward",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000007",
+        "raw_sha256": "2ea09a5bb5a054f3b02deac31f89b34bca8b643bfcada5faebb90237e01cc226"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000007:work",
+        "role": "backward.completed"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000007"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 8
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000008",
+      "kind": "optimizer.started",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "hook": "Optimizer.register_step_pre_hook",
+        "optimizer": "AdamW",
+        "parameter_sha256": "3e8ada975dab323d113db1e0179e600d53c60bb90f4d386ec721a1922540036a"
+      },
+      "phase": "optimizer",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000008",
+        "raw_sha256": "37b3b927c5b8db785f8ca8b1ef9d21893a2ef890b082947e70f43bf69dab933b"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000008:work",
+        "role": "optimizer.started"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000008"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 9
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000009",
+      "kind": "optimizer.mutated",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "after_sha256": "e4251f1fff02d91d507f3c4daa72c68ad0ee4d97a3739205c9d59f7c502df9b6",
+        "before_sha256": "3e8ada975dab323d113db1e0179e600d53c60bb90f4d386ec721a1922540036a",
+        "hook": "Optimizer.register_step_post_hook",
+        "mutated": true,
+        "optimizer": "AdamW"
+      },
+      "phase": "optimizer",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000009",
+        "raw_sha256": "28c67c40619d733d0fe5a622c973cd3e25bf280ff208ff7e6d5a7d2f1ca08fae"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000009:work",
+        "role": "optimizer.mutated"
+      },
+      "world_size": 1
+    },
+    {
+      "attempt_id": "single-rank-cuda-fix1",
+      "causal_predecessors": [
+        "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000009"
+      ],
+      "clock": {
+        "domain": "rank_source_order",
+        "order": 10
+      },
+      "device": {
+        "compute_capability": [
+          10,
+          0
+        ],
+        "kind": "cuda",
+        "logical_id": "cuda:0",
+        "name": "NVIDIA B200",
+        "total_memory_bytes": 191503138816,
+        "visible_index": 0
+      },
+      "event_id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000010",
+      "kind": "step.completed",
+      "lineage": {
+        "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+        "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+        "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+      },
+      "local_rank": 0,
+      "mesh": {
+        "axes": [
+          "dp_replicate",
+          "dp_shard",
+          "cp",
+          "tp",
+          "pp",
+          "ep"
+        ],
+        "coordinate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "degrees": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "observation": {
+        "optimizer_steps": 1,
+        "owner": "torchtitan.trainer.Trainer",
+        "trainer_step": 1
+      },
+      "phase": "step",
+      "process_id": "rank-0",
+      "provenance": {
+        "raw_event_id": "raw-r0-000010",
+        "raw_sha256": "25d7f86d8aa59d308c559df355e409e67f2325b61bdb67bee9223a5f9f1c0773"
+      },
+      "rank": 0,
+      "run_id": "qfv-scout-a-seed42-fix1",
+      "step": 1,
+      "work": {
+        "id": "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000010:work",
+        "role": "step.completed"
+      },
+      "world_size": 1
+    }
+  ],
+  "lineage": {
+    "config_sha256": "c37b2d06150eef9b403180ec279e5b3239c4123064b01263152b82586189c026",
+    "first_batch_sha256": "da940d7ee7426e83a20890122b0081d5b69fe931f2bfc2eda0bc05b73a57f030",
+    "model_init_sha256": "e5fd2a531e297611f8b92434a146d0508ec82b03c4ded278626a67d8d5bda2b9"
+  },
+  "mesh": {
+    "axes": [
+      "dp_replicate",
+      "dp_shard",
+      "cp",
+      "tp",
+      "pp",
+      "ep"
+    ],
+    "coordinate": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "degrees": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ]
+  },
+  "process": {
+    "local_rank": 0,
+    "process_id": "rank-0",
+    "rank": 0,
+    "world_size": 1
+  },
+  "profile": {
+    "checkpoint_load": false,
+    "checkpoint_save": false,
+    "config_module": "qwen3",
+    "config_name": "qwen3_debugmodel",
+    "dataset": "c4_test",
+    "deterministic": true,
+    "dtype": "bfloat16",
+    "global_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "local_batch_size": 1,
+    "model_flavor": "debugmodel",
+    "model_name": "qwen3",
+    "optimizer": "AdamW",
+    "optimizer_steps": 1,
+    "seed": 42,
+    "sequence_length": 128,
+    "tokenizer_path": "tests/assets/tokenizer",
+    "tokens_per_optimizer_step": 128
+  },
+  "provenance": {
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000001": {
+      "raw_event_id": "raw-r0-000001",
+      "raw_sha256": "cb0f0bbbd0dea6e89e59afe3d3fd1374dfd18533d06a71c420bca048cd062179"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000002": {
+      "raw_event_id": "raw-r0-000002",
+      "raw_sha256": "1578756bf8bf35d16711ceb2f588970ca6e0de163f430cd1608a288e7d530353"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000003": {
+      "raw_event_id": "raw-r0-000003",
+      "raw_sha256": "d4bca226a35681ceeb63330dee83accca804dd3d473c43b93ed15e51bc7bcf03"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000004": {
+      "raw_event_id": "raw-r0-000004",
+      "raw_sha256": "c352a201cfa387b42c5b4c9651bb5e5f22da213f45be33b1d8bfc69f98c56c7b"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000005": {
+      "raw_event_id": "raw-r0-000005",
+      "raw_sha256": "263d2c3b13063cbfdf4e1c760c36414ba343ccd9a553e25eb54ee1bab34b4df7"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000006": {
+      "raw_event_id": "raw-r0-000006",
+      "raw_sha256": "6feb4a4059da4c5b05a40179145d682ffc911452164d2c5af3172c91ea197ebb"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000007": {
+      "raw_event_id": "raw-r0-000007",
+      "raw_sha256": "2ea09a5bb5a054f3b02deac31f89b34bca8b643bfcada5faebb90237e01cc226"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000008": {
+      "raw_event_id": "raw-r0-000008",
+      "raw_sha256": "37b3b927c5b8db785f8ca8b1ef9d21893a2ef890b082947e70f43bf69dab933b"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000009": {
+      "raw_event_id": "raw-r0-000009",
+      "raw_sha256": "28c67c40619d733d0fe5a622c973cd3e25bf280ff208ff7e6d5a7d2f1ca08fae"
+    },
+    "qfv-scout-a-seed42-fix1:single-rank-cuda-fix1:r0:e000010": {
+      "raw_event_id": "raw-r0-000010",
+      "raw_sha256": "25d7f86d8aa59d308c559df355e409e67f2325b61bdb67bee9223a5f9f1c0773"
+    }
+  },
+  "run_id": "qfv-scout-a-seed42-fix1",
+  "schema": "qwen3.formal.scout.v0",
+  "trace_id": "sha256:59b9f7410ef0eb51f9ea2d9a53adcdb98d51d7b5be5994e0784df0a3b5adcaa9"
+}

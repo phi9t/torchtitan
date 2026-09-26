@@ -1,0 +1,242 @@
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files(["lean.BUILD.bazel"])
+
+filegroup(
+    name = "tlc_smoke_models",
+    srcs = [
+        "TlcSmokeBad.cfg",
+        "TlcSmokeBad.tla",
+        "TlcSmokeGood.cfg",
+        "TlcSmokeGood.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_scout_a_models",
+    srcs = [
+        "ScoutABadFacts.tla",
+        "ScoutAFacts.tla",
+        "ScoutAInvalid.cfg",
+        "ScoutAInvalid.tla",
+        "ScoutAValid.cfg",
+        "ScoutAValid.tla",
+        "ScoutLifecycle.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_scout_a_model",
+    srcs = [
+        "ScoutAFacts.tla",
+        "ScoutAModel.cfg",
+        "ScoutAModel.tla",
+        "ScoutAModelUnsafe.cfg",
+        "ScoutARefine.cfg",
+        "ScoutARefine.tla",
+        "ScoutARefineBad.cfg",
+        "ScoutARefineBad.tla",
+        "ScoutARefineBadReach.cfg",
+        "ScoutLifecycle.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_scout_b_models",
+    srcs = [
+        "ScoutBBadFacts.tla",
+        "ScoutBFacts.tla",
+        "ScoutBInvalid.cfg",
+        "ScoutBInvalid.tla",
+        "ScoutBValid.cfg",
+        "ScoutBValid.tla",
+        "ScoutDistributed.tla",
+    ],
+)
+
+sh_test(
+    name = "tlc_smoke_test",
+    srcs = ["run_tlc_smoke.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_smoke_models",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "lean_smoke_test",
+    srcs = ["run_lean_smoke.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":LeanSmokeInvalid.lean",
+        ":LeanSmokeValid.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+)
+
+sh_test(
+    name = "tlc_scout_a_test",
+    srcs = ["run_tlc_scout_a.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_scout_a_models",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "lean_scout_a_test",
+    srcs = ["run_lean_scout_a.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":ScoutABadFacts.lean",
+        ":ScoutAFacts.lean",
+        ":ScoutAInvalid.lean",
+        ":ScoutAValid.lean",
+        ":ScoutLifecycle.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+)
+
+sh_test(
+    name = "tlc_scout_a_model_test",
+    srcs = ["run_tlc_scout_a_model.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_scout_a_model",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "tlc_scout_b_test",
+    srcs = ["run_tlc_scout_b.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_scout_b_models",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "lean_scout_b_test",
+    srcs = ["run_lean_scout_b.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":ScoutBBaseChecks.lean",
+        ":ScoutBBadFacts.lean",
+        ":ScoutBCollectiveEventRank0.lean",
+        ":ScoutBCollectiveEventRank1.lean",
+        ":ScoutBCollectiveEventRank2.lean",
+        ":ScoutBCollectiveEventRank3.lean",
+        ":ScoutBEventMutationChecks.lean",
+        ":ScoutBEventRank0.lean",
+        ":ScoutBEventRank1.lean",
+        ":ScoutBEventRank2.lean",
+        ":ScoutBEventRank3.lean",
+        ":ScoutBFacts.lean",
+        ":ScoutBInvalid.lean",
+        ":ScoutBProducerCheck.lean",
+        ":ScoutBSyncChunk0.lean",
+        ":ScoutBSyncChunk1.lean",
+        ":ScoutBSyncChunk2.lean",
+        ":ScoutBSyncChunk3.lean",
+        ":ScoutBValid.lean",
+        ":ScoutDistributed.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    timeout = "long",
+)
+
+test_suite(
+    name = "formal_smoke_tests",
+    tests = [
+        ":lean_smoke_test",
+        ":tlc_smoke_test",
+    ],
+)
+
+test_suite(
+    name = "scout_a_formal_tests",
+    tests = [
+        ":lean_scout_a_test",
+        ":lean_smoke_test",
+        ":tlc_scout_a_model_test",
+        ":tlc_scout_a_test",
+        ":tlc_smoke_test",
+    ],
+)
+
+test_suite(
+    name = "scout_b_formal_tests",
+    tests = [
+        ":lean_scout_a_test",
+        ":lean_scout_b_test",
+        ":lean_smoke_test",
+        ":tlc_scout_a_model_test",
+        ":tlc_scout_a_test",
+        ":tlc_scout_b_test",
+        ":tlc_smoke_test",
+    ],
+)
