@@ -68,6 +68,26 @@ filegroup(
 )
 
 filegroup(
+    name = "tlc_scout_b_refine",
+    srcs = [
+        "ScoutBFacts.tla",
+        "ScoutBModel.tla",
+        "ScoutBRefine.cfg",
+        "ScoutBRefine.tla",
+        "ScoutBRefineBad.cfg",
+        "ScoutBRefineBadReach.cfg",
+        "ScoutBRefineBadRelaxed.cfg",
+        "ScoutBRefineBadUniform.cfg",
+        "ScoutBRefineMapping.cfg",
+        "ScoutBRefineOverlap.cfg",
+        "ScoutBRefineSingleRankPermutation.cfg",
+        "ScoutBRefineSkew.cfg",
+        "ScoutBRefineUniformPermutation.cfg",
+        "ScoutDistributed.tla",
+    ],
+)
+
+filegroup(
     name = "tlc_scout_b_models",
     srcs = [
         "ScoutBBadFacts.tla",
@@ -222,6 +242,30 @@ sh_test(
 )
 
 sh_test(
+    name = "tlc_scout_b_refine_test",
+    srcs = ["run_tlc_scout_b_refine.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_scout_b_refine",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    # Ten TLC searches, four of which replay all 108 issues of four ranks.
+    # Measured at about five minutes in total, so the default moderate
+    # timeout has no headroom.
+    timeout = "long",
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
     name = "tlc_scout_b_test",
     srcs = ["run_tlc_scout_b.sh"],
     args = [
@@ -322,6 +366,7 @@ test_suite(
         ":tlc_scout_a_model_refine_test",
         ":tlc_scout_a_test",
         ":tlc_scout_b_model_test",
+        ":tlc_scout_b_refine_test",
         ":tlc_scout_b_test",
         ":tlc_smoke_test",
     ],

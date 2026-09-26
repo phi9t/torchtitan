@@ -16,7 +16,12 @@ Ticket 10 delivered the 1x1 bridge: `ScoutARefine.tla` plus
 invariants (corruption isolated, not admitted, refusal not later than the
 mutation, mutation never emitted).
 
-The 2x2 bridge is tracked separately as ticket 12, because the distributed case
+The 2x2 bridge is delivered by ticket 12 as `ScoutBRefine.tla`: the observed
+per-rank issue order of all four ranks, all 108 issues each, runs to completion
+under every guard of `ScoutBModel`, with a same-communicator transposition
+refused at the rendezvous guard and a bounded-skew fragment establishing
+confluence by exhaustive search. It is tracked separately because the
+distributed case
 has a trap this ticket's wording does not anticipate: the observed per-rank
 `started`/`completed` sub-order is **synthetic**, appended contiguously post
 hoc from the Flight Recorder with timestamps dropped. A bridge replaying

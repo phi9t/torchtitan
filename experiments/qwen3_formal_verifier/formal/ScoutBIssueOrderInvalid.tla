@@ -34,13 +34,35 @@ Next ==
 
 Spec == Init /\ [][Next]_vars
 
-\* Rank 0's first collective in issue order, derived rather than hand-written.
+(***************************************************************************)
+(* Rank 0's first collective in issue order, derived rather than            *)
+(* hand-written.                                                           *)
+(*                                                                         *)
+(* CHOOSE is partial, and MutatedWork is a constant definition that TLC     *)
+(* folds before it checks anything, so on a trace where rank 0 issued no    *)
+(* collective the unguarded form abandoned the search with                  *)
+(* "Attempted to compute the value of an expression of form CHOOSE ..." and *)
+(* exit 75. That output still prints a state summary and a "Finished in"    *)
+(* line, so before the evaluation-error class was added to the checker      *)
+(* contract only the exit-status pin rejected it. The guard makes the       *)
+(* module name its missing target instead: the empty string is not a work   *)
+(* id, so MutatedOperation matches nothing and both                         *)
+(* Rank0HasACollective and MutationIsIsolated fail. Same                    *)
+(* sentinel-plus-named-invariant shape as ScoutARefineBad's                 *)
+(* ControlEventsArePresent.                                                *)
+(***************************************************************************)
+Rank0Works ==
+  { work \in SequenceElements(CollectiveWorkIds) :
+      CollectiveRank[work] = 0 }
+
+Rank0HasACollective == Rank0Works # {}
+
 MutatedWork ==
-  CHOOSE work \in SequenceElements(CollectiveWorkIds) :
-    /\ CollectiveRank[work] = 0
-    /\ \A other \in SequenceElements(CollectiveWorkIds) :
-         CollectiveRank[other] = 0 =>
+  IF Rank0HasACollective
+  THEN CHOOSE work \in Rank0Works :
+         \A other \in Rank0Works :
            CollectiveIssueOrder[work] <= CollectiveIssueOrder[other]
+  ELSE ""
 
 MutatedOperation ==
   [work \in DOMAIN CollectiveOperation |->

@@ -289,9 +289,10 @@ sequence lies inside that model.
 The abstract DPxTP protocol is a separate model, `ScoutBModel`, with its own
 seven TLC searches and its own claim inventory; see "Tier 0: the trace-free
 suite" above for what each of its result tokens establishes, and the header of
-`ScoutBModel.tla` for the exact claims. It has no refinement bridge to the
-observed four-rank trace -- `ScoutBValid` and `ScoutBIssueOrderInvalid` are
-cursor walks over the generated facts, not refinement.
+`ScoutBModel.tla` for the exact claims. Its refinement bridge to the observed
+four-rank trace is `ScoutBRefine`, described in "DPxTP refinement bridge" below;
+`ScoutBValid` and `ScoutBIssueOrderInvalid` remain cursor walks over the
+generated facts, not refinement.
 
 The bridge is over event **kinds** only. `ScoutARefine` projects the observed
 trace to its `EventKinds` sequence, so the refinement argument covers the order
@@ -308,3 +309,165 @@ faithful model of TorchTitan -- only of the step lifecycle contract stated in it
 own actions, and its value depends on that contract being the right one, which no
 checker decides. The same caveat applies to `ScoutBModel` for the collective
 protocol.
+
+## DPxTP refinement bridge
+
+`ScoutBRefine` asks whether the observed four-rank run is an admitted behaviour
+of `ScoutBModel`. Its target is `tlc_scout_b_refine_test`, which runs in the
+sealed Scout B suite and not in tier 0, because it reads the generated
+`ScoutBFacts`. Seven checks; the module header carries the same list as its
+claim inventory and the two must agree.
+
+**Only the issue order is replayed.** The observer appends each collective's
+enqueued/started/completed triple contiguously, post hoc, from the Flight
+Recorder, and the raw-event projection drops `observed_time_ns`, so per-rank
+*event* order asserts a full serialization of every collective before the next.
+That cannot have happened -- FSDP all-gathers overlap by construction -- and a
+bridge replaying it would **pass**, because a serialized schedule satisfies
+every guard trivially. Only the `collective.enqueued` sub-order is faithful, so
+only `CollectiveIssueOrder` is read. `Start` and `Complete` are taken by the
+model's own guards, and the start/complete schedule along the witness path is
+model-chosen, not claimed to be the schedule that ran.
+
+**What the positive establishes, exactly.** At each of the 108 positions the
+four ranks' recorded issues form a *column*. The positive establishes that every
+column is model-typable and cross-rank consistent -- each rank's issue names a
+communicator it belongs to, carrying an operation that communicator admits, and
+at every position the four ranks agree on the operation and are at the same
+communicator wherever their communicators share a rank -- and that the
+collectives those columns induce drain to completion under the model's own
+`Start` and `Complete` guards.
+
+It does **not** establish that the observed absolute order is the only order the
+model admits, and it cannot. `OpsAgreeAtFront` quantifies over the members at a
+communicator's front; `UniformProgramOpsOK` and `UniformProgramCommsOK` quantify
+over the ranks at a position. All three are relational across ranks at a
+position and none mentions which collective a position ought to carry. That is
+correct NCCL semantics: members of a communicator must *agree* on their
+collective sequence, not follow any particular one, so a permutation applied
+uniformly to all four ranks is an equally valid SPMD program and must be
+admitted. Measured: reversing every rank's sequence is admitted with the same
+9,172 generated / 5,371 distinct / depth 865 the positive reports, and relaxing
+`RequireMatchedIssueOrder`, `RequireStreamOrder` or either SPMD guard on the
+observed order leaves those numbers unchanged.
+
+So the limit is a checked pair rather than a caveat.
+`ScoutBRefineUniformPermutation.cfg` reverses every rank's sequence and the run
+is **admitted**; `ScoutBRefineSingleRankPermutation.cfg` reverses one rank's
+sequence, which breaks the columns, and the run is **refused** at depth 6. The
+second half is the evidence that the bridge detects agreement violations -- the
+property NCCL imposes and the one a real job hangs on. Both halves assert,
+through the model's own `UniformProgram*OK` predicates, that their input really
+does preserve or break agreement, so neither can pass for an unrelated reason.
+
+**Admission is completion, not length.** `Issue`'s guard never reads `doneOn`,
+so "every rank reached its observed issue count" is satisfied by issuing
+everything and running nothing -- for a corrupted issue order as much as for the
+real one. The admission predicate is therefore `AllDone`: every rank issued the
+replayed prefix, in order, and every collective completed.
+
+**The communicator mapping is derived, not tabulated.** The facts key
+collectives by canonical id (`tp:0,1:mesh_tp`, `dp_shard:0,2:mesh_fsdp`, ...)
+and the model by its own eight names. The mapping is computed from the recorded
+member sets and operations -- no communicator name of either side appears in the
+derivation -- and then asserted total, injective, onto `CommIds`, member-set
+preserving and operation-respecting. The derived mapping is printed by the
+checker and echoed by the runner, so a reviewer reads the mapping that was used
+rather than one quoted in prose. It is not unique and does not need to be:
+members plus operations pin four of the eight images and leave two independent
+two-element swaps, so there are four valid mappings. The `{0,1}` and `{2,3}`
+classes hold one observed and one model communicator each; in `{0,2}` and
+`{1,3}`, `mesh_fsdp` is pinned by carrying three operations and `mesh_batch` and
+`mesh_loss_mesh` are interchangeable. The model gives that pair equal members
+and equal `CommOps`, so swapping them is an automorphism of the whole
+specification.
+
+**Cost control lives in the bridge, not in the model.** `Next` is untouched.
+`GreedyReplay` narrows the search to a drain-then-advance schedule and
+`MaxReplaySkew = 1` holds the four ranks in lockstep, which makes the witness
+linear in the trace: 865 steps, 5,371 distinct states for all 108 issues of all
+four ranks. The same witness is found at looser spreads and costs more (9,199
+states at 2, 13,261 at 4), so the bound is reported rather than assumed.
+
+That is sound for a positive result without any
+confluence argument -- every step of `ConstrainedNext` is a step of `Next`, so a
+witness is a witness, and narrowing a search can only lose witnesses. The
+converse direction, reading a greedy failure as non-admission, is **not**
+claimed from that configuration.
+
+The witness path is serialized: at most one collective in flight. A serialized
+schedule satisfies every guard easily, so the positive result is evidence about
+the issue order rather than about scheduling. That it is not vacuous is shown by
+the negative control, which runs under the same serialized policy and is still
+refused; overlapping schedules are covered by the confluence configuration
+below.
+
+**Confluence is machine-checked over a declared fragment.**
+`ScoutBRefineSkew.cfg` drops the greedy policy and explores every schedule whose
+per-rank issue counts stay within `MaxReplaySkew` of one another and which keeps
+at most `MaxOutstanding` issues in flight per rank and communicator, over the
+first `MaxIssues` issues of each rank. `CHECK_DEADLOCK` is on and this is the
+only refinement configuration where it is: `Terminated` self-loops on `AllDone`
+alone, so "no dead end anywhere" gives "every schedule in the fragment reaches
+completion" **provided the graph is otherwise acyclic**. That proviso is an
+unchecked lemma, stated as prose in the module header and argued from a
+lexicographic measure; a finite state graph may perfectly well contain cycles,
+so the inference is only as good as that argument. TLC checks the absence of
+dead ends, not the acyclicity. A pass also
+certifies that the two cost-control bounds are not themselves obstructive.
+`ScoutBRefineOverlap.cfg` then refutes `NoTwoCollectivesRunConcurrently` over
+the same constants, which is what keeps the result from being a statement about
+serialized schedules only. The bound of 54 is chosen, not convenient: rank 0's
+first `reduce_scatter` is at position 52 and the pair the negative control
+transposes is 52/53, so a shorter prefix contains no `reduce_scatter` at all and
+the `rs` stream -- and with it the alternation between FSDP2's two dedicated
+streams on one communicator -- never appears. `all_gather` is in play from
+position 2, so the `ag` stream is not what this bound buys.
+
+The fragment is a fragment: it says nothing about
+positions beyond its bound or about wider skew, and the runner reports every
+bound in its token.
+
+**The negative control transposes two adjacent issues of one rank on one
+communicator, with differing operations.** The site is derived from the facts,
+minimal index first; on this trace it is rank 0, positions 52 and 53, the
+`reduce_scatter`/`all_gather` pair on the FSDP communicator. Same-communicator
+adjacency is what makes the rendezvous guard reachable at all: transposing
+across different communicators would be refused because a member never reached
+a communicator's front, which is the wrong guard.
+
+A single-rank corruption is an agreement violation, and agreement is guarded in
+two places, so which guard refuses it depends on the configuration. Under the
+**positive's** guard set the operations disagree at that position with every
+other rank, so `RequireUniformProgramOps` refuses every *peer's* issue at that
+position and the corrupted column never forms: that is
+`ScoutBRefineBadUniform.cfg`, where `CorruptedColumnIsNeverFormed` holds --
+2,555 distinct states, depth 414. The corrupted record itself is still issued,
+because `UniformProgramOpsOK` compares positions only up to the shorter of two
+sequences and the frontier position is not yet compared with anything. That is
+exactly the real-world shape of the fault: one rank runs ahead, its peers cannot
+follow, the job stops. The refusal is correct, but it is not the guard the
+control exists to exercise.
+
+So the three configurations that isolate the rendezvous guard --
+`ScoutBRefineBad`, `...BadReach` and `...BadRelaxed` -- all set
+`RequireUniformProgramOps = FALSE`. That is necessary for `...BadRelaxed`: with
+the SPMD guard on, flipping `RequireMatchedIssueOrder` does not admit the
+corruption and the attribution to that one constant collapses. It is **not**
+necessary for `...BadReach` -- measured, that witness appears at the same depth
+with the guard either way -- and is set there only to keep the three on one
+constant set, so the only differences among them are the ones the runner's cfg
+diff checks. `ScoutBRefineBadRelaxed.cfg` then flips `RequireMatchedIssueOrder`
+alone and the same corruption completes, which attributes that refusal to NCCL's
+matching requirement directly.
+
+**Why `-Xss` is raised.** `ScoutBModel`'s SPMD-program guards contain
+`\A r1 \in Ranks : \A r2 \in Ranks : \A k \in 1..MinOf(len1, len2)` inside
+`IssueAllowed`, which is evaluated in action position, where TLC recurses once
+per bound element. At `MaxIssues = 2`, where every other configuration of that
+model runs, the innermost range has two elements; replaying 108 issues per rank
+makes it 4 x 4 x 108 and TLC overflows the default 1 MB thread stack at around
+replay depth 258. Attribution was verified by rerunning the same configuration
+with both uniformity guards relaxed, which completes the whole 865-step replay
+at the default stack size. The runner uses `-Xss32m`; the replay completes at
+`-Xss8m`.

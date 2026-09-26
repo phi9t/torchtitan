@@ -838,6 +838,13 @@ def _run_tlc(
         [
             java,
             "-XX:+UseParallelGC",
+            # Same thread stack the DPxTP refinement runner uses, and for the
+            # same reason: ScoutBModel's SPMD-program guards contain a \A over
+            # 1..issue-count inside an action, where TLC recurses once per
+            # bound element, so a probe that replays tens of issues per rank
+            # overflows the default 1 MB stack. Raising it here cannot weaken
+            # any other probe.
+            "-Xss32m",
             "-cp",
             jar,
             "tlc2.TLC",
@@ -2255,6 +2262,523 @@ def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
     assert divergent["RequireMatchedIssueOrder"] == "TRUE"
     assert opmismatch["RequireMatchedIssueOrder"] == "TRUE"
     assert unguarded["RequireMatchedIssueOrder"] == "FALSE"
+
+
+B_REFINE = FORMAL_DIR / "ScoutBRefine.tla"
+B_REFINE_RUNNER = FORMAL_DIR / "run_tlc_scout_b_refine.sh"
+B_REFINE_CFGS = (
+    "ScoutBRefineMapping.cfg",
+    "ScoutBRefine.cfg",
+    "ScoutBRefineUniformPermutation.cfg",
+    "ScoutBRefineSingleRankPermutation.cfg",
+    "ScoutBRefineSkew.cfg",
+    "ScoutBRefineOverlap.cfg",
+    "ScoutBRefineBad.cfg",
+    "ScoutBRefineBadReach.cfg",
+    "ScoutBRefineBadRelaxed.cfg",
+    "ScoutBRefineBadUniform.cfg",
+)
+
+# The facts the refinement bridge must NOT read. Each of these carries the
+# started/completed sub-order or the inferred stream and producer attribution:
+# the observer appends a collective's three events contiguously, post hoc, and
+# the raw-event projection drops observed_time_ns, so per-rank EVENT order
+# asserts a full serialization of every collective before the next. That cannot
+# have happened -- FSDP all-gathers overlap by construction -- and a bridge
+# replaying it would PASS, because a serialized schedule satisfies every guard.
+_EVENT_ORDER_FACTS = (
+    "CollectiveEventIds",
+    "CollectiveLifecycle",
+    "CollectiveStream",
+    "CollectiveProducers",
+    "EventOrder",
+    "EventKind",
+    "EventIds",
+)
+
+
+def _refine_fixtures() -> tuple[str, ...]:
+    return (
+        "ScoutBModel.tla",
+        "ScoutBFacts.tla",
+        "ScoutDistributed.tla",
+        "ScoutBRefine.tla",
+    )
+
+
+def _refine_constants(**overrides: str) -> str:
+    """Render a constant block for a ScoutBRefine probe cfg."""
+
+    settings = {
+        "MaxIssues": "108",
+        "RequireMatchedIssueOrder": "TRUE",
+        "RequireUniformProgramOps": "TRUE",
+        "RequireUniformProgramComms": "TRUE",
+        "RequireStreamOrder": "TRUE",
+        "GreedyReplay": "TRUE",
+        "MaxReplaySkew": "108",
+        "MaxOutstanding": "108",
+        "TransposeMutation": "FALSE",
+        "ReplayPermutation": '"observed"',
+    }
+    settings.update(overrides)
+    lines = [
+        "CONSTANT",
+        "  Ranks <- Ranks2x2",
+        "  CommIds <- CommIds2x2",
+        "  CommMembers <- CommMembers2x2",
+        "  CommOps <- CommOps2x2",
+        "",
+        "CONSTANT",
+    ]
+    lines += [f"  {name} = {value}" for name, value in settings.items()]
+    return "\n".join(lines) + "\n"
+
+
+def test_dpxtp_bridge_replays_the_issue_order_and_not_the_event_order() -> None:
+    """The one trap: only the enqueued sub-order is evidence.
+
+    Stated over the identifiers the bridge actually mentions, because the
+    distinction is invisible in the result -- a bridge built on per-rank event
+    order would assert a full serialization of every collective and would
+    still pass every guard.
+    """
+
+    bridge = B_REFINE.read_text()
+    facts = (FORMAL_DIR / "ScoutBFacts.tla").read_text()
+
+    assert "CollectiveIssueOrder" in bridge
+    for name in _EVENT_ORDER_FACTS:
+        # Guard against a vacuous check: the fact must exist to be excluded.
+        assert f"\n{name} ==" in facts, name
+        assert name not in bridge, name
+
+
+def test_dpxtp_bridge_configs_bind_every_constant_they_inherit() -> None:
+    """A cfg that forgets a constant does not fail; TLC refuses to run.
+
+    The bridge extends ScoutBModel, so each of its configurations has to bind
+    that model's constants as well as its own. Derived from both CONSTANTS
+    blocks rather than from a list kept in step by hand.
+    """
+
+    declared = _tla_constants(B_REFINE.read_text()) | _tla_constants(
+        B_MODEL.read_text()
+    )
+    assert "MaxOutstanding" in declared
+
+    for name in B_REFINE_CFGS:
+        bound = set(_cfg_settings((FORMAL_DIR / name).read_text()))
+        assert declared <= bound, (name, sorted(declared - bound))
+
+
+def test_dpxtp_bridge_configurations_check_the_halves_they_are_for() -> None:
+    """Each configuration's invariant list, in order, as the runner needs it.
+
+    Order matters: a structural failure -- no transposable pair, a mapping that
+    disagrees with the model, a replay that stopped replaying -- must be the
+    reported one, not a refusal inferred from it. Checked as configuration
+    because the runs prove the outcomes.
+    """
+
+    invariants = {
+        name: _cfg_invariants((FORMAL_DIR / name).read_text()) for name in B_REFINE_CFGS
+    }
+
+    assert invariants["ScoutBRefineMapping.cfg"] == [
+        "ModelInstanceIsNonEmpty",
+        "ObservedRanksMatchTheModel",
+        "ObservedIssueOrderIsDistinctWithinRank",
+        "CommMappingIsWellFormed",
+        "ReplayLengthsAgreeAcrossRanks",
+        "ReplayBoundIsWithinTheObservedTrace",
+        "TransposableIssuePairExists",
+    ]
+    assert invariants["ScoutBRefine.cfg"] == [
+        "IssuedIsAReplayPrefix",
+        "ReplaySkewIsWithinBound",
+        "ReplayedRunIsNotAdmitted",
+    ]
+    assert invariants["ScoutBRefineSkew.cfg"] == [
+        "IssuedIsAReplayPrefix",
+        "ReplaySkewIsWithinBound",
+        "ReplayOutstandingIsWithinBound",
+        "TypeOK",
+    ]
+    assert invariants["ScoutBRefineOverlap.cfg"] == ["NoTwoCollectivesRunConcurrently"]
+    assert invariants["ScoutBRefineBad.cfg"] == [
+        "TransposableIssuePairExists",
+        "MutationIsIsolated",
+        "ReplayedRunIsNotAdmitted",
+        "MismatchedCollectiveNeverRuns",
+    ]
+    assert invariants["ScoutBRefineBadReach.cfg"] == [
+        "TransposableIssuePairExists",
+        "MutationIsIsolated",
+        "RejectionHappensBeforeTheRendezvous",
+    ]
+    assert invariants["ScoutBRefineBadRelaxed.cfg"] == [
+        "TransposableIssuePairExists",
+        "MutationIsIsolated",
+        "ReplayedRunIsNotAdmitted",
+    ]
+    assert invariants["ScoutBRefineBadUniform.cfg"] == [
+        "TransposableIssuePairExists",
+        "MutationIsIsolated",
+        "ReplayedRunIsNotAdmitted",
+        "CorruptedColumnIsNeverFormed",
+    ]
+    assert invariants["ScoutBRefineUniformPermutation.cfg"] == [
+        "UniformPermutationIsNotTheObservedOrder",
+        "UniformPermutationPreservesAgreement",
+        "IssuedIsAReplayPrefix",
+        "ReplayedRunIsNotAdmitted",
+    ]
+    assert invariants["ScoutBRefineSingleRankPermutation.cfg"] == [
+        "SingleRankPermutationIsNotTheObservedOrder",
+        "SingleRankPermutationBreaksAgreement",
+        "IssuedIsAReplayPrefix",
+        "ReplayedRunIsNotAdmitted",
+    ]
+
+    # Only the confluence configuration turns deadlock detection on, because
+    # only there is a dead end the result rather than the expectation.
+    for name in B_REFINE_CFGS:
+        text = (FORMAL_DIR / name).read_text()
+        expected = "TRUE" if name == "ScoutBRefineSkew.cfg" else "FALSE"
+        assert f"CHECK_DEADLOCK {expected}" in text, name
+
+
+def test_dpxtp_bridge_configs_pin_the_guard_values_not_just_the_names() -> None:
+    """A cfg binding every constant says nothing about what it binds them TO.
+
+    The positive's whole point is that it runs with every guard on; the three
+    isolation configurations deliberately relax one, and one deliberately
+    relaxes two. Nothing else prevents the positive's guard set drifting to
+    match the negatives', which would make the positive a weaker claim while
+    every other test still passed.
+    """
+
+    guards = (
+        "RequireMatchedIssueOrder",
+        "RequireUniformProgramOps",
+        "RequireUniformProgramComms",
+        "RequireStreamOrder",
+    )
+    settings = {
+        name: _cfg_settings((FORMAL_DIR / name).read_text()) for name in B_REFINE_CFGS
+    }
+
+    # Every guard on: the positive, its inputs, the confluence fragment, the
+    # order-sensitivity pair, and the corruption run under the positive's set.
+    for name in (
+        "ScoutBRefineMapping.cfg",
+        "ScoutBRefine.cfg",
+        "ScoutBRefineUniformPermutation.cfg",
+        "ScoutBRefineSingleRankPermutation.cfg",
+        "ScoutBRefineSkew.cfg",
+        "ScoutBRefineOverlap.cfg",
+        "ScoutBRefineBadUniform.cfg",
+    ):
+        for guard in guards:
+            assert settings[name][guard] == "TRUE", (name, guard)
+
+    # The three that isolate the rendezvous guard relax the SPMD operation
+    # guard, and only the relaxed one also flips NCCL's own guard.
+    for name in (
+        "ScoutBRefineBad.cfg",
+        "ScoutBRefineBadReach.cfg",
+        "ScoutBRefineBadRelaxed.cfg",
+    ):
+        assert settings[name]["RequireUniformProgramOps"] == "FALSE", name
+        assert settings[name]["RequireUniformProgramComms"] == "TRUE", name
+        assert settings[name]["RequireStreamOrder"] == "TRUE", name
+    assert settings["ScoutBRefineBad.cfg"]["RequireMatchedIssueOrder"] == "TRUE"
+    assert settings["ScoutBRefineBadReach.cfg"]["RequireMatchedIssueOrder"] == "TRUE"
+    assert settings["ScoutBRefineBadRelaxed.cfg"]["RequireMatchedIssueOrder"] == "FALSE"
+
+    # And which order each configuration replays, for the same reason.
+    corrupted = {
+        "ScoutBRefineBad.cfg",
+        "ScoutBRefineBadReach.cfg",
+        "ScoutBRefineBadRelaxed.cfg",
+        "ScoutBRefineBadUniform.cfg",
+    }
+    for name in B_REFINE_CFGS:
+        expected = "TRUE" if name in corrupted else "FALSE"
+        assert settings[name]["TransposeMutation"] == expected, name
+    permutations = {
+        "ScoutBRefineUniformPermutation.cfg": '"uniform"',
+        "ScoutBRefineSingleRankPermutation.cfg": '"single_rank"',
+    }
+    for name in B_REFINE_CFGS:
+        expected = permutations.get(name, '"observed"')
+        assert settings[name]["ReplayPermutation"] == expected, name
+
+
+# Prints the derived mutation site so the shape of the negative control is read
+# off the checker rather than off the module text.
+_MUTATION_PROBE = """\
+--------------------------- MODULE MutationProbe ---------------------------
+EXTENDS ScoutBRefine
+
+MutationSiteReport ==
+  PrintT(<<"PROBE_MUTATION",
+           MutationRank,
+           MutationIndex,
+           MutationComm,
+           MutationFront,
+           ObservedIssues[MutationRank][MutationIndex],
+           ObservedIssues[MutationRank][MutationIndex + 1]>>)
+
+=============================================================================
+"""
+
+
+def test_dpxtp_bridge_mutation_is_an_adjacent_same_communicator_transposition(
+    tmp_path: Path,
+) -> None:
+    """The negative must corrupt the rendezvous, not the program's sites.
+
+    Transposing across two DIFFERENT communicators would be refused because a
+    member never reached a communicator's front -- the stream-head or
+    unissued-communicator guard, not the rendezvous guard the control exists to
+    exercise. So the derived site has to be adjacent, on one communicator, with
+    the operations differing. Read off the real checker, pinned to the initial
+    state because every value here is a constant.
+    """
+
+    cfg = (
+        _refine_constants(TransposeMutation="TRUE")
+        + "\nSPECIFICATION RSpec\n\nINVARIANTS\n"
+        "  TransposableIssuePairExists\n"
+        "  MutationIsIsolated\n"
+        "  MutationSiteReport\n"
+        "\nCONSTRAINT AtInitialState\nCHECK_DEADLOCK FALSE\n"
+    )
+    status, output = _run_tlc(
+        tmp_path,
+        "MutationProbe",
+        cfg,
+        fixtures=_refine_fixtures(),
+        files={"MutationProbe.tla": _MUTATION_PROBE},
+    )
+
+    assert status == 0, output
+    assert "Model checking completed. No error has been found." in output, output
+    report = output.split('<< "PROBE_MUTATION",', 1)[1].split(">>", 1)[0]
+    fields = [item.strip().rstrip(",") for item in report.strip().splitlines()]
+    # rank, index, communicator, per-communicator position, then the two
+    # records that get swapped.
+    assert fields[0] == "0", fields
+    assert fields[1] == "52", fields
+    assert fields[2] == '"fsdp02"', fields
+    swapped = " ".join(fields[4:])
+    assert swapped.count('comm |-> "fsdp02"') == 2, swapped
+    assert 'op |-> "reduce_scatter"' in swapped, swapped
+    assert 'op |-> "all_gather"' in swapped, swapped
+
+
+# The filtered form of the replay constraint, the way ScoutARefine writes it.
+# Nothing else changes, so a state-count difference against ConstrainedNext
+# would mean the forward form admits a different set of behaviours.
+_FILTER_PROBE = """\
+---------------------------- MODULE FilterProbe ----------------------------
+EXTENDS ScoutBRefine
+
+FilterNext ==
+  /\\ Next
+  /\\ IssuedIsAReplayPrefix'
+
+FilterSpec == Init /\\ [][FilterNext]_vars
+
+=============================================================================
+"""
+
+
+def test_dpxtp_bridge_forward_replay_equals_the_filtered_form(
+    tmp_path: Path,
+) -> None:
+    """The bridge computes the next issue instead of filtering successors.
+
+    ScoutARefine writes `Next /\\ IsPrefixOfObserved(emitted')`. Here that form
+    evaluates the SPMD-program guards, which are linear in the issue count, for
+    every rank/communicator/operation triple and discards almost all of them.
+    The forward form is equivalent -- Issue appends exactly one record, so a
+    successor that is still a prefix can only have appended the next observed
+    record -- and this runs both over the same small prefix and requires the
+    same reachable state count rather than arguing it.
+    """
+
+    constants = _refine_constants(MaxIssues="4", GreedyReplay="FALSE")
+    tail = (
+        "\nINVARIANTS\n  IssuedIsAReplayPrefix\n  TypeOK\n"
+        "\nCONSTRAINT ModelBounded\nCHECK_DEADLOCK FALSE\n"
+    )
+    counts = {}
+    for label, specification in (
+        ("forward", "RSpec"),
+        ("filtered", "FilterSpec"),
+    ):
+        status, output = _run_tlc(
+            tmp_path / label,
+            "FilterProbe",
+            constants + f"\nSPECIFICATION {specification}\n" + tail,
+            fixtures=_refine_fixtures(),
+            files={"FilterProbe.tla": _FILTER_PROBE},
+        )
+        assert status == 0, output
+        assert "No error has been found." in output, output
+        # The final summary line, not a progress line: TLC prints the same
+        # phrase every minute while it runs, and reading the first match
+        # compares two partial counts taken at different times.
+        summary = re.findall(
+            r"([0-9]+) states generated, ([0-9]+) distinct states found,"
+            r" [0-9]+ states left on queue",
+            output,
+        )
+        assert summary, output
+        counts[label] = int(summary[-1][1])
+
+    assert counts["forward"] > 1, counts
+    assert counts["forward"] == counts["filtered"], counts
+
+
+# Issues only, with the skew bound to keep the search narrow. Used to show what
+# a length-only admission test would accept.
+_ISSUE_ONLY_PROBE = """\
+-------------------------- MODULE IssueOnlyProbe --------------------------
+EXTENDS ScoutBRefine
+
+IssueOnlyNext ==
+  \\E rank \\in Ranks :
+    /\\ ReplayIssue(rank)
+    /\\ ReplaySkewOK(issued')
+
+IssueOnlySpec == Init /\\ [][IssueOnlyNext]_vars
+
+\\* What a bridge that tested lengths rather than completion would call
+\\* admission.
+LengthOnlyAdmissionIsNotReached ==
+  ~(\\A rank \\in Ranks : Len(issued[rank]) = MaxIssues)
+
+=============================================================================
+"""
+
+
+def test_dpxtp_bridge_length_only_admission_would_accept_the_corruption(
+    tmp_path: Path,
+) -> None:
+    """Why admission is AllDone and not "every rank reached its length".
+
+    Issue's guard never reads doneOn, so issuing the whole sequence and running
+    nothing satisfies a length-only test -- for the CORRUPTED issue order just
+    as much as for the real one. That bridge would be vacuous and its negative
+    control would pass. This runs the corrupted order under an issue-only spec
+    and shows the length-only predicate is reachable; the shipped
+    ScoutBRefineBad.cfg shows AllDone is not.
+    """
+
+    cfg = (
+        _refine_constants(
+            MaxIssues="54",
+            MaxReplaySkew="1",
+            GreedyReplay="FALSE",
+            RequireUniformProgramOps="FALSE",
+            TransposeMutation="TRUE",
+        )
+        + "\nSPECIFICATION IssueOnlySpec\n\nINVARIANTS\n"
+        "  TransposableIssuePairExists\n"
+        "  MutationIsIsolated\n"
+        "  LengthOnlyAdmissionIsNotReached\n"
+        "\nCHECK_DEADLOCK FALSE\n"
+    )
+    status, output = _run_tlc(
+        tmp_path,
+        "IssueOnlyProbe",
+        cfg,
+        fixtures=_refine_fixtures(),
+        files={"IssueOnlyProbe.tla": _ISSUE_ONLY_PROBE},
+    )
+
+    assert status == 12, output
+    assert (
+        "Error: Invariant LengthOnlyAdmissionIsNotReached is violated." in output
+    ), output
+
+
+# A stand-in ScoutBFacts whose only collective belongs to rank 1. This is the
+# input on which ScoutBIssueOrderInvalid's derived mutation target has no
+# witness.
+_B_FACTS_WITHOUT_RANK_ZERO = """\
+------------------------------ MODULE ScoutBFacts ------------------------------
+EXTENDS Naturals, Sequences, FiniteSets, TLC
+
+CollectiveWorkIds == <<"work:r1:only">>
+CollectiveRank == ("work:r1:only" :> 1)
+CollectiveComm == ("work:r1:only" :> "dp_shard:1,3:mesh_fsdp")
+CollectiveOperation == ("work:r1:only" :> "all_gather")
+CollectiveMembers == ("work:r1:only" :> {1, 3})
+CollectiveIssueOrder == ("work:r1:only" :> 7)
+
+=============================================================================
+"""
+
+
+def test_issue_order_control_names_its_missing_target_instead_of_crashing(
+    tmp_path: Path,
+) -> None:
+    """The derived mutation target must be reported, not crashed on.
+
+    `MutatedWork` is a constant definition, so TLC folds it before checking
+    anything; an unguarded CHOOSE over a trace where rank 0 issued no
+    collective abandoned the search with an evaluation error and exit 75, which
+    is not a checking result. The guard turns that into a named invariant, and
+    because the invariant mentions no variables TLC refutes it as a false
+    constant expression.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        "ScoutBIssueOrderInvalid",
+        (FORMAL_DIR / "ScoutBIssueOrderInvalid.cfg").read_text(),
+        fixtures=("ScoutDistributed.tla", "ScoutBIssueOrderInvalid.tla"),
+        files={"ScoutBFacts.tla": _B_FACTS_WITHOUT_RANK_ZERO},
+    )
+
+    assert "Attempted to compute the value of an expression of form" not in output
+    assert (
+        _run_classifier(
+            "formal_classify_tlc_constant_false",
+            status,
+            output,
+            "Rank0HasACollective",
+        ).returncode
+        == 0
+    ), (status, output)
+
+
+def test_dpxtp_bridge_is_wired_into_the_sealed_scout_b_suite() -> None:
+    """The bridge reads generated facts, so it belongs to the sealed suite only.
+
+    Tier 0 is the trace-free subset and must not grow a dependency on an
+    exported run; the gate must not be missing the bridge.
+    """
+
+    build = BUILD_FILE.read_text()
+    _, sh_tests, suites = _parse_build_targets(build)
+
+    assert "tlc_scout_b_refine_test" in sh_tests
+    sealed = {label.lstrip(":") for label in suites["scout_b_formal_tests"]}
+    tier0 = {label.lstrip(":") for label in suites["tier0_formal_tests"]}
+    assert "tlc_scout_b_refine_test" in sealed
+    assert "tlc_scout_b_refine_test" not in tier0
+
+    bridge_sources = _formal_sources("ScoutBRefine*")
+    assert len(bridge_sources) == 1 + len(B_REFINE_CFGS), sorted(bridge_sources)
+    assert len(B_REFINE_CFGS) == 10, B_REFINE_CFGS
+    covered = _suite_input_files(build, "scout_b_formal_tests")
+    assert bridge_sources <= covered, sorted(bridge_sources - covered)
 
 
 def test_lint_path_file_does_not_collide_across_runs() -> None:

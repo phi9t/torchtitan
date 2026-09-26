@@ -143,3 +143,29 @@ machine, since two agents reported the same thing while working in parallel.
   re-download is a heavy price for a shared mutable directory with no owner.
 - [ ] Record the remedy where someone hitting it will look: the message names
   `--no-fetch` but not the fix.
+
+## Operational hazard: foreign writes into the worktree
+
+Separate from the cache wipe, and more serious. While ticket 12 was being
+implemented, a twelve-line PyTorch snippet importing `fla.ops.kda` appeared at
+module level inside `tests/unit_tests/test_formal_toolchain.py`, at the line
+an edit was being applied to. It belonged to no file in this change and to no
+agent working on it. It was removed, and I verified the tree afterwards: no
+trace of it anywhere, the diff contains only the expected files, and the new
+files are entirely formal-domain content.
+
+Why this matters beyond the incident: a gate seals what is in the tree. Had the
+snippet survived, it would have been hashed into the source manifest, sealed as
+evidence, and committed -- and the manifest would have faithfully recorded that
+it was there, because the manifest attests what was present, not what was
+intended. The evidence contract cannot distinguish "the author wrote this" from
+"something else wrote this while the author was working".
+
+- [ ] Check `git diff` for content belonging to no declared change before every
+  commit, not only when an agent happens to notice. The source manifest makes
+  this auditable after the fact; nothing makes it visible before.
+- [ ] Both hazards -- this and the cache wipe -- are concurrency on a shared
+  machine. If this checkout is expected to host parallel sessions, the gate
+  should record which other processes held the worktree, or the work should
+  move to per-session worktrees. Neither is in scope here; both belong in
+  whatever owns the run environment.
