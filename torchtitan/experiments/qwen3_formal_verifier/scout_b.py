@@ -38,6 +38,7 @@ from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
     _evidence_file_record,
     _model_parameter_digest,
     _optimizer_parameter_digest,
+    _require_non_empty_stage_log,
     _require_regular_readonly,
     _require_rootfs,
     _secure_managed_path,
@@ -63,7 +64,12 @@ RUNTIME_MANIFEST_SCHEMA = "qwen3.formal.scout-b.runtime-manifest.v0"
 STAGE_MANIFEST_SCHEMA = "qwen3.formal.scout-b.stage-manifest.v0"
 EVIDENCE_MANIFEST_SCHEMA = "qwen3.formal.scout-b.evidence-manifest.v0"
 RAW_EVENT_PROJECTION_SCHEMA = "qwen3.formal.raw-event-projection.v0"
+# The contract carries its own version because it is compared by exact
+# equality. Without it, adding a field makes every previously sealed bundle
+# fail with a message a third party cannot tell apart from tampering.
+PROVENANCE_CONTRACT_VERSION = "qwen3.formal.scout.provenance-contract.v1"
 PROVENANCE_CONTRACT = {
+    "version": PROVENANCE_CONTRACT_VERSION,
     "normalized_projection": {
         "schema": RAW_EVENT_PROJECTION_SCHEMA,
         "digest": "sha256",
@@ -77,6 +83,39 @@ PROVENANCE_CONTRACT = {
     "full_raw_bytes": {
         "binding": "runtime_manifest.files",
         "digest": "sha256",
+    },
+    # Producer and stream attribution is INFERRED, not observed, and the
+    # exported names -- CollectiveProducers, CollectiveStream,
+    # producer.correlation_id -- read exactly like an observed join key. There
+    # is no join key here: _collective_observations sorts one operation
+    # family's Kineto kernels by start time, sorts that family's Flight
+    # Recorder entries by record_id, and joins the two lists by position with
+    # zip(entries, kernels, strict=True). Equal counts and equal order are the
+    # whole argument. This block exists so the claim travels inside the sealed
+    # bundle rather than living only in source comments and a design note.
+    # Ticket 09's Kineto bridge replaces position with a joined key.
+    "inferred_attribution": {
+        "inferred": True,
+        "observed": False,
+        "method": "positional_zip_flight_entries_to_kineto_kernels",
+        "join_key": None,
+        "entry_order": "flight_recorder_record_id",
+        "kernel_order": "kineto_kernel_start_ns",
+        "fields": [
+            "observation.producer.correlation_id for collective.*",
+            "observation.producer.linked_correlation_id for collective.*",
+            "observation.producer.external_id for collective.*",
+            "observation.stream.device_index for collective.*",
+            "observation.stream.resource_id for collective.*",
+            "observation.stream.kernel for collective.*",
+        ],
+        "resource_id_meaning": (
+            "opaque Kineto resource label, not a verified CUDA stream identity"
+        ),
+        "note": (
+            "producer and stream attribution is INFERRED by position, not "
+            "observed; ticket 09 replaces the positional zip with a joined key"
+        ),
     },
 }
 SCOUT_B_REQUIRED_STAGES = (
@@ -920,8 +959,19 @@ def validate_normalized_bundle(bundle: Mapping[str, object]) -> None:
 
     if bundle.get("schema") != SCOUT_SCHEMA:
         raise ValueError(f"normalized bundle schema must be {SCOUT_SCHEMA}")
-    if bundle.get("provenance_contract") != PROVENANCE_CONTRACT:
-        raise ValueError("normalized provenance contract is missing or unsupported")
+    contract = bundle.get("provenance_contract")
+    if contract != PROVENANCE_CONTRACT:
+        found = contract.get("version") if isinstance(contract, Mapping) else None
+        if found is None:
+            raise ValueError(
+                "normalized provenance contract is missing, unversioned, or "
+                "altered; expected " + PROVENANCE_CONTRACT_VERSION
+            )
+        raise ValueError(
+            f"normalized provenance contract version {found} does not match "
+            f"{PROVENANCE_CONTRACT_VERSION}: this bundle was sealed under a "
+            "different contract, which is not the same as tampering"
+        )
     run_id = str(bundle.get("run_id", ""))
     attempt_id = str(bundle.get("attempt_id", ""))
     _validate_identifier(run_id, "run_id")
@@ -1324,6 +1374,17 @@ def _export_scout_b_tla_module(
         f"------------------------------ MODULE {module_name} ------------------------------",
         "EXTENDS Naturals, Sequences, FiniteSets, TLC",
         "",
+        # Emitted into the artifact on purpose. The same warning existed only
+        # as a Python comment, so grep -ril infer over the sealed bundle
+        # returned nothing and a reader of the facts had no way to tell an
+        # inference from an observation.
+        r"\* INFERRED, NOT OBSERVED: CollectiveProducers and CollectiveStream",
+        r"\* come from a positional zip of NCCL Flight Recorder entries,",
+        r"\* ordered by record_id, to Kineto kernels, ordered by start time.",
+        r"\* There is no join key between the two sources; equal counts and",
+        r"\* equal order are the whole argument. Ticket 09 replaces this with",
+        r"\* a joined key. Do not build an invariant on either operator.",
+        "",
         f"TraceId == {_tla_string(str(facts['trace_id']))}",
     ]
     if mutation is not None:
@@ -1559,6 +1620,8 @@ def _export_scout_b_tla_module(
             ),
             # Opaque label only: stream identity is inferred by a positional zip
             # of Flight Recorder entries to Kineto kernels, not observed.
+            r"\* INFERRED by positional zip, not observed. Values are opaque",
+            r"\* Kineto resource labels, not verified CUDA stream identities.",
             "CollectiveStream == "
             + _tla_function(
                 [
@@ -1595,6 +1658,9 @@ def _export_scout_b_tla_module(
                     for work in collectives
                 ]
             ),
+            r"\* INFERRED by positional zip, not observed. A producer identity",
+            r"\* is a digest of Kineto correlation fields attributed to this",
+            r"\* collective by position; it is not an observed join key.",
             "CollectiveProducers == "
             + _tla_function(
                 [
@@ -1770,7 +1836,14 @@ def _export_scout_b_lean_module(
         lines.append("]")
 
     def append_collectives(name: str, collectives: Sequence[Mapping[str, Any]]) -> None:
-        lines.extend(["", f"def {name} : List CollectiveObservation := ["])
+        lines.extend(
+            [
+                "",
+                "-- producers and hasStream below are INFERRED by positional",
+                "-- zip, not observed. See the module header.",
+                f"def {name} : List CollectiveObservation := [",
+            ]
+        )
         for work_index, work in enumerate(collectives):
             if work_index and work_index % 64 == 0:
                 lines.append("] ++ [")
@@ -1810,6 +1883,16 @@ def _export_scout_b_lean_module(
         "",
         "set_option maxRecDepth 100000",
         "set_option maxHeartbeats 0",
+        "",
+        # Emitted into the artifact on purpose; see the matching block in the
+        # TLA export for why a source comment was not enough.
+        "-- INFERRED, NOT OBSERVED: the producers and hasStream fields of",
+        "-- collectiveLifecycle come from a positional zip of NCCL Flight",
+        "-- Recorder entries, ordered by record_id, to Kineto kernels, ordered",
+        "-- by start time. There is no join key between the two sources; equal",
+        "-- counts and equal order are the whole argument. The underlying",
+        "-- Kineto resource id is an opaque label, not a verified CUDA stream",
+        "-- identity. Ticket 09 replaces this with a joined key.",
         "",
         f"def traceId : String := {_lean_string(str(facts['trace_id']))}",
     ]
@@ -2789,7 +2872,9 @@ def _write_attempt_bundle(
         runtime_manifest=runtime_path,
     )
     if writer_rank == 0:
-        _secure_managed_path(attempt_dir, raw_paths[0])
+        # Sealing side: rank 0 creates raw/ranks once so the parallel writers
+        # below never race on the parent directory.
+        _secure_managed_path(attempt_dir, raw_paths[0], create_parents=True)
     dist.barrier()
     own_raw_path = raw_paths[writer_rank]
     _write_immutable(
@@ -3130,7 +3215,10 @@ def _read_stage_journal(attempt: Path) -> list[dict[str, object]]:
             raise ValueError(f"Scout B stage {name} failed")
         if not command or "\n" in command or "\t" in command:
             raise ValueError(f"Scout B stage {name} has an invalid command")
-        _require_regular_readonly(attempt / evidence_path, root=attempt)
+        # Content, not just mode: sealing accepted a zero-byte stage log until
+        # this check existed, because the runner's "-s" guard lives outside the
+        # sealed contract. See _require_non_empty_stage_log in scout_a.
+        _require_non_empty_stage_log(attempt, evidence_path, stage_name=name)
         stages.append(
             {
                 "name": name,
@@ -3316,6 +3404,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="print every covered path, verified and process alike, NUL separated",
     )
     lint_paths_parser.add_argument("--manifest", required=True)
+    # Required, so lint can never silently fall back to shape-only validation:
+    # with these the lint stage runs the same verification the seal does.
+    lint_paths_parser.add_argument("--repo-root", required=True)
+    lint_paths_parser.add_argument("--status-file", required=True)
+    lint_paths_parser.add_argument("--head", required=True)
+    lint_paths_parser.add_argument("--attempt-dir", required=True)
     return parser.parse_args(argv)
 
 
@@ -3361,8 +3455,19 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(f"SCOUT_B_EVIDENCE result=sealed path={output}")
         return
     if args.command == "lint-paths":
-        manifest_text = Path(args.manifest).read_text()
-        for path_text in source_manifest_lint_paths(json.loads(manifest_text)):
+        # Verify before deriving paths: the roster comparison inside
+        # verify_source_manifest is the only check that can notice an absent
+        # process entry, and shape validation alone cannot.
+        manifest = verify_source_manifest(
+            args.manifest,
+            args.status_file,
+            repo_root=args.repo_root,
+            expected_head=args.head,
+            attempt_dir=args.attempt_dir,
+        )
+        for path_text in source_manifest_lint_paths(
+            manifest, repo_root=Path(args.repo_root)
+        ):
             sys.stdout.buffer.write(path_text.encode() + b"\0")
         sys.stdout.buffer.flush()
         return

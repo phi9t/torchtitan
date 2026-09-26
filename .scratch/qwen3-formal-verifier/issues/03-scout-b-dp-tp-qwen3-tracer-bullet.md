@@ -79,11 +79,25 @@ The complete supported gate passed from this worktree state at HEAD
   documents recorded informationally)
 
 Results, read from the sealed logs of this attempt: 31 focused Scout B tests,
-the real four-rank DP-shard-2/TP-2 CUDA step, 180 owning tests (1 declared
-skip), checked-in artifact synchronization in `--check` mode, the complete
-nested Scout A gate (69 focused, 149 owning, its own formal suites and seal),
-both networked and no-fetch formal suites, thirteen lint hooks, Pyrefly with
-zero errors, source recheck, sealing, and public verification.
+the real four-rank DP-shard-2/TP-2 CUDA step, the owning suite at
+`182 passed, 1 skipped`, checked-in artifact synchronization in `--check` mode,
+the complete nested Scout A gate (69 focused, 149 owning, its own formal suites
+and seal), both networked and no-fetch formal suites, thirteen lint hooks,
+Pyrefly at `0 errors (1 suppressed)`, source recheck, sealing, and public
+verification.
+
+> Corrected by ticket 18 item 8, against the sealed logs rather than memory:
+> the owning stage log says `182 passed, 1 skipped`, not "180 owning tests
+> (1 declared skip)". The Pyrefly log is not a bare zero either -- it contains
+> `WARN /workspace/torchtitan/pyproject.toml: Invalid search-path:
+> /workspace/pytorch does not exist` and reports `0 errors (1 suppressed)`, so
+> one suppression is in force and one configured search path is absent.
+> Evidence-location caveat: the `outputs/...` bundle paths above are
+> **gitignored**. A reviewer cloning this branch does not get them, and they are
+> not "checked in" in the sense that the tracked `formal/ScoutB*Facts.*`
+> fixtures are. Treat the bundle paths as machine-local evidence on the machine
+> that ran the gate, and the tracked fact modules as the only artifacts a clone
+> carries.
 
 The one skip is `test_rootfs_bwrap_plan.py:500: host perf is not dynamically
 linked`. It is declared in both runners; any other skip fails the stage.
@@ -189,11 +203,18 @@ evidence and are no longer machine re-verifiable -- an intentional, named cost.
 
 ### Scope note on producer correlation
 
-Producer correlation is **not** observed correspondence. `scout_b.py:2439-2455`
-groups NCCL Flight Recorder entries and Kineto kernels by operation family,
-sorts the entries by `record_id` and the kernels by GPU `start_ns()`, requires
-the two counts to be equal, and then pairs them positionally with
-`zip(..., strict=True)`.
+Producer correlation is **not** observed correspondence. `_collective_observations`
+in `scout_b.py` groups NCCL Flight Recorder entries and Kineto kernels by
+operation family, sorts the kernels by GPU `start_ns()` (kernel sort), sorts the
+entries by `record_id` (entry sort), requires the two counts to be equal, and
+then pairs them positionally with `zip(entries, kernels, strict=True)`.
+
+> Corrected by ticket 18 item 8: this note previously cited
+> `scout_b.py:2439-2455`, which is `_operation_family`/`_flight_snapshot`, not
+> the zip. The positional zip lives in `_collective_observations`: the kernel
+> sort, the entry sort, and the `zip(entries, kernels, strict=True)` a few lines
+> later. Line numbers are deliberately not restated here, because they moved
+> again when ticket 18 added the exported inference disclaimer.
 
 Equal counts plus a sorted zip do not establish that the i-th Flight record
 describes the same work as the i-th kernel. The pairing assumes issue order

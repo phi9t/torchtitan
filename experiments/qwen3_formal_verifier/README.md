@@ -40,7 +40,7 @@ semantic tracer contracts are covered by
 abstract TLA+ models with their negatives and non-vacuity refutations, the Lean
 smoke, changed-source lint, and the focused formal-toolchain contracts. It needs
 no GPU, no observed trace and no sealed bundle, so iterating on a model costs
-seconds instead of a full nine-stage gate:
+minutes instead of a full nine-stage gate:
 
 ```bash
 TORCHTITAN_SCOUT_ROOTFS=/path/to/rootfs \
@@ -142,6 +142,15 @@ Each sealed attempt carries a source manifest whose `source_id` attests the
 **executable and checked-in source** that produced the evidence: Python, shell,
 TLA+, Lean, Bazel, configuration, and tests. `verify` re-reads those bytes from
 the live tree and refuses the bundle if any of them changed.
+
+What the manifest covers scales with how dirty the tree is, because its entries
+are derived from `git status`. A gate run from a tree with uncommitted work pins
+those files byte-for-byte; a gate run from a clean tree has few entries or none,
+and the code is then pinned by `head` plus `status_sha256` alone. Both are
+intended: the per-file digests exist to pin work that is not yet committed, and
+committed code is already pinned better by its commit id. A bundle therefore
+attests "this evidence came from commit X, plus exactly these uncommitted
+bytes" -- not "these are all the files that mattered".
 
 Process documents are recorded separately. A path whose first component is
 `.scratch` or `.superpowers` is a workflow tracker or review artifact, and it is

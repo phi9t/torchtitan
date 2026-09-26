@@ -160,8 +160,9 @@ run_logged() {
   scout_run_logged "${attempt_host}" "${log}" "${TEE_BIN}" -- "$@" \
     || return $?
   # A stage that exited zero but captured nothing is not evidence of anything.
-  # Sealing only checks that the log is a read-only regular file, so without
-  # this an empty sink would satisfy the bundle while proving no check ran.
+  # Sealing refuses an empty stage log too; this copy is deliberate defence in
+  # depth, and it fails here with the stage name, before the journal row is
+  # appended, rather than at finalize with only a path.
   if [[ ! -s "${log}" ]]; then
     printf 'stage %s produced an empty log: %s\n' "${stage_name}" "${log}" >&2
     return 1
@@ -184,38 +185,49 @@ run_logged source_manifest checker/source-manifest.log \
     "${HEAD_ID}" "${attempt_inner}"
 scout_require_regular_file "${attempt_host}" "${source_manifest_host}"
 
+# The one skip the owning suite is allowed to report. Everything else that
+# skips fails its stage. See scout_pytest_guard_program in the runner library
+# for why the guard exists and for what it cannot see.
+DECLARED_OWNING_SKIP="test_rootfs_bwrap_plan.py:500: host perf is not dynamically linked"
+
+# Guarded independently, with zero declared skips. Before, this stage ran a
+# plain "pytest -q" and was covered only because owning_pytest happens to list
+# the same file; a rename on either side would have dropped the coverage
+# silently.
 run_logged focused_pytest checker/focused-pytest.log \
   env TORCHTITAN_ROOTFS_NETWORK=offline \
-  "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc \
-  'cd /workspace/torchtitan && pytest -q tests/unit_tests/test_qwen3_formal_scout_b.py'
+  "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- \
+  bash -lc "$(scout_pytest_guard_program)" scout-b \
+    /workspace/torchtitan /project/tmp 0 \
+    pytest -q -rs --color=no tests/unit_tests/test_qwen3_formal_scout_b.py
 
+# Zero declared skips, deliberately: this stage is gated by a module-level
+# pytest.mark.skipif and exits 0 when it skips. That was previously caught only
+# by accident, because a skipped run leaves normalized/scout_b.json absent and
+# artifact_sync then fails on a missing file. The guard makes the coupling
+# explicit and fails this stage rather than a later one.
 run_logged cuda_pytest checker/cuda-pytest.log \
   env TORCHTITAN_ROOTFS_NETWORK=offline CUDA_VISIBLE_DEVICES=0,1,2,3 \
     TORCH_NCCL_TRACE_BUFFER_SIZE=100000 TORCH_NCCL_ENABLE_TIMING=1 \
-  "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc '
-    set -euo pipefail
-    cd /workspace/torchtitan
-    export QFV_SCOUT_B_OUTPUT_ROOT="$1"
-    export QFV_SCOUT_B_RUN_ID="$2"
-    export QFV_SCOUT_B_ATTEMPT_ID="$3"
-    export QFV_SCOUT_SOURCE_MANIFEST="$4"
-    export QFV_SCOUT_EXPECTED_HEAD="$5"
-    export QFV_SCOUT_SOURCE_ROOT=/workspace/torchtitan
-    exec torchrun --master-addr=127.0.0.1 --master-port="$6" \
+  "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- \
+  bash -lc "$(scout_pytest_guard_program)" scout-b \
+    /workspace/torchtitan /project/tmp 0 \
+    env "QFV_SCOUT_B_OUTPUT_ROOT=${output_inner}" \
+      "QFV_SCOUT_B_RUN_ID=${RUN_ID}" \
+      "QFV_SCOUT_B_ATTEMPT_ID=${ATTEMPT_ID}" \
+      "QFV_SCOUT_SOURCE_MANIFEST=${source_manifest_inner}" \
+      "QFV_SCOUT_EXPECTED_HEAD=${HEAD_ID}" \
+      QFV_SCOUT_SOURCE_ROOT=/workspace/torchtitan \
+    torchrun --master-addr=127.0.0.1 --master-port="${MASTER_PORT}" \
       --nnodes=1 --nproc-per-node=4 \
-      -m pytest -q tests/integration_tests/test_qwen3_formal_scout_b.py -s
-  ' scout-b \
-    "${output_inner}" "${RUN_ID}" "${ATTEMPT_ID}" \
-    "${source_manifest_inner}" "${HEAD_ID}" "${MASTER_PORT}"
+      -m pytest -q -rs --color=no \
+      tests/integration_tests/test_qwen3_formal_scout_b.py -s
 
 run_logged owning_pytest checker/owning-pytest.log \
   env TORCHTITAN_ROOTFS_NETWORK=offline \
-  "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc '
-    set -euo pipefail
-    cd /workspace/torchtitan
-    # -rs puts skip reasons in the sealed log; the guard below then
-    # refuses any skip that is not declared, so a check silently
-    # vanishing can never be sealed as a passing stage.
+  "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- \
+  bash -lc "$(scout_pytest_guard_program)" scout-b \
+    /workspace/torchtitan /project/tmp 1 "${DECLARED_OWNING_SKIP}" \
     pytest -q -rs --color=no \
       tests/unit_tests/test_qwen3_formal_scout_a.py \
       tests/unit_tests/test_qwen3_formal_scout_b.py \
@@ -223,24 +235,7 @@ run_logged owning_pytest checker/owning-pytest.log \
       tests/unit_tests/test_generic_accelerator_observability.py \
       tests/unit_tests/test_formal_toolchain.py \
       tests/unit_tests/test_rootfs_bwrap_plan.py \
-      tests/unit_tests/test_check_no_pii.py \
-      | tee /project/tmp/owning-pytest.out
-    # Every skip must be declared. An undeclared skip means a check silently
-    # stopped running, and the spec forbids a skipped check from satisfying an
-    # acceptance criterion, so it fails the stage instead of sealing.
-    [[ -s /project/tmp/owning-pytest.out ]]
-    skip_lines="$(sed -e "s/\x1b\[[0-9;]*m//g" /project/tmp/owning-pytest.out \
-      | grep -E "^SKIPPED")" || skip_lines=""
-    undeclared_skips="$(printf "%s\n" "${skip_lines}" \
-      | grep -E "^SKIPPED" \
-      | grep -Fv "test_rootfs_bwrap_plan.py:500: host perf is not dynamically linked" \
-      || true)"
-    if [[ -n "${undeclared_skips}" ]]; then
-      echo "undeclared skip in the owning suite:" >&2
-      echo "${undeclared_skips}" >&2
-      exit 1
-    fi
-  '
+      tests/unit_tests/test_check_no_pii.py
 
 run_logged artifact_sync checker/artifact-sync.log \
   env TORCHTITAN_ROOTFS_NETWORK=offline \
@@ -294,8 +289,14 @@ run_lint_and_verify_source() {
       # root is reused, and the fail-closed check then aborts the stage before
       # it writes anything -- an empty log rather than a diagnosis.
       lint_paths_file="$(mktemp /project/tmp/lint-paths.XXXXXXXX)"
+      # --status-file/--repo-root/--head/--attempt-dir make lint-time manifest
+      # validation identical to seal-time validation: without them the path
+      # list is shape-validated only, and the process-entry roster comparison
+      # -- the one check that can notice an ABSENT entry -- runs at finalize.
       python -m torchtitan.experiments.qwen3_formal_verifier.scout_b \
-        lint-paths --manifest "${source_manifest}" >"${lint_paths_file}"
+        lint-paths --manifest "${source_manifest}" \
+        --repo-root /workspace/torchtitan --status-file "$3" \
+        --head "$4" --attempt-dir "$5" >"${lint_paths_file}"
       while IFS= read -r -d "" source_file; do
         source_files+=("${source_file}")
       done <"${lint_paths_file}"
@@ -327,7 +328,8 @@ run_lint_and_verify_source() {
         done
       fi
     ' scout-b "${source_manifest_inner}" \
-      "qfv-scout-lint-${output_relative//\//_}-${RUN_ID}-${ATTEMPT_ID}"
+      "qfv-scout-lint-${output_relative//\//_}-${RUN_ID}-${ATTEMPT_ID}" \
+      "${source_status_inner}" "${HEAD_ID}" "${attempt_inner}"
   then
     :
   else
@@ -335,29 +337,8 @@ run_lint_and_verify_source() {
     return "${lint_status}"
   fi
 
-  local current_head current_status
-  current_head="$("${GIT_BIN}" -C "${REPO_ROOT}" rev-parse --verify HEAD)" \
-    || return 1
-  if [[ "${current_head}" != "${HEAD_ID}" ]]; then
-    printf 'error: source HEAD changed during gate: %s -> %s\n' \
-      "${HEAD_ID}" "${current_head}" >&2
-    return 1
-  fi
-  current_status="$(mktemp "${TMPDIR:-/tmp}/qfv-scout-status.XXXXXX")" \
-    || return 1
-  if ! "${GIT_BIN}" -C "${REPO_ROOT}" status \
-    --porcelain=v1 -z --untracked-files=all >"${current_status}"; then
-    rm -f -- "${current_status}"
-    return 1
-  fi
-  if ! cmp --silent "${source_status_host}" "${current_status}"; then
-    rm -f -- "${current_status}"
-    printf 'error: dirty source identity changed during Scout B gate\n' >&2
-    return 1
-  fi
-  rm -f -- "${current_status}"
-  "${GIT_BIN}" -C "${REPO_ROOT}" diff --check
-  printf 'SCOUT_B_SOURCE_RECHECK result=success head=%s\n' "${HEAD_ID}"
+  scout_verify_source_identity \
+    "${GIT_BIN}" "${REPO_ROOT}" "${HEAD_ID}" "${source_status_host}" B
 }
 
 run_logged lint checker/lint.log run_lint_and_verify_source

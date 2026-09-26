@@ -290,11 +290,15 @@ def _create_sealable_bundle(
     *,
     status_bytes: bytes = b"",
     source_files: dict[str, str] | None = None,
+    empty_stage_log: str | None = None,
 ) -> Path:
     """Seal a bundle, optionally over a source tree with real status entries.
 
     ``source_files`` maps repository-relative paths to contents and must agree
     with ``status_bytes``; both default to an empty source tree.
+
+    ``empty_stage_log`` names one required stage whose log is written zero-byte,
+    which is what a stage that aborted before emitting anything leaves behind.
     """
 
     for relative_path, contents in (source_files or {}).items():
@@ -338,7 +342,7 @@ def _create_sealable_bundle(
     for stage_name, relative_log in SCOUT_B_REQUIRED_STAGES:
         _write_immutable(
             attempt / relative_log,
-            f"{stage_name}=ok\n",
+            "" if stage_name == empty_stage_log else f"{stage_name}=ok\n",
             root=attempt,
         )
         journal_lines.append(f"{stage_name}\t0\t{relative_log}\tcommand:{stage_name}\n")
@@ -418,6 +422,9 @@ def test_rank_bundle_merge_is_deterministic_without_cross_rank_total_order() -> 
     }
     assert first["input_bundle"]["global_sha256"]
     assert first["provenance_contract"] == {
+        # Versioned so a later shape change is distinguishable from tampering
+        # rather than failing every older bundle with one ambiguous message.
+        "version": "qwen3.formal.scout.provenance-contract.v1",
         "normalized_projection": {
             "schema": "qwen3.formal.raw-event-projection.v0",
             "digest": "sha256",
@@ -431,6 +438,34 @@ def test_rank_bundle_merge_is_deterministic_without_cross_rank_total_order() -> 
         "full_raw_bytes": {
             "binding": "runtime_manifest.files",
             "digest": "sha256",
+        },
+        # Producer and stream attribution is inferred by a positional zip, and
+        # the sealed bundle has to say so: the exported names read exactly like
+        # an observed join key, and before this block "grep -ril infer" over
+        # the whole sealed bundle returned nothing.
+        "inferred_attribution": {
+            "inferred": True,
+            "observed": False,
+            "method": "positional_zip_flight_entries_to_kineto_kernels",
+            "join_key": None,
+            "entry_order": "flight_recorder_record_id",
+            "kernel_order": "kineto_kernel_start_ns",
+            "fields": [
+                "observation.producer.correlation_id for collective.*",
+                "observation.producer.linked_correlation_id for collective.*",
+                "observation.producer.external_id for collective.*",
+                "observation.stream.device_index for collective.*",
+                "observation.stream.resource_id for collective.*",
+                "observation.stream.kernel for collective.*",
+            ],
+            "resource_id_meaning": (
+                "opaque Kineto resource label, not a verified CUDA stream " "identity"
+            ),
+            "note": (
+                "producer and stream attribution is INFERRED by position, not "
+                "observed; ticket 09 replaces the positional zip with a joined "
+                "key"
+            ),
         },
     }
     validate_normalized_bundle(first)
@@ -561,6 +596,18 @@ def test_scout_b_exports_and_artifact_sync_cover_complete_normalized_graph(
     )
     for facts in (exports["ScoutBFacts.tla"], exports["ScoutBFacts.lean"]):
         assert all(str(value) in facts for value in observed_values)
+    # The original defect was that the source said INFERRED while the sealed
+    # artifact did not, so a reader of the bundle alone could not tell the
+    # producer and stream fields from an observed join. Assert the disclaimer
+    # in the artifact, not only in the provenance contract: dropping the
+    # header emission would otherwise surface only as a gate-run digest.
+    for module in ("ScoutBFacts.tla", "ScoutBBadFacts.tla"):
+        assert "INFERRED, NOT OBSERVED" in exports[module], module
+        assert "positional zip" in exports[module], module
+        assert "opaque" in exports[module], module
+    for module in ("ScoutBFacts.lean", "ScoutBBadFacts.lean"):
+        assert "INFERRED" in exports[module], module
+        assert "positional zip" in exports[module], module
     assert "controlled-invalid-producer" in exports["ScoutBBadFacts.tla"]
     assert "controlled-invalid-producer" in exports["ScoutBBadFacts.lean"]
     assert exports["ScoutBFacts.tla"] != exports["ScoutBBadFacts.tla"]
@@ -703,6 +750,47 @@ def test_finalization_and_verification_seal_complete_scout_b_bundle(
     assert evidence["trace_id"]
     assert evidence["runtime_id"]
     assert evidence["stage_id"]
+
+
+@pytest.mark.parametrize("stage_name", [name for name, _ in SCOUT_B_REQUIRED_STAGES])
+def test_sealing_refuses_a_zero_byte_stage_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stage_name: str,
+) -> None:
+    """Drive the real sealer with a zero-byte stage log for every stage.
+
+    This is the experiment that exposed the hole: nine zero-byte stage logs
+    were fed to the real sealer and all nine were accepted, because the only
+    non-empty check lived in the shell runner, outside the sealed contract.
+    """
+
+    attempt = _create_sealable_bundle(
+        tmp_path,
+        monkeypatch,
+        empty_stage_log=stage_name,
+    )
+
+    with pytest.raises(ValueError, match=f"stage {stage_name} log is empty"):
+        finalize_evidence_manifest(
+            attempt,
+            expected_head="a" * 40,
+            source_root=tmp_path,
+        )
+
+
+def test_scout_b_runner_routes_every_pytest_stage_through_the_skip_guard() -> None:
+    runner_text = RUNNER.read_text()
+
+    assert runner_text.count('bash -lc "$(scout_pytest_guard_program)"') == 3
+    invocations = [
+        line
+        for line in runner_text.splitlines()
+        if "pytest -q" in line and not line.strip().startswith("#")
+    ]
+    assert len(invocations) == 3
+    for line in invocations:
+        assert "-rs" in line and "--color=no" in line, line
 
 
 def test_runtime_manifest_detects_full_raw_byte_tamper_in_volatile_field(

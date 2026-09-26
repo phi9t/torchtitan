@@ -916,13 +916,42 @@ def _validate_process_section(
     return validated
 
 
-def source_manifest_lint_paths(manifest: Mapping[str, object]) -> tuple[str, ...]:
+def _require_safe_lint_path(path_text: str) -> None:
+    """Reject a manifest path that must never reach lint's argument list.
+
+    ``lint-paths`` output is fed straight to ``git add`` and ``pre-commit
+    --files``. A path escaping the checkout, or one that an option parser would
+    read as a flag, is invalid input from disk regardless of what else in the
+    manifest validated, so it is rejected here rather than at each consumer.
+    """
+
+    if "\0" in path_text or "\n" in path_text:
+        raise ValueError(f"lint path contains a delimiter: {path_text!r}")
+    if path_text.startswith("-"):
+        raise ValueError(f"lint path would parse as an option: {path_text!r}")
+    candidate = PurePosixPath(path_text)
+    if candidate.is_absolute() or any(
+        component in {"", ".", ".."} for component in candidate.parts
+    ):
+        raise ValueError(f"lint path escapes the checkout: {path_text!r}")
+
+
+def source_manifest_lint_paths(
+    manifest: Mapping[str, object],
+    *,
+    repo_root: Path | None = None,
+) -> tuple[str, ...]:
     """Return every present path the manifest covers, verified and process alike.
 
     Lint must keep covering process documents even though their bytes leave
     ``source_id``. Reading only ``entries`` would silently shrink lint coverage
     while the lint log still reported success, so the process section is fully
     validated here rather than trusted.
+
+    ``repo_root`` enables the same deleted-but-present rejection that sealing
+    performs. The remaining seal-time check, the process-entry roster
+    comparison, needs the host-captured status bytes; the ``lint-paths`` command
+    therefore takes them too, so lint-time and seal-time validation agree.
     """
 
     if not isinstance(manifest, Mapping):
@@ -933,7 +962,7 @@ def source_manifest_lint_paths(manifest: Mapping[str, object]) -> tuple[str, ...
             f"found {manifest.get('schema')!r}"
         )
     _source_identity_payload(manifest)
-    process_entries = _validate_process_section(manifest)
+    process_entries = _validate_process_section(manifest, repo_root=repo_root)
     verified_entries = manifest["entries"]
     if not isinstance(verified_entries, list):
         raise ValueError("source manifest entries must be a list")
@@ -944,6 +973,7 @@ def source_manifest_lint_paths(manifest: Mapping[str, object]) -> tuple[str, ...
         path_text = entry.get("path")
         if not isinstance(path_text, str) or not path_text:
             raise ValueError("source manifest entries must carry a path")
+        _require_safe_lint_path(path_text)
         if entry.get("kind") != "deleted":
             paths.add(path_text)
     return tuple(sorted(paths))
@@ -1804,6 +1834,34 @@ def verify_runtime_bundle(
     return runtime
 
 
+def _require_non_empty_stage_log(
+    attempt: Path,
+    evidence_path: str,
+    *,
+    stage_name: str,
+) -> bytes:
+    """Require a declared stage log to exist and to have captured something.
+
+    This belongs at the sealing boundary, not only in the shell runner. The
+    runner's ``-s`` guard is outside the sealed contract, so sealing itself
+    accepted a zero-byte stage log: every mode, symlink and regular-file check
+    passed while the log proved that no check had run. A missing or empty log
+    now fails the seal instead of being sealed as evidence of nothing.
+
+    Whitespace does not count. A stage that emits one blank line before dying
+    would otherwise satisfy a byte-count check, which is the same hole one
+    level up. This still proves only that the stage wrote something, not that
+    it checked anything; the stage's own result marker proves that.
+    """
+
+    data = _require_regular_readonly(attempt / evidence_path, root=attempt)
+    if not data.strip():
+        raise ValueError(
+            f"stage {stage_name} log is empty and proves nothing: {evidence_path}"
+        )
+    return data
+
+
 def _read_stage_journal(attempt: Path) -> list[dict[str, object]]:
     journal_path = attempt / "checker" / "stages.tsv"
     journal_bytes = _require_regular_readonly(journal_path, root=attempt)
@@ -1837,7 +1895,7 @@ def _read_stage_journal(attempt: Path) -> list[dict[str, object]]:
             raise ValueError(f"required stage {name} did not exit successfully")
         if not command or "\n" in command or "\t" in command:
             raise ValueError(f"stage {name} has an invalid command record")
-        _require_regular_readonly(attempt / evidence_path, root=attempt)
+        _require_non_empty_stage_log(attempt, evidence_path, stage_name=name)
         stages.append(
             {
                 "name": name,
@@ -2055,7 +2113,20 @@ def _walk_tensors(value: object) -> Iterator[torch.Tensor]:
             yield from _walk_tensors(value[key])
 
 
-def _secure_managed_path(root: Path, path: Path) -> tuple[Path, Path]:
+def _secure_managed_path(
+    root: Path,
+    path: Path,
+    *,
+    create_parents: bool = False,
+) -> tuple[Path, Path]:
+    """Resolve a managed evidence path, rejecting escapes and symlinks.
+
+    ``create_parents`` is a sealing concern only. Verification must be able to
+    run against a read-only copy of a sealed bundle -- exactly the situation a
+    third party verifying the evidence is in -- so a missing parent is an
+    error there rather than something to create.
+    """
+
     root_absolute = root.absolute()
     path_absolute = path.absolute()
     try:
@@ -2076,6 +2147,10 @@ def _secure_managed_path(root: Path, path: Path) -> tuple[Path, Path]:
         try:
             current_status = current.lstat()
         except FileNotFoundError:
+            if not create_parents:
+                raise FileNotFoundError(
+                    f"managed evidence parent is missing: {current}"
+                ) from None
             current.mkdir()
             current_status = current.lstat()
         if stat.S_ISLNK(current_status.st_mode):
@@ -2111,7 +2186,7 @@ def _write_immutable(
     *,
     root: Path,
 ) -> None:
-    _, managed = _secure_managed_path(root, path)
+    _, managed = _secure_managed_path(root, path, create_parents=True)
     expected = contents.encode() if isinstance(contents, str) else contents
     try:
         existing_status = managed.lstat()
@@ -2281,6 +2356,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="print every covered path, verified and process alike, NUL separated",
     )
     lint_paths_parser.add_argument("--manifest", required=True)
+    # Required, so lint can never silently fall back to shape-only validation:
+    # with these the lint stage runs the same verification the seal does.
+    lint_paths_parser.add_argument("--repo-root", required=True)
+    lint_paths_parser.add_argument("--status-file", required=True)
+    lint_paths_parser.add_argument("--head", required=True)
+    lint_paths_parser.add_argument("--attempt-dir", required=True)
     return parser.parse_args(argv)
 
 
@@ -2330,8 +2411,19 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(f"SCOUT_A_EVIDENCE_MANIFEST result=sealed path={manifest}")
         return
     if args.command == "lint-paths":
-        manifest_text = Path(args.manifest).read_text()
-        for path_text in source_manifest_lint_paths(json.loads(manifest_text)):
+        # Verify before deriving paths: the roster comparison inside
+        # verify_source_manifest is the only check that can notice an absent
+        # process entry, and shape validation alone cannot.
+        manifest = verify_source_manifest(
+            args.manifest,
+            args.status_file,
+            repo_root=args.repo_root,
+            expected_head=args.head,
+            attempt_dir=args.attempt_dir,
+        )
+        for path_text in source_manifest_lint_paths(
+            manifest, repo_root=Path(args.repo_root)
+        ):
             sys.stdout.buffer.write(path_text.encode() + b"\0")
         sys.stdout.buffer.flush()
         return

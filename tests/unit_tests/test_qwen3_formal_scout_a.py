@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
@@ -154,11 +155,15 @@ def _create_sealable_bundle(
     *,
     status_bytes: bytes = b"",
     source_files: dict[str, str] | None = None,
+    empty_stage_log: str | None = None,
 ) -> Path:
     """Seal a bundle, optionally over a source tree with real status entries.
 
     ``source_files`` maps repository-relative paths to contents and must agree
     with ``status_bytes``; both default to an empty source tree.
+
+    ``empty_stage_log`` names one required stage whose log is written zero-byte,
+    which is what a stage that aborted before emitting anything leaves behind.
     """
 
     for relative_path, contents in (source_files or {}).items():
@@ -189,7 +194,8 @@ def _create_sealable_bundle(
     journal_lines: list[str] = []
     for stage_name, relative_log in SCOUT_A_REQUIRED_STAGES:
         log = attempt / relative_log
-        _write_immutable(log, f"{stage_name}=ok\n", root=attempt)
+        contents = "" if stage_name == empty_stage_log else f"{stage_name}=ok\n"
+        _write_immutable(log, contents, root=attempt)
         journal_lines.append(f"{stage_name}\t0\t{relative_log}\tcommand:{stage_name}\n")
     _write_immutable(
         checker / "stages.tsv",
@@ -1047,6 +1053,268 @@ def test_finalization_rejects_writable_checker_log(
         )
 
 
+@pytest.mark.parametrize("stage_name", [name for name, _ in SCOUT_A_REQUIRED_STAGES])
+def test_sealing_refuses_a_zero_byte_stage_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stage_name: str,
+) -> None:
+    """Drive the real sealer with a zero-byte stage log for every stage.
+
+    This is the experiment that exposed the hole: zero-byte stage logs were fed
+    to the real sealer and every one was accepted, because the only non-empty
+    check lived in the shell runner, outside the sealed contract.
+    """
+
+    attempt = _create_sealable_bundle(
+        tmp_path,
+        monkeypatch,
+        empty_stage_log=stage_name,
+    )
+
+    with pytest.raises(ValueError, match=f"stage {stage_name} log is empty"):
+        finalize_evidence_manifest(
+            attempt,
+            expected_head="a" * 40,
+            source_root=tmp_path,
+        )
+
+
+def test_evidence_verification_never_creates_a_directory_in_the_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verification is read-only, so a missing parent is an error, not a mkdir.
+
+    A third party verifying sealed evidence has a read-only copy. The managed
+    path helper used to create missing parents for every caller, so
+    verification mutated the very bundle it was verifying.
+    """
+
+    attempt = _create_sealable_bundle(tmp_path, monkeypatch)
+    finalize_evidence_manifest(
+        attempt,
+        expected_head="a" * 40,
+        source_root=tmp_path,
+    )
+    before = {
+        str(path.relative_to(attempt)) for path in attempt.rglob("*") if path.is_dir()
+    }
+    shutil.rmtree(attempt / "generated")
+
+    with pytest.raises(FileNotFoundError):
+        verify_evidence_bundle(
+            attempt,
+            expected_head="a" * 40,
+            source_root=tmp_path,
+        )
+
+    after = {
+        str(path.relative_to(attempt)) for path in attempt.rglob("*") if path.is_dir()
+    }
+    assert "generated" not in after
+    assert after == before - {"generated"}
+
+
+def test_runner_library_skip_guard_refuses_only_undeclared_real_pytest_skips(
+    tmp_path: Path,
+) -> None:
+    """Drive the shared guard against output from a real pytest run.
+
+    Both directions are exercised, and the SKIPPED line is produced by pytest
+    rather than hand-written -- the earlier guard was "verified in both
+    directions" against hand-authored plain text while matching zero lines of
+    real coloured output.
+    """
+
+    program = subprocess.run(
+        ["bash", "-c", f"source {RUNNER_LIBRARY}; scout_pytest_guard_program"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+    ).stdout
+    workdir = tmp_path / "suite"
+    workdir.mkdir()
+    (workdir / "test_guard_demo.py").write_text(
+        "import pytest\n"
+        "\n"
+        "\n"
+        "def test_present() -> None:\n"
+        "    assert True\n"
+        "\n"
+        "\n"
+        "@pytest.mark.skip(reason='guard demo skip')\n"
+        "def test_absent() -> None:\n"
+        "    raise AssertionError('must not run')\n"
+    )
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+
+    def run_guard(declared: list[str], *, force_colour: bool) -> Any:
+        command = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-rs",
+            "--color=no",
+            "test_guard_demo.py",
+        ]
+        if force_colour:
+            # pytest honours the last --color, so this reproduces a colour
+            # default that survives --color=no. Only the ANSI strip can save
+            # the guard here.
+            command.append("--color=yes")
+        return subprocess.run(
+            [
+                "bash",
+                "-c",
+                program,
+                "guard-test",
+                str(workdir),
+                str(scratch),
+                str(len(declared)),
+                *declared,
+                *command,
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+
+    undeclared = run_guard([], force_colour=False)
+    declared = run_guard(["guard demo skip"], force_colour=False)
+    undeclared_coloured = run_guard([], force_colour=True)
+    declared_coloured = run_guard(["guard demo skip"], force_colour=True)
+
+    assert undeclared.returncode != 0, undeclared.stdout
+    assert "undeclared skip in a pytest stage" in undeclared.stdout
+    assert "guard demo skip" in undeclared.stdout
+    assert declared.returncode == 0, declared.stdout
+    assert "undeclared skip" not in declared.stdout
+    # The coloured run must really carry escape bytes, or it proves nothing.
+    assert "\x1b[" in undeclared_coloured.stdout
+    assert undeclared_coloured.returncode != 0, undeclared_coloured.stdout
+    assert "undeclared skip in a pytest stage" in undeclared_coloured.stdout
+    assert "\x1b[" in declared_coloured.stdout
+    assert declared_coloured.returncode == 0, declared_coloured.stdout
+    assert "undeclared skip" not in declared_coloured.stdout
+
+
+def test_runner_library_skip_guard_requires_the_flags_it_depends_on(
+    tmp_path: Path,
+) -> None:
+    program = subprocess.run(
+        ["bash", "-c", f"source {RUNNER_LIBRARY}; scout_pytest_guard_program"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+    ).stdout
+
+    results = {
+        flag: subprocess.run(
+            [
+                "bash",
+                "-c",
+                program,
+                "guard-test",
+                str(tmp_path),
+                str(tmp_path),
+                "0",
+                "pytest",
+                "-q",
+                flag,
+                "tests/unit_tests/test_qwen3_formal_scout_a.py",
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        for flag in ("-rs", "--color=no")
+    }
+
+    assert results["-rs"].returncode != 0
+    assert "must pass --color=no" in results["-rs"].stdout
+    assert results["--color=no"].returncode != 0
+    assert "must pass -rs" in results["--color=no"].stdout
+
+
+def test_scout_a_runner_routes_every_pytest_stage_through_the_skip_guard() -> None:
+    runner_text = RUNNER.read_text()
+
+    assert runner_text.count('bash -lc "$(scout_pytest_guard_program)"') == 3
+    invocations = [
+        line
+        for line in runner_text.splitlines()
+        if "pytest -q" in line and not line.strip().startswith("#")
+    ]
+    assert len(invocations) == 3
+    for line in invocations:
+        assert "-rs" in line and "--color=no" in line, line
+
+
+def test_source_recheck_fails_when_git_diff_check_fails(tmp_path: Path) -> None:
+    """The recheck must not print result=success when its last step fails.
+
+    The harness deliberately leaves errexit off, which is the condition the
+    real stage runs under: scout_run_logged does "set +e" before invoking the
+    stage function, and errexit is not function-local in bash. Under that
+    condition an unguarded "git diff --check" printed result=success regardless.
+    """
+
+    baseline = tmp_path / "baseline-status"
+    baseline.write_bytes(b"")
+    fake_git = tmp_path / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env bash\n"
+        'case "$*" in\n'
+        "  *rev-parse*) printf '%040d\\n' 0 ;;\n"
+        "  *status*) exit 0 ;;\n"
+        '  *"diff --check"*) exit "${QFV_TEST_DIFF_STATUS}" ;;\n'
+        "  *) exit 1 ;;\n"
+        "esac\n"
+    )
+    fake_git.chmod(0o755)
+
+    def run_recheck(diff_status: str) -> Any:
+        env = os.environ.copy()
+        env["QFV_TEST_DIFF_STATUS"] = diff_status
+        return subprocess.run(
+            [
+                "bash",
+                "-c",
+                f"source {RUNNER_LIBRARY}; scout_verify_source_identity "
+                '"$1" "$2" "$3" "$4" "$5"',
+                "recheck-test",
+                str(fake_git),
+                str(REPO_ROOT),
+                "0" * 40,
+                str(baseline),
+                "A",
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+
+    failing = run_recheck("1")
+    passing = run_recheck("0")
+
+    assert failing.returncode != 0, failing.stdout
+    assert "git diff --check" in failing.stdout
+    assert "SCOUT_A_SOURCE_RECHECK result=success" not in failing.stdout
+    assert passing.returncode == 0, passing.stdout
+    assert "SCOUT_A_SOURCE_RECHECK result=success head=" in passing.stdout
+
+
 def test_complete_sealed_bundle_verification_detects_log_tampering(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1135,6 +1403,31 @@ def test_lint_paths_accepts_a_well_formed_process_section() -> None:
     manifest = _v1_manifest_with_process([], [_good_process_entry()])
 
     assert source_manifest_lint_paths(manifest) == (".scratch/notes.md",)
+
+
+@pytest.mark.parametrize(
+    "path_text,expected",
+    [
+        pytest.param("../outside.py", "escapes the checkout", id="parent"),
+        pytest.param("/etc/passwd", "escapes the checkout", id="absolute"),
+        pytest.param("a/../../b.py", "escapes the checkout", id="embedded_parent"),
+        pytest.param("--force", "would parse as an option", id="option"),
+        pytest.param("a\nb.py", "contains a delimiter", id="newline"),
+    ],
+)
+def test_lint_paths_rejects_paths_that_must_not_reach_lint(
+    path_text: str,
+    expected: str,
+) -> None:
+    """The path list is handed to git add and pre-commit --files verbatim."""
+
+    manifest = _v1_manifest_with_process(
+        [{"status": "??", "path": path_text, "kind": "file"}],
+        [],
+    )
+
+    with pytest.raises(ValueError, match=expected):
+        source_manifest_lint_paths(manifest)
 
 
 @pytest.mark.parametrize(

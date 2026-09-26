@@ -201,3 +201,163 @@ scout_run_logged() {
     return "${sink_status}"
   fi
 }
+
+# Emit the bash program every pytest stage runs inside the rootfs.
+#
+# Why one shared program instead of an inline guard per stage: the guard was
+# first pasted into the owning stage only, so the focused and CUDA pytest
+# stages ran a plain "pytest -q" and a skip there passed unnoticed. One copy,
+# used by every pytest stage, is the only shape that cannot drift.
+#
+# Why "-rs", "--color=no" and the ANSI strip are all required: pytest lists
+# skip reasons only under "-rs", and the first version of this guard ran
+# grep -E "^SKIPPED" over COLOURED output, where it matched ZERO lines,
+# because pytest emits "\x1b[33mSKIPPED". The gate then passed partly
+# BECAUSE the guard did nothing, after having been "verified in both
+# directions" against hand-written plain text. Both "--color=no" and the
+# strip stay, because the flag check only proves the flag is present: a later
+# "--color=yes" satisfies it and turns colour back on, so the strip is the
+# defence that actually holds in that case.
+#
+# What the guard does NOT catch, stated because its name overpromises: it
+# matches SKIPPED lines only, so an xfail and a deleted test are invisible to
+# it -- both verified, not assumed. A collection-time importorskip IS caught,
+# because pytest reports it as a SKIPPED line. The guard proves that no
+# undeclared skip happened, not that any particular check ran. Callers needing
+# the stronger property must bind the stage to an artifact the tests must
+# produce.
+#
+# Program arguments:
+#   $1   working directory for the pytest command
+#   $2   writable scratch directory for the captured output
+#   $3   number of declared-skip substrings that follow
+#   ...  that many declared-skip lines, each matched whole with grep -Fx
+#   ...  the pytest command, which must carry both -rs and --color=no
+scout_pytest_guard_program() {
+  cat <<'PROGRAM'
+set -euo pipefail
+workdir="$1"
+scratch_dir="$2"
+declared_count="$3"
+shift 3
+[[ "${declared_count}" =~ ^[0-9]+$ ]] || {
+  printf 'error: declared-skip count must be a number: %s\n' \
+    "${declared_count}" >&2
+  exit 1
+}
+declared_skips=()
+while ((declared_count > 0)); do
+  (($# > 0)) || {
+    printf 'error: fewer declared-skip substrings than declared\n' >&2
+    exit 1
+  }
+  declared_skips+=("$1")
+  shift
+  declared_count=$((declared_count - 1))
+done
+(($# > 0)) || {
+  printf 'error: pytest stage was given no command\n' >&2
+  exit 1
+}
+saw_short_summary=0
+saw_color_off=0
+for argument in "$@"; do
+  [[ "${argument}" != "-rs" ]] || saw_short_summary=1
+  [[ "${argument}" != "--color=no" ]] || saw_color_off=1
+done
+((saw_short_summary == 1)) || {
+  printf 'error: pytest stage command must pass -rs so skips are listed\n' >&2
+  exit 1
+}
+((saw_color_off == 1)) || {
+  printf 'error: pytest stage command must pass --color=no\n' >&2
+  exit 1
+}
+cd "${workdir}"
+captured="$(mktemp "${scratch_dir}/pytest-stage.XXXXXXXX")"
+trap 'rm -f -- "${captured}"' EXIT
+"$@" 2>&1 | tee "${captured}"
+[[ -s "${captured}" ]] || {
+  printf 'error: pytest stage captured no output\n' >&2
+  exit 1
+}
+# --color=no should already have removed the escapes. Strip them anyway, so a
+# colour default that survives the flag cannot silently disable the match.
+skip_lines="$(sed -e 's/\x1b\[[0-9;]*m//g' "${captured}" \
+  | grep -E '^SKIPPED' || true)"
+# A declared skip must match the line's SHAPE and its whole
+# file:line:reason tail, not merely appear somewhere in it. An unanchored
+# match allowed any skip whose reason happened to contain the declared text,
+# in any file. Only pytest's "[N]" occurrence count is left free, since it
+# varies with how many tests share one reason.
+undeclared_skips=""
+while IFS= read -r skip_line; do
+  [[ -n "${skip_line}" ]] || continue
+  skip_declared=0
+  for declared_skip in ${declared_skips[@]+"${declared_skips[@]}"}; do
+    if [[ "${skip_line}" == "SKIPPED ["*"] "*"${declared_skip}" ]]; then
+      skip_declared=1
+      break
+    fi
+  done
+  ((skip_declared == 1)) || undeclared_skips+="${skip_line}"$'\n'
+done <<<"${skip_lines}"
+undeclared_skips="$(printf '%s' "${undeclared_skips}" \
+  | grep -E '^SKIPPED' || true)"
+if [[ -n "${undeclared_skips}" ]]; then
+  printf 'error: undeclared skip in a pytest stage:\n%s\n' \
+    "${undeclared_skips}" >&2
+  exit 1
+fi
+PROGRAM
+}
+
+# Re-verify that the source tree still matches the identity captured at the
+# start of the gate, then print the stage's success marker.
+#
+# Every command is checked explicitly instead of relying on errexit:
+# scout_run_logged does "set +e" before invoking a stage function and errexit
+# is not function-local in bash, so a stage body runs with errexit off. An
+# unguarded command here -- "git diff --check" was exactly that -- lets
+# "result=success" print after a failure, which is worse than no check.
+#
+# Arguments: <git-binary> <repo-root> <expected-head> <baseline-status-file>
+# <scout-label>, where the label is the bare scout letter, e.g. A or B.
+scout_verify_source_identity() {
+  local git_bin="$1"
+  local repo_root="$2"
+  local expected_head="$3"
+  local baseline_status="$4"
+  local scout_label="$5"
+  [[ "${scout_label}" =~ ^[A-Z][A-Z0-9_]*$ ]] \
+    || scout_contract_error "invalid scout label: ${scout_label}" \
+    || return 1
+  local current_head current_status
+  current_head="$("${git_bin}" -C "${repo_root}" rev-parse --verify HEAD)" \
+    || return 1
+  if [[ "${current_head}" != "${expected_head}" ]]; then
+    printf 'error: source HEAD changed during gate: %s -> %s\n' \
+      "${expected_head}" "${current_head}" >&2
+    return 1
+  fi
+  current_status="$(mktemp "${TMPDIR:-/tmp}/qfv-scout-status.XXXXXX")" \
+    || return 1
+  if ! "${git_bin}" -C "${repo_root}" status \
+    --porcelain=v1 -z --untracked-files=all >"${current_status}"; then
+    rm -f -- "${current_status}"
+    return 1
+  fi
+  if ! cmp --silent "${baseline_status}" "${current_status}"; then
+    rm -f -- "${current_status}"
+    printf 'error: dirty source identity changed during Scout %s gate\n' \
+      "${scout_label}" >&2
+    return 1
+  fi
+  rm -f -- "${current_status}"
+  if ! "${git_bin}" -C "${repo_root}" diff --check; then
+    printf 'error: dirty source diff fails git diff --check\n' >&2
+    return 1
+  fi
+  printf 'SCOUT_%s_SOURCE_RECHECK result=success head=%s\n' \
+    "${scout_label}" "${expected_head}"
+}

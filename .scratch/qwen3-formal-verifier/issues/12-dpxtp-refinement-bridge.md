@@ -65,3 +65,31 @@ The prose confluence argument should later be replaced by a machine check: a
 bounded-skew replay (`MaxReplaySkew = 2`) that explores all linearizations
 within a small rank skew. That covers a defined fraction of the interleaving
 space rather than arguing one case, and costs roughly `108 * (2K+1)^3`.
+
+## Scoping note (2026-09-26): no exporter change is needed
+
+Measured against the checked-in `ScoutBFacts.tla`:
+
+- `CollectiveWorkIds`, `CollectiveRank`, `CollectiveComm`, `CollectiveOperation`
+  and `CollectiveIssueOrder` are all already exported. Per-rank issue sequences
+  can therefore be derived inside the new module from existing facts, so this
+  ticket is a TLA+ module plus a runner -- no change to `scout_b.py`, and no
+  digest movement.
+- 432 works, exactly 108 per rank.
+- `CollectiveIssueOrder` values are positions in each rank's own event stream:
+  distinct within a rank, spanning 11..332 with gaps, and repeating across
+  ranks. They are not global indices, so the derivation must group by rank
+  before ordering.
+- All four ranks have positionally identical operation sequences, so operation
+  agreement already holds on the observed run. The bridge's rendezvous guard
+  will be satisfied by the real trace; what the bridge tests is ordering and
+  stream feasibility, not op agreement.
+
+Derive the sequences with the `CHOOSE`-based nth-by-order pattern already in
+`ScoutDistributed.tla` (`PerCommunicatorIssueOrderAgreement`); the community
+`SequencesExt` module is not available in the hermetic toolchain. Define them at
+constant level so TLC evaluates them while computing initial states rather than
+per state -- the derivation is O(n^2) in a rank's 108 works.
+
+Depends on ticket 21: the bridge must not be built onto a model whose deadlock
+property cannot distinguish a circular wait from a budget artifact.
