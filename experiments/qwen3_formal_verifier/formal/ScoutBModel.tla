@@ -45,6 +45,35 @@
 (*   ScoutBModelUnguarded.cfg dropping NCCL's matching requirement turns     *)
 (*                            that hang into a mismatched rendezvous:        *)
 (*                            RendezvousOpAgreement is false.                *)
+(*   ScoutBModelLive.cfg        under weak fairness on Start and Complete,    *)
+(*                            and with Issue unfair by design,               *)
+(*                            EveryIssuedCollectiveCompletes holds: from any  *)
+(*                            state where every rank has issued its whole     *)
+(*                            program and no rendezvous is short of an issue, *)
+(*                            every issued collective eventually completes.   *)
+(*                            Checked exhaustively at the same MaxIssues = 2  *)
+(*                            bound as the safety configuration, and with     *)
+(*                            FullBudgetRendezvousPopulated as an invariant, *)
+(*                            so the second antecedent conjunct is shown to  *)
+(*                            exclude no full-budget state here.              *)
+(*                            The runner reruns the same cfg against         *)
+(*                            SPECIFICATION Spec, and there the property     *)
+(*                            must FAIL: that is what shows the result rests *)
+(*                            on the fairness rather than on the property    *)
+(*                            being trivially true.                         *)
+(*   ScoutBModelLiveDivergent.cfg relaxing ONLY communicator-site agreement   *)
+(*                            makes that liveness property false. The         *)
+(*                            counterexample is a lasso, not an invariant     *)
+(*                            violation, and its stuck state is a             *)
+(*                            four-communicator stream-ordered circular wait  *)
+(*                            at full budget.                                 *)
+(*   ScoutBModelLiveUnconditional.cfg the unconditional reading of the same   *)
+(*                            sentence -- every issue completes whether or   *)
+(*                            not the program was fully issued -- is FALSE  *)
+(*                            with every guard on, because Issue is unfair  *)
+(*                            and a rank may stop issuing. Kept as a        *)
+(*                            checked claim so the narrowing above is       *)
+(*                            justified rather than asserted.               *)
 (*                                                                         *)
 (* The bound is MaxIssues = 2 per rank. That is NOT a claim about the        *)
 (* observed 108-collective-per-rank run. The observed run is checked         *)
@@ -658,5 +687,138 @@ ModelNeverCompletes == ~AllDone
 \* advertised a bound it did not impose. Issue skew is unbounded within
 \* MaxIssues, which is what the claim inventory says.
 ModelBounded == \A r \in Ranks : Len(issued[r]) <= MaxIssues
+
+(***************************************************************************)
+(* LIVENESS. Everything above is safety: no reachable state is a permanent   *)
+(* hang of one of the classified shapes. In general a safety invariant cannot *)
+(* say "the step finishes", and the properties below say it.                  *)
+(*                                                                         *)
+(* HOW MUCH THAT BUYS *IN THIS MODEL*, because the general argument carries   *)
+(* less weight here than it sounds. issued and doneOn are monotone            *)
+(* non-decreasing, and Complete is the only action that removes from running, *)
+(* so the reachable state graph has no cycles beyond the Terminated          *)
+(* self-loop: there is no livelock in this model to exclude. And the          *)
+(* antecedent below contains AllIssued, which disables Issue -- the unfair    *)
+(* action -- everywhere downstream of it, leaving only the two weakly fair    *)
+(* actions. So under LiveSpec the property reduces to "every successor-less   *)
+(* state reachable from an antecedent state satisfies AllIssuesCompleted",    *)
+(* which is close to what StuckImpliesAllDone already says over the same      *)
+(* 38321 states.                                                            *)
+(*                                                                         *)
+(* It is not therefore trivial: ScoutBModelLive.cfg run against Spec instead  *)
+(* of LiveSpec FAILS, so the fairness is required to discharge it, and the    *)
+(* divergent negative shows it discriminates. But a reader should know that   *)
+(* here it is close to a corollary of the safety result rather than an        *)
+(* independent one. An independent review established this; it is recorded    *)
+(* because the rest of this header is careful about what it does not claim.   *)
+(*                                                                         *)
+(* FAIRNESS IS ON Start AND Complete ONLY. Issue is deliberately unfair: it  *)
+(* is the unconstrained action, and rank skew is exactly its freedom. A fair  *)
+(* Issue would keep every rank issuing forever, which would make the          *)
+(* liveness result a statement about the fairness assumption rather than      *)
+(* about the protocol. Fairness is per communicator rather than               *)
+(* WF_vars(\E c : Start(c)), so a behaviour cannot satisfy it by servicing    *)
+(* one communicator repeatedly and never another.                            *)
+(*                                                                         *)
+(* Start(c) and Complete(c), once enabled, stay enabled until they are taken: *)
+(* Issue only appends, and AtStreamHead(r, k) quantifies over 1..(k - 1),     *)
+(* which an append does not touch. So weak fairness is the right strength     *)
+(* here and strong fairness would add nothing.                               *)
+(*                                                                         *)
+(* WHY "EVERY ISSUED COLLECTIVE COMPLETES" IS THE WRONG PROPERTY, LITERALLY   *)
+(* READ. With Issue unfair, a behaviour may simply stop issuing. A rank that  *)
+(* has issued on c while a peer has not leaves c short of the rendezvous, so  *)
+(* FullyPending(c) is false, so Start(c) is never enabled, so weak fairness   *)
+(* on Start promises nothing and the issue never completes. That behaviour is *)
+(* not a hang; it is a program that stopped. TLC confirms it rather than this *)
+(* being an argument on paper: with every guard on,                          *)
+(* EveryIssuedCollectiveCompletesUnconditionally is refuted by a four-state   *)
+(* prefix in which ranks 0 and 1 issue and ranks 2 and 3 never do, and the    *)
+(* lasso closes by stuttering. ScoutBModelLiveUnconditional.cfg keeps that    *)
+(* refutation as a checked claim, so the narrowing below is not convenience.  *)
+(*                                                                         *)
+(* THE NARROWING, AND ITS TWO CONJUNCTS. The property is conditioned on the   *)
+(* state from which completion is promised:                                   *)
+(*                                                                         *)
+(*   AllIssued                 every rank has issued its whole program, so no *)
+(*                             collective is waiting on a rank that merely    *)
+(*                             stopped early. This is the conjunct that makes *)
+(*                             the property true at all.                      *)
+(*   EveryRendezvousPopulated  no communicator that some member is already    *)
+(*                             waiting in is short of another member's issue. *)
+(*                             This one is not needed for the positive: under *)
+(*                             one SPMD program at full budget it is implied, *)
+(*                             which the positive configuration checks as the *)
+(*                             invariant FullBudgetRendezvousPopulated rather *)
+(*                             than assuming it. It is for the NEGATIVE.      *)
+(*                             where a finite MaxIssues also admits a hang    *)
+(*                             whose cause is an issue that was never made -- *)
+(*                             the StuckByBudget artifact discussed above.    *)
+(*                             Without this conjunct the negative's first     *)
+(*                             counterexample is that artifact, which is a    *)
+(*                             weaker statement than the hazard. With it, the *)
+(*                             measured counterexample is a four-communicator *)
+(*                             stream-ordered circular wait at full budget:   *)
+(*                             rank 0 <<tp01, loss02>>, rank 1 <<fsdp13,      *)
+(*                             tp01>>, rank 2 <<loss02, tp23>>, rank 3        *)
+(*                             <<tp23, fsdp13>>, every rendezvous populated,  *)
+(*                             nothing able to start.                         *)
+(*                                                                         *)
+(* So the ticket's literal property is not narrowed to make a run pass; it is *)
+(* false, and the narrowed one is both true here and false under the          *)
+(* relaxation. Both facts are checked, in their own configurations.           *)
+(*                                                                         *)
+(* WHAT THE NEGATIVE IS NOT. TLC reports a liveness violation from a periodic *)
+(* check on a partial state graph, so the negative's own run leaves states on *)
+(* the queue; that is sound for exhibiting a counterexample and is not an     *)
+(* exhaustive statement about the relaxed configuration. The positive run is  *)
+(* exhaustive at the declared bound.                                          *)
+(*                                                                         *)
+(* No CONSTRAINT in the liveness configurations. TLC warns that a state       *)
+(* constraint under liveness checking is unsound: a pruned state becomes a    *)
+(* terminal node and can manufacture a stuttering lasso. ModelBounded would   *)
+(* prune nothing, because IssueAllowed already enforces the bound, but a      *)
+(* constraint that cannot help and can fabricate a counterexample does not    *)
+(* belong in a liveness cfg.                                                  *)
+(***************************************************************************)
+AllIssued == \A r \in Ranks : Len(issued[r]) = MaxIssues
+
+\* No member is merely behind: every communicator that some member is already
+\* waiting in has been issued by every member, so no rendezvous is short of an
+\* issue that was never made.
+EveryRendezvousPopulated ==
+  \A c \in CommIds :
+    (\E r \in CommMembers[c] : CommCount(r, c) >= Front(c))
+      => FullyPending(c)
+
+\* Checked as an invariant in the liveness configuration, where it holds: at
+\* full budget under one SPMD program the extra antecedent conjunct excludes no
+\* state, so the positive claim is not weakened by carrying it.
+FullBudgetRendezvousPopulated == AllIssued => EveryRendezvousPopulated
+
+AllIssuesCompleted ==
+  \A r \in Ranks : \A k \in DOMAIN issued[r] : Completed(r, k)
+
+\* The domain guard is load-bearing: TLC evaluates both sides of a leads-to in
+\* every state, including the initial one where issued[r] is empty, and
+\* Completed(r, k) there is an evaluation error rather than FALSE.
+IssuedAndCompleted(r, k) == k \in DOMAIN issued[r] /\ Completed(r, k)
+
+Fairness == \A c \in CommIds : WF_vars(Start(c)) /\ WF_vars(Complete(c))
+
+LiveSpec == Init /\ [][Next]_vars /\ Fairness
+
+\* Every collective that a fully issued, fully populated schedule holds
+\* eventually completes. See the LIVENESS commentary for why the antecedent is
+\* there and what the unconditional reading below establishes instead.
+EveryIssuedCollectiveCompletes ==
+  (AllIssued /\ EveryRendezvousPopulated) ~> AllIssuesCompleted
+
+\* The unconditional reading, kept because it is FALSE with every guard on and
+\* the reason is the unfairness of Issue rather than a hang. Refuted by
+\* ScoutBModelLiveUnconditional.cfg.
+EveryIssuedCollectiveCompletesUnconditionally ==
+  \A r \in Ranks : \A k \in 1..MaxIssues :
+    (k \in DOMAIN issued[r]) ~> IssuedAndCompleted(r, k)
 
 =============================================================================

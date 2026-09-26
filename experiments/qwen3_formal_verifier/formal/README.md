@@ -49,7 +49,7 @@ Most of the formal work does not depend on an observed run at all. The abstract
 models, their negatives and the non-vacuity refutations are properties of the
 specifications, so they can be checked on CPU without a trace, a GPU or a
 sealed bundle -- minutes rather than seconds, since the Scout B model target
-runs seven TLC searches over eight communicators:
+runs eleven checks over eight communicators, four of them liveness:
 
 ```bash
 scripts/run_formal_checks.sh --networked --suite tier0
@@ -67,7 +67,7 @@ its two configurations and `ScoutLifecycle.tla`, while
 `scout_b_formal_tests`, so the sealed gate runs every check it ran before the
 split.
 
-`tlc_scout_b_model_test` is seven TLC searches over the abstract DPxTP protocol,
+`tlc_scout_b_model_test` is eleven checks over the abstract DPxTP protocol,
 each with its own result token: `SCOUT_B_MODEL_SAFETY` (every safety invariant up
 to the bound the token reports), `SCOUT_B_MODEL_NONVACUOUS` (completion is
 reachable), `SCOUT_B_MODEL_DIVERGENT` (relaxing only communicator-site agreement
@@ -78,8 +78,22 @@ intra-communicator mismatch), `SCOUT_B_MODEL_STREAM_EDGE` plus
 `SCOUT_B_MODEL_STREAM_EDGE_MUTANT` (some rank holds two distinct communicators on
 one stream, and substituting `StreamOfIssue(e) == e.comm` makes that stop being
 true), and `SCOUT_B_MODEL_UNGUARDED` (dropping NCCL's matching guard corrupts the
-rendezvous instead of hanging). The claim inventory in the header of
-`ScoutBModel.tla` states exactly what each one establishes.
+rendezvous instead of hanging). Four more are liveness rather than safety,
+because no safety invariant can say that a step finishes.
+`SCOUT_B_MODEL_LIVENESS`: under weak fairness on `Start` and `Complete`, with
+`Issue` unfair by design, `EveryIssuedCollectiveCompletes` holds, exhaustively,
+at the bound the token reports. `SCOUT_B_MODEL_LIVENESS_UNFAIR`: rerunning that
+same configuration against the unfair `SPECIFICATION Spec` makes it fail, so the
+fairness is what the result rests on. `SCOUT_B_MODEL_LIVENESS_NEGATIVE`:
+relaxing only communicator-site agreement makes it false, and the counterexample
+is a lasso rather than a reachable bad state, which is why it has its own
+classifier. `SCOUT_B_MODEL_LIVENESS_UNCONDITIONAL`: the unconditional reading of
+the same sentence is false even with every guard on, because `Issue` is unfair
+and a rank may simply stop issuing -- which is what justifies conditioning the
+property instead of weakening it. `SCOUT_B_MODEL_CONFIG_COVERAGE` reconciles the
+configurations that ship with the configurations a stage actually ran. The claim
+inventory in the header of `ScoutBModel.tla` states exactly what each one
+establishes.
 
 `run_formal_tier0.sh` adds changed-source lint and the focused
 `tests/unit_tests/test_formal_toolchain.py` contracts. It is an iteration aid
@@ -287,7 +301,7 @@ abstract model of one single-rank step, and that the one exported event-kind
 sequence lies inside that model.
 
 The abstract DPxTP protocol is a separate model, `ScoutBModel`, with its own
-seven TLC searches and its own claim inventory; see "Tier 0: the trace-free
+eleven checks and its own claim inventory; see "Tier 0: the trace-free
 suite" above for what each of its result tokens establishes, and the header of
 `ScoutBModel.tla` for the exact claims. Its refinement bridge to the observed
 four-rank trace is `ScoutBRefine`, described in "DPxTP refinement bridge" below;

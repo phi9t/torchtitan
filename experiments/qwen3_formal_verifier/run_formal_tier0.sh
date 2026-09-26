@@ -31,14 +31,17 @@ usage() {
 Usage: experiments/qwen3_formal_verifier/run_formal_tier0.sh [options]
 
 Run the trace-free tier 0 checks on CPU. It is minutes, not seconds: the
-Scout B model target alone runs seven TLC searches over eight communicators.
+Scout B model target alone runs eleven checks over eight communicators.
 Still no GPU, no observed trace and no sealed bundle.
   1. the tier0 Bazel formal suite (TLC and Lean smoke, the abstract Scout A
      model plus its relaxed-guard negative, and the abstract Scout B DPxTP
-     model with all six of its companion checks: non-vacuity, the
+     model with all ten of its companion checks: non-vacuity, the
      order-divergence deadlock, that deadlock's witness shape, the
      operation-mismatch hang, the stream-edge shape plus its
-     per-communicator-stream mutant, and the unguarded rendezvous);
+     per-communicator-stream mutant, the unguarded rendezvous, and the four
+     liveness checks -- the property under weak fairness, its unfair-spec
+     control, its order-divergence lasso, and the refutation of its
+     unconditional reading);
   2. changed-source lint inside Insula -- a deliberate subset of the
      pre-commit hooks, skipping the slow or gate-only ones
      (no-commit-to-branch, check-added-large-files, lychee-link-checker),

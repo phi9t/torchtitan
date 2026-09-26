@@ -59,6 +59,9 @@ filegroup(
         "ScoutBModel.cfg",
         "ScoutBModel.tla",
         "ScoutBModelDivergent.cfg",
+        "ScoutBModelLive.cfg",
+        "ScoutBModelLiveDivergent.cfg",
+        "ScoutBModelLiveUnconditional.cfg",
         "ScoutBModelOpMismatch.cfg",
         "ScoutBModelReach.cfg",
         "ScoutBModelStreamShape.cfg",
@@ -238,6 +241,10 @@ sh_test(
         "formal",
         "manual",
     ],
+    # Eleven checks, four of them liveness. Measured at about 4min 45s in
+    # total, the liveness negative alone taking about 2min 05s, so the default
+    # moderate timeout has no headroom.
+    timeout = "long",
     toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
 )
 
@@ -331,8 +338,8 @@ test_suite(
 
 # Tier 0: the trace-free checks. Every target here reads only hand-written
 # sources, so it runs on CPU without a generated facts module, a GPU or an
-# attempt bundle. Minutes rather than seconds: tlc_scout_b_model_test runs seven
-# TLC searches over eight communicators. This suite is for iteration and is not
+# attempt bundle. Minutes rather than seconds: tlc_scout_b_model_test runs
+# eleven checks over eight communicators. This suite is for iteration and is not
 # a gate: no attempt bundle is sealed from it.
 test_suite(
     name = "tier0_formal_tests",

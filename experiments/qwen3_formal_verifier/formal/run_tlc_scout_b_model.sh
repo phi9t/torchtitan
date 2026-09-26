@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Model-check the abstract DPxTP collective protocol.
 #
-# Seven checks. Each one names the exact statement it establishes; the module
+# Eleven checks. Each one names the exact statement it establishes; the module
 # header of ScoutBModel.tla carries the same list as the claim inventory, and
 # the two must agree.
 #
@@ -31,10 +31,35 @@
 #                replaces an exhaustive run with the stream edge deleted, which
 #                could not fail: see the lemma above StreamEdgeIsInert;
 #   unguarded    without NCCL's matching requirement, that mismatch instead
-#                runs a corrupt rendezvous.
+#                runs a corrupt rendezvous;
+#   liveness     everything above is safety, and a safety invariant cannot say
+#                that a step finishes. Under weak fairness on Start and Complete
+#                -- Issue stays unfair, which is where rank skew comes from --
+#                EveryIssuedCollectiveCompletes holds at the bound the token
+#                reports -- and rerunning the same cfg against the unfair
+#                SPECIFICATION Spec makes it fail, so the fairness is what the
+#                result rests on;
+#   liveness
+#   negative     relaxing ONLY communicator-site agreement makes it false. The
+#                counterexample is a LASSO, not a reachable bad state, so it
+#                gets its own classifier: TLC exits 13, prints two Error lines
+#                and no "Invariant X is violated" line at all. The four
+#                pre-existing classifiers all reject that output, but on the
+#                exit-status pin -- they return before reaching their
+#                Error-line rules, so it is the status that separates a lasso
+#                from an invariant violation, not the line shape;
+#   unconditional
+#   reading      and with every guard on, the UNCONDITIONAL reading of the same
+#                sentence is still violated, because Issue is unfair and a rank
+#                may simply stop issuing. That is what justifies conditioning
+#                the property rather than weakening it to make a run pass.
 #
-# Every stage runs at one worker under a 120s timeout. The slowest is about 35s,
-# so the headroom is roughly 3x and the numbers are reproducible run to run.
+# The seven safety stages run at one worker under a 120s timeout; the slowest is
+# about 35s, so the headroom is roughly 3x and the numbers are reproducible run
+# to run. The four liveness stages run at one worker under 420s: liveness
+# checking is much slower than safety and the negative measures about 2min 05s,
+# so the safety timeout would kill it and be read as a timeout rather than as a
+# result.
 
 set -euo pipefail
 
@@ -95,14 +120,42 @@ stage() {
 # One worker everywhere, deliberately: the reported state counts are then
 # reproducible, and a negative's search order does not depend on how many cores
 # the machine happens to have.
+#
+# The per-stage timeout defaults to 120s, which is roughly 3x the slowest safety
+# stage. The liveness stages pass their own: liveness checking is much slower
+# than safety, and the measured liveness negative is about 2min 05s on this
+# machine, so 120s would kill it and be read as a timeout rather than a result.
 run_tlc() {
   local name="$1"
   local module="$2"
   local config="$3"
+  local stage_timeout="${4:-120}"
   local status=0
+  # Which configurations this run actually checked. A cfg that ships in the
+  # filegroup but no stage runs reads as coverage and is checked by nothing, so
+  # the tail of this script reconciles the two.
+  #
+  # Keyed on the BYTES fed to TLC, not on the name. Two stages deliberately run
+  # mutated copies under a shipped cfg's name -- live_unfair rewrites
+  # SPECIFICATION, streamedge_inert rewrites the module -- and recording those
+  # by name would let a mutant satisfy coverage for the cfg it mutates. Then
+  # deleting the honest run of that cfg would still reconcile clean, which is
+  # the "guard that cannot fail" shape this suite exists to avoid.
+  # Both halves must be pristine: live_unfair mutates the cfg, streamedge_inert
+  # mutates the module, and either alone is enough to make the run something
+  # other than a check of what ships.
+  if cmp --silent \
+       "${work_dir}/${name}/${config}.cfg" "${fixture_dir}/${config}.cfg" \
+     && cmp --silent \
+       "${work_dir}/${name}/${module}.tla" "${fixture_dir}/${module}.tla"; then
+    printf '%s\n' "${config}.cfg" >>"${work_dir}/checked_configs"
+  else
+    printf '%s\t%s\n' "${name}" "${config}.cfg" \
+      >>"${work_dir}/mutated_runs"
+  fi
   (
     cd "${work_dir}/${name}"
-    timeout 120 "${java_bin}" -XX:+UseParallelGC -cp "${tla_jar}" \
+    timeout "${stage_timeout}" "${java_bin}" -XX:+UseParallelGC -cp "${tla_jar}" \
       tlc2.TLC -workers 1 -metadir "${work_dir}/${name}/states" \
       "${module}.tla" -config "${config}.cfg"
   ) >"${work_dir}/${name}.log" 2>&1 || status=$?
@@ -336,3 +389,195 @@ formal_classify_tlc_transition_negative \
 }
 printf 'SCOUT_B_MODEL_UNGUARDED invariant=RendezvousOpAgreement result=named_violation exit=%s\n' \
   "${unguarded_status}"
+
+# States TLC still had on its queue when it stopped. Zero for an exhaustive
+# search; non-zero for a liveness negative, which TLC reports from a periodic
+# check on a partial graph. Reported so a reader cannot mistake the negative for
+# an exhaustive statement about the relaxed configuration.
+states_left_on_queue() {
+  sed -n 's/.*distinct states found, \([0-9]\+\) states left on queue.*/\1/p' \
+    "${work_dir}/$1.log" | tail -1
+}
+
+# 8. Liveness. Everything above is safety, and a safety invariant cannot say
+# that a step finishes. LiveSpec adds weak fairness on Start and Complete per
+# communicator and leaves Issue unfair, which is where rank skew comes from.
+#
+# The property is EveryIssuedCollectiveCompletes, which promises completion from
+# a state where every rank has issued its whole program and no rendezvous is
+# short of an issue. Stage 10 is why it is conditioned at all. The positive run
+# is exhaustive, so its own state count and the bound go in the token: liveness
+# is checked at its own bound and nothing here inherits the safety stage's.
+stage live ScoutBModel.tla ScoutBModelLive.cfg
+formal_cfg_declares_one_property \
+  "${work_dir}/live/ScoutBModelLive.cfg" "EveryIssuedCollectiveCompletes" || {
+  echo "the liveness configuration does not declare exactly the property this" \
+    "stage reports; TLC names no property in its diagnostic, so the cfg is the" \
+    "only binding" >&2
+  exit 1
+}
+live_status=0
+run_tlc live ScoutBModel ScoutBModelLive 420 || live_status=$?
+live_output="$(<"${work_dir}/live.log")"
+formal_classify_tlc_valid "${live_status}" "${live_output}" || {
+  cat "${work_dir}/live.log" >&2
+  echo "the liveness property did not hold under weak fairness on Start and" \
+    "Complete" >&2
+  exit 1
+}
+live_states="$(distinct_states live)"
+live_queue="$(states_left_on_queue live)"
+# An exhaustive positive is the whole point: a liveness run that stopped early
+# would prove nothing about the states it never reached.
+[[ "${live_queue}" == "0" ]] || {
+  cat "${work_dir}/live.log" >&2
+  echo "the liveness positive left ${live_queue} states on the queue, so it is" \
+    "not an exhaustive result at the declared bound" >&2
+  exit 1
+}
+live_max_issues="$(cfg_scalar ScoutBModelLive.cfg MaxIssues)"
+[[ -n "${live_max_issues}" ]] || {
+  echo "could not read the liveness bound out of its cfg" >&2
+  exit 1
+}
+printf 'SCOUT_B_MODEL_LIVENESS property=EveryIssuedCollectiveCompletes result=holds fairness=start_complete_per_communicator issue_fairness=none distinct_states=%s states_left_on_queue=%s bound_max_issues_per_rank=%s exit=%s\n' \
+  "${live_states}" "${live_queue}" "${live_max_issues}" "${live_status}"
+
+# And the fairness is load-bearing, checked the same way the stream map is: rerun
+# the SAME cfg against the unfair specification. With SPECIFICATION Spec the
+# property must FAIL, or stage 8 would be passing because the property is
+# trivially true rather than because Start and Complete are fair. Measured: exit
+# 13 in 13s, exhaustive over the same 38321 states, lasso closed by stuttering.
+stage live_unfair ScoutBModel.tla ScoutBModelLive.cfg
+sed 's/^SPECIFICATION LiveSpec$/SPECIFICATION Spec/' \
+  "${work_dir}/live/ScoutBModelLive.cfg" \
+  >"${work_dir}/live_unfair/ScoutBModelLive.cfg.mutated"
+mv "${work_dir}/live_unfair/ScoutBModelLive.cfg.mutated" \
+   "${work_dir}/live_unfair/ScoutBModelLive.cfg"
+# Fail closed if the substitution did not apply, or this half would rerun the
+# fair specification and pass for the wrong reason.
+grep -Fxq 'SPECIFICATION Spec' \
+  "${work_dir}/live_unfair/ScoutBModelLive.cfg" || {
+  echo "the fairness mutation did not apply; the fairness regression guard" \
+    "would be vacuous" >&2
+  exit 1
+}
+live_unfair_status=0
+run_tlc live_unfair ScoutBModel ScoutBModelLive 420 || live_unfair_status=$?
+live_unfair_output="$(<"${work_dir}/live_unfair.log")"
+formal_classify_tlc_liveness_negative \
+  "${live_unfair_status}" "${live_unfair_output}" || {
+  cat "${work_dir}/live_unfair.log" >&2
+  echo "the liveness property still held without fairness on Start and" \
+    "Complete, so stage 8 does not show what it claims" >&2
+  exit 1
+}
+printf 'SCOUT_B_MODEL_LIVENESS_UNFAIR substitution=LiveSpec_is_Spec property=EveryIssuedCollectiveCompletes result=lasso_counterexample exit=%s\n' \
+  "${live_unfair_status}"
+
+# 9. The liveness negative: order divergence alone makes that property false.
+# Same relaxation as stage 3, and the same guards everywhere else, so what this
+# adds over stage 3 is the shape of the failure -- a behaviour that never
+# completes rather than a reachable bad state.
+#
+# A liveness counterexample is a LASSO. TLC prints two Error lines, no
+# "Invariant X is violated" line at all, and exits 13, so the invariant
+# classifiers reject it and this stage needs its own.
+#
+# Unlike the safety stages, this one's state count is NOT reproducible run to
+# run: TLC reports a liveness violation from a periodic check whose timing moves
+# with the fingerprint seed it picks, so the counts in the token describe this
+# run only. Measured 397195 and 401719 distinct states on two runs, both about
+# 2min 05s. Nothing is asserted about the number; the search=partial field is
+# there so the number is not read as an exhaustive result.
+stage livedivergent ScoutBModel.tla ScoutBModelLiveDivergent.cfg
+formal_cfg_declares_one_property \
+  "${work_dir}/livedivergent/ScoutBModelLiveDivergent.cfg" \
+  "EveryIssuedCollectiveCompletes" || {
+  echo "the liveness negative does not declare the same property the positive" \
+    "establishes, so the two are not about one statement" >&2
+  exit 1
+}
+livedivergent_status=0
+run_tlc livedivergent ScoutBModel ScoutBModelLiveDivergent 420 \
+  || livedivergent_status=$?
+livedivergent_output="$(<"${work_dir}/livedivergent.log")"
+formal_classify_tlc_liveness_negative \
+  "${livedivergent_status}" "${livedivergent_output}" || {
+  cat "${work_dir}/livedivergent.log" >&2
+  echo "order divergence did not produce a liveness counterexample" >&2
+  exit 1
+}
+printf 'SCOUT_B_MODEL_LIVENESS_NEGATIVE property=EveryIssuedCollectiveCompletes result=lasso_counterexample search=partial distinct_states=%s states_left_on_queue=%s bound_max_issues_per_rank=%s exit=%s\n' \
+  "$(distinct_states livedivergent)" "$(states_left_on_queue livedivergent)" \
+  "$(cfg_scalar ScoutBModelLiveDivergent.cfg MaxIssues)" \
+  "${livedivergent_status}"
+
+# 10. And why the property is conditioned. With every guard on, the
+# UNCONDITIONAL reading -- every issue completes whether or not the program was
+# fully issued -- is still violated, because Issue is unfair and a rank may stop
+# issuing, leaving a peer's issue short of its rendezvous forever. That is a
+# program that stopped, not a hang. Without this stage the narrowing in stage 8
+# would be an assertion; with it, it is a measurement.
+stage liveuncond ScoutBModel.tla ScoutBModelLive.cfg \
+  ScoutBModelLiveUnconditional.cfg
+formal_cfg_declares_one_property \
+  "${work_dir}/liveuncond/ScoutBModelLiveUnconditional.cfg" \
+  "EveryIssuedCollectiveCompletesUnconditionally" || {
+  echo "the unconditional-reading stage does not declare the unconditional" \
+    "property" >&2
+  exit 1
+}
+# Same constants as the positive: only the property may differ, or this would be
+# a statement about a different configuration rather than about the reading.
+liveuncond_pair_diff="$(
+  diff <(cfg_body "${work_dir}/liveuncond/ScoutBModelLive.cfg") \
+       <(cfg_body "${work_dir}/liveuncond/ScoutBModelLiveUnconditional.cfg") \
+    || true
+)"
+expected_liveuncond_diff="$(printf '%s\n' \
+  '< PROPERTY EveryIssuedCollectiveCompletes' \
+  '< INVARIANT FullBudgetRendezvousPopulated' \
+  '> PROPERTY EveryIssuedCollectiveCompletesUnconditionally')"
+[[ "$(grep -E '^[<>]' <<<"${liveuncond_pair_diff}")" \
+     == "${expected_liveuncond_diff}" ]] || {
+  printf 'the unconditional cfg differs from the liveness cfg in more than the property:\n%s\n' \
+    "${liveuncond_pair_diff}" >&2
+  exit 1
+}
+liveuncond_status=0
+run_tlc liveuncond ScoutBModel ScoutBModelLiveUnconditional 420 \
+  || liveuncond_status=$?
+liveuncond_output="$(<"${work_dir}/liveuncond.log")"
+formal_classify_tlc_liveness_negative \
+  "${liveuncond_status}" "${liveuncond_output}" || {
+  cat "${work_dir}/liveuncond.log" >&2
+  echo "the unconditional reading of the liveness property was not refuted," \
+    "so the conditioned property in stage 8 is narrower than it needs to be" >&2
+  exit 1
+}
+printf 'SCOUT_B_MODEL_LIVENESS_UNCONDITIONAL property=EveryIssuedCollectiveCompletesUnconditionally result=lasso_counterexample cause=unfair_issue exit=%s\n' \
+  "${liveuncond_status}"
+
+# Reconciliation. Every ScoutBModel*.cfg that ships with this package must have
+# been checked by one of the stages above. Without this, adding a configuration
+# to the filegroup and forgetting to wire a stage to it would present as
+# coverage while checking nothing -- and the liveness cfgs are exactly the case
+# that motivated it, since TLC names no property in a liveness diagnostic.
+shipped_configs="$(
+  cd "${fixture_dir}" && ls ScoutBModel*.cfg | sort
+)"
+checked_configs="$(sort -u "${work_dir}/checked_configs")"
+unchecked="$(comm -23 <(printf '%s\n' "${shipped_configs}") \
+                      <(printf '%s\n' "${checked_configs}"))"
+[[ -z "${unchecked}" ]] || {
+  printf 'these configurations ship but no stage checked them:\n%s\n' \
+    "${unchecked}" >&2
+  exit 1
+}
+mutated_runs=0
+[[ ! -s "${work_dir}/mutated_runs" ]] \
+  || mutated_runs="$(wc -l <"${work_dir}/mutated_runs")"
+printf 'SCOUT_B_MODEL_CONFIG_COVERAGE shipped=%s checked=%s unchecked=0 mutated_runs=%s\n' \
+  "$(wc -l <<<"${shipped_configs}")" "$(wc -l <<<"${checked_configs}")" \
+  "${mutated_runs}"

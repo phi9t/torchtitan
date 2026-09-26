@@ -1808,6 +1808,9 @@ B_MODEL_CFGS = (
     "ScoutBModelReach.cfg",
     "ScoutBModelDivergent.cfg",
     "ScoutBModelWitness.cfg",
+    "ScoutBModelLive.cfg",
+    "ScoutBModelLiveDivergent.cfg",
+    "ScoutBModelLiveUnconditional.cfg",
     "ScoutBModelOpMismatch.cfg",
     "ScoutBModelStreamShape.cfg",
     "ScoutBModelUnguarded.cfg",
@@ -2262,6 +2265,373 @@ def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
     assert divergent["RequireMatchedIssueOrder"] == "TRUE"
     assert opmismatch["RequireMatchedIssueOrder"] == "TRUE"
     assert unguarded["RequireMatchedIssueOrder"] == "FALSE"
+
+
+# Copied from a real run of ScoutBModelLiveDivergent.cfg (exit 13, 1599947
+# states generated, 401719 distinct, 78116 left on queue, 02min 05s). The trace
+# body is elided; the shape -- two Error lines, no invariant line, a lasso
+# closed by stuttering, a search summary and an orderly finish -- is verbatim.
+_REAL_LIVENESS_STUTTERING_LASSO = (
+    "TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)\n"
+    "Starting... (2026-09-26 15:10:26)\n"
+    "Implied-temporal checking--satisfiability problem has 1 branches.\n"
+    "Computing initial states...\n"
+    "Error: Temporal properties were violated.\n"
+    "\n"
+    "Error: The following behavior constitutes a counter-example:\n"
+    "\n"
+    "State 1: <Initial predicate>\n"
+    "/\\ running = {}\n"
+    "\n"
+    "State 10: Stuttering\n"
+    "Finished checking temporal properties in 00s at 2026-09-26 15:12:31\n"
+    "1599947 states generated, 401719 distinct states found, "
+    "78116 states left on queue.\n"
+    "Finished in 02min 05s at (2026-09-26 15:12:31)\n"
+)
+
+# The other lasso shape, from a real TLC run on a throwaway two-state flip-flop
+# with WF and an unsatisfiable <>(x = 2): this model's variables only grow, so it
+# cannot itself produce a cyclic lasso, and inventing one is exactly what this
+# project has been burned by. Same exit status and same Error lines; only the
+# terminator differs.
+_REAL_LIVENESS_CYCLIC_LASSO = (
+    "TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)\n"
+    "Computing initial states...\n"
+    "Error: Temporal properties were violated.\n"
+    "\n"
+    "Error: The following behavior constitutes a counter-example:\n"
+    "\n"
+    "State 1: <Initial predicate>\n"
+    "x = 0\n"
+    "\n"
+    "State 2: <Flip line 6, col 13 to line 6, col 27 of module CycleLasso>\n"
+    "x = 1\n"
+    "\n"
+    "Back to state 1: <Flip line 7, col 13 to line 7, col 27 of module "
+    "CycleLasso>\n"
+    "\n"
+    "Finished checking temporal properties in 00s at 2026-09-26 15:20:19\n"
+    "3 states generated, 2 distinct states found, 0 states left on queue.\n"
+    "Finished in 00s at (2026-09-26 15:20:19)\n"
+)
+
+
+def test_tlc_liveness_negative_classifier_matches_the_real_checker_output() -> None:
+    """A refuted temporal property is a fourth TLC outcome, and a lasso.
+
+    The standing lesson of this ticket: a liveness counterexample is not an
+    invariant violation. TLC exits 13, prints TWO Error lines, prints no
+    "Invariant X is violated" line at all, and closes the behaviour with either
+    a Stuttering line or a "Back to state" line. Both shapes below come from
+    real runs -- the first from ScoutBModelLiveDivergent.cfg, the second from a
+    throwaway flip-flop, because this model's state cannot cycle -- and the
+    existing classifiers must reject both, or a liveness stage could be wired to
+    one of them and pass on the wrong evidence.
+    """
+
+    for real in (
+        _REAL_LIVENESS_STUTTERING_LASSO,
+        _REAL_LIVENESS_CYCLIC_LASSO,
+    ):
+        accepted = _run_classifier("formal_classify_tlc_liveness_negative", 13, real)
+        assert accepted.returncode == 0, accepted.stdout
+
+        # The exit status TLC uses for a refuted invariant is 12, and for a
+        # false constant invariant 151. Neither is this outcome.
+        for status in (0, 12, 151, 124, 127):
+            wrong_status = _run_classifier(
+                "formal_classify_tlc_liveness_negative", status, real
+            )
+            assert wrong_status.returncode != 0, status
+
+        # And the invariant classifiers must not accept a lasso. The transition
+        # negative is the one the ticket predicted would be reached for: it
+        # requires exactly one Error line, and a lasso prints two.
+        for function, expected in (
+            ("formal_classify_tlc_transition_negative", "DeadlockFreedom"),
+            ("formal_classify_tlc_negative", "DeadlockFreedom"),
+            ("formal_classify_tlc_constant_false", "StreamEdgeIsInert"),
+            ("formal_classify_tlc_valid", ""),
+        ):
+            mismatched = _run_classifier(function, 13, real, expected)
+            assert mismatched.returncode != 0, function
+
+    real = _REAL_LIVENESS_STUTTERING_LASSO
+
+    # A counterexample with no lasso terminator is a truncated report: TLC was
+    # killed mid-trace, and the behaviour it printed is not closed.
+    open_trace = _run_classifier(
+        "formal_classify_tlc_liveness_negative",
+        13,
+        real.replace("State 10: Stuttering\n", ""),
+    )
+    assert open_trace.returncode != 0, "an unclosed behaviour is not a lasso"
+
+    # The usual pair: no orderly finish, and a crash after the diagnostic.
+    truncated = _run_classifier(
+        "formal_classify_tlc_liveness_negative",
+        13,
+        real.replace("Finished in 02min 05s at (2026-09-26 15:12:31)\n", ""),
+    )
+    assert truncated.returncode != 0
+
+    crashed = _run_classifier(
+        "formal_classify_tlc_liveness_negative",
+        13,
+        real + 'Exception in thread "main" java.lang.NullPointerException\n',
+    )
+    assert crashed.returncode != 0
+
+    # Any further Error line is another failure, not this result.
+    extra_error = _run_classifier(
+        "formal_classify_tlc_liveness_negative",
+        13,
+        real + "Error: unrelated checker failure\n",
+    )
+    assert extra_error.returncode != 0
+
+
+def _run_cfg_property_check(cfg_file: Path, expected: str):
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; formal_cfg_declares_one_property "$2" "$3"',
+            "cfg-property-test",
+            str(CHECKER_CONTRACT),
+            str(cfg_file),
+            expected,
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+
+def test_liveness_stage_is_pinned_to_its_property_by_its_configuration(
+    tmp_path: Path,
+) -> None:
+    """TLC's liveness diagnostic names no property, so the cfg is the binding.
+
+    "Error: Temporal properties were violated." is all TLC says, so a liveness
+    stage pointed at the wrong cfg would classify exactly the same. The runner
+    therefore asserts what its cfg declares, and this executes that assertion
+    against the shipped configurations and against the shapes that must fail:
+    two properties, a block-form list, and a commented mention only.
+    """
+
+    for name, prop in (
+        ("ScoutBModelLive.cfg", "EveryIssuedCollectiveCompletes"),
+        ("ScoutBModelLiveDivergent.cfg", "EveryIssuedCollectiveCompletes"),
+        (
+            "ScoutBModelLiveUnconditional.cfg",
+            "EveryIssuedCollectiveCompletesUnconditionally",
+        ),
+    ):
+        accepted = _run_cfg_property_check(FORMAL_DIR / name, prop)
+        assert accepted.returncode == 0, (name, accepted.stdout)
+
+        wrong = _run_cfg_property_check(FORMAL_DIR / name, "SomethingElse")
+        assert wrong.returncode != 0, name
+
+    # A safety cfg declares no temporal property at all, so a liveness stage
+    # pointed at one must be refused rather than silently checking nothing.
+    safety = _run_cfg_property_check(
+        FORMAL_DIR / "ScoutBModel.cfg", "EveryIssuedCollectiveCompletes"
+    )
+    assert safety.returncode != 0
+
+    two_properties = tmp_path / "TwoProperties.cfg"
+    two_properties.write_text(
+        "SPECIFICATION LiveSpec\n"
+        "PROPERTY EveryIssuedCollectiveCompletes\n"
+        "PROPERTY EveryIssuedCollectiveCompletesUnconditionally\n"
+    )
+    assert (
+        _run_cfg_property_check(
+            two_properties, "EveryIssuedCollectiveCompletes"
+        ).returncode
+        != 0
+    ), "a second property would make the violated one ambiguous"
+
+    block_form = tmp_path / "BlockForm.cfg"
+    block_form.write_text(
+        "SPECIFICATION LiveSpec\n"
+        "PROPERTIES\n"
+        "  EveryIssuedCollectiveCompletes\n"
+        "  EveryIssuedCollectiveCompletesUnconditionally\n"
+        "CHECK_DEADLOCK FALSE\n"
+    )
+    assert (
+        _run_cfg_property_check(block_form, "EveryIssuedCollectiveCompletes").returncode
+        != 0
+    ), "a block-form second property must not hide from the check"
+
+    commented = tmp_path / "Commented.cfg"
+    commented.write_text(
+        "\\* PROPERTY EveryIssuedCollectiveCompletes\n"
+        "SPECIFICATION LiveSpec\n"
+        "CHECK_DEADLOCK FALSE\n"
+    )
+    assert (
+        _run_cfg_property_check(commented, "EveryIssuedCollectiveCompletes").returncode
+        != 0
+    ), "a commented mention is not a declaration"
+
+
+def test_liveness_specification_is_fair_on_start_and_complete_only() -> None:
+    """Issue must stay unfair, or the result is about the fairness assumption.
+
+    Rank skew is exactly Issue's freedom. A fair Issue would keep every rank
+    issuing forever and the liveness property would hold because of the
+    assumption rather than because of the protocol. Start and Complete are fair
+    per communicator rather than under one existential, so a behaviour cannot
+    satisfy fairness by servicing one communicator forever and another never.
+    """
+
+    model = B_MODEL.read_text()
+
+    fairness = _tla_definition(model, "Fairness")
+    assert "WF_vars(Start(c))" in fairness
+    assert "WF_vars(Complete(c))" in fairness
+    assert "\\A c \\in CommIds" in fairness, "fairness must be per communicator"
+    assert "Issue" not in fairness, "Issue must not be fair"
+    assert "SF_" not in fairness, "weak fairness suffices; Start stays enabled"
+
+    live_spec = _tla_definition(model, "LiveSpec")
+    assert "Init" in live_spec
+    assert "[][Next]_vars" in live_spec
+    assert "Fairness" in live_spec
+
+    # The safety specification must stay fairness-free, or every safety cfg
+    # would quietly start checking a different specification.
+    safety_spec = _tla_definition(model, "Spec")
+    assert "WF_" not in safety_spec and "SF_" not in safety_spec
+
+    # And each cfg must name the specification its claim needs.
+    for name in B_MODEL_CFGS:
+        specification = _cfg_settings((FORMAL_DIR / name).read_text())
+        declared = [
+            line.split()[1]
+            for line in (FORMAL_DIR / name).read_text().splitlines()
+            if line.strip().startswith("SPECIFICATION")
+        ]
+        assert len(declared) == 1, name
+        expected = "LiveSpec" if "Live" in name else "Spec"
+        assert declared == [expected], (name, declared)
+        assert specification, name
+
+
+def test_liveness_configurations_isolate_the_one_thing_each_changes() -> None:
+    """Three liveness runs, and exactly one difference between each pair.
+
+    The negative must differ from the positive only in the site guard, or its
+    counterexample would not be attributable to order divergence; the
+    unconditional run must differ only in the property, or its refutation would
+    be a statement about a different configuration rather than about the
+    unconditional reading. Both are parsed from the cfgs rather than described.
+    """
+
+    positive = _cfg_settings((FORMAL_DIR / "ScoutBModelLive.cfg").read_text())
+    negative = _cfg_settings((FORMAL_DIR / "ScoutBModelLiveDivergent.cfg").read_text())
+    unconditional = _cfg_settings(
+        (FORMAL_DIR / "ScoutBModelLiveUnconditional.cfg").read_text()
+    )
+    safety = _cfg_settings((FORMAL_DIR / "ScoutBModel.cfg").read_text())
+    divergent = _cfg_settings((FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text())
+
+    differing = {
+        key
+        for key in set(positive) | set(negative)
+        if positive.get(key) != negative.get(key)
+    }
+    assert differing == {"RequireUniformProgramComms"}, differing
+    assert positive["RequireUniformProgramComms"] == "TRUE"
+    assert negative["RequireUniformProgramComms"] == "FALSE"
+
+    assert unconditional == positive, "only the property may differ here"
+
+    # The liveness pair must sit on the same constants as the safety pair it
+    # mirrors, so the liveness result is about the checked model and not about a
+    # quietly different instance or bound.
+    for live, reference in ((positive, safety), (negative, divergent)):
+        shared = {
+            key: value
+            for key, value in reference.items()
+            if key in live and key != "SPECIFICATION"
+        }
+        assert {key: live[key] for key in shared} == shared, shared
+
+    # A state constraint under liveness checking can turn a pruned state into a
+    # terminal node and manufacture a stuttering lasso; TLC warns about exactly
+    # this. ModelBounded would prune nothing here, so it buys nothing and is
+    # left out rather than relied on.
+    for name in (
+        "ScoutBModelLive.cfg",
+        "ScoutBModelLiveDivergent.cfg",
+        "ScoutBModelLiveUnconditional.cfg",
+    ):
+        text = (FORMAL_DIR / name).read_text()
+        declared = [
+            line
+            for line in text.splitlines()
+            if line.strip().startswith(("CONSTRAINT", "ACTION_CONSTRAINT"))
+        ]
+        assert declared == [], (name, declared)
+
+    # The positive run is what shows the second antecedent conjunct costs
+    # nothing at full budget in the good configuration, so it must check it.
+    assert _cfg_invariants((FORMAL_DIR / "ScoutBModelLive.cfg").read_text()) == [
+        "FullBudgetRendezvousPopulated"
+    ]
+
+
+def test_liveness_property_is_conditioned_and_the_literal_one_is_refuted() -> None:
+    """The ticket's literal property is false, and that is a checked claim.
+
+    With Issue unfair a behaviour may simply stop issuing, so a collective one
+    rank has issued and its peers have not never becomes fully pending, never
+    starts, and never completes. That is a program that stopped, not a hang, so
+    "every issued collective eventually completes" read unconditionally is false
+    with every guard on. The module keeps both readings: the conditioned one is
+    checked to hold, and the unconditional one is checked to fail, so the
+    narrowing is justified by a run rather than asserted in a comment.
+    """
+
+    model = B_MODEL.read_text()
+
+    conditioned = _tla_definition(model, "EveryIssuedCollectiveCompletes")
+    assert "~>" in conditioned, "liveness, not an invariant"
+    assert "AllIssued" in conditioned
+    assert "EveryRendezvousPopulated" in conditioned
+
+    unconditional = _tla_definition(
+        model, "EveryIssuedCollectiveCompletesUnconditionally"
+    )
+    assert "~>" in unconditional
+    assert "AllIssued" not in unconditional
+
+    # The domain guard on the right-hand side is load-bearing: TLC evaluates
+    # both sides of a leads-to in every state, and Completed(r, k) in the
+    # initial state, where issued[r] is empty, is an evaluation error rather
+    # than FALSE -- which formal_has_infrastructure_error would then classify as
+    # a crashed run.
+    guarded = _tla_definition(model, "IssuedAndCompleted(r, k)")
+    assert "k \\in DOMAIN issued[r]" in guarded
+    assert guarded.index("DOMAIN issued[r]") < guarded.index("Completed(r, k)")
+
+    # AllIssued is about the program being fully issued, not about completion.
+    all_issued = _tla_definition(model, "AllIssued")
+    assert "Len(issued[r]) = MaxIssues" in all_issued
+
+    # And the populated conjunct is what keeps the negative off the finite-budget
+    # artifact: without it the first counterexample is a rendezvous short of an
+    # issue that was never made, which is StuckByBudget rather than a hang.
+    populated = _tla_definition(model, "EveryRendezvousPopulated")
+    assert "FullyPending(c)" in populated
+    assert "CommCount(r, c) >= Front(c)" in populated
 
 
 B_REFINE = FORMAL_DIR / "ScoutBRefine.tla"

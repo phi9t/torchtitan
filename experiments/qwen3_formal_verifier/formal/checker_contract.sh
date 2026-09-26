@@ -99,6 +99,82 @@ formal_classify_tlc_transition_negative() {
     | grep -q .
 }
 
+# A refuted TEMPORAL property is a different outcome again, and neither of the
+# state-predicate classifiers above matches it. Shapes below are copied from
+# real runs of ScoutBModelLiveDivergent.cfg and
+# ScoutBModelLiveUnconditional.cfg, not authored:
+#
+#   exit 13, not 12 or 151;
+#   TWO '^Error:' lines -- 'Temporal properties were violated.' and 'The
+#   following behavior constitutes a counter-example:' -- so
+#   formal_classify_tlc_transition_negative, which requires exactly one,
+#   rejects this output outright;
+#   no 'Invariant X is violated' line at all, since no invariant was refuted;
+#   the counter-example is a LASSO: a finite prefix closed either by a
+#   'State N: Stuttering' line, when the behaviour reaches a state with no
+#   successors, or by a 'Back to state N' line, when it closes into a cycle.
+#   Both are accepted; a trace with neither is a truncated report, not a
+#   lasso, and is rejected.
+#
+# TLC does not name the property it refuted, so this cannot check the name.
+# The binding between a stage and its property lives in the cfg instead, and
+# formal_cfg_declares_one_property is what asserts it.
+formal_classify_tlc_liveness_negative() {
+  local status="$1"
+  local output="$2"
+  [[ "${status}" -eq 13 ]] || return 1
+  ! formal_has_infrastructure_error "${output}" || return 1
+  formal_terminated_normally "${output}" || return 1
+  formal_completed_normally "${output}" || return 1
+  grep -Fxq 'Error: Temporal properties were violated.' <<<"${output}" \
+    || return 1
+  grep -Fxq 'Error: The following behavior constitutes a counter-example:' \
+    <<<"${output}" || return 1
+  # Nothing else on an Error line: another diagnostic means another failure.
+  ! grep '^Error:' <<<"${output}" \
+    | grep -Fvx 'Error: Temporal properties were violated.' \
+    | grep -Fvx 'Error: The following behavior constitutes a counter-example:' \
+    | grep -q . || return 1
+  grep -Eq '^(State [0-9]+: Stuttering|Back to state [0-9]+)' <<<"${output}"
+}
+
+# The temporal properties a cfg declares, one per line, in order. Parsed out of
+# the PROPERTY/PROPERTIES block rather than substring-matched, so a commented
+# mention proves nothing and a second property cannot hide on a block line.
+formal_cfg_temporal_properties() {
+  awk '
+    function is_keyword(word) {
+      return word == "CONSTANT" || word == "CONSTANTS" \
+          || word == "SPECIFICATION" || word == "INVARIANT" \
+          || word == "INVARIANTS" || word == "CONSTRAINT" \
+          || word == "CONSTRAINTS" || word == "ACTION_CONSTRAINT" \
+          || word == "CHECK_DEADLOCK" \
+          || word == "SYMMETRY" || word == "VIEW" || word == "INIT" \
+          || word == "NEXT" || word == "ALIAS" || word == "POSTCONDITION"
+    }
+    { sub(/^[ \t]+/, ""); sub(/[ \t]+$/, "") }
+    $0 == "" { next }
+    /^\\\*/ { next }
+    {
+      if ($1 == "PROPERTY" || $1 == "PROPERTIES") {
+        collecting = 1
+        for (i = 2; i <= NF; i++) print $i
+        next
+      }
+      if (is_keyword($1)) { collecting = 0; next }
+      if (collecting) print $1
+    }
+  ' "$1"
+}
+
+# TLC's liveness diagnostic names no property, so a liveness stage wired to the
+# wrong cfg would still classify. This is what pins the stage to its property.
+formal_cfg_declares_one_property() {
+  local cfg_file="$1"
+  local expected="$2"
+  [[ -f "${cfg_file}" ]] || return 1
+  [[ "$(formal_cfg_temporal_properties "${cfg_file}")" == "${expected}" ]]
+}
 formal_classify_lean_valid() {
   local status="$1"
   local output="$2"
