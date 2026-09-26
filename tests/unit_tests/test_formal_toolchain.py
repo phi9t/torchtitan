@@ -55,6 +55,32 @@ def _run_classifier(function: str, status: int, output: str, expected: str = "")
     )
 
 
+def _run_predicate(function: str, output: str):
+    """Call a single-argument predicate, whose only argument is the output.
+
+    formal_has_infrastructure_error, formal_completed_normally and
+    formal_terminated_normally take the checker output as "$1"; the classify_*
+    functions take (status, output). Passing one shape to the other silently
+    tests nothing, so they get separate helpers.
+    """
+
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; "$2" "$3"',
+            "predicate-test",
+            str(CHECKER_CONTRACT),
+            function,
+            output,
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+
 def test_tlc_constant_false_classifier_matches_the_real_checker_output() -> None:
     """A constant-level invariant is refuted by a different TLC outcome.
 
@@ -720,6 +746,372 @@ MODEL_RUNNER = FORMAL_DIR / "run_tlc_scout_a_model.sh"
 BUILD_FILE = FORMAL_DIR / "BUILD.bazel"
 
 
+def _tlc_toolchain() -> tuple[str, str]:
+    """Locate the pinned TLC toolchain in the mounted formal cache.
+
+    The tests below assert what the runner DOES, which means running real TLC.
+    The toolchain is the same vendored JDK 17 and tla2tools 1.7.4 the Bazel
+    targets use; run_formal_tier0.sh mounts the cache for the pytest stage so
+    these do not silently degrade into skips.
+    """
+
+    cache = Path(os.environ.get("TORCHTITAN_FORMAL_CACHE", "/project/formal-cache"))
+    vendor = cache / "bazel" / "vendor"
+    java = sorted(vendor.glob("*remotejdk17*/bin/java"))
+    jar = sorted(vendor.glob("*tla2tools*/file/tla2tools.jar"))
+    if not java or not jar:
+        pytest.skip(
+            f"pinned TLC toolchain is not materialized under {vendor}; run "
+            "scripts/run_formal_checks.sh --networked once to vendor it"
+        )
+    return str(java[0]), str(jar[0])
+
+
+def _run_model_runner(
+    tmp_path: Path,
+    half: str,
+    overrides: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run run_tlc_scout_a_model.sh over a copy of the fixtures.
+
+    `overrides` replaces the text of named fixture files, which is how a
+    deliberately degenerate input is fed to the real checker. Each override
+    must name a fixture that exists, so a renamed module fails the test rather
+    than quietly adding a file the runner never stages.
+    """
+
+    java, jar = _tlc_toolchain()
+    srcdir = tmp_path / "srcdir"
+    fixtures = srcdir / "_main" / "experiments" / "qwen3_formal_verifier" / "formal"
+    fixtures.mkdir(parents=True, exist_ok=True)
+    for source in FORMAL_DIR.iterdir():
+        if source.is_file():
+            (fixtures / source.name).write_bytes(source.read_bytes())
+    for name, text in (overrides or {}).items():
+        target = fixtures / name
+        assert target.is_file(), f"override names a missing fixture: {name}"
+        target.write_text(text)
+    test_tmpdir = tmp_path / "tmp" / half
+    test_tmpdir.mkdir(parents=True, exist_ok=True)
+    return subprocess.run(
+        ["bash", str(MODEL_RUNNER), java, jar, half],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "TEST_SRCDIR": str(srcdir),
+            "TEST_WORKSPACE": "_main",
+            "TEST_TMPDIR": str(test_tmpdir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=900,
+    )
+
+
+def _run_tlc(
+    tmp_path: Path,
+    module: str,
+    cfg_text: str,
+    *,
+    fixtures: tuple[str, ...] = (),
+    files: dict[str, str] | None = None,
+) -> tuple[int, str]:
+    """Run real TLC over a staged directory; return (status, output).
+
+    `fixtures` names shipped modules to stage as-is, so a probe can EXTEND the
+    real ScoutLifecycle or ScoutARefineBad rather than a copy that could drift.
+    `files` writes or replaces module text on top of them. `module` names the
+    root module, whose .cfg is written from `cfg_text`.
+    """
+
+    java, jar = _tlc_toolchain()
+    work = tmp_path / f"tlc-{module}"
+    work.mkdir(parents=True, exist_ok=True)
+    for name in fixtures:
+        (work / name).write_bytes((FORMAL_DIR / name).read_bytes())
+    for name, text in (files or {}).items():
+        (work / name).write_text(text)
+    assert (work / f"{module}.tla").is_file(), module
+    (work / f"{module}.cfg").write_text(cfg_text)
+    result = subprocess.run(
+        [
+            java,
+            "-XX:+UseParallelGC",
+            "-cp",
+            jar,
+            "tlc2.TLC",
+            "-workers",
+            "1",
+            "-metadir",
+            str(work / "states"),
+            f"{module}.tla",
+            "-config",
+            f"{module}.cfg",
+        ],
+        cwd=work,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=300,
+    )
+    return result.returncode, result.stdout
+
+
+# A probe over ScoutLifecycle's own definitions. `Absent` applies the partial
+# IndexOf outside its domain on purpose; `Guarded` and `FirstOccurrence` go
+# through the guarded call sites and must not crash.
+_LIFECYCLE_PROBE = """\
+------------------------------ MODULE LifecycleProbe ------------------------------
+EXTENDS Naturals, Sequences, ScoutLifecycle
+
+VARIABLE cursor
+vars == <<cursor>>
+Init == cursor = 0
+Next == UNCHANGED cursor
+Spec == Init /\\ [][Next]_vars
+
+Kinds == <<"a", "b", "a", "c">>
+
+Absent == IndexOf(Kinds, "zzz") = 1
+
+Guarded ==
+  /\\ BeforeIfPresent(Kinds, "zzz", "c") = FALSE
+  /\\ BeforeIfPresent(Kinds, "a", "zzz") = TRUE
+
+FirstOccurrence ==
+  /\\ IndexOf(Kinds, "a") = 1
+  /\\ IndexOf(<<"b", "a", "a">>, "a") = 2
+  /\\ BeforeIfPresent(Kinds, "c", "a") = FALSE
+
+=============================================================================
+"""
+
+
+# A stand-in ScoutAFacts whose lifecycle never reaches gradient readiness. This
+# is the input on which ScoutARefineBad's IndexOf lookups have no witness.
+_FACTS_WITHOUT_GRADIENT_READY = """\
+------------------------------ MODULE ScoutAFacts ------------------------------
+EXTENDS Naturals, Sequences, FiniteSets, TLC
+
+EventKinds ==
+  << "step.started", "batch.observed", "forward.started", "forward.completed",
+     "backward.started", "backward.completed", "optimizer.started",
+     "step.completed" >>
+
+=============================================================================
+"""
+
+
+def _substitute(text: str, old: str, new: str) -> str:
+    """Replace `old` once, refusing to produce an unchanged mutant."""
+
+    assert text.count(old) == 1, f"expected exactly one occurrence of {old!r}"
+    return text.replace(old, new)
+
+
+# A cursor walking one recorded sequence: outdegree 1 everywhere, while every
+# safety invariant in ScoutAModel.cfg still holds. This is precisely the shape
+# the outdegree floor exists to refuse and the shape a state-count threshold
+# would accept, so it is the right degenerate input for that floor.
+_NON_BRANCHING_MODEL = """\
+-------------------------------- MODULE ScoutAModel --------------------------------
+EXTENDS Naturals, Sequences, ScoutLifecycle
+
+CONSTANT RequireReadyGradients
+
+Recorded ==
+  << "step.started", "batch.observed", "forward.started", "forward.completed",
+     "backward.started", "gradient.ready", "backward.completed",
+     "optimizer.started", "optimizer.mutated", "step.completed" >>
+
+VARIABLES emitted, cursor
+
+vars == <<emitted, cursor>>
+
+Init ==
+  /\\ emitted = <<>>
+  /\\ cursor = 0
+
+Advance ==
+  /\\ cursor < Len(Recorded)
+  /\\ cursor' = cursor + 1
+  /\\ emitted' = Append(emitted, Recorded[cursor + 1])
+
+Terminated ==
+  /\\ cursor = Len(Recorded)
+  /\\ UNCHANGED vars
+
+Next == Advance \\/ Terminated
+
+Spec == Init /\\ [][Next]_vars
+
+TypeOK ==
+  /\\ cursor \\in 0..Len(Recorded)
+  /\\ emitted = Prefix(Recorded, cursor)
+
+MutationRequiresReadyGradients ==
+  HasKind(emitted, "optimizer.mutated") => HasKind(emitted, "gradient.ready")
+
+MutationFollowsGradientEvidence ==
+  BeforeIfPresent(emitted, "gradient.ready", "optimizer.mutated")
+
+GradientResolutionUnique ==
+  ~(HasKind(emitted, "gradient.ready") /\\ HasKind(emitted, "gradient.missing"))
+
+ForwardBracketsBackward ==
+  ForwardBeforeBackward(emitted, Len(emitted))
+
+StepCompletionIsLast ==
+  HasKind(emitted, "step.completed") =>
+    emitted[Len(emitted)] = "step.completed"
+
+=============================================================================
+"""
+
+
+def test_tlc_evaluation_error_is_classified_as_an_infrastructure_error(
+    tmp_path: Path,
+) -> None:
+    """A CHOOSE with no witness abandons the search and must not classify.
+
+    The output is produced by running TLC, not written here, because the whole
+    point is what the real checker prints: alongside the evaluation error it
+    ALSO prints `1 states generated, 1 distinct states found, 1 states left on
+    queue.` and `Finished in 00s`, so formal_completed_normally and
+    formal_terminated_normally both return TRUE. Before the evaluation-error
+    class was added, the exit-status pin was the only thing rejecting it, which
+    is single-layer defence where layered classification is advertised.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        "LifecycleProbe",
+        "SPECIFICATION Spec\nINVARIANTS\n  Absent\n",
+        fixtures=("ScoutLifecycle.tla",),
+        files={"LifecycleProbe.tla": _LIFECYCLE_PROBE},
+    )
+
+    assert status == 75, output
+    assert "Attempted to compute the value of an expression of form" in output
+    assert "states left on queue" in output
+    # The two weak signals really are TRUE on this output, which is why the
+    # class is needed.
+    assert _run_predicate("formal_completed_normally", output).returncode == 0
+    assert _run_predicate("formal_terminated_normally", output).returncode == 0
+    # And these are what reject it.
+    assert (
+        _run_predicate("formal_has_infrastructure_error", output).returncode == 0
+    ), "the evaluation-error class must match"
+    assert _run_classifier("formal_classify_tlc_valid", 0, output).returncode != 0
+    assert (
+        _run_classifier(
+            "formal_classify_tlc_transition_negative", 12, output, "Absent"
+        ).returncode
+        != 0
+    )
+
+
+def test_guarded_index_call_sites_survive_an_absent_and_repeated_value(
+    tmp_path: Path,
+) -> None:
+    """BeforeIfPresent must be total, and IndexOf must pin the first match.
+
+    Two things are checked by running TLC: an absent value taken through
+    BeforeIfPresent produces a clean FALSE rather than an evaluation error, and
+    a repeated value resolves to its FIRST index.
+
+    The first-index result is the one that matters for ticket 12. `CHOOSE` is
+    deterministic but unspecified in TLA+, so before the `\\A earlier` conjunct
+    the agreement between this module and Lean's left-to-right
+    `occursBeforeIfPresent` rested on which witness TLC happens to return. The
+    single-rank kind sequence has no repeats only because scout_a.py pins it to
+    one literal; the DPxTP port repeats collective kinds once per rank.
+
+    What this test cannot distinguish: the disjunctive form this replaced also
+    evaluated safely under TLC 1.7.4, which short-circuits left to right. The
+    guard makes the totality part of the semantics rather than of the
+    evaluator. Where the guard is load-bearing on real input is
+    ScoutARefineBad, covered by the next test.
+    """
+
+    for invariant in ("Guarded", "FirstOccurrence"):
+        status, output = _run_tlc(
+            tmp_path / invariant,
+            "LifecycleProbe",
+            f"SPECIFICATION Spec\nINVARIANTS\n  {invariant}\n",
+            fixtures=("ScoutLifecycle.tla",),
+            files={"LifecycleProbe.tla": _LIFECYCLE_PROBE},
+        )
+        assert status == 0, output
+        assert "Attempted to compute the value" not in output, output
+        assert (
+            _run_classifier("formal_classify_tlc_valid", status, output).returncode == 0
+        ), output
+
+
+def test_index_of_pins_the_first_occurrence_in_the_specification() -> None:
+    """Asserted textually, and for a reason worth stating.
+
+    This is the one claim in this file that execution cannot witness. TLC's
+    CHOOSE already returns the first witness it finds, so the unguarded
+    definition evaluates to the same number, and no TLC run distinguishes the
+    two. The difference is in TLA+: unguarded, `IndexOf` is satisfied by ANY
+    index holding the value, so `BeforeIfPresent` agreeing with Lean's
+    left-to-right `occursBeforeIfPresent` depended on TLC's choice rather than
+    on the specification -- which defeats the purpose of maintaining two
+    independent implementations. Ticket 12's DPxTP port makes the repeats real.
+    """
+
+    lifecycle = (FORMAL_DIR / "ScoutLifecycle.tla").read_text()
+    body = lifecycle.split("IndexOf(sequence, value) ==", 1)[1].split("\n\n", 1)[0]
+
+    assert "sequence[index] = value" in body, body
+    assert "\\A earlier \\in 1..index - 1 : sequence[earlier] # value" in body, body
+
+
+def test_refinement_control_names_its_missing_target_instead_of_crashing(
+    tmp_path: Path,
+) -> None:
+    """The load-bearing case for the IndexOf guard, on a real module.
+
+    ScoutARefineBad reads `IndexOf(EventKinds, "gradient.ready")` while it is
+    constructing `Observed`, before any invariant can be evaluated, so an
+    unguarded lookup over a trace without that event made TLC abandon the
+    search with an evaluation error -- which the classifiers then read as a
+    completed, orderly run and only the exit status rejected.
+
+    Guarded, the same input produces a named refutation of
+    `ControlEventsArePresent` instead. That invariant mentions no VARIABLES, so
+    TLC reports it as a false constant expression.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        "ScoutARefineBad",
+        (FORMAL_DIR / "ScoutARefineBad.cfg").read_text(),
+        fixtures=(
+            "ScoutLifecycle.tla",
+            "ScoutAModel.tla",
+            "ScoutARefineBad.tla",
+        ),
+        files={"ScoutAFacts.tla": _FACTS_WITHOUT_GRADIENT_READY},
+    )
+
+    assert "Attempted to compute the value" not in output, output
+    assert (
+        _run_classifier(
+            "formal_classify_tlc_constant_false",
+            status,
+            output,
+            "ControlEventsArePresent",
+        ).returncode
+        == 0
+    ), (status, output)
+    # And it is a refutation, not a crash dressed as one.
+    assert _run_predicate("formal_has_infrastructure_error", output).returncode != 0
+
+
 def test_abstract_model_is_a_transition_system_not_a_cursor_walk() -> None:
     """The model must constrain behaviour, not replay one recorded sequence.
 
@@ -796,7 +1188,31 @@ def test_refinement_bridge_constrains_the_model_to_the_observed_trace() -> None:
     assert "ObservedTraceIsNotAdmitted" in refine
 
 
-def test_refinement_negative_is_rejected_for_the_right_reason() -> None:
+def test_refinement_half_admits_the_observed_trace_and_isolates_the_guard(
+    tmp_path: Path,
+) -> None:
+    """Positive control for the refinement half, by running it.
+
+    This is also the only place the guard-isolation check's success is
+    observed, so a runner whose fifth stage never ran would fail here.
+    """
+
+    result = _run_model_runner(tmp_path, "refine")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "SCOUT_A_REFINEMENT result=admitted" in result.stdout
+    assert "SCOUT_A_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard" in (
+        result.stdout
+    )
+    assert (
+        "SCOUT_A_REFINEMENT_GUARD_ISOLATION relaxed=RequireReadyGradients"
+        " result=admitted" in result.stdout
+    ), result.stdout
+
+
+def test_refinement_negative_is_rejected_for_the_right_reason(
+    tmp_path: Path,
+) -> None:
     """Rejection alone is weak evidence; it must hit the guard under test.
 
     An earlier version swapped `gradient.ready` with `optimizer.mutated`, which
@@ -805,6 +1221,12 @@ def test_refinement_negative_is_rejected_for_the_right_reason() -> None:
     gradients -- a different guard than the one being tested. The control now
     substitutes `gradient.missing`, so every earlier event stays admissible and
     the trace dies exactly at OptimizerMutate.
+
+    Run, not grepped. The degenerate input substitutes `forward.started`
+    instead, which is inadmissible at the gradient position, so the trace is
+    refused three events too early. `CorruptionIsIsolated` still holds -- one
+    differing position, still before the mutation -- and the trace is still not
+    admitted, so the first stage passes. Only the reach stage can catch it.
     """
 
     bad = (FORMAL_DIR / "ScoutARefineBad.tla").read_text()
@@ -814,25 +1236,124 @@ def test_refinement_negative_is_rejected_for_the_right_reason() -> None:
     assert "IndexOf(EventKinds" in bad
     assert '"step.started"' not in bad
 
-    # One substitution, at the gradient event, mutation still after it.
-    assert "CorruptionIsIsolated" in bad
-    assert '"gradient.missing"' in bad
-    assert "= {ReadyIndex}" in bad, "the corruption must be a single position"
+    result = _run_model_runner(
+        tmp_path,
+        "refine",
+        {
+            "ScoutARefineBad.tla": _substitute(
+                bad,
+                'IF i = ReadyIndex THEN "gradient.missing"',
+                'IF i = ReadyIndex THEN "forward.started"',
+            )
+        },
+    )
 
-    # Both halves must be checked, not merely defined.
-    reject = (FORMAL_DIR / "ScoutARefineBad.cfg").read_text()
-    reach = (FORMAL_DIR / "ScoutARefineBadReach.cfg").read_text()
-    assert "CorruptionIsIsolated" in reject
-    assert "CorruptionIsIsolated" in reach
-    assert "ObservedTraceIsNotAdmitted" in reject
-    assert "RejectionHappensBeforeTheMutation" in reach
+    assert result.returncode != 0, result.stdout
+    assert "refused before reaching the mutation guard" in result.stderr, result.stderr
+    assert "wrong guard" in result.stderr
+    # The weaker stages must have accepted it, or this proves nothing about the
+    # reach stage.
+    assert "corrupted trace was not refused" not in result.stderr
+    assert "SCOUT_A_REFINEMENT result=admitted" in result.stdout
+    assert "SCOUT_A_REFINEMENT_NEGATIVE" not in result.stdout
 
-    # The runner must require both outcomes, so a trace refused too early fails
-    # the gate instead of counting as a successful negative control.
-    runner = MODEL_RUNNER.read_text()
-    assert "RejectionHappensBeforeTheMutation" in runner
-    assert "wrong guard" in runner
-    assert "rejected_at_mutation_guard" in runner
+
+def test_relaxing_the_guard_must_admit_the_corrupted_trace(tmp_path: Path) -> None:
+    """The decisive check: it attributes the refusal to one constant.
+
+    Stages 3 and 4 only triangulate WHERE the refusal landed. Stage 5 reruns
+    the same corrupted trace with RequireReadyGradients relaxed and requires it
+    to become admitted, which is what makes the refusal that guard's doing.
+
+    The degenerate input is the mistake that would hollow the stage out: a
+    ScoutARefineBadRelaxed.cfg that forgot to relax the constant. The corrupted
+    trace is then still refused, no violation is reported, and the stage must
+    refuse to print its token.
+    """
+
+    relaxed = (FORMAL_DIR / "ScoutARefineBadRelaxed.cfg").read_text()
+
+    result = _run_model_runner(
+        tmp_path,
+        "refine",
+        {
+            "ScoutARefineBadRelaxed.cfg": _substitute(
+                relaxed,
+                "CONSTANT RequireReadyGradients = FALSE",
+                "CONSTANT RequireReadyGradients = TRUE",
+            )
+        },
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "not attributable to that guard" in result.stderr, result.stderr
+    # Everything before it still passed, so the failure is stage 5's alone.
+    assert "SCOUT_A_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard" in (
+        result.stdout
+    )
+    assert "SCOUT_A_REFINEMENT_GUARD_ISOLATION" not in result.stdout
+
+
+def test_refinement_reports_an_empty_observed_trace_as_vacuous(
+    tmp_path: Path,
+) -> None:
+    """An empty Observed is admitted by every model, not refused by this one.
+
+    Init already satisfies emitted = Observed, so TLC exits 0 with no
+    violation -- byte-for-byte the outcome a REFUSED trace produces. The runner
+    used to print "observed trace was not admitted by the abstract model" for
+    it, which states the opposite of what happened. ObservedIsNonEmpty mentions
+    no variables, so TLC refutes a false one as a constant expression with exit
+    151 and its own message, giving the runner an outcome it can name.
+    """
+
+    refine = (FORMAL_DIR / "ScoutARefine.tla").read_text()
+
+    result = _run_model_runner(
+        tmp_path,
+        "refine",
+        {
+            "ScoutARefine.tla": _substitute(
+                refine, "Observed == EventKinds", "Observed == <<>>"
+            )
+        },
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "vacuous" in result.stderr, result.stderr
+    assert "the observed event-kind sequence is empty" in result.stderr
+    assert "was not admitted by the abstract model" not in result.stderr
+
+
+def test_refinement_negative_configurations_check_both_halves() -> None:
+    """The two cfgs must differ only in which invariant they demand.
+
+    Checked as configuration rather than by execution because the runs above
+    already prove the outcomes; what this pins is that neither cfg quietly
+    drops CorruptionIsIsolated or ControlEventsArePresent, which is what keeps
+    a control that stopped being a control from passing.
+    """
+
+    reject = _cfg_invariants((FORMAL_DIR / "ScoutARefineBad.cfg").read_text())
+    reach = _cfg_invariants((FORMAL_DIR / "ScoutARefineBadReach.cfg").read_text())
+    relaxed = _cfg_invariants((FORMAL_DIR / "ScoutARefineBadRelaxed.cfg").read_text())
+
+    assert reject == [
+        "ControlEventsArePresent",
+        "CorruptionIsIsolated",
+        "ObservedTraceIsNotAdmitted",
+        "MutationIsNeverEmitted",
+    ], reject
+    assert reach == [
+        "ControlEventsArePresent",
+        "CorruptionIsIsolated",
+        "RejectionHappensBeforeTheMutation",
+    ], reach
+    assert relaxed == [
+        "ControlEventsArePresent",
+        "CorruptionIsIsolated",
+        "ObservedTraceIsNotAdmitted",
+    ], relaxed
 
 
 def test_refinement_configs_disable_deadlock_so_polarity_is_unambiguous() -> None:
@@ -846,20 +1367,51 @@ def test_refinement_configs_disable_deadlock_so_polarity_is_unambiguous() -> Non
         assert "CHECK_DEADLOCK FALSE" in (FORMAL_DIR / name).read_text(), name
 
 
-def test_model_runner_refuses_a_non_branching_specification() -> None:
+def test_model_runner_accepts_the_shipped_abstract_model(tmp_path: Path) -> None:
+    """Positive control for the abstract half, by running it.
+
+    Without this, a runner that refused everything would satisfy the
+    degenerate-input test below while checking nothing.
+    """
+
+    result = _run_model_runner(tmp_path, "abstract")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "SCOUT_A_MODEL_SAFETY result=success" in result.stdout
+    assert "max_outdegree=3" in result.stdout, result.stdout
+    assert (
+        "SCOUT_A_MODEL_NEGATIVE invariant=MutationRequiresReadyGradients"
+        " result=named_violation" in result.stdout
+    )
+
+
+def test_model_runner_refuses_a_non_branching_specification(tmp_path: Path) -> None:
     """Branching, not state count, separates a model from a replay.
 
     A cursor walking a recorded sequence has outdegree 1 everywhere however
     long the sequence is, so a threshold on state count would accept the very
     design this module replaces -- ScoutAValid reaches 12 states.
+
+    This runs the real checker over a substituted ScoutAModel that is exactly
+    such a cursor walk and still satisfies every invariant in ScoutAModel.cfg.
+    Asserting the runner's text instead would keep passing if `-ge 2` were
+    applied to a variable no TLC output ever populated, which is the shape
+    that has burned this project twice.
     """
 
-    runner = MODEL_RUNNER.read_text()
-    assert "max_outdegree" in runner
-    assert "-ge 2" in runner, "the floor must be on branching"
-    assert "replay, not a model" in runner
-    # And the count must still be reported, so the evidence is inspectable.
-    assert "distinct_states=%s max_outdegree=%s" in runner
+    result = _run_model_runner(
+        tmp_path, "abstract", {"ScoutAModel.tla": _NON_BRANCHING_MODEL}
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert "max outdegree 1" in result.stderr, result.stderr
+    assert "replay, not a model" in result.stderr, result.stderr
+    # The refusal must happen at the floor, not by the safety check failing:
+    # a degenerate model that also broke an invariant would prove nothing
+    # about the floor.
+    assert "abstract model safety check was not a clean success" not in result.stderr
+    # And the check that follows must not have run.
+    assert "SCOUT_A_MODEL_NEGATIVE" not in result.stdout
 
 
 def test_model_runner_does_not_clobber_errexit_around_expected_failures() -> None:
@@ -1925,7 +2477,8 @@ def _tier0_environment(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
     entrypoint.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        'printf "%s\\n" "${TORCHTITAN_ROOTFS_NETWORK:-}" >> "${TIER0_ENTRY_LOG}"\n'
+        'printf "%s %s\\n" "${TORCHTITAN_ROOTFS_NETWORK:-}" '
+        '"${TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST:-none}" >> "${TIER0_ENTRY_LOG}"\n'
     )
     entrypoint.chmod(0o755)
     # Deterministic changed-file set: whether this checkout happens to be dirty
@@ -1961,6 +2514,10 @@ def _tier0_environment(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
         }
     )
     env.pop("TORCHTITAN_IN_ROOTFS", None)
+    # Popped, not ignored: if the caller's own cache variable leaked through,
+    # the assertion that the PYTEST stage is the stage that gets the mount
+    # would pass for every stage.
+    env.pop("TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST", None)
     return env, formal_log, entrypoint_log
 
 
@@ -1999,7 +2556,14 @@ def test_tier0_runner_selects_the_tier0_suite_and_seals_no_bundle(
         "tier0",
     ]
     # Lint runs networked for hook downloads; the pytest stage stays offline.
-    assert entrypoint_log.read_text().splitlines() == ["networked", "offline"]
+    # The pytest stage additionally gets the formal cache mounted, because some
+    # of the contracts in this file run the real TLC toolchain against a
+    # degenerate input; without the mount they would skip and check nothing.
+    cache = str(tmp_path / "formal-cache")
+    assert entrypoint_log.read_text().splitlines() == [
+        "networked none",
+        f"offline {cache}",
+    ]
     assert "not-a-gate" in result.stdout
     assert "NOT a gate pass" in result.stdout
     assert _outputs_snapshot() == before

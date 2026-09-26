@@ -93,3 +93,33 @@ per state -- the derivation is O(n^2) in a rank's 108 works.
 
 Depends on ticket 21: the bridge must not be built onto a model whose deadlock
 property cannot distinguish a circular wait from a budget artifact.
+
+## Inherited hazard to fix while you are in this module
+
+`ScoutBIssueOrderInvalid.tla` derives its mutation with
+
+```
+MutatedWork == CHOOSE work \in SequenceElements(CollectiveWorkIds) :
+  CollectiveRank[work] = 0 /\ ...
+```
+
+which is the same unguarded `CHOOSE` that ticket 22 just fixed in
+`ScoutLifecycle.tla`: it aborts with exit 75 and
+`Error: Attempted to compute the value of an expression of form CHOOSE ...`
+if rank 0 has no collective. That log also prints a state summary and
+`Finished in`, so before ticket 22 only the exit-status pin rejected it; the
+evaluation-error class now catches it, but the module should still name its
+missing target rather than crash. Use the sentinel-plus-named-invariant pattern
+`ScoutARefineBad` now uses (`ControlEventsArePresent`).
+
+Two related notes from ticket 22's implementation:
+
+- The duplicate-`IndexOf` guard is **not falsifiable by execution**: TLC's
+  `CHOOSE` already returns its first witness, so no run distinguishes guarded
+  from unguarded. It is still correct -- it makes the TLA+/Lean agreement a
+  specification fact rather than a TLC fact -- but do not expect a
+  failing-before, passing-after demonstration for it.
+- `IndexOf` is now partial by contract, with a `HasKind` precondition at each
+  call site. The DPxTP port repeats collective kinds per rank, which is exactly
+  the case that made the guard necessary, so honour the precondition rather than
+  assuming a unique match.

@@ -159,6 +159,15 @@ fact. TLC must report exactly the transition invariant
 `Qwen3Formal.ScoutB.validDPxTP` has no axioms and must reject exactly
 `Qwen3Formal.ScoutB.ControlledInvalidProducerProposition`.
 
+`ScoutBIssueOrderInvalid.tla` is the second named TLA+ negative, for
+per-communicator issue-order agreement -- the NCCL requirement whose violation
+hangs a job. It is an override of the real `ScoutBFacts` rather than a mutated
+1.6 MB copy, and its target (rank 0's first collective in issue order) is
+derived from the facts, so the control cannot drift away from the observed run.
+TLC must report exactly `ScoutBPerCommunicatorIssueOrder`, with
+`MutationIsIsolated` proving the override changed one operation and nothing
+else. Its result token is `SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE`.
+
 The Scout B suite includes all smoke and Scout A targets:
 
 ```bash
@@ -166,7 +175,7 @@ scripts/run_formal_checks.sh --networked --suite scout-b
 scripts/run_formal_checks.sh --no-fetch --suite scout-b
 ```
 
-## Abstract model and the refinement bridge
+## Scout A abstract model and the refinement bridge
 
 `ScoutAValid` and `ScoutBValid` check the observed trace. They walk a cursor
 along a constant sequence of generated facts and evaluate predicates over it.
@@ -177,17 +186,25 @@ in particular has a two-state stutter whose `cursor` no invariant mentions.
 
 `ScoutAModel` is a different kind of artifact. It is a transition system for one
 single-rank training step, with guarded actions and no dependence on the
-generated facts. Two sources of nondeterminism are modelled because both are
-real executions:
+generated facts. Two sources of nondeterminism are modelled. Both are
+possibilities the protocol has to be safe under, not orders the instrumentation
+has recorded -- the Scout A tracer treats each of them as an error:
 
 - gradient readiness races backward completion, so `gradient.ready` may land
-  before or after `backward.completed`;
+  before or after `backward.completed`. The tracer raises `model backward
+  completed before the tracked parameter gradient was ready` if it observes the
+  second order, so no exported trace contains it;
 - gradients may fail to materialise at all, in which case the optimizer must not
-  mutate parameters.
+  mutate parameters. `gradient.missing` is produced only by the synthetic
+  corruptor that builds the negative fact modules.
+
+Modelling them is the point of having a model rather than a replay: the
+invariants then hold for executions nobody ran, including ones this
+instrumentation could not record. What they are not is evidence that either
+order occurs in practice.
 
 TLC explores every admitted interleaving -- currently 25 distinct states, with
-outdegree up to 3 -- and the safety invariants hold across all of them. An
-invariant that holds here holds for executions nobody ran.
+outdegree up to 3 -- and the safety invariants hold across all of them.
 
 ### The guard, and the negative control
 
@@ -207,9 +224,32 @@ constant in a generated fact module.
 
 `ScoutARefine` restricts the model's transitions so the emitted sequence must
 stay a prefix of the observed one, and asks whether the complete observed
-sequence is reachable. It is, and TLC prints the alignment of model actions to
-observed events. This is the bridge that makes runtime evidence mean something:
-without it, the model and the trace are unrelated artifacts.
+sequence is reachable. It is. Without this check the model and the trace would
+be unrelated artifacts.
+
+Two things about it are easy to overstate, so state them flatly.
+
+TLC does **not** print the alignment of model actions to observed events. Every
+step of the witness trace is labelled `<ConstrainedNext line ..., col ... of
+module ScoutARefine>`, because `ConstrainedNext` is `RSpec`'s only action.
+Which model action produced each event is inferable from the state variables in
+the printed states; the checker does not say it.
+
+And the bridge is an agreement between two artifacts, not a per-run check.
+`scout_a.py` requires the normalized event kinds to equal one 10-element
+literal, so `EventKinds` is that same constant on every run and a deviating run
+is refused by the Python validator before any facts are exported. What
+`ScoutARefine` establishes is therefore that *that constant sequence* lies in
+the abstract model's language -- that the independently written model and the
+independently written validator agree on what a legal step looks like. Catching
+a lifecycle deviation is the validator's job, not this check's.
+
+The check is still guarded against becoming vacuous: an empty `Observed` is
+admitted by every model, and produces the same "exit 0, no violation" that a
+*refused* trace produces. `ObservedIsNonEmpty` is checked alongside, and because
+it mentions no variables TLC refutes a false one as a constant expression with
+its own status and message, which is what lets the runner report the vacuous
+case as vacuous instead of as a refusal.
 
 `ScoutARefineBad` is the control, and it must be refused **for the right
 reason**. An earlier version moved `optimizer.mutated` ahead of
@@ -220,24 +260,38 @@ the one under test. The control now substitutes `gradient.missing` for
 admissible, the optimizer legitimately starts, and the trace dies exactly at
 `OptimizerMutate`.
 
-Two checks pin that down: `ScoutARefineBad.cfg` shows the trace is not admitted,
-and `ScoutARefineBadReach.cfg` shows it *was* admitted up to the mutation. A
-control refused too early therefore fails the gate rather than counting as a
-success. `CorruptionIsIsolated` additionally proves the trace differs from the
-observed one at exactly one position.
+Three checks pin that down. `ScoutARefineBad.cfg` shows the trace is not
+admitted; `ScoutARefineBadReach.cfg` shows it *was* admitted up to the mutation,
+so a control refused too early fails the gate rather than counting as a success;
+and `ScoutARefineBadRelaxed.cfg` reruns the same corrupted trace with
+`RequireReadyGradients = FALSE` and requires `ObservedTraceIsNotAdmitted` to be
+violated. The third is the decisive one: it attributes the refusal to that one
+constant directly, where the first two only triangulate where the refusal
+landed. `CorruptionIsIsolated` additionally proves the trace differs from the
+observed one at exactly one position, and `ControlEventsArePresent` refuses the
+degenerate case in which the events the corruption targets are absent and the
+index sentinels make the "corruption" a no-op.
 
 One polarity note, stated loudly because it reads backwards. TLC proves
 reachability by refutation, so the witness that the observed trace is admitted
 is a *violation* of `ObservedTraceIsNotAdmitted`. The runner translates that
-into `SCOUT_A_REFINEMENT result=admitted`. Both configurations set
-`CHECK_DEADLOCK FALSE` so that a refused trace completes cleanly (exit 0, no
+into `SCOUT_A_REFINEMENT result=admitted`. All four refinement configurations
+set `CHECK_DEADLOCK FALSE` so that a refused trace completes cleanly (exit 0, no
 witness) instead of surfacing as TLC exit 11, which is indistinguishable from a
 genuine specification defect.
 
 ### What this does and does not establish
 
-It establishes safety properties of a bounded abstract model of one single-rank
-step, and that one observed run lies inside that model.
+This section is about Scout A. It establishes safety properties of a bounded
+abstract model of one single-rank step, and that the one exported event-kind
+sequence lies inside that model.
+
+The abstract DPxTP protocol is a separate model, `ScoutBModel`, with its own
+seven TLC searches and its own claim inventory; see "Tier 0: the trace-free
+suite" above for what each of its result tokens establishes, and the header of
+`ScoutBModel.tla` for the exact claims. It has no refinement bridge to the
+observed four-rank trace -- `ScoutBValid` and `ScoutBIssueOrderInvalid` are
+cursor walks over the generated facts, not refinement.
 
 The bridge is over event **kinds** only. `ScoutARefine` projects the observed
 trace to its `EventKinds` sequence, so the refinement argument covers the order
@@ -248,8 +302,9 @@ the model admits. A trace could therefore be admitted here while carrying
 corrupt provenance; that is the other checkers' job, and this one does not
 subsume them.
 
-It does not model the 2x2 DPxTP topology, collectives, multi-step training,
-convergence, or performance. The abstract model is not claimed to be a faithful
-model of TorchTitan -- only of the step lifecycle contract stated in its own
-actions, and its value depends on that contract being the right one, which no
-checker decides.
+`ScoutAModel` itself does not model the 2x2 DPxTP topology, collectives,
+multi-step training, convergence, or performance. It is not claimed to be a
+faithful model of TorchTitan -- only of the step lifecycle contract stated in its
+own actions, and its value depends on that contract being the right one, which no
+checker decides. The same caveat applies to `ScoutBModel` for the collective
+protocol.

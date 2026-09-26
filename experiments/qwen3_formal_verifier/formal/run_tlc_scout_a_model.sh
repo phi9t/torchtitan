@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 # Model-check the abstract single-rank step and bridge it to the observed run.
 #
-# Four checks, in two pairs:
+# Five checks, in two groups:
 #
 #   safety     the protocol's invariants hold across EVERY admitted
 #              interleaving, not just the one that was observed;
 #   negative   relaxing the one load-bearing guard makes TLC DISCOVER a
 #              counterexample by exploration;
-#   refinement the observed trace is an admitted behaviour of the model;
-#   negative   a controlled corruption of that trace is refused.
+#   refinement the observed trace is an admitted behaviour of the model, and
+#              the observed trace is not empty (an empty one is admitted by
+#              every model and would read as a pass);
+#   negative   a controlled corruption of that trace is refused, and refused
+#              no earlier than the mutation;
+#   isolation  relaxing RequireReadyGradients alone makes that same
+#              corruption admitted, which attributes the refusal to that one
+#              guard rather than inferring it from where the refusal landed.
 #
-# The two pairs are selected by the third argument, because they have
+# The two groups are selected by the third argument, because they have
 # different inputs and so belong to different Bazel targets. The `abstract`
 # half reads only the hand-written model and its two configurations, so it is
 # trace-free and can run on CPU in seconds with no sealed bundle in reach.
@@ -171,6 +177,21 @@ run_refine_half() {
   run_tlc refine ScoutARefine ScoutARefine || refine_status=$?
   local refine_output
   refine_output="$(<"${work_dir}/refine.log")"
+  # Checked before the refinement classification, because an EMPTY observed
+  # sequence is admitted by every model -- Init already satisfies
+  # emitted = Observed -- and yields the same exit 0 with no violation that a
+  # REFUSED trace yields. Without this branch the runner printed "not
+  # admitted" for a trace that was vacuously admitted, i.e. the opposite of
+  # what happened. ObservedIsNonEmpty mentions no variables, so TLC refutes a
+  # false one as a constant expression with its own status and message.
+  if formal_classify_tlc_constant_false \
+    "${refine_status}" "${refine_output}" "ObservedIsNonEmpty"; then
+    cat "${work_dir}/refine.log" >&2
+    echo "the observed event-kind sequence is empty, so the refinement is" \
+      "vacuous: the empty trace is admitted by every model and proves" \
+      "nothing about this one" >&2
+    exit 1
+  fi
   formal_classify_tlc_transition_negative \
     "${refine_status}" "${refine_output}" \
     "ObservedTraceIsNotAdmitted" || {
@@ -185,12 +206,15 @@ run_refine_half() {
   #
   # Rejection alone is weak evidence: a corruption that breaks the lifecycle
   # earlier would also be refused, by a different guard than the one under
-  # test. So this runs two checks over the same corrupted trace -- it is not
-  # admitted, and it WAS admitted right up to the mutation, which places the
-  # refusal exactly at OptimizerMutate's gradient guard.
+  # test. So this runs three checks over the same corrupted trace -- it is
+  # not admitted, it WAS admitted right up to the mutation, and relaxing
+  # RequireReadyGradients alone makes it admitted. The third is the decisive
+  # one: it attributes the refusal to that guard directly instead of
+  # triangulating where the refusal happened.
   stage refine_bad \
     ScoutLifecycle.tla ScoutAModel.tla ScoutAFacts.tla \
-    ScoutARefineBad.tla ScoutARefineBad.cfg ScoutARefineBadReach.cfg
+    ScoutARefineBad.tla ScoutARefineBad.cfg ScoutARefineBadReach.cfg \
+    ScoutARefineBadRelaxed.cfg
   local refine_bad_status=0
   run_tlc refine_bad ScoutARefineBad ScoutARefineBad || refine_bad_status=$?
   local refine_bad_output
@@ -200,11 +224,11 @@ run_refine_half() {
     echo "corrupted trace was not refused by the abstract model" >&2
     exit 1
   }
-  grep -Fq 'Invariant ObservedTraceIsNotAdmitted is violated' \
-    <<<"${refine_bad_output}" && {
-    echo "corrupted trace was wrongly admitted" >&2
-    exit 1
-  }
+  # There is deliberately no second grep for
+  # "Invariant ObservedTraceIsNotAdmitted is violated" here. It would be dead
+  # code dressed as a second line of defence: TLC exits 12 when it reports a
+  # violation, so formal_classify_tlc_valid's exit-status pin has already
+  # failed above by the time such a line could exist.
 
   stage refine_reach \
     ScoutLifecycle.tla ScoutAModel.tla ScoutAFacts.tla \
@@ -222,8 +246,34 @@ run_refine_half() {
       "so the control exercises the wrong guard" >&2
     exit 1
   }
+
   printf 'SCOUT_A_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard reject_exit=%s reach_exit=%s\n' \
     "${refine_bad_status}" "${refine_reach_status}"
+
+  # 5. Guard isolation, proved directly. The same corrupted trace, the same
+  # module, the same corrupted Observed -- only RequireReadyGradients differs.
+  # If relaxing that one constant makes the whole corrupted trace admitted,
+  # then that constant is what refused it in check 4, which no combination of
+  # "where did it stop" observations can establish on its own.
+  stage refine_relaxed \
+    ScoutLifecycle.tla ScoutAModel.tla ScoutAFacts.tla \
+    ScoutARefineBad.tla ScoutARefineBadRelaxed.cfg
+  local refine_relaxed_status=0
+  run_tlc refine_relaxed ScoutARefineBad ScoutARefineBadRelaxed \
+    || refine_relaxed_status=$?
+  local refine_relaxed_output
+  refine_relaxed_output="$(<"${work_dir}/refine_relaxed.log")"
+  formal_classify_tlc_transition_negative \
+    "${refine_relaxed_status}" "${refine_relaxed_output}" \
+    "ObservedTraceIsNotAdmitted" || {
+    cat "${work_dir}/refine_relaxed.log" >&2
+    echo "relaxing RequireReadyGradients did not make the corrupted trace" \
+      "admitted, so the refusal in check 4 is not attributable to that" \
+      "guard" >&2
+    exit 1
+  }
+  printf 'SCOUT_A_REFINEMENT_GUARD_ISOLATION relaxed=RequireReadyGradients result=admitted witness=ObservedTraceIsNotAdmitted exit=%s\n' \
+    "${refine_relaxed_status}"
 }
 
 case "${half}" in

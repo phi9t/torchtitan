@@ -21,13 +21,35 @@
 (***************************************************************************)
 EXTENDS Naturals, Sequences, ScoutAModel, ScoutAFacts
 
-ReadyIndex == IndexOf(EventKinds, "gradient.ready")
-MutatedIndex == IndexOf(EventKinds, "optimizer.mutated")
+(***************************************************************************)
+(* IndexOf is partial: applied to an absent value it makes TLC abandon the *)
+(* search with an evaluation error, which is not a checking result at all. *)
+(* These two indices are read while Observed is being constructed, so no   *)
+(* invariant could catch the absence first -- hence the guard here, with 0 *)
+(* as the out-of-range sentinel, and ControlEventsArePresent below to turn *)
+(* the sentinel into a named invariant violation.                          *)
+(***************************************************************************)
+ReadyIndex ==
+  IF HasKind(EventKinds, "gradient.ready")
+  THEN IndexOf(EventKinds, "gradient.ready")
+  ELSE 0
+
+MutatedIndex ==
+  IF HasKind(EventKinds, "optimizer.mutated")
+  THEN IndexOf(EventKinds, "optimizer.mutated")
+  ELSE 0
 
 \* The observed trace with gradient readiness downgraded to missing.
 Observed ==
   [ i \in DOMAIN EventKinds |->
       IF i = ReadyIndex THEN "gradient.missing" ELSE EventKinds[i] ]
+
+\* Both control events must exist in the observed trace, or ReadyIndex and
+\* MutatedIndex are the 0 sentinel and the corruption is not a corruption.
+\* Checked first in all three configurations so this is the reported failure.
+ControlEventsArePresent ==
+  /\ ReadyIndex \in DOMAIN EventKinds
+  /\ MutatedIndex \in DOMAIN EventKinds
 
 (***************************************************************************)
 (* Guards against this control silently becoming trivial: it must differ   *)

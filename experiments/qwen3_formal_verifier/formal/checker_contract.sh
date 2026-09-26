@@ -8,14 +8,30 @@ formal_has_infrastructure_error() {
   # as infrastructure failures wherever they appear in the output. Frames may
   # be module-qualified (`at java.base/java.util.HashMap.get(...)`), so the
   # frame pattern must allow '/' -- omitting it silently matched nothing.
+  #
+  # `Attempted to compute the value of an expression of form` is TLC's
+  # evaluation-error class: an expression could not be evaluated at all, so
+  # the search was abandoned rather than completed. A partial CHOOSE applied
+  # outside its domain lands here. That output is doubly deceptive -- TLC
+  # still prints its state summary and its `Finished in` line, so
+  # formal_completed_normally and formal_terminated_normally both return
+  # TRUE -- which left the exit-status pin as the only thing rejecting it.
+  # Verified against the real checker: an unguarded IndexOf over an absent
+  # value exits 75 and prints `1 states generated, 1 distinct states found,
+  # 1 states left on queue.` followed by `Finished in 00s`.
   grep -Eq \
-    'Parse Error|Semantic errors:|unexpected token|invalid syntax|unknown declaration|no such file|not found|timed out|Could not find or load main class|Exception in thread|^[[:space:]]*at [a-zA-Z0-9_.$/]+\(|java\.(lang|io|util)\.[A-Za-z]+(Exception|Error)|AbortException|\*\*\* Abort messages|TLC threw an unexpected exception|OutOfMemoryError' \
+    'Parse Error|Semantic errors:|unexpected token|invalid syntax|unknown declaration|no such file|not found|timed out|Could not find or load main class|Exception in thread|^[[:space:]]*at [a-zA-Z0-9_.$/]+\(|java\.(lang|io|util)\.[A-Za-z]+(Exception|Error)|AbortException|\*\*\* Abort messages|TLC threw an unexpected exception|OutOfMemoryError|Attempted to compute the value of an expression of form' \
     <<<"${output}"
 }
 
 formal_completed_normally() {
-  # TLC prints this summary only when it finished a state-space search.
-  # Requiring it stops a truncated or crashed run being read as a completed one.
+  # TLC prints this summary whenever it stops, including when it abandons the
+  # search on an evaluation error -- the summary then reports states still
+  # left on queue. It is therefore necessary but NOT sufficient: requiring it
+  # stops a truncated run being read as a completed one, while the crash
+  # classes in formal_has_infrastructure_error and the exit-status pin are
+  # what reject an abandoned one. It used to claim TLC prints this only on a
+  # finished search, which is false.
   grep -Eq '[0-9]+ states generated, [0-9]+ distinct states found' <<<"$1"
 }
 

@@ -215,8 +215,12 @@ run_logged cuda_pytest checker/cuda-pytest.log \
       -m pytest -q -rs --color=no \
       tests/integration_tests/test_qwen3_formal_scout_a.py -s
 
+# The owning suite includes test_formal_toolchain.py, whose TLC-running
+# contracts skip without the vendored toolchain. Mount the formal cache so the
+# gate executes them instead of recording nine undeclared skips.
 run_logged owning_pytest checker/owning-pytest.log \
   env TORCHTITAN_ROOTFS_NETWORK=offline \
+  TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST="${FORMAL_CACHE}" \
   "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- \
   bash -lc "$(scout_pytest_guard_program)" scout-a \
     /workspace/torchtitan /project/tmp 1 "${DECLARED_OWNING_SKIP}" \
@@ -271,6 +275,14 @@ run_lint_and_verify_source() {
       # root is reused, and the fail-closed check then aborts the stage before
       # it writes anything -- an empty log rather than a diagnosis.
       lint_paths_file="$(mktemp /project/tmp/lint-paths.XXXXXXXX)"
+      # Removed when this stage exits, including on failure. /project/tmp
+      # persists between runs, so without this every lint stage of every run
+      # leaves one more file behind -- the accumulation that produced the
+      # original collision in the first place.
+      # Double quotes, and $ escaped: this text is inside the single-quoted
+      # inner script, so a literal single quote would close it and the outer
+      # shell would expand the variable to nothing.
+      trap "rm -f -- \"\${lint_paths_file}\"" EXIT
       # --status-file/--repo-root/--head/--attempt-dir make lint-time manifest
       # validation identical to seal-time validation: without them the path
       # list is shape-validated only, and the process-entry roster comparison

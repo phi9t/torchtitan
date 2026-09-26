@@ -189,7 +189,13 @@ if ((RUN_LINT)); then
 fi
 
 if ((RUN_PYTEST)); then
+  # The formal cache is mounted for this stage too, because some of these
+  # contracts run the real TLC toolchain over a deliberately degenerate input
+  # instead of grepping the runner's text. Without the mount they would skip,
+  # which is a guard that checks nothing;
+  # test_tier0_runner_mounts_the_formal_cache_for_the_pytest_stage pins it.
   env TORCHTITAN_ROOTFS_NETWORK=offline \
+    TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST="${FORMAL_CACHE}" \
     "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc \
     'cd /workspace/torchtitan && pytest -q tests/unit_tests/test_formal_toolchain.py'
   printf 'QFV_TIER0 pytest result=success\n'

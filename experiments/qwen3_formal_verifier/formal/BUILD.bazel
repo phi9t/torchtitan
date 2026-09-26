@@ -48,6 +48,7 @@ filegroup(
         "ScoutARefineBad.cfg",
         "ScoutARefineBad.tla",
         "ScoutARefineBadReach.cfg",
+        "ScoutARefineBadRelaxed.cfg",
         "ScoutLifecycle.tla",
     ],
 )
