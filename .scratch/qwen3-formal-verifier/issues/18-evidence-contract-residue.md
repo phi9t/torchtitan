@@ -66,3 +66,73 @@ is weakest exactly when the tree is clean -- the state a reviewer sees.
       finding R2 is the right mechanism -- shape validation cannot catch an
       absent entry, only a roster comparison can.
 - [ ] Either way, the sealed bundle should state which guarantee it makes.
+
+## 5. Unchecked `git diff --check` in the source recheck
+
+`run_lint_and_verify_source` in both runners ends:
+
+```
+"${GIT_BIN}" -C "${REPO_ROOT}" diff --check
+printf 'SCOUT_B_SOURCE_RECHECK result=success head=%s\n' "${HEAD_ID}"
+```
+
+Every other step in that function uses an explicit `|| return 1`. This one does
+not, and errexit cannot cover it either: `scout_run_logged` does `set +e` before
+invoking the function, and errexit is not function-local in bash, so the body
+runs with errexit off. `result=success` therefore prints unconditionally and is
+not evidence that the recheck's last step passed.
+
+- [ ] Check the status explicitly, like every other step in that function.
+- [ ] Audit the same function for any other unguarded command.
+
+## 6. The public verifier mutates the bundle it verifies
+
+`_secure_managed_path` calls `current.mkdir()` for missing parents, so
+`verify_evidence_bundle` cannot run against a read-only copy of a sealed bundle
+-- which is precisely the situation a third party verifying evidence is in.
+
+- [ ] Verification is read-only. Creating a directory is a sealing concern, not
+  a verification one.
+
+## 7. Lint-time manifest validation is weaker than seal-time
+
+`source_manifest_lint_paths`, which the `lint` stage consumes, runs
+`_validate_process_section` without `repo_root` and without the roster
+comparison, and has no `..` rejection of its own. The roster check runs later,
+at finalize. So at lint time the path list is shape-validated only.
+
+- [ ] Apply the same validation at both points, or state why lint may be
+  weaker.
+
+## 8. Ticket-text accuracy
+
+Findings from the ticket-03 review that are documentation-only but mislead a
+reader:
+
+- [ ] Ticket 03's producer-correlation scope note cites `scout_b.py:2439-2455`,
+  which is `_operation_family`/`_flight_snapshot`. The positional zip is at
+  `scout_b.py:2548` (kernel sort), `:2556-2559` (entry sort), `:2566`
+  (`zip(entries, kernels, strict=True)`).
+- [ ] Ticket 03 reports "180 owning tests (1 declared skip)"; the sealed log
+  says `182 passed, 1 skipped`.
+- [ ] Ticket 03 reports Pyrefly with zero errors without noting the sealed log
+  also contains `WARN ... Invalid search-path: /workspace/pytorch does not
+  exist` and `0 errors (1 suppressed)`.
+- [ ] Ticket 03 cites an `outputs/...` bundle path as its evidence location
+  without stating that `outputs` is gitignored, so a reviewer cloning the branch
+  does not have it. Distinguish this sense of "checked-in" from the tracked
+  `formal/ScoutB*Facts.*` fixtures.
+
+## 9. The skip guard catches less than its name suggests
+
+Confirmed working against real pytest output, in both directions, including
+colour bytes -- that part of the contract holds. But it matches `SKIPPED` only.
+
+- [ ] `xfail`, collection-time `importorskip`, a deleted test, and a renamed
+  file dropping out of an explicit file list are all invisible. Assert a
+  collected-test count, or state the limit.
+- [ ] `cuda_pytest` is gated by a module-level `pytest.mark.skipif` and exits 0
+  when skipped; it is currently caught only by accident, because a skipped run
+  leaves `normalized/scout_b.json` absent and `artifact_sync` then fails.
+  `focused_pytest` is likewise covered only because `owning_pytest` happens to
+  list the same file. Make both couplings explicit.

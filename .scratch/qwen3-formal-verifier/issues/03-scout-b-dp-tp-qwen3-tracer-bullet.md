@@ -47,6 +47,18 @@ evidence through the same TLA+ and Lean path.
 
 ## Gate evidence
 
+> **Stale as of 2026-09-26.** The bundle below was sealed at HEAD
+> `366737c37`. Commits `25315472c`, `fee966fea` and `f93102cc2` have landed
+> since, so 13 of the 87 verified manifest entries no longer match the tree and
+> the public verifier now refuses the bundle with "source manifest no longer
+> matches the current source tree". Every artifact under review is among the 13.
+> The new invariants added by `fee966fea` have no sealed evidence at all.
+>
+> This ticket's final gate is deliberately deferred to the end of the
+> formalization sequence (tickets 12-20), because re-sealing now would go stale
+> again at the next phase. The ticket cannot be marked resolved until that final
+> gate runs and this section is rewritten from the new sealed logs.
+
 The complete supported gate passed from this worktree state at HEAD
 `366737c37478d2253491742a74179febcf4ea54f`, all nine stages exit 0:
 `source_manifest`, `focused_pytest`, `cuda_pytest`, `owning_pytest`,
@@ -101,8 +113,9 @@ passed its gate but failed independent review with six findings, none Critical
 - the content-versus-membership boundary is stated precisely and pinned by test:
   tracker text may drift without changing `source_id`, while adding or removing
   a tracker path changes `status_sha256` and therefore does change it;
-- this gate ran from the same final state now under review, resolving the
-  same-final-state finding.
+- this gate ran from the same final state under review *at that time*. That is
+  no longer so: three commits have landed since, and the same-final-state
+  finding is therefore reopened. See the stale-evidence note above.
 
 ### A defect this process caught in its own guard
 
@@ -210,3 +223,29 @@ even when the trace is semantically identical. This gate reused the canonical
 attempt ID rather than passing `--update-artifacts`, which would have accepted a
 new canonical trace silently. Ticket 04 owns whether the fixture should become
 attempt-ID independent.
+
+### Review round 2026-09-26 (independent, clean context): FAIL
+
+Two blocking findings, both confirmed:
+
+1. **The sealed evidence is for a superseded state**, and the ticket asserted
+   the opposite. Recorded above; the final gate is deferred to the end of the
+   sequence rather than re-run per phase.
+2. **Sealing does not verify that any stage log contains anything.**
+   `_read_stage_journal` calls `_require_regular_readonly` and discards the
+   bytes, so mode `0444` and regular-file status are checked but not size. The
+   reviewer drove the real sealer with nine zero-byte logs and it accepted all
+   nine. The `-s` guard lives only in bash, so it is not part of the sealed
+   contract. Tracked as ticket 18 item 3.
+
+Non-blocking findings were folded into ticket 18 (items 5-9) and a new ticket 20
+(host paths in the identity chain). Two are worth restating here because they
+correct this ticket's own text: the producer-correlation scope note cites the
+wrong code, and the reported test counts and Pyrefly result do not match the
+sealed logs.
+
+What the review confirmed as sound, so it is not re-litigated: the digest chain
+has no circularity and nothing is self-certifying; immutability, symlink and
+path-traversal handling are real; the source-manifest allowlist has no bypass
+and the roster comparison does close omission; and the skip guard genuinely
+works in both directions against real coloured pytest output.

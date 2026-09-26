@@ -152,3 +152,29 @@ The same shape should be ported to the 2x2 DPxTP model, where the interesting
 concurrency actually lives: collective enqueue/start/complete lifecycles across
 four ranks, and cross-rank synchronisation edges. That port belongs with
 ticket 06, and the refinement machinery proved out here is the reusable part.
+
+### Review round 2026-09-26 (independent, clean context): PASS WITH FINDINGS
+
+Nothing blocking. The four areas flagged as most likely to be wrong -- genuine
+transition system, vacuity, refinement polarity, and "refused at the right
+guard" -- all survived direct experiment with real TLC, not reading:
+
+- The branching floor is real end-to-end. A deliberately linearized model was
+  run through the actual runner and refused: `abstract model never branches
+  (max outdegree 1) ... is a replay, not a model`, exit 1.
+- Eleven reachability probes found no invariant with an unreachable antecedent.
+- Polarity is safe in both failure directions: an unadmitted trace and an empty
+  trace each produce runner exit 1, not a false positive.
+- The negative control is genuinely fixed. Flipping `RequireReadyGradients` to
+  FALSE admits the corrupted trace in full, which proves the gradient guard is
+  the sole reason for refusal. `RejectionHappensBeforeTheMutation` does real
+  work and is not redundant.
+
+Eight non-blocking findings are tracked in ticket 22. Two matter before ticket
+12: the unguarded `IndexOf` (whose duplicate case becomes reachable in the DPxTP
+port) and the missing TLC evaluation-error class in the classifiers.
+
+Status stays `review-pending` for one reason only: the acceptance criterion
+requiring a full nine-stage gate from the final state was out of the reviewer's
+scope, and that evidence is stale for the same reason as ticket 03's. It is
+deferred to the end of the formalization sequence.

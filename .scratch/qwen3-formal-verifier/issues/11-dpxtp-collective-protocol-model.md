@@ -108,3 +108,48 @@ Stream identity in the observed facts is inferred, not observed: Flight Recorder
 entries are zipped positionally to Kineto kernels. The model's stream mapping is
 a design constant so the model is unaffected, but no claim should rest on
 observed stream identity.
+
+### Review round 2026-09-26 (independent, clean context): FAIL
+
+Three blocking findings, all produced by running TLC rather than reading, and
+the first independently reconfirmed:
+
+1. **"Streams are load-bearing" is false.** Neutralising the stream-head
+   conjunct leaves the state graph bit-identical -- `12142 generated, 3671
+   distinct`, max outdegree 12 for safety; `124620 / 35915 / 18308` with
+   `DeadlockFreedom` violated for the divergent cfg. `AtStreamHead` is
+   redundant by construction in the only instance any cfg binds.
+2. **The cross-communicator wait cycle is in no checked configuration.** The
+   wide instance that would contain it is dead code, guarded only by a test that
+   counts substrings in text no checker loads.
+3. **The divergent negative is refuted by an intra-communicator operation
+   mismatch** -- the very divergence this ticket calls unrealizable. Order
+   divergence cannot deadlock the model at all.
+
+The machinery reproduces exactly and all eight formal targets pass. What fails
+is the correspondence between the artifact and its claims: the model does not
+express the hazard it was built to express, and the module header, this ticket's
+criteria, the runner comment and the commit message each assert otherwise.
+
+The repair is tracked as ticket 21, which blocks ticket 12 -- a refinement
+bridge onto this model would otherwise attach to a deadlock property that is
+vacuous in the direction that matters.
+
+Also recorded there: `MaxSkew` is inert at `MaxIssues = 2`; the `CommClass`
+conjunct is provably inert; four of the five "safety invariants" are
+restatements of `Start`'s guard; the bound appears nowhere a reader meets the
+result; and the SYMMETRY rationale is wrong for the reason given, though right
+in its conclusion.
+
+What the review confirmed sound, so it is not re-litigated: `Stuck` does not
+drift from `Next` (checked by equivalence against an `ENABLED` formulation);
+non-vacuity is genuinely sensitive (forcing `StartAllowed` false makes the stage
+fail); the negative classifier is tight; the issue-order negative violates the
+right invariant for the right reason; `RuntimePgIdAgreesWithinRank` is not
+circular; and the model does branch, with `max_outdegree 12` being TLC's own
+number.
+
+One correction to the record: the criteria span two commits. `ScoutDistributed`
+(both `.tla` and `.lean`), `scout_b.py` and `checker_contract.sh` are in
+`25315472c`; `fee966fea` holds `ScoutBModel*`, `ScoutBIssueOrderInvalid*` and
+the runner, BUILD and test changes.
