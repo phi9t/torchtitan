@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
@@ -1017,3 +1018,225 @@ def test_collective_issue_order_comes_from_the_enqueued_event() -> None:
     for work in collectives:
         key = f"{work['rank']}:{work['work_id']}"
         assert work["issue_order"] == expected[key], key
+
+
+def _rewrite_placements(
+    normalized: dict[str, Any],
+    mutate: Callable[[list[dict[str, Any]]], None],
+    *,
+    ranks: tuple[int, ...] | None = None,
+    restamp_digest: bool = True,
+) -> None:
+    """Mutate per-rank ``tensor_placements`` the way a real run would report them.
+
+    ``placement_summary.schema_sha256`` is a digest OVER those placements, and
+    ``validate_normalized_bundle`` recomputes it, so a mutation that leaves the
+    digest stale is refused as tampering rather than reaching the projection.
+    Restamping is therefore the default: it makes the bundle self-consistent, so
+    a test of the projection tests the projection. ``restamp_digest=False`` is
+    for the tampering case itself.
+
+    ``trace_id`` covers ``placement_summary``, so restamping the digest moves it
+    too and it is recomputed here. Note what that chain does NOT cover: the
+    digest is in ``trace_id`` but the placement bytes are not, which is why
+    recomputing the digest against those bytes is the only thing standing
+    between tampered placements and an export.
+    """
+
+    for rank, trace in enumerate(normalized["rank_traces"]):
+        if ranks is not None and rank not in ranks:
+            continue
+        mutate(trace["tensor_placements"])
+        if restamp_digest:
+            trace["placement_summary"]["schema_sha256"] = _sha256_json(
+                trace["tensor_placements"]
+            )
+    if restamp_digest:
+        normalized["trace_id"] = _expected_trace_id(normalized)
+
+
+def test_placement_facts_carry_axis_and_dim_per_parameter() -> None:
+    """Structural placements, not two booleans per rank.
+
+    Drives the real exporters rather than inspecting a checked-in fixture, and
+    reads the projection so the assertion is about values and not about text
+    happening to appear somewhere in a 1.6 MB module.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    facts = _formal_projection(normalized)["placement_facts"]
+
+    assert facts["mesh_axis_degrees"] == {"dp_shard": 2, "tp": 2}
+    assert [parameter["name"] for parameter in facts["parameters"]] == [
+        "tok_embeddings.weight",
+        "norm.weight",
+    ]
+    assert facts["schema_digest_by_rank"] == [facts["schema_digest"]] * 4
+    assert facts["placements"] == [
+        {
+            "placement_id": "placement:0000",
+            "parameter": "tok_embeddings.weight",
+            "axis": "dp_shard",
+            "kind": "shard",
+            "strided": False,
+            "shard_dim": 0,
+        },
+        {
+            "placement_id": "placement:0001",
+            "parameter": "tok_embeddings.weight",
+            "axis": "tp",
+            "kind": "shard",
+            "strided": False,
+            "shard_dim": 0,
+        },
+        {
+            "placement_id": "placement:0002",
+            "parameter": "norm.weight",
+            "axis": "dp_shard",
+            "kind": "shard",
+            "strided": False,
+            "shard_dim": 0,
+        },
+        {
+            "placement_id": "placement:0003",
+            "parameter": "norm.weight",
+            "axis": "tp",
+            "kind": "replicate",
+            "strided": False,
+        },
+    ]
+
+    tla = export_scout_b_tla_facts(normalized)
+    lean = export_scout_b_lean_facts(normalized)
+    # The two booleans are kept verbatim so PlacementValid cannot silently
+    # change meaning, and they now sit beside the structural facts.
+    assert "PlacementHasDpShard == " in tla
+    assert "PlacementHasTpShard == " in tla
+    assert 'MeshAxisDegree == (("dp_shard" :> 2) @@ ("tp" :> 2))' in tla
+    # A replicate placement has no dim, so it is absent from the
+    # domain-restricted shard-dim function rather than carrying a sentinel.
+    shard_dim_line = next(
+        line for line in tla.splitlines() if line.startswith("PlacementShardDim == ")
+    )
+    assert '"placement:0003"' not in shard_dim_line
+    assert '"placement:0002" :> 0' in shard_dim_line
+    assert "shardDim := none" in lean
+    assert "shardDim := some 0" in lean
+
+
+def test_placement_facts_are_delimited_for_parse_cost_reporting() -> None:
+    """The runners report the placement share of the parsed bytes.
+
+    Parse cost is charged before a single state is generated, so the block has
+    delimiters the runners can measure between. This drives the exporter and
+    checks the delimited block actually contains the structural operators.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    tla = export_scout_b_tla_facts(normalized)
+
+    lines = tla.splitlines()
+    start = lines.index(r"\* BEGIN structural placement facts")
+    end = lines.index(r"\* END structural placement facts")
+    block = "\n".join(lines[start : end + 1])
+
+    assert start < end
+    for operator in (
+        "PlacementSchemaDigest == ",
+        "PlacementSchemaDigestByRank == ",
+        "MeshAxisDegree == ",
+        "ParameterNames == ",
+        "ParameterMeshAxes == ",
+        "ParameterGlobalShape == ",
+        "ParameterLocalShape == ",
+        "PlacementIds == ",
+        "PlacementParameter == ",
+        "PlacementAxis == ",
+        "PlacementKind == ",
+        "PlacementStrided == ",
+        "PlacementShardDim == ",
+    ):
+        assert operator in block, operator
+        # Defined exactly once, and inside the delimiters rather than beside
+        # them, so the measured share is the whole export.
+        assert tla.count(f"\n{operator}") == 1, operator
+
+
+def test_placement_export_carries_a_partial_placement_to_the_checkers() -> None:
+    """A Partial must reach the facts, because the formal layer rejects it.
+
+    An exporter that refused a Partial would move the check into Python and
+    leave the formal invariant unfalsifiable, so the Partial has to survive the
+    projection and be rejected by the checkers instead. The rank digests are
+    restamped so the bundle is what a real run reporting a Partial would look
+    like, rather than a tampered one the digest check refuses first.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    _rewrite_placements(
+        normalized,
+        lambda tensors: tensors[1]["placements"].__setitem__(
+            1, {"axis": "tp", "kind": "partial"}
+        ),
+    )
+
+    facts = _formal_projection(normalized)["placement_facts"]
+
+    partial = [
+        placement for placement in facts["placements"] if placement["kind"] == "partial"
+    ]
+    assert [placement["placement_id"] for placement in partial] == ["placement:0003"]
+    assert "shard_dim" not in partial[0]
+    assert '"placement:0003" :> "partial"' in export_scout_b_tla_facts(normalized)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("dim_outside_shape", "outside its shape"),
+        ("dim_on_replicate", "carries a shard dim"),
+        ("unknown_kind", "unknown kind"),
+        ("shapes_disagree", "shapes for .* do not align"),
+        # Caught upstream by the normalized validator, which is the earlier
+        # and better place for it; pinned so the projection's own guard is not
+        # the only thing standing between a rank disagreement and an export.
+        ("digest_conflict", "placement schema digest does not cover"),
+        ("stale_digest_over_tampered_placements", "digest does not cover"),
+    ],
+)
+def test_placement_export_refuses_malformed_placement_evidence(
+    mutation: str, message: str
+) -> None:
+    """Bad data from disk is a ValueError, not a silently degenerate export."""
+
+    normalized = merge_rank_traces(_rank_bundle())
+    mutations = {
+        "dim_outside_shape": lambda tensors: tensors[1]["placements"][0].__setitem__(
+            "dim", 3
+        ),
+        "dim_on_replicate": lambda tensors: tensors[1]["placements"][1].__setitem__(
+            "dim", 0
+        ),
+        "unknown_kind": lambda tensors: tensors[1]["placements"][1].__setitem__(
+            "kind", "sharded"
+        ),
+        "shapes_disagree": lambda tensors: tensors[0].__setitem__(
+            "local_shape", [1024]
+        ),
+    }
+    if mutation in mutations:
+        _rewrite_placements(normalized, mutations[mutation])
+    elif mutation == "digest_conflict":
+        normalized["rank_traces"][2]["placement_summary"]["schema_sha256"] = "a" * 64
+    else:
+        # The tampering case: rank 1's placements are rewritten and its digest
+        # is deliberately left stale, which is how a hand-edited bundle looks.
+        _rewrite_placements(
+            normalized,
+            lambda tensors: tensors[1]["placements"][1].__setitem__("kind", "partial"),
+            ranks=(1,),
+            restamp_digest=False,
+        )
+
+    with pytest.raises(ValueError, match=message):
+        _formal_projection(normalized)

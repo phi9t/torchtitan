@@ -129,6 +129,228 @@ def tpInputAgreement (ranks : List RankCoordinate) : Bool :=
 def placementValid (ranks : List RankCoordinate) : Bool :=
   ranks.all fun item => item.hasDpShard && item.hasTpShard
 
+/-
+Structural DTensor placement facts.
+
+`placementValid` above is deliberately unchanged: it says only that some
+parameter is DP-sharded and some parameter is TP-sharded somewhere, which
+almost any non-degenerate 2x2 run satisfies. The definitions below read the
+per-parameter facts, and `placementBooleansAgreeWithFacts` ties the two booleans
+are the aggregate of those facts rather than a second, independent claim.
+
+WHERE THE FACTS COME FROM: one snapshot per rank of
+`model_parts[0].named_parameters()`, taken after the model is built and before
+`Trainer.train`. It is the parameter set the observed AdamW step updates, and
+`optimizerBoundaryObserved` pins that that step is in the trace, but the
+snapshot is NOT re-taken inside the optimizer pre-hook and NO gradient
+placement is observed. A Partial gradient would therefore not be visible here;
+what is checkable is that no parameter the optimizer steps carries an
+unreduced placement.
+
+Grouped by parameter, while the TLA export keys flat placement ids. The two
+checkers pay different costs: grouping keeps this kernel evaluation linear
+instead of filtering every placement once per parameter and tensor dim.
+-/
+
+structure PlacementRecord where
+  axis : String
+  kind : String
+  strided : Bool
+  /-- 0-based tensor dim, present exactly when `kind = "shard"`. -/
+  shardDim : Option Nat
+deriving DecidableEq, Repr
+
+structure ParameterPlacements where
+  parameter : String
+  meshAxes : List String
+  globalShape : List Nat
+  localShape : List Nat
+  placements : List PlacementRecord
+deriving DecidableEq, Repr
+
+structure MeshAxisDegree where
+  axis : String
+  degree : Nat
+deriving DecidableEq, Repr
+
+def placementKinds : List String := ["shard", "replicate", "partial"]
+
+def axisDegree? (degrees : List MeshAxisDegree) (axis : String) : Option Nat :=
+  (degrees.find? fun item => item.axis == axis).map (fun item => item.degree)
+
+/-- Domains, kinds and the one-placement-per-mesh-axis shape. -/
+def parameterPlacementWellFormed
+    (parameters : List ParameterPlacements)
+    (degrees : List MeshAxisDegree) : Bool :=
+  !parameters.isEmpty &&
+  (parameters.map (fun item => item.parameter)).eraseDups.length
+    == parameters.length &&
+  parameters.all fun item =>
+    !item.meshAxes.isEmpty &&
+    !item.globalShape.isEmpty &&
+    item.globalShape.length == item.localShape.length &&
+    item.placements.length == item.meshAxes.length &&
+    item.placements.map (fun p => p.axis) == item.meshAxes &&
+    item.meshAxes.eraseDups.length == item.meshAxes.length &&
+    item.placements.all fun p =>
+      placementKinds.contains p.kind &&
+      (axisDegree? degrees p.axis).isSome &&
+      (match p.shardDim with
+        | none => p.kind != "shard"
+        | some dim => p.kind == "shard" && dim < item.globalShape.length)
+
+/--
+THE property worth having. A Partial placement is an unreduced value: a
+parameter the optimizer steps that still carries one means the reduction never
+happened, and the resulting math is wrong without any error.
+-/
+def noPartialParameterPlacement
+    (parameters : List ParameterPlacements) : Bool :=
+  parameters.all fun item => item.placements.all fun p => p.kind != "partial"
+
+/--
+Anchors the placement claim to an optimizer step that is actually in the trace,
+so "no Partial at the optimizer" is not a statement about a step nobody
+observed.
+-/
+def optimizerBoundaryRankValid (events : List EventEvidence) : Bool :=
+  let started := events.filter fun event => event.kind == "optimizer.started"
+  let mutated := events.filter fun event => event.kind == "optimizer.mutated"
+  -- Spelled without a multi-discriminant match on purpose: the equation
+  -- compiler's splitter for one drags `propext` into every theorem that
+  -- evaluates it, and the checker contract refuses any axiom dependency.
+  started.length == 1 && mutated.length == 1 &&
+  started.all fun start => mutated.all fun mutate => start.order < mutate.order
+
+def optimizerBoundaryObserved (eventsByRank : RankEventRows) : Bool :=
+  optimizerBoundaryRankValid eventsByRank.rank0 &&
+  optimizerBoundaryRankValid eventsByRank.rank1 &&
+  optimizerBoundaryRankValid eventsByRank.rank2 &&
+  optimizerBoundaryRankValid eventsByRank.rank3
+
+/-- A sharded tensor dim must divide evenly by the degree of its mesh axis. -/
+def shardedDimDividesAxisDegree
+    (parameters : List ParameterPlacements)
+    (degrees : List MeshAxisDegree) : Bool :=
+  parameters.all fun item =>
+    item.placements.all fun p =>
+      match p.shardDim with
+      | none => true
+      | some dim =>
+          -- `.drop`/`.head?` rather than `globalShape[dim]?`: the `getElem?`
+          -- path pulls `propext` into the evaluation, which the checker
+          -- contract refuses. The `getD` fallbacks are unreachable behind the
+          -- `isSome` guards; 1 is chosen so an unguarded reading would still
+          -- be a divisor rather than a division by zero.
+          (axisDegree? degrees p.axis).isSome &&
+          ((item.globalShape.drop dim).head?).isSome &&
+          (axisDegree? degrees p.axis).getD 1 > 0 &&
+          ((item.globalShape.drop dim).head?).getD 0
+            % (axisDegree? degrees p.axis).getD 1 == 0
+
+/--
+The observed local shape must agree with which dims are sharded. Stated without
+a product over the sharding axes, so it checks the directions that need no
+arithmetic over several axes at once.
+-/
+def localShapeDimsValid
+    (item : ParameterPlacements) (degrees : List MeshAxisDegree) (dim : Nat) :
+    List Nat -> List Nat -> Bool
+  | [] => fun localSizes => localSizes.isEmpty
+  | globalSize :: globalSizes => fun localSizes =>
+      match localSizes with
+      | [] => false
+      | localSize :: rest =>
+          let sharders := item.placements.filter fun p =>
+            p.kind == "shard" && p.shardDim == some dim
+          localSize > 0 && localSize <= globalSize &&
+          globalSize % localSize == 0 &&
+          (if sharders.isEmpty then localSize == globalSize else true) &&
+          (if sharders.any (fun p => (axisDegree? degrees p.axis).getD 1 > 1)
+            then localSize < globalSize else true) &&
+          localShapeDimsValid item degrees (dim + 1) globalSizes rest
+
+def localShapeReflectsSharding
+    (parameters : List ParameterPlacements)
+    (degrees : List MeshAxisDegree) : Bool :=
+  parameters.all fun item =>
+    localShapeDimsValid item degrees 0 item.globalShape item.localShape
+
+/--
+`_StridedShard` exists for exactly one situation: an outer mesh axis shards a
+tensor dim that an inner axis also shards, so the outer axis must stride over
+the inner axis's shards instead of taking a contiguous slice. "Outer" is the
+earlier position in the parameter's own mesh-axis order. A strided flag without
+that inner partner, or a missing flag where the partner exists, is a layout the
+optimizer and the checkpoint would disagree about.
+-/
+def stridedShardIsAnOuterComposedShard
+    (parameters : List ParameterPlacements) : Bool :=
+  parameters.all fun item =>
+    let indexed := item.placements.zipIdx
+    indexed.all fun (p, position) =>
+      match p.shardDim with
+      | none => !p.strided
+      | some dim =>
+          p.strided
+            == indexed.any fun (inner, innerPosition) =>
+                 innerPosition > position &&
+                 inner.kind == "shard" &&
+                 inner.shardDim == some dim
+
+/--
+The degrees the placement facts use must be the degrees the mesh facts already
+exported imply: one distinct coordinate value per axis position.
+-/
+def meshAxisDegreeAgreesWithCoordinates
+    (ranks : List RankCoordinate) (degrees : List MeshAxisDegree) : Bool :=
+  degrees.map (fun item => item.axis) == ["dp_shard", "tp"] &&
+  (axisDegree? degrees "dp_shard").isSome &&
+  (axisDegree? degrees "tp").isSome &&
+  (ranks.map (fun item => item.dp)).eraseDups.length
+    == (axisDegree? degrees "dp_shard").getD 0 &&
+  (ranks.map (fun item => item.tp)).eraseDups.length
+    == (axisDegree? degrees "tp").getD 0 &&
+  ranks.all fun item =>
+    item.dp < (axisDegree? degrees "dp_shard").getD 0 &&
+    item.tp < (axisDegree? degrees "tp").getD 0
+
+/--
+The placement facts are exported once because every rank agreed on the whole
+list. This asserts that agreement instead of trusting the exporter for it.
+-/
+def placementSchemaAgreesAcrossRanks
+    (schemaDigest : String) (schemaDigestByRank : List String) : Bool :=
+  schemaDigest != "" &&
+  schemaDigestByRank.length == 4 &&
+  schemaDigestByRank.all fun digest => digest == schemaDigest
+
+/--
+Ties the two booleans `placementValid` reads to the structural facts, so
+`placementValid` keeps its original meaning and cannot drift away from the
+per-parameter evidence.
+
+WHAT THIS IS NOT: not a derivation of each rank's own boolean. `hasShardOnAxis`
+takes no rank, because the placements are exported once for all four ranks, so
+for ranks 1-3 this says the rank's boolean agrees with the one exported list
+rather than with a list of its own. And it is one bit per axis: a projection
+that dropped all but one shard placement per axis would still satisfy it. The
+per-parameter content is checked by `parameterPlacementWellFormed`,
+`shardedDimDividesAxisDegree` and `localShapeReflectsSharding`. Hence
+"AgreeWith", not "DerivableFrom".
+-/
+def hasShardOnAxis
+    (parameters : List ParameterPlacements) (axis : String) : Bool :=
+  parameters.any fun item =>
+    item.placements.any fun p => p.axis == axis && p.kind == "shard"
+
+def placementBooleansAgreeWithFacts
+    (ranks : List RankCoordinate)
+    (parameters : List ParameterPlacements) : Bool :=
+  ranks.all fun item =>
+    item.hasDpShard == hasShardOnAxis parameters "dp_shard" &&
+    item.hasTpShard == hasShardOnAxis parameters "tp"
+
 def boundedIdentityValid
     (perRank index rank offset : Nat) : Bool :=
   perRank > 0 &&

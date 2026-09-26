@@ -38,18 +38,34 @@ Spec == Init /\ [][Next]_vars
 (* Rank 0's first collective in issue order, derived rather than            *)
 (* hand-written.                                                           *)
 (*                                                                         *)
-(* CHOOSE is partial, and MutatedWork is a constant definition that TLC     *)
-(* folds before it checks anything, so on a trace where rank 0 issued no    *)
-(* collective the unguarded form abandoned the search with                  *)
-(* "Attempted to compute the value of an expression of form CHOOSE ..." and *)
-(* exit 75. That output still prints a state summary and a "Finished in"    *)
-(* line, so before the evaluation-error class was added to the checker      *)
-(* contract only the exit-status pin rejected it. The guard makes the       *)
-(* module name its missing target instead: the empty string is not a work   *)
-(* id, so MutatedOperation matches nothing and both                         *)
-(* Rank0HasACollective and MutationIsIsolated fail. Same                    *)
-(* sentinel-plus-named-invariant shape as ScoutARefineBad's                 *)
-(* ControlEventsArePresent.                                                *)
+(* CHOOSE is partial, and MutatedWork is a constant definition TLC folds    *)
+(* before it checks anything, so on a trace where rank 0 issued no          *)
+(* collective an unprotected reading abandons the search with an evaluation *)
+(* error and exit 75 -- output that still prints a state summary and a      *)
+(* "Finished in" line, so only the exit-status pin rejects it. Two separate *)
+(* things protect against that, and an earlier version of this comment      *)
+(* credited the wrong one. MEASURED, both ways:                             *)
+(*                                                                         *)
+(*   - Rank0HasACollective listed FIRST is what produces the named result.  *)
+(*     These are constant expressions, so TLC reports the first cfg-listed  *)
+(*     invariant that is FALSE and never forces the CHOOSE. In that         *)
+(*     configuration the ELSE "" guard changes nothing: guarded and         *)
+(*     unguarded both report Rank0HasACollective equal to FALSE, exit 151.  *)
+(*     The cfg order is load-bearing and is pinned by a test.               *)
+(*   - The guard is what keeps the module total if another invariant is     *)
+(*     evaluated first. With the sentinel removed from the cfg, the         *)
+(*     unguarded form crashes at exit 75 on the CHOOSE while the guarded    *)
+(*     form reports MutationIsIsolated by name.                             *)
+(*                                                                         *)
+(* The second bullet only became true when MutationIsIsolated grew its      *)
+(* domain conjunct. Without it the guarded form also crashed at exit 75, on *)
+(* "Attempted to apply function" rather than on the CHOOSE, because the ""  *)
+(* sentinel is not in CollectiveOperation's domain.                         *)
+(*                                                                         *)
+(* ScoutARefineBad's ControlEventsArePresent is a related shape but not the *)
+(* same case: its indices are read while Observed is being constructed, so  *)
+(* no invariant can be reported ahead of them and its guard is load-bearing *)
+(* unconditionally.                                                        *)
 (***************************************************************************)
 Rank0Works ==
   { work \in SequenceElements(CollectiveWorkIds) :
@@ -74,7 +90,12 @@ MutatedOperation ==
 
 \* Guards the control against silently becoming a no-op: the operation must
 \* actually change, and nothing else may.
+\*
+\* The domain conjunct comes first on purpose. TLC short-circuits a conjunction
+\* left to right, so it is what lets this report a named violation instead of
+\* crashing on "Attempted to apply function" when the "" sentinel is in play.
 MutationIsIsolated ==
+  /\ MutatedWork \in DOMAIN CollectiveOperation
   /\ MutatedOperation[MutatedWork] # CollectiveOperation[MutatedWork]
   /\ \A work \in DOMAIN CollectiveOperation :
        work # MutatedWork => MutatedOperation[work] = CollectiveOperation[work]

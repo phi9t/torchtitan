@@ -4206,3 +4206,484 @@ def test_dpxtp_safety_token_names_every_invariant_it_checked() -> None:
     assert 'formal_cfg_invariants "${fixture_dir}/ScoutBModel.cfg"' in runner
     assert "invariants=%s" in runner
     assert "${safety_invariants}" in runner
+
+
+# Tiny hand-written placement facts, so the structural predicates are exercised
+# on inputs they must reject as well as on the observed run they accept. The
+# probe asserts the NEGATION of each predicate on a bad input, so one clean TLC
+# run proves several rejections instead of stopping at the first.
+_PLACEMENT_PROBE = """\
+------------------------------ MODULE PlacementProbe ------------------------------
+EXTENDS Naturals, Sequences, FiniteSets, TLC, ScoutDistributed
+
+VARIABLE cursor
+vars == <<cursor>>
+Init == cursor = 0
+Next == UNCHANGED cursor
+Spec == Init /\\ [][Next]_vars
+
+Degrees == ("dp_shard" :> 2) @@ ("tp" :> 2)
+Names == <<"w">>
+MeshAxes == ("w" :> <<"dp_shard", "tp">>)
+Ids == <<"p0", "p1">>
+Parameter == ("p0" :> "w") @@ ("p1" :> "w")
+Axis == ("p0" :> "dp_shard") @@ ("p1" :> "tp")
+
+\\* Good: 8 on dim 0 over dp_shard=2 composed with tp=2, local 2.
+GoodKind == ("p0" :> "shard") @@ ("p1" :> "shard")
+GoodStrided == ("p0" :> TRUE) @@ ("p1" :> FALSE)
+GoodDim == ("p0" :> 0) @@ ("p1" :> 0)
+GoodGlobal == ("w" :> <<8>>)
+GoodLocal == ("w" :> <<2>>)
+
+WellFormed(kind, strided, dim, global, local) ==
+  ParameterPlacementWellFormed(
+    Names, MeshAxes, global, local, Ids, Parameter, Axis, kind, strided, dim,
+    Degrees)
+
+Divides(kind, dim, global) ==
+  ShardedDimDividesAxisDegree(
+    Ids, Parameter, Axis, kind, dim, global, Degrees)
+
+LocalShape(kind, dim, global, local) ==
+  LocalShapeReflectsSharding(
+    Names, global, local, Ids, Parameter, Axis, kind, dim, Degrees)
+
+Strided(kind, strided, dim) ==
+  StridedShardIsAnOuterComposedShard(
+    MeshAxes, Ids, Parameter, Axis, kind, strided, dim)
+
+\\* Not vacuous: the good input satisfies every predicate.
+GoodInputIsAccepted ==
+  /\\ WellFormed(GoodKind, GoodStrided, GoodDim, GoodGlobal, GoodLocal)
+  /\\ Divides(GoodKind, GoodDim, GoodGlobal)
+  /\\ LocalShape(GoodKind, GoodDim, GoodGlobal, GoodLocal)
+  /\\ Strided(GoodKind, GoodStrided, GoodDim)
+  /\\ NoPartialParameterPlacement(Ids, GoodKind)
+
+\\* 3 is not divisible by the dp_shard degree of 2.
+IndivisibleIsRejected ==
+  ~Divides(GoodKind, GoodDim, ("w" :> <<3>>))
+
+\\* An unreduced placement on a parameter the optimizer steps.
+PartialIsRejected ==
+  ~NoPartialParameterPlacement(Ids, ("p0" :> "partial") @@ ("p1" :> "shard"))
+
+\\* The outer axis shards the same dim as the inner axis but is not strided.
+MissingStridedFlagIsRejected ==
+  ~Strided(GoodKind, ("p0" :> FALSE) @@ ("p1" :> FALSE), GoodDim)
+
+\\* The inner axis carries the flag instead of the outer one.
+InnerStridedFlagIsRejected ==
+  ~Strided(GoodKind, ("p0" :> FALSE) @@ ("p1" :> TRUE), GoodDim)
+
+\\* A dim nothing shards must keep its global size.
+UnshardedDimMustNotShrinkIsRejected ==
+  ~LocalShape(
+     ("p0" :> "replicate") @@ ("p1" :> "replicate"),
+     [x \\in {} |-> x], GoodGlobal, GoodLocal)
+
+\\* A replicate placement carrying a shard dim breaks the restricted domain.
+ReplicateWithADimIsRejected ==
+  ~WellFormed(
+     ("p0" :> "shard") @@ ("p1" :> "replicate"),
+     GoodStrided, GoodDim, GoodGlobal, ("w" :> <<4>>))
+
+=============================================================================
+"""
+
+_PLACEMENT_PROBE_CFG = """\
+SPECIFICATION Spec
+
+INVARIANTS
+  GoodInputIsAccepted
+  IndivisibleIsRejected
+  PartialIsRejected
+  MissingStridedFlagIsRejected
+  InnerStridedFlagIsRejected
+  UnshardedDimMustNotShrinkIsRejected
+  ReplicateWithADimIsRejected
+"""
+
+
+def test_placement_predicates_reject_the_layouts_they_are_for(
+    tmp_path: Path,
+) -> None:
+    """Run the real predicates over inputs they must refuse.
+
+    The observed run satisfies all of them, which on its own says nothing about
+    what they would catch. This applies the shipped ScoutDistributed
+    definitions -- not a copy -- to tiny hand-written facts and asserts the
+    NEGATION of each predicate on a bad layout, plus acceptance of a good one so
+    the rejections are not vacuous.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        "PlacementProbe",
+        _PLACEMENT_PROBE_CFG,
+        fixtures=("ScoutDistributed.tla",),
+        files={"PlacementProbe.tla": _PLACEMENT_PROBE},
+    )
+
+    assert (
+        _run_classifier("formal_classify_tlc_valid", status, output).returncode == 0
+    ), (status, output)
+
+
+def test_partial_placement_negative_is_rejected_for_the_right_reason(
+    tmp_path: Path,
+) -> None:
+    """The injected Partial must violate exactly the Partial invariant.
+
+    Run over the shipped facts, not grepped: a control that tripped the
+    well-formedness check instead would prove nothing about whether an
+    unreduced placement is caught, so the module also asserts the structural
+    invariant still holds under the override.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        "ScoutBPlacementPartialInvalid",
+        (FORMAL_DIR / "ScoutBPlacementPartialInvalid.cfg").read_text(),
+        fixtures=(
+            "ScoutDistributed.tla",
+            "ScoutBFacts.tla",
+            "ScoutBPlacementPartialInvalid.tla",
+        ),
+    )
+
+    assert (
+        _run_classifier(
+            "formal_classify_tlc_transition_negative",
+            status,
+            output,
+            "ScoutBNoPartialAtOptimizer",
+        ).returncode
+        == 0
+    ), (status, output)
+
+
+_B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT = """\
+------------------------------ MODULE ScoutBFacts ------------------------------
+EXTENDS Naturals, Sequences, FiniteSets, TLC
+
+RankSet == {0, 1, 2, 3}
+EventIds == <<"event:r0:1">>
+EventRank == ("event:r0:1" :> 0)
+EventKind == ("event:r0:1" :> "step.started")
+EventOrder == ("event:r0:1" :> 1)
+
+ParameterNames == <<"w">>
+ParameterMeshAxes == ("w" :> <<"dp_shard", "tp">>)
+ParameterGlobalShape == ("w" :> <<8>>)
+ParameterLocalShape == ("w" :> <<8>>)
+PlacementIds == <<"p0", "p1">>
+PlacementParameter == ("p0" :> "w") @@ ("p1" :> "w")
+PlacementAxis == ("p0" :> "dp_shard") @@ ("p1" :> "tp")
+PlacementKind == ("p0" :> "replicate") @@ ("p1" :> "replicate")
+PlacementStrided == ("p0" :> FALSE) @@ ("p1" :> FALSE)
+PlacementShardDim == [x \\in {} |-> x]
+MeshAxisDegree == ("dp_shard" :> 2) @@ ("tp" :> 2)
+PlacementSchemaDigest == "digest"
+PlacementSchemaDigestByRank ==
+  (0 :> "digest") @@ (1 :> "digest") @@ (2 :> "digest") @@ (3 :> "digest")
+
+=============================================================================
+"""
+
+
+_PARTIAL_GUARD = """\
+MutatedPlacement ==
+  IF ThereIsADpShardPlacement
+  THEN CHOOSE placement \\in DpShardPlacements :
+         \\A other \\in DpShardPlacements :
+           PlacementPosition[placement] <= PlacementPosition[other]
+  ELSE \"\""""
+
+_PARTIAL_UNGUARDED = """\
+MutatedPlacement ==
+  CHOOSE placement \\in DpShardPlacements :
+    \\A other \\in DpShardPlacements :
+      PlacementPosition[placement] <= PlacementPosition[other]"""
+
+_ISSUE_ORDER_GUARD = """\
+MutatedWork ==
+  IF Rank0HasACollective
+  THEN CHOOSE work \\in Rank0Works :
+         \\A other \\in Rank0Works :
+           CollectiveIssueOrder[work] <= CollectiveIssueOrder[other]
+  ELSE \"\""""
+
+_ISSUE_ORDER_UNGUARDED = """\
+MutatedWork ==
+  CHOOSE work \\in Rank0Works :
+    \\A other \\in Rank0Works :
+      CollectiveIssueOrder[work] <= CollectiveIssueOrder[other]"""
+
+
+def test_partial_placement_control_names_its_missing_target_instead_of_crashing(
+    tmp_path: Path,
+) -> None:
+    """A degenerate facts module must be reported, not crashed on.
+
+    What does the work here is the CFG ORDER, not the CHOOSE guard: these are
+    constant expressions, so TLC reports the first listed invariant that is
+    FALSE and never forces the CHOOSE. An earlier version of this test claimed
+    the guard and would have passed with the guard removed;
+    test_the_partial_injection_guard_is_load_bearing covers the guard, and this
+    one covers the sentinel reaching the classifier.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        "ScoutBPlacementPartialInvalid",
+        (FORMAL_DIR / "ScoutBPlacementPartialInvalid.cfg").read_text(),
+        fixtures=("ScoutDistributed.tla", "ScoutBPlacementPartialInvalid.tla"),
+        files={"ScoutBFacts.tla": _B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT},
+    )
+
+    assert "Attempted to compute the value of an expression of form" not in output
+    assert (
+        _run_classifier(
+            "formal_classify_tlc_constant_false",
+            status,
+            output,
+            "ThereIsADpShardPlacement",
+        ).returncode
+        == 0
+    ), (status, output)
+
+
+@pytest.mark.parametrize(
+    ("module", "facts", "guard", "unguarded", "sentinel", "named"),
+    [
+        (
+            "ScoutBPlacementPartialInvalid",
+            "_B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT",
+            _PARTIAL_GUARD,
+            _PARTIAL_UNGUARDED,
+            "ThereIsADpShardPlacement",
+            "MutationIsIsolated",
+        ),
+        (
+            "ScoutBIssueOrderInvalid",
+            "_B_FACTS_WITHOUT_RANK_ZERO",
+            _ISSUE_ORDER_GUARD,
+            _ISSUE_ORDER_UNGUARDED,
+            "Rank0HasACollective",
+            "MutationIsIsolated",
+        ),
+    ],
+    ids=["partial_placement", "issue_order"],
+)
+def test_the_derived_mutation_guard_is_load_bearing(
+    tmp_path: Path,
+    module: str,
+    facts: str,
+    guard: str,
+    unguarded: str,
+    sentinel: str,
+    named: str,
+) -> None:
+    """Find the configuration where the ELSE sentinel actually decides the outcome.
+
+    With the sentinel invariant listed first it does not: guarded and unguarded
+    both report the sentinel FALSE, so a test over the shipped cfg cannot fail
+    when the guard is deleted. Remove the sentinel from the cfg and the guard
+    becomes decisive -- guarded gives a named invariant, unguarded abandons the
+    search with an evaluation error. Both directions are asserted, so deleting
+    the guard fails this test and so does a guard that no longer degrades to a
+    named result.
+    """
+
+    facts_text = {
+        "_B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT": _B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT,
+        "_B_FACTS_WITHOUT_RANK_ZERO": _B_FACTS_WITHOUT_RANK_ZERO,
+    }[facts]
+    source = (FORMAL_DIR / f"{module}.tla").read_text()
+    assert source.count(guard) == 1, "guard anchor drifted from the module"
+    shipped_cfg = (FORMAL_DIR / f"{module}.cfg").read_text()
+    # The cfg without its sentinel, so nothing is reported ahead of the CHOOSE.
+    without_sentinel = "".join(
+        line for line in shipped_cfg.splitlines(keepends=True) if sentinel not in line
+    )
+    assert sentinel not in without_sentinel
+
+    guarded_status, guarded_output = _run_tlc(
+        tmp_path / "guarded",
+        module,
+        without_sentinel,
+        fixtures=("ScoutDistributed.tla", f"{module}.tla"),
+        files={"ScoutBFacts.tla": facts_text},
+    )
+    assert (
+        _run_classifier(
+            "formal_classify_tlc_constant_false",
+            guarded_status,
+            guarded_output,
+            named,
+        ).returncode
+        == 0
+    ), (guarded_status, guarded_output)
+
+    stripped_status, stripped_output = _run_tlc(
+        tmp_path / "unguarded",
+        module,
+        without_sentinel,
+        fixtures=("ScoutDistributed.tla",),
+        files={
+            "ScoutBFacts.tla": facts_text,
+            f"{module}.tla": source.replace(guard, unguarded),
+        },
+    )
+    assert "CHOOSE x \\in S: P, but no element of S satisfied P" in stripped_output, (
+        stripped_status,
+        stripped_output,
+    )
+    # _run_predicate, not _run_classifier: this one takes only the output, and
+    # the file's own helper docstring warns that passing the wrong shape
+    # silently tests nothing.
+    assert (
+        _run_predicate("formal_has_infrastructure_error", stripped_output).returncode
+        == 0
+    ), (stripped_status, stripped_output)
+    assert stripped_status == 75, stripped_status
+
+
+@pytest.mark.parametrize(
+    ("module", "first", "last"),
+    [
+        (
+            "ScoutBPlacementPartialInvalid",
+            "ThereIsADpShardPlacement",
+            "ScoutBNoPartialAtOptimizer",
+        ),
+        (
+            "ScoutBIssueOrderInvalid",
+            "Rank0HasACollective",
+            "ScoutBPerCommunicatorIssueOrder",
+        ),
+    ],
+    ids=["partial_placement", "issue_order"],
+)
+def test_placement_negative_configurations_pin_their_invariant_order(
+    module: str, first: str, last: str
+) -> None:
+    """TLC reports only the first failing invariant, so the order is a contract.
+
+    The sentinel has to be first or the missing-target control is reported
+    against something else; the property under test has to be last or the
+    isolation invariants are never evaluated and the negative goes green with an
+    unproven mutation. Derived with the real formal_cfg_invariants, so this
+    agrees with what the runners parse.
+    """
+
+    parsed = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; formal_cfg_invariants "$2"',
+            "invariants-test",
+            str(CHECKER_CONTRACT),
+            str(FORMAL_DIR / f"{module}.cfg"),
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    assert parsed.returncode == 0, parsed.stdout
+    listed = parsed.stdout.strip().split(",")
+
+    assert listed[0] == first, listed
+    assert listed[-1] == last, listed
+    assert len(listed) >= 3, listed
+
+
+def test_scout_b_tokens_name_the_invariants_they_checked() -> None:
+    """A count is not a name; 19 invariants reached the log as none.
+
+    The DPxTP model runner already derives its list with the shared
+    formal_cfg_invariants, and this holds the observed-facts runner to the same
+    convention, for the valid run and for both derived negatives -- where the
+    survivor set is the whole attribution. Asserted on the runner source rather
+    than by executing it: the three cfg derivations are exercised for real by
+    test_placement_negative_configurations_pin_their_invariant_order and by the
+    suite itself, so running the 11-second target again here would buy a repeat
+    rather than new evidence.
+    """
+
+    runner = (FORMAL_DIR / "run_tlc_scout_b.sh").read_text()
+
+    for cfg in (
+        "ScoutBValid.cfg",
+        "ScoutBIssueOrderInvalid.cfg",
+        "ScoutBPlacementPartialInvalid.cfg",
+    ):
+        assert f'formal_cfg_invariants "${{fixture_dir}}/{cfg}"' in runner, cfg
+    for token in (
+        "SCOUT_B_TLA_VALID",
+        "SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE",
+        "SCOUT_B_TLA_PARTIAL_PLACEMENT_NEGATIVE",
+    ):
+        line = next(
+            candidate
+            for candidate in runner.splitlines()
+            if candidate.startswith(f"printf '{token} ")
+        )
+        assert "invariants=%s" in line, line
+    # Fails closed rather than printing an empty list, which would read as
+    # "no invariants were checked" and classify green.
+    assert runner.count("could not read the invariant list out of") == 3, runner
+
+
+def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
+    """An invariant defined but never listed checks nothing.
+
+    The placement work adds eight named invariants at once, which is exactly the
+    situation where one silently fails to reach the configuration. Parsed from
+    both files rather than searched for a known name, so a future addition is
+    covered too.
+    """
+
+    module = (FORMAL_DIR / "ScoutBValid.tla").read_text()
+
+    defined = {
+        line.split(" ==")[0]
+        for line in module.splitlines()
+        if line.startswith("ScoutB") and " ==" in line
+    }
+    # The real derivation from checker_contract.sh over the real cfg, so this
+    # agrees with what the runners report rather than with a second parser.
+    parsed = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; formal_cfg_invariants "$2"',
+            "invariants-test",
+            str(CHECKER_CONTRACT),
+            str(FORMAL_DIR / "ScoutBValid.cfg"),
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    assert parsed.returncode == 0, parsed.stdout
+    listed = set(parsed.stdout.strip().split(","))
+
+    assert len(defined) == 19, sorted(defined)
+    assert defined == listed, sorted(defined ^ listed)
+    for invariant in (
+        "ScoutBPlacementValid",
+        "ScoutBPlacementSchemaAgrees",
+        "ScoutBMeshAxisDegree",
+        "ScoutBParameterPlacementWellFormed",
+        "ScoutBPlacementBooleansAgree",
+        "ScoutBNoPartialAtOptimizer",
+        "ScoutBShardedDimDividesAxisDegree",
+        "ScoutBLocalShapeReflectsSharding",
+        "ScoutBStridedShardComposition",
+    ):
+        assert invariant in listed, invariant

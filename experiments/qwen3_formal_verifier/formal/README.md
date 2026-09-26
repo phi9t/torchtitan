@@ -183,6 +183,94 @@ TLC must report exactly `ScoutBPerCommunicatorIssueOrder`, with
 `MutationIsIsolated` proving the override changed one operation and nothing
 else. Its result token is `SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE`.
 
+### Structural DTensor placements
+
+The facts carry every model parameter's placements with their mesh axis and
+tensor dim, not the two per-rank booleans they used to collapse to. For the
+observed four-rank run that is, PER RANK, 74 parameters and 148 placements --
+115 `Shard`, 33 `Replicate`, 25 of the shards strided, zero `Partial` (across
+the four ranks, 460 and 132). It is exported once because every rank agreed on
+the whole list: `validate_normalized_bundle` recomputes each rank's
+`placement_summary.schema_sha256` over that rank's own `tensor_placements` bytes
+and then requires the four to match, and the per-rank digests are exported so a
+checker asserts the agreement itself. Recomputation is the load-bearing half: a
+digest only compared across ranks, never against the bytes it covers, agrees
+with its peers just as happily when one rank's placements have been rewritten
+underneath it.
+
+`PlacementValid` and `placementValid` are unchanged and still mean only "some
+parameter is DP-sharded and some parameter is TP-sharded somewhere".
+`ScoutBPlacementBooleansAgree` / `placementBooleansAgreeObserved` tie the two
+booleans they read to the per-parameter facts, so the weak check keeps its
+original content instead of quietly becoming a different, stronger claim under
+the same name. That is deliberately named for what it proves and no more: the
+placements are exported once for all ranks, so for ranks 1-3 it is agreement
+with that one list rather than a per-rank derivation, and it is one bit per
+axis. The per-parameter content is carried by the well-formedness, divisibility
+and local-shape invariants, not by this one. The new content is in separate
+named invariants: schema agreement across ranks, mesh-axis degrees agreeing with
+the
+exported rank coordinates, per-parameter well-formedness, no `Partial` at the
+optimizer, divisibility of every sharded dim by its axis degree, local shapes
+agreeing with which dims are sharded, and `_StridedShard` appearing exactly
+where an inner axis shards the same tensor dim.
+
+`RankCoordinates`, which the mesh-degree check compares against, is synthesized
+by the exporter as `rank // 2` and `rank % 2` rather than read out of each
+rank's observed `mesh.coordinate`. The link to observation is a Python assertion
+in the collector, which refuses a run whose actual mesh coordinate is not that
+value, so the formal layer checks a value the collector already pinned, not one
+it read fresh. That is sound but worth saying, since a reader could otherwise
+take `MeshAxisDegreeAgreesWithCoordinates` for two independent observations
+agreeing.
+
+Where the facts come from, because they are easy to over-read: one snapshot per
+rank of `model_parts[0].named_parameters()`, taken after the model is built and
+before `Trainer.train`. It is the parameter set the observed AdamW step updates,
+and `OptimizerBoundaryObserved` pins that that step is in the trace, but the
+snapshot is not re-taken inside the optimizer pre-hook and no gradient placement
+is observed at all. A `Partial` *gradient* is therefore not visible here; what
+is checkable is that no parameter the optimizer steps carries an unreduced
+placement.
+
+`ScoutBPlacementPartialInvalid.tla` is the third named TLA+ negative. Like the
+issue-order control it is an override of the real `ScoutBFacts` rather than a
+mutated 1.6 MB copy, and its target -- the first DP-shard placement in
+`PlacementIds` order, on the outer FSDP axis whose reduce-scatter produces the
+gradient the optimizer consumes -- is derived from the facts. TLC must report
+exactly `ScoutBNoPartialAtOptimizer`. `MutationIsIsolated` proves the override
+changed one kind, and dropped that placement from the shard-dim domain as a
+Partial must, and nothing else; `StructureSurvivesTheMutation` and
+`OtherPlacementChecksSurviveTheMutation` are asserted over the mutated facts, so
+no other invariant caught it. Local-shape agreement is deliberately left out of
+that survivor set: the mutated parameter's local shape is half its global shape
+because the DP-shard axis shards it, so an override that stops that axis from
+sharding contradicts that check too, and claiming otherwise would overstate the
+control. Its result token is
+`SCOUT_B_TLA_PARTIAL_PLACEMENT_NEGATIVE`. `ScoutBPlacementChecks.lean` is the
+Lean counterpart, with `injectedPartialIsIsolated`, `rejectsInjectedPartial` and
+`injectedPartialStaysWellFormed` under `SCOUT_B_LEAN_PLACEMENT_MUTATION`; the
+positive results carry `SCOUT_B_LEAN_PLACEMENT`.
+
+Parse cost is reported rather than assumed. `SCOUT_B_TLA_PLACEMENT_FACTS` gives
+the placement share of `ScoutBFacts.tla`, and `SCOUT_B_REFINE_PARSE` now carries
+`placement_bytes=` beside `facts_bytes=` and `parse_ms=`, so a growing placement
+export shows up against the parse time it is charged to. Adding the structural
+facts moved `ScoutBFacts.tla` from 1,642,832 to 1,689,740 bytes (+2.9%, 46,908
+of them the delimited placement block). An interleaved A/B of the SANY parse of
+`ScoutBRefine`, against the same facts module with the placement block stripped,
+puts the cost at a real and reproducible +35 to +50 ms, about 4-5% -- small, and
+measurable only with the interleaved shape.
+`SCOUT_B_REFINE_PARSE`'s `parse_ms` is kept, with this caveat attached rather
+than dropped, because it is still the only in-gate record that the parse
+completed at all and roughly how long the fixed cost was. It is NOT a
+measurement of parse cost: the refine target parses while other TLC actions run,
+and 32 concurrent SANY parsers reproduce `parse_ms=1671` on the UNCHANGED
+fixture while 96 bracket 2008, so a rise in that number is evidence about
+machine load first and about the facts only after the load is ruled out. Use an
+interleaved A/B like the one above for a cost claim. `placement_bytes=` beside
+it is the number that tracks the export's growth, and it is exact.
+
 The Scout B suite includes all smoke and Scout A targets:
 
 ```bash
@@ -206,7 +294,9 @@ observed trace: a `Bool`-valued predicate applied to literal fact data and
 closed by `rfl` or `decide`. That is a kernel-checked, axiom-free statement
 about THIS run, and nothing more. Its tokens -- `SCOUT_A_LEAN_VALID`,
 `SCOUT_A_LEAN_NEGATIVE`, `SCOUT_B_LEAN_VALID`, `SCOUT_B_LEAN_MUTATION`,
-`SCOUT_B_LEAN_NEGATIVE` -- carry `kind=evaluation scope=observed-trace`.
+`SCOUT_B_LEAN_NEGATIVE`, `SCOUT_B_LEAN_PLACEMENT`,
+`SCOUT_B_LEAN_PLACEMENT_MUTATION` -- carry
+`kind=evaluation scope=observed-trace`.
 
 `lean_scout_b_protocol_test` is the other kind. It reads no facts module. Its
 three Lean modules encode the `ScoutBModel.tla` protocol and prove theorems

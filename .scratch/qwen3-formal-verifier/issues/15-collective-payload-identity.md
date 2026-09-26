@@ -51,3 +51,33 @@ class of error that produced the eight-vs-four communicator confusion.
       its own commit with an intentional `--update-artifacts`, and say so in
       the ticket -- an unexplained digest change is indistinguishable from a
       regression.
+
+## First criterion discharged, with two corrections to this ticket
+
+Measured before starting the work, because the ticket's cost estimate turned on
+it.
+
+**The fields exist.** `torch 2.13.0`'s
+`torch/include/torch/csrc/distributed/c10d/FlightRecorderDetail.hpp` emits
+`input_sizes`, `output_sizes`, `input_dtypes` and `output_dtypes`. So the
+premise holds: the Flight Recorder carries payload identity and
+`_collective_observations` does not read it -- it reads `is_p2p`,
+`profiling_name`, `state`, `thread_id` and `thread_name`, and nothing else.
+
+**Correction 1: the fields are plural and per-tensor.** This ticket says
+"dtype". It is `input_dtypes` and `output_dtypes`, lists parallel to the size
+lists.
+A single-dtype model would be wrong for a collective over multiple tensors.
+
+**Correction 2: "no new instrumentation and no re-run" is wrong.** The raw
+per-rank evidence holds only `device`, `events`, `identity`, `lineage`, `mesh`,
+`process_groups`, `profile`, `schema` and `tensor_placements` -- there is
+**no flight-recorder entries list preserved at all**. `_flight_snapshot()` calls
+`_dump_nccl_trace_json()` at runtime and only the projection survives into the
+artifact. So reading sizes requires a collector change, which changes the raw
+schema, which requires a fresh 4-GPU run and a new canonical trace.
+
+That is why this ticket is sequenced last, and the reason is now measured rather
+than assumed. It also means the work pairs naturally with ticket 23, which needs
+a fresh run for the same reason -- one run can serve both if the collector
+changes land together.

@@ -195,8 +195,15 @@ parse_output="$(<"${work_dir}/parse.log")"
 }
 parse_ms=$(((parse_end - parse_start) / 1000000))
 facts_bytes="$(wc -c <"${fixture_dir}/ScoutBFacts.tla")"
-printf 'SCOUT_B_REFINE_PARSE result=success facts_bytes=%s parse_ms=%s\n' \
-  "${facts_bytes}" "${parse_ms}"
+# Share of the parsed bytes that are the structural per-parameter placement
+# facts, so a growing placement export shows up against the parse time it is
+# charged to instead of disappearing into the total.
+placement_bytes="$(
+  awk '/BEGIN structural placement facts/,/END structural placement facts/' \
+    "${fixture_dir}/ScoutBFacts.tla" | wc -c
+)"
+printf 'SCOUT_B_REFINE_PARSE result=success facts_bytes=%s placement_bytes=%s parse_ms=%s\n' \
+  "${facts_bytes}" "${placement_bytes}" "${parse_ms}"
 
 # 1. The bridge's inputs. A hand-written communicator table that disagreed
 # with CommMembers would invalidate every claim below, so the mapping is

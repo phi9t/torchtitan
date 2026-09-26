@@ -71,8 +71,17 @@ formal_classify_tlc_valid "${valid_status}" "${valid_output}" || {
   echo "TLC Scout B valid facts were not a clean checker success" >&2
   exit 1
 }
-printf 'SCOUT_B_TLA_VALID invariant_set=dpxTP result=success exit=%s\n' \
-  "${valid_status}"
+# Name the invariants, do not just count them. This run checks 19 of them and
+# the token used to name none, so the only invariant a log reader ever met by
+# name was whichever one a failure reported. Same derivation the DPxTP model
+# runner uses, out of the cfg the checker was actually given.
+valid_invariants="$(formal_cfg_invariants "${fixture_dir}/ScoutBValid.cfg")"
+[[ -n "${valid_invariants}" ]] || {
+  echo "could not read the invariant list out of ScoutBValid.cfg" >&2
+  exit 1
+}
+printf 'SCOUT_B_TLA_VALID invariant_set=dpxTP result=success invariants=%s exit=%s\n' \
+  "${valid_invariants}" "${valid_status}"
 
 set +e
 (
@@ -119,5 +128,76 @@ formal_classify_tlc_transition_negative \
   echo "TLC Scout B issue-order negative did not violate exactly that invariant" >&2
   exit 1
 }
-printf 'SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE invariant=ScoutBPerCommunicatorIssueOrder result=named_violation exit=%s\n' \
-  "${issue_order_status}"
+issue_order_invariants="$(
+  formal_cfg_invariants "${fixture_dir}/ScoutBIssueOrderInvalid.cfg"
+)"
+[[ -n "${issue_order_invariants}" ]] || {
+  echo "could not read the invariant list out of ScoutBIssueOrderInvalid.cfg" >&2
+  exit 1
+}
+printf 'SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE invariant=ScoutBPerCommunicatorIssueOrder result=named_violation invariants=%s exit=%s\n' \
+  "${issue_order_invariants}" "${issue_order_status}"
+
+# No Partial placement on a parameter the optimizer steps. The observed run has
+# zero Partial placements, so the positive check alone proves nothing about
+# whether one would be caught; this injects one as a derived override of the
+# real facts and requires exactly that invariant to fail.
+mkdir -p "${work_dir}/placement-partial"
+for name in ScoutDistributed ScoutBFacts ScoutBPlacementPartialInvalid; do
+  cp "${fixture_dir}/${name}.tla" "${work_dir}/placement-partial/${name}.tla"
+done
+cp "${fixture_dir}/ScoutBPlacementPartialInvalid.cfg" \
+  "${work_dir}/placement-partial/ScoutBPlacementPartialInvalid.cfg"
+
+placement_status=0
+(
+  cd "${work_dir}/placement-partial"
+  timeout 120 "${java_bin}" -XX:+UseParallelGC -cp "${tla_jar}" tlc2.TLC \
+    -workers 1 -metadir "${work_dir}/placement-partial/states" \
+    ScoutBPlacementPartialInvalid.tla \
+    -config ScoutBPlacementPartialInvalid.cfg
+) >"${work_dir}/placement-partial.log" 2>&1 || placement_status=$?
+placement_output="$(<"${work_dir}/placement-partial.log")"
+formal_classify_tlc_transition_negative \
+  "${placement_status}" "${placement_output}" \
+  "ScoutBNoPartialAtOptimizer" || {
+  cat "${work_dir}/placement-partial.log" >&2
+  echo "TLC Scout B Partial-placement negative did not violate exactly that" \
+    "invariant" >&2
+  exit 1
+}
+# The survivor set is what the attribution rests on: these are the invariants
+# asserted over the MUTATED facts and satisfied by them, so the reported
+# violation is the Partial check and not a side effect of the override. Derived
+# from the cfg rather than restated here, so the token cannot claim a survivor
+# the checker was not given. LocalShapeReflectsSharding is deliberately not
+# among them; see the module header for why.
+placement_invariants="$(
+  formal_cfg_invariants "${fixture_dir}/ScoutBPlacementPartialInvalid.cfg"
+)"
+[[ -n "${placement_invariants}" ]] || {
+  echo "could not read the invariant list out of" \
+    "ScoutBPlacementPartialInvalid.cfg" >&2
+  exit 1
+}
+printf 'SCOUT_B_TLA_PARTIAL_PLACEMENT_NEGATIVE invariant=ScoutBNoPartialAtOptimizer result=named_violation invariants=%s exit=%s\n' \
+  "${placement_invariants}" "${placement_status}"
+
+# Structural placement facts: how much of ScoutBFacts.tla they are. Parse cost
+# is charged before a single state is generated, and the refinement runner's
+# SCOUT_B_REFINE_PARSE token reports the whole-file parse time, so the share
+# these facts take is reported here rather than being invisible.
+placement_bytes="$(
+  awk '/BEGIN structural placement facts/,/END structural placement facts/' \
+    "${fixture_dir}/ScoutBFacts.tla" | wc -c
+)"
+facts_bytes="$(wc -c <"${fixture_dir}/ScoutBFacts.tla")"
+placement_count="$(
+  grep -c '^PlacementShardDim == ' "${fixture_dir}/ScoutBFacts.tla" || true
+)"
+[[ "${placement_bytes}" -gt 0 && "${placement_count}" -eq 1 ]] || {
+  echo "ScoutBFacts.tla carries no delimited structural placement facts" >&2
+  exit 1
+}
+printf 'SCOUT_B_TLA_PLACEMENT_FACTS facts_bytes=%s placement_bytes=%s\n' \
+  "${facts_bytes}" "${placement_bytes}"

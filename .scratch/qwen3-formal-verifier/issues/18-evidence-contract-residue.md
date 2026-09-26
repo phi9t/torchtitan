@@ -361,7 +361,23 @@ alone, and that a bundle therefore attests "this evidence came from commit X
 plus exactly these uncommitted bytes" rather than "these are all the files that
 mattered".
 
-## Workflow finding: `--update-artifacts` cannot pass its own gate run
+## Workflow finding: `--update-artifacts` and the source-identity recheck
+
+**Corrected 2026-09-26, second observation.** The claim below is too absolute.
+The recheck refuses the run only when the artifacts **actually change during
+it**. If the fixtures were regenerated beforehand and are already in sync,
+`--update-artifacts` rewrites them to byte-identical content, `git status` does
+not move, and the gate passes all nine stages -- measured on ticket 17, which
+regenerated its fixtures during development and then gated clean on the first
+run.
+
+So the better recipe is not two gate runs but one: regenerate the fixtures
+outside the gate, then gate. And note what `--update-artifacts` costs even when
+it passes: `artifact_sync` **writes** before it checks, so that stage cannot
+fail, and a bundle sealed under the flag has not had its fixtures verified. Use
+a plain run for any bundle you intend to cite.
+
+### The original observation, which holds when the artifacts do change
 
 Exercised for the first time in a full gate, and it fails by construction, not
 by defect. The run reached `lint` with all 13 pre-commit hooks and Pyrefly

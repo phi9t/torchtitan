@@ -70,6 +70,7 @@ valid_modules=(
   ScoutBEventRank1
   ScoutBEventRank2
   ScoutBEventRank3
+  ScoutBPlacementChecks
   ScoutBProducerCheck
   ScoutBSyncChunk0
   ScoutBSyncChunk1
@@ -101,6 +102,7 @@ set +e
     ScoutBEventRank1
     ScoutBEventRank2
     ScoutBEventRank3
+    ScoutBPlacementChecks
     ScoutBProducerCheck
     ScoutBSyncChunk0
     ScoutBSyncChunk1
@@ -147,6 +149,59 @@ for theorem in rejectsEventIdPairDrift rejectsWrongEventKind rejectsWrongEventOr
     }
   printf 'SCOUT_B_LEAN_MUTATION theorem=Qwen3Formal.ScoutBChecks.%s kind=evaluation scope=observed-trace result=rejected axioms=[]\n' \
     "${theorem}"
+done
+
+# Structural DTensor placement results. Reported separately from validDPxTP
+# because validDPxTP keeps its original composition: the two placement booleans
+# it reads still mean only "some parameter is sharded on each axis", and
+# placementBooleansAgreeObserved is what ties them to the per-parameter
+# facts.
+for theorem in \
+  placementSchemaAgreesObserved \
+  meshAxisDegreeObserved \
+  parameterPlacementWellFormedObserved \
+  placementBooleansAgreeObserved \
+  optimizerBoundaryObservedValid \
+  noPartialObserved \
+  shardedDimDividesAxisDegreeObserved \
+  localShapeReflectsShardingObserved \
+  stridedShardCompositionObserved
+do
+  grep -Fxq \
+    "'Qwen3Formal.ScoutBChecks.${theorem}' does not depend on any axioms" \
+    <<<"${valid_output}" || {
+      cat "${work_dir}/valid.log" >&2
+      echo "Lean Scout B placement check was not axiom-free: ${theorem}" >&2
+      exit 1
+    }
+  printf 'SCOUT_B_LEAN_PLACEMENT theorem=Qwen3Formal.ScoutBChecks.%s kind=evaluation scope=observed-trace axioms=[]\n' \
+    "${theorem}"
+done
+
+# The observed run has zero Partial placements, so the positive result above
+# proves nothing about whether one would be caught. These are the derived
+# injection: the mutation is not a no-op, the Partial check rejects it, and
+# nothing else does.
+# The role is spelled out per theorem: only one of the three is the rejection,
+# and labelling the guard and the isolation "rejected" too would misreport what
+# the log shows.
+for entry in \
+  injectedPartialIsIsolated:mutation-is-not-a-no-op \
+  rejectsInjectedPartial:partial-check-rejects-it \
+  injectedPartialPassesTheOtherPlacementChecks:survivors-hold \
+  injectedPartialBreaksLocalShapeAgreement:local-shape-cannot-survive
+do
+  theorem="${entry%%:*}"
+  role="${entry##*:}"
+  grep -Fxq \
+    "'Qwen3Formal.ScoutBChecks.${theorem}' does not depend on any axioms" \
+    <<<"${valid_output}" || {
+      cat "${work_dir}/valid.log" >&2
+      echo "Lean Scout B Partial injection was not axiom-free: ${theorem}" >&2
+      exit 1
+    }
+  printf 'SCOUT_B_LEAN_PLACEMENT_MUTATION theorem=Qwen3Formal.ScoutBChecks.%s kind=evaluation scope=observed-trace role=%s axioms=[]\n' \
+    "${theorem}" "${role}"
 done
 
 set +e

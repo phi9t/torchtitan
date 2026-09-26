@@ -1057,13 +1057,25 @@ def validate_normalized_bundle(bundle: Mapping[str, object]) -> None:
             )
         _validate_normalized_collectives(events, expected_rank)
         summary = _mapping(trace, "placement_summary")
+        tensors = _mapping_list(trace, "tensor_placements")
         if (
             summary.get("has_dp_shard") is not True
             or summary.get("has_tp_shard") is not True
-            or not isinstance(summary.get("num_tensors"), int)
-            or int(summary["num_tensors"]) <= 0
+            or summary.get("num_tensors") != len(tensors)
+            or not tensors
         ):
             raise ValueError("normalized tensor placement evidence is incomplete")
+        # Recomputed, not trusted. This runs over JSON read from disk, so the
+        # digest and the bytes it is supposed to cover are two independent
+        # inputs; comparing digests across ranks says nothing unless each one
+        # is first known to describe that rank's own placements. A stale
+        # digest over tampered placements otherwise agrees with its peers and
+        # hides exactly the fault the placement invariants exist to catch.
+        if str(summary.get("schema_sha256", "")) != _sha256_json(tensors):
+            raise ValueError(
+                f"rank {expected_rank} placement schema digest does not cover "
+                "its tensor placements"
+            )
         placement_schemas.add(str(summary.get("schema_sha256", "")))
         for work_events in _collective_work(trace).values():
             observations = [_mapping(event, "observation") for event in work_events]
@@ -1125,6 +1137,119 @@ def _validate_input_bundle(
     expected = _input_bundle(rank_traces)
     if bundle.get("input_bundle") != expected:
         raise ValueError("ordered DP-keyed global input identity is inconsistent")
+
+
+_PLACEMENT_KINDS = ("shard", "replicate", "partial")
+# Mesh axes that carry a model-parameter DTensor placement in this DPxTP run.
+# Named explicitly because the divisibility check needs a degree for every axis
+# a placement claims, and a silently missing axis would make it vacuous.
+_PLACEMENT_MESH_AXES = ("dp_shard", "tp")
+
+
+def _placement_facts(
+    rank_traces: Sequence[Mapping[str, object]],
+) -> dict[str, Any]:
+    """Project per-parameter DTensor placements with their axis and dim.
+
+    ``validate_normalized_bundle`` recomputes each rank's
+    ``placement_summary.schema_sha256`` over that rank's own
+    ``tensor_placements`` bytes and then requires the four digests to agree, so
+    by the time this runs the ranks are known to have observed one placement
+    list, local shapes included. That is what licenses exporting it once. The
+    per-rank digests are exported alongside so a checker asserts the agreement
+    itself instead of taking this projection's word for it.
+
+    Observation point, stated because the facts are easy to over-read: the
+    snapshot is taken once, after the model is built and before
+    ``Trainer.train``, over ``model_parts[0].named_parameters()``. It is the
+    parameter set the single observed AdamW step updates, but it is not a
+    second sample taken inside the optimizer pre-hook, and no gradient
+    placement is observed at all.
+    """
+
+    digests = [
+        str(_mapping(trace, "placement_summary").get("schema_sha256", ""))
+        for trace in rank_traces
+    ]
+    if len(set(digests)) != 1 or not digests[0]:
+        raise ValueError("placement facts require one agreed placement schema")
+    tensors = _mapping_list(rank_traces[0], "tensor_placements")
+    degrees_by_axis = dict(
+        zip(
+            _string_list(_mapping(rank_traces[0], "mesh"), "axes"),
+            _integer_list(_mapping(rank_traces[0], "mesh"), "degrees"),
+            strict=True,
+        )
+    )
+    mesh_axis_degrees: dict[str, int] = {}
+    for axis in _PLACEMENT_MESH_AXES:
+        if axis not in degrees_by_axis:
+            raise ValueError(f"observed mesh has no degree for axis {axis}")
+        mesh_axis_degrees[axis] = int(degrees_by_axis[axis])
+    parameters: list[dict[str, Any]] = []
+    placements: list[dict[str, Any]] = []
+    for tensor in tensors:
+        name = str(tensor.get("name", ""))
+        if not name:
+            raise ValueError("placement evidence has an unnamed parameter")
+        # Names key the exported TLA functions, so a duplicate would build a
+        # function with a repeated key rather than a detectable fact.
+        if any(parameter["name"] == name for parameter in parameters):
+            raise ValueError(f"placement evidence names {name} twice")
+        mesh_axes = _string_list(tensor, "mesh_axes")
+        global_shape = _integer_list(tensor, "global_shape")
+        local_shape = _integer_list(tensor, "local_shape")
+        if not mesh_axes or not global_shape:
+            raise ValueError(f"placement evidence for {name} is degenerate")
+        if len(global_shape) != len(local_shape):
+            raise ValueError(f"placement shapes for {name} do not align")
+        entries = _mapping_list(tensor, "placements")
+        if len(entries) != len(mesh_axes):
+            raise ValueError(f"placement axes for {name} do not align")
+        parameters.append(
+            {
+                "name": name,
+                "mesh_axes": list(mesh_axes),
+                "global_shape": list(global_shape),
+                "local_shape": list(local_shape),
+                "placement_ids": [],
+            }
+        )
+        for axis, entry in zip(mesh_axes, entries, strict=True):
+            if entry.get("axis") != axis:
+                raise ValueError(f"placement axis for {name} is out of order")
+            kind = str(entry.get("kind", ""))
+            if kind not in _PLACEMENT_KINDS:
+                raise ValueError(f"placement for {name} has unknown kind {kind!r}")
+            if axis not in mesh_axis_degrees:
+                raise ValueError(f"placement for {name} claims unknown axis {axis!r}")
+            record: dict[str, Any] = {
+                "placement_id": f"placement:{len(placements):04d}",
+                "parameter": name,
+                "axis": axis,
+                "kind": kind,
+                "strided": entry.get("strided") is True,
+            }
+            if kind == "shard":
+                dim = entry.get("dim")
+                if not isinstance(dim, int) or isinstance(dim, bool):
+                    raise ValueError(f"shard placement for {name} has no integer dim")
+                if not 0 <= dim < len(global_shape):
+                    raise ValueError(
+                        f"shard placement for {name} names dim {dim} outside its shape"
+                    )
+                record["shard_dim"] = dim
+            elif "dim" in entry:
+                raise ValueError(f"non-shard placement for {name} carries a shard dim")
+            parameters[-1]["placement_ids"].append(record["placement_id"])
+            placements.append(record)
+    return {
+        "schema_digest": digests[0],
+        "schema_digest_by_rank": digests,
+        "mesh_axis_degrees": mesh_axis_degrees,
+        "parameters": parameters,
+        "placements": placements,
+    }
 
 
 def _formal_projection(bundle: Mapping[str, object]) -> dict[str, Any]:
@@ -1335,6 +1460,7 @@ def _formal_projection(bundle: Mapping[str, object]) -> dict[str, Any]:
             input_by_dp["dp:0"]["batch_sha256"],
             input_by_dp["dp:1"]["batch_sha256"],
         ],
+        "placement_facts": _placement_facts(rank_traces),
         "events": event_facts,
         "cross_rank_edges": cross_rank_edges,
         "collectives": collectives,
@@ -1370,6 +1496,7 @@ def _export_scout_b_tla_module(
     events = facts["events"]
     edges = facts["cross_rank_edges"]
     collectives = facts["collectives"]
+    placements = facts["placement_facts"]
     lines = [
         f"------------------------------ MODULE {module_name} ------------------------------",
         "EXTENDS Naturals, Sequences, FiniteSets, TLC",
@@ -1420,6 +1547,151 @@ def _export_scout_b_tla_module(
                     for rank in ranks
                 ]
             ),
+            # Structural per-parameter placements. The two booleans above are
+            # kept verbatim so ScoutBPlacementValid still means exactly what it
+            # meant; PlacementBooleansDerivable proves they are the aggregate of
+            # these facts rather than an independent claim.
+            #
+            # OBSERVATION POINT: this snapshot is taken once, after the model is
+            # built and before Trainer.train, over
+            # model_parts[0].named_parameters(). It is the parameter set the one
+            # observed AdamW step updates -- OptimizerBoundaryObserved pins that
+            # the step is in the trace -- but it is not re-sampled inside the
+            # optimizer pre-hook, and no gradient placement is observed at all.
+            r"\* BEGIN structural placement facts",
+            r"\* OBSERVED once per rank, after model construction and before",
+            r"\* Trainer.train, over model_parts[0].named_parameters(). Every",
+            r"\* rank agreed on the whole list, so it is exported once and",
+            r"\* PlacementSchemaDigestByRank carries the per-rank digests.",
+            r"\* Shard dims are 0-based as PyTorch reports them; TLA sequences",
+            r"\* are 1-based, so a shape lookup is shape[dim + 1].",
+            f"PlacementSchemaDigest == {_tla_string(str(placements['schema_digest']))}",
+            "PlacementSchemaDigestByRank == "
+            + _tla_function(
+                [
+                    (str(rank), _tla_string(str(digest)))
+                    for rank, digest in enumerate(placements["schema_digest_by_rank"])
+                ]
+            ),
+            "MeshAxisDegree == "
+            + _tla_function(
+                [
+                    (_tla_string(axis), str(int(degree)))
+                    for axis, degree in sorted(placements["mesh_axis_degrees"].items())
+                ]
+            ),
+            "ParameterNames == "
+            + _tla_sequence(
+                [
+                    _tla_string(str(parameter["name"]))
+                    for parameter in placements["parameters"]
+                ]
+            ),
+            "ParameterMeshAxes == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(parameter["name"])),
+                        "<<"
+                        + ", ".join(
+                            _tla_string(str(axis)) for axis in parameter["mesh_axes"]
+                        )
+                        + ">>",
+                    )
+                    for parameter in placements["parameters"]
+                ]
+            ),
+            "ParameterGlobalShape == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(parameter["name"])),
+                        "<<"
+                        + ", ".join(
+                            str(int(size)) for size in parameter["global_shape"]
+                        )
+                        + ">>",
+                    )
+                    for parameter in placements["parameters"]
+                ]
+            ),
+            "ParameterLocalShape == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(parameter["name"])),
+                        "<<"
+                        + ", ".join(str(int(size)) for size in parameter["local_shape"])
+                        + ">>",
+                    )
+                    for parameter in placements["parameters"]
+                ]
+            ),
+            "PlacementIds == "
+            + _tla_sequence(
+                [
+                    _tla_string(str(placement["placement_id"]))
+                    for placement in placements["placements"]
+                ]
+            ),
+            "PlacementParameter == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(placement["placement_id"])),
+                        _tla_string(str(placement["parameter"])),
+                    )
+                    for placement in placements["placements"]
+                ]
+            ),
+            "PlacementAxis == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(placement["placement_id"])),
+                        _tla_string(str(placement["axis"])),
+                    )
+                    for placement in placements["placements"]
+                ]
+            ),
+            "PlacementKind == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(placement["placement_id"])),
+                        _tla_string(str(placement["kind"])),
+                    )
+                    for placement in placements["placements"]
+                ]
+            ),
+            # _StridedShard, which FSDP2 uses for the outer axis when an inner
+            # axis shards the same tensor dim. StridedShardIsAnOuterComposedShard
+            # checks exactly that correspondence.
+            "PlacementStrided == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(placement["placement_id"])),
+                        "TRUE" if placement["strided"] else "FALSE",
+                    )
+                    for placement in placements["placements"]
+                ]
+            ),
+            # Domain-restricted to the shard placements on purpose: a replicate
+            # or partial placement has no dim, and a sentinel value would be a
+            # number a checker could accidentally read as one.
+            "PlacementShardDim == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(placement["placement_id"])),
+                        str(int(placement["shard_dim"])),
+                    )
+                    for placement in placements["placements"]
+                    if placement["kind"] == "shard"
+                ]
+            ),
+            r"\* END structural placement facts",
             f"RawEventProjectionSchema == {_tla_string(str(facts['projection_schema']))}",
             "EventIds == "
             + _tla_sequence([_tla_string(str(event["event_id"])) for event in events]),
@@ -1921,6 +2193,75 @@ def _export_scout_b_lean_module(
             f"hasDpShard := {str(rank['has_dp_shard']).lower()}, "
             f"hasTpShard := {str(rank['has_tp_shard']).lower()} "
             "},"
+        )
+    lines.append("]")
+
+    # Structural per-parameter placements. Grouped by parameter here, while the
+    # TLA export keys flat placement ids: the two checkers pay different costs,
+    # and a grouped list keeps the Lean kernel evaluation linear instead of
+    # filtering 148 placements once per parameter and tensor dim.
+    #
+    # OBSERVATION POINT: one snapshot per rank, taken after model construction
+    # and before Trainer.train over model_parts[0].named_parameters(). Not
+    # re-sampled inside the optimizer pre-hook, and no gradient placement is
+    # observed.
+    placements = facts["placement_facts"]
+    lines.extend(
+        [
+            "",
+            "def placementSchemaDigest : String := "
+            + _lean_string(str(placements["schema_digest"])),
+            "def placementSchemaDigestByRank : List String := ["
+            + ", ".join(
+                _lean_string(str(digest))
+                for digest in placements["schema_digest_by_rank"]
+            )
+            + "]",
+            "def meshAxisDegrees : List MeshAxisDegree := ["
+            + ", ".join(
+                "{ " + f"axis := {_lean_string(axis)}, degree := {int(degree)}" + " }"
+                for axis, degree in sorted(placements["mesh_axis_degrees"].items())
+            )
+            + "]",
+            "",
+            "def parameterPlacements : List ParameterPlacements := [",
+        ]
+    )
+    placement_by_id = {
+        str(placement["placement_id"]): placement
+        for placement in placements["placements"]
+    }
+    for parameter_index, parameter in enumerate(placements["parameters"]):
+        if parameter_index and parameter_index % 64 == 0:
+            lines.append("] ++ [")
+        records: list[str] = []
+        for placement_id in parameter["placement_ids"]:
+            placement = placement_by_id[str(placement_id)]
+            shard_dim = (
+                f"some {int(placement['shard_dim'])}"
+                if placement["kind"] == "shard"
+                else "none"
+            )
+            records.append(
+                "{ "
+                f"axis := {_lean_string(str(placement['axis']))}, "
+                f"kind := {_lean_string(str(placement['kind']))}, "
+                f"strided := {str(placement['strided']).lower()}, "
+                f"shardDim := {shard_dim} "
+                "}"
+            )
+        lines.append(
+            "  { "
+            f"parameter := {_lean_string(str(parameter['name']))}, "
+            "meshAxes := ["
+            + ", ".join(_lean_string(str(axis)) for axis in parameter["mesh_axes"])
+            + "], globalShape := ["
+            + ", ".join(str(int(size)) for size in parameter["global_shape"])
+            + "], localShape := ["
+            + ", ".join(str(int(size)) for size in parameter["local_shape"])
+            + "], placements := ["
+            + ", ".join(records)
+            + "] },"
         )
     lines.append("]")
 
@@ -2950,6 +3291,17 @@ def _string_list(data: Mapping[str, object], key: str) -> list[str]:
     value = data.get(key)
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise TypeError(f"{key} must be a list of strings")
+    return value
+
+
+def _integer_list(data: Mapping[str, object], key: str) -> list[int]:
+    value = data.get(key)
+    if (
+        not isinstance(value, list)
+        or not all(isinstance(item, int) for item in value)
+        or any(isinstance(item, bool) for item in value)
+    ):
+        raise TypeError(f"{key} must be a list of integers")
     return value
 
 
