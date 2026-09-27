@@ -502,3 +502,19 @@ ticket 11 exists to prevent, and it makes every invariant vacuously easier: the
 state space drops from 38321 to 5877, a 6.5x understatement. The equivalence test
 catches it quantitatively rather than by inspection.
 """
+
+[[mutation]]
+id = "device-uuid-not-coerced-to-string"
+target = "torchtitan/observability/run_evidence.py"
+test = "tests/unit_tests/observability/test_run_evidence.py::test_a_non_string_device_uuid_cannot_break_every_evidence_row"
+find = "    return None if uuid is None else str(uuid)"
+replace = "    return uuid"
+why = """
+Returns torch's _CUuuid object instead of a string. The whole event context
+goes through _canonical_json on append, so this made EVERY artifact and
+incident append fail on a CUDA device -- the nonfinite-loss incident included,
+which means no evidence row could be written in any live GPU job. Invisible for
+a long time because the CPU path returns None early and every test used a CPU
+device. Found only by wiring a detector into the live trainer and making it
+actually fire.
+"""

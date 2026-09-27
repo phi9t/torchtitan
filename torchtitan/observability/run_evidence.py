@@ -155,6 +155,12 @@ class RunEvidence(Configurable):
     class Config(Configurable.Config):
         enable: bool = True
         folder: str = "run_evidence"
+        # A rank slower than this multiple of the median step duration is
+        # reported as a compute straggler, on logging steps only. 4.0 sits well
+        # outside ordinary step-time jitter; lower it to catch milder skew at
+        # the cost of noise. Set at or below 1.0 the detector refuses it,
+        # because it would flag the median itself.
+        straggler_slowdown_threshold: float = 4.0
 
     def __init__(
         self,
@@ -751,12 +757,26 @@ def _canonical_json(value: Any) -> str:
 
 
 def _device_uuid(device: torch.device) -> str | None:
+    """Return the device's UUID as a string, or None when there is not one.
+
+    torch returns a ``_CUuuid`` object here, not a string, and it is not JSON
+    serializable. Every event row carries the distributed context through
+    ``_canonical_json``, so returning it raw made every artifact and incident
+    append fail on a CUDA device with "Object of type _CUuuid is not JSON
+    serializable" -- including the nonfinite-loss incident, the one emitter the
+    schema shipped. Nothing caught it because the CPU path returns None above
+    and every test used a CPU device.
+
+    Coerced here, at the one boundary that knows where the value comes from,
+    rather than in each writer.
+    """
     if device.type != "cuda":
         return None
     try:
-        return getattr(torch.cuda.get_device_properties(device), "uuid", None)
+        uuid = getattr(torch.cuda.get_device_properties(device), "uuid", None)
     except (AssertionError, RuntimeError):
         return None
+    return None if uuid is None else str(uuid)
 
 
 def _source_state() -> dict[str, Any]:

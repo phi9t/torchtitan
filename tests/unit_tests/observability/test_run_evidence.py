@@ -387,6 +387,61 @@ def _diverged_rank(tmp_path, *, rank, job_config):
     )
 
 
+def test_a_non_string_device_uuid_cannot_break_every_evidence_row(
+    tmp_path, launcher_identity, monkeypatch
+):
+    """A CUDA device's UUID is not a string, and every row carries it.
+
+    torch returns a _CUuuid object from get_device_properties().uuid. The whole
+    event context goes through _canonical_json on append, so returning it raw
+    made every artifact and incident append fail on a real GPU with "Object of
+    type _CUuuid is not JSON serializable" -- the nonfinite-loss incident
+    included. It was invisible because the CPU path returns None early and every
+    other test here uses a CPU device.
+
+    This fakes the object rather than needing a GPU, which is what makes the
+    regression cheap to pin.
+    """
+
+    class _FakeCUuuid:
+        def __repr__(self) -> str:
+            return "_CUuuid(bytes=b'...')"
+
+        def __str__(self) -> str:
+            return "GPU-deadbeef"
+
+    class _FakeProperties:
+        uuid = _FakeCUuuid()
+
+    monkeypatch.setattr(
+        torch.cuda, "get_device_properties", lambda device: _FakeProperties()
+    )
+
+    with build_evidence(tmp_path) as evidence:
+        evidence.bind_distributed(
+            SimpleNamespace(
+                dp_replicate=1, dp_shard=1, cp=1, tp=1, pp=1, ep=1, world_size=1
+            ),
+            # A CUDA device, so _device_uuid takes the branch that used to break.
+            torch.device("cuda:0"),
+        )
+        row = record_incident(
+            incident_class=IncidentClass.NONFINITE_LOSS,
+            capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+            policy=IncidentPolicy.ABORT_FATAL,
+            summary="loss became non-finite",
+        )
+
+    assert row is not None
+    assert row["device_uuid"] == "GPU-deadbeef"
+    assert isinstance(row["device_uuid"], str)
+    # Read back off disk: the append is where the serialization happens, so an
+    # in-memory row alone would not prove the write succeeded.
+    incidents = read_incident_rows(tmp_path, launcher_identity)
+    assert len(incidents) == 1, incidents
+    assert incidents[0]["device_uuid"] == "GPU-deadbeef"
+
+
 def test_divergent_rank_config_is_detected_named_and_recorded(
     tmp_path, launcher_identity, monkeypatch
 ):

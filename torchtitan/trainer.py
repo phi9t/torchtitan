@@ -49,6 +49,10 @@ from torchtitan.distributed.spmd_types import annotate_input_spmd_types
 from torchtitan.models.common.attention import FlexAttention, VarlenAttention
 from torchtitan.models.common.decoder import Decoder
 from torchtitan.observability import structured_logger as sl
+from torchtitan.observability.distributed_faults import (
+    detect_step_stragglers,
+    record_collective_failure,
+)
 from torchtitan.observability.run_evidence import (
     bind_distributed,
     FaultAttributionLocus,
@@ -960,6 +964,40 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
         )
 
     @record
+    def _detect_step_stragglers(self, step_duration_ns: int) -> None:
+        """Compare this rank's step duration against its peers, on logging steps.
+
+        Gated on ``should_log`` rather than run every step because the comparison
+        needs an all_gather, and adding a collective to every step would make
+        every job pay for a fault that is not step-local. ``should_log`` is a
+        pure function of the step number and the configured frequency, so every
+        rank takes the same branch -- which it must, or the all_gather here would
+        itself hang and manufacture the fault it is looking for.
+
+        Skipped below three ranks because the detector declines there anyway:
+        with two samples the median lies between them, so the slow rank is not
+        separable from the fast one. Skipping before the collective rather than
+        after keeps a single-rank or two-rank job free of it entirely.
+        """
+        if not self.metrics_processor.should_log(self.step):
+            return
+        if not torch.distributed.is_initialized():
+            return
+        world_size = torch.distributed.get_world_size()
+        if world_size < 3:
+            return
+
+        local = torch.tensor([step_duration_ns], dtype=torch.int64, device=self.device)
+        gathered = [torch.zeros_like(local) for _ in range(world_size)]
+        torch.distributed.all_gather(gathered, local)
+        detect_step_stragglers(
+            [int(duration.item()) for duration in gathered],
+            incident_class=IncidentClass.COMPUTE_STRAGGLER,
+            slowdown_threshold=self.config.run_evidence.straggler_slowdown_threshold,
+            step=self.step,
+            phase="train_step",
+        )
+
     def train(self):
         config = self.config
 
@@ -985,11 +1023,25 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
                 with sl.log_trace_span("step"):
                     self.gc_handler.run(self.step)
 
+                    step_started_ns = time.monotonic_ns()
                     try:
                         self.train_step(data_iterator)
                     except DataloaderExhaustedError:
                         logger.warning("Ran out of data; last step was canceled.")
                         break
+                    except Exception as error:
+                        # A collective hang or a peer's death reaches a surviving
+                        # rank only as a backend error. Classify it here, before
+                        # it propagates, so the abort carries a typed incident
+                        # naming the fault instead of only a transport message.
+                        # Unclassified errors are left completely alone: the
+                        # helper returns None and the original exception is the
+                        # primary finding either way.
+                        record_collective_failure(
+                            error, step=self.step, last_operation="train_step"
+                        )
+                        raise
+                    self._detect_step_stragglers(time.monotonic_ns() - step_started_ns)
 
                     self.checkpointer.save(
                         self.step,
