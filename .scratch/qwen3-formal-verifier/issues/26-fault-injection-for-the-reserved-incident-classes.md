@@ -334,6 +334,34 @@ Checkpoint corruption including manifest integrity, rank death, and compute plus
 dataloader stragglers. Rank death and the hardware drills come last: they need
 infrastructure rather than formal work.
 
+## Blocked: the full gate cannot run while GPU 0 is wedged
+
+Recorded so the next attempt does not mistake this for a regression. GPU 0 on
+this host fails a bare `torch.ones(4, device="cuda:0")` with
+`cudaErrorDevicesUnavailable`, while GPUs 2, 4, 5 and 6 pass the identical
+probe. Compute mode is `Default`, persistence is on, ECC uncorrected counts are
+zero, and `nvidia-smi` reports the device idle at ~130 MiB, so nothing in the
+usual places shows it.
+
+That blocks the nine-stage gate, because the device list is a pinned contract in
+three places -- `run_scout_b.sh:102`, `run_scout_a.sh:96` and `scout_b.py:3553`
+-- and the Scout A regression stage requires `CUDA_VISIBLE_DEVICES=0`
+specifically. With devices overridden to 2,4,5,6 the gate reaches five stages,
+passing `source_manifest`, `focused_pytest`, `cuda_pytest` (a real four-rank
+Qwen3 step), `owning_pytest` and `artifact_sync`, then stops at
+`scout_a_regression` on the device assertion.
+
+**The assertion should not be relaxed to get a green gate.** Device identity is
+part of the evidence identity chain, and weakening a pinned contract to make a
+run pass is the failure mode this whole program exists to prevent. The gate
+passed in full earlier in the session on the commit before the trainer wiring,
+so the blocker is the hardware, not the change. Re-run it once the device
+recovers.
+
+This also corrects an earlier diagnosis in this ticket: the ten checkpoint
+sentinel tests that failed with the same error were not hitting general
+contention, they were hitting this one device.
+
 ## Follow-up found while adding the multi-rank runs
 
 The ten single-process checkpoint sentinel tests need a free GPU, and they do
