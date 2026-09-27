@@ -414,3 +414,32 @@ Claims an identity mismatch unconditionally, the false-positive direction: a
 genuinely changed trace would send someone hunting an --attempt-id typo that does
 not exist. Both polarities of the guard are pinned, not just the detection.
 """
+
+[[mutation]]
+id = "rank-config-not-recorded-across-processes"
+target = "torchtitan/observability/run_evidence.py"
+test = "tests/unit_tests/observability/test_run_evidence.py::test_inconsistent_rank_config_is_detected_across_concurrent_processes"
+find = "        self._record_inconsistent_rank_config(differing, detail)\n"
+replace = ""
+why = """
+Same mutation as rank-config-incident-not-recorded, pinned against the
+multi-process test instead of the single-process one. The single-process test
+constructs two recorders sequentially and never exercises the filesystem race the
+detector actually relies on, so this entry is what proves the recording survives
+four genuinely concurrent ranks. Without the recording the detecting rank's index
+file is never created at all, which is how the mutation surfaces.
+"""
+
+[[mutation]]
+id = "checkpoint-truncation-missed-by-every-rank"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::test_truncated_shard_is_detected_by_every_rank_of_a_distributed_checkpoint"
+find = "if actual_bytes < required_bytes:"
+replace = "if actual_bytes < 0:"
+why = """
+Same mutation as checkpoint-truncation-comparison, pinned against the four-rank
+distributed test instead of the single-process one. Under the mutation every rank
+reports MISSED, meaning each one loaded a damaged checkpoint -- which is the
+failure the multi-rank test exists to catch, and which no single-process test can
+demonstrate.
+"""

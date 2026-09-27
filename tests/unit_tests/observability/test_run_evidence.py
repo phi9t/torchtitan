@@ -431,6 +431,124 @@ def test_divergent_rank_config_is_detected_named_and_recorded(
     assert "attribution_confidence" not in recorded
 
 
+# tests/unit_tests/observability/ -> repo root.
+_REPO_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+)
+
+_DIVERGENT_RANK_CHILD = """
+import os, sys
+from torchtitan.observability.run_evidence import (
+    EvidenceContractError,
+    RunEvidence,
+)
+
+rank = int(os.environ["RANK"])
+divergent = int(os.environ["QFV_DIVERGENT_RANK"])
+# One rank holds a different config. Everything else is identical, so the
+# manifest comparison is the only thing that can notice.
+steps = 4 if rank == divergent else 3
+try:
+    with RunEvidence(
+        RunEvidence.Config(),
+        dump_folder=os.environ["QFV_DUMP"],
+        job_config={"training": {"steps": steps}},
+        role="trainer",
+        actor_id="core",
+    ):
+        pass
+except EvidenceContractError as error:
+    sys.stdout.write("DETECTED " + str(error).splitlines()[0])
+    sys.exit(3)
+sys.stdout.write("PUBLISHED")
+"""
+
+
+def test_inconsistent_rank_config_is_detected_across_concurrent_processes(
+    tmp_path, launcher_identity
+):
+    """The divergence must be caught by genuinely racing processes, not one.
+
+    The detector works by a filesystem race: exactly one rank wins the exclusive
+    create of the shared manifest and the rest compare against whatever it wrote.
+    A test that constructs two recorders sequentially in one process never
+    exercises that race, so this one spawns four real processes at once.
+
+    Which rank wins is not deterministic and the test does not pretend otherwise.
+    What is deterministic is the invariant: with two distinct configs present,
+    somebody always disagrees with the publisher. If the divergent rank wins, the
+    other three detect; if any matching rank wins, the divergent one detects
+    alone. So the detection count is 1 or 3, never 0, and every detector must
+    leave a typed incident naming the config field.
+    """
+    child = tmp_path / "child.py"
+    child.write_text(_DIVERGENT_RANK_CHILD, encoding="utf-8")
+    world_size = 4
+    divergent_rank = 2
+
+    processes = []
+    for rank in range(world_size):
+        env = os.environ.copy()
+        env.update(
+            {
+                "RANK": str(rank),
+                "LOCAL_RANK": str(rank),
+                "WORLD_SIZE": str(world_size),
+                "TORCHTITAN_RUN_ID": launcher_identity.run_id,
+                "TORCHTITAN_ATTEMPT_ID": launcher_identity.attempt_id,
+                "QFV_DUMP": str(tmp_path),
+                "QFV_DIVERGENT_RANK": str(divergent_rank),
+                # cwd alone does not put the repo on sys.path for a child.
+                "PYTHONPATH": os.pathsep.join(
+                    [_REPO_ROOT, env.get("PYTHONPATH", "")]
+                ).rstrip(os.pathsep),
+            }
+        )
+        env.pop("TORCHELASTIC_RESTART_COUNT", None)
+        processes.append(
+            subprocess.Popen(
+                [sys.executable, str(child)],
+                cwd=_REPO_ROOT,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+        )
+
+    outputs = {}
+    for rank, process in enumerate(processes):
+        stdout, _ = process.communicate(timeout=300)
+        outputs[rank] = (process.returncode, stdout)
+
+    detectors = [rank for rank, (code, _) in outputs.items() if code == 3]
+    publishers = [rank for rank, (code, _) in outputs.items() if code == 0]
+
+    # Nobody may crash for an unrelated reason.
+    assert sorted(detectors + publishers) == list(range(world_size)), outputs
+    # Exactly one process wins the exclusive create.
+    assert len(publishers) in (1, 3), outputs
+    # The invariant that does not depend on who won the race.
+    assert detectors, f"no process detected the divergence: {outputs}"
+    assert len(detectors) in (1, 3), outputs
+    if divergent_rank in publishers:
+        assert len(detectors) == 3, outputs
+    else:
+        assert detectors == [divergent_rank], outputs
+
+    for rank in detectors:
+        assert "does not match on config" in outputs[rank][1], outputs[rank]
+        incidents = _incident_rows_for_process(
+            tmp_path, launcher_identity, f"trainer.core.global_rank_{rank:06d}"
+        )
+        assert len(incidents) == 1, (rank, incidents)
+        recorded = incidents[0]
+        assert recorded["incident_class"] == "inconsistent_rank_config"
+        assert recorded["policy"] == "abort_fatal"
+        assert recorded["metadata"]["differing_fields"] == ["config"]
+        assert recorded["global_rank"] == rank
+
+
 def test_divergence_detail_carries_digests_not_whole_configs(
     tmp_path, launcher_identity, monkeypatch
 ):

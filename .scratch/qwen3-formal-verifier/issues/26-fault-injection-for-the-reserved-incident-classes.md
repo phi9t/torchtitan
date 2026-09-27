@@ -7,8 +7,8 @@ inconsistent per-rank config and collective hang.
 **Blocked by:** none. **Blocks:** 08 — promotion boundary (its detection-latency
 criterion).
 
-**Status:** faults 1 and 3 landed and mutation-tested; their multi-rank
-injected runs and faults 2, 4, 5 outstanding
+**Status:** faults 1 and 3 landed with multi-process injected runs and
+mutation-tested; faults 2, 4, 5 outstanding
 
 ## What is proven so far, precisely
 
@@ -32,12 +32,28 @@ Landed for fault 1 (inconsistent per-rank config):
   incident silently. That is detection with no record, and it passes any test
   that only checks the raised error.
 
-**Not proven, and not claimed:** this is verified with two `RunEvidence`
-instances holding genuinely different configs, which exercises the real detector
-on the real artifact. It is not a full-stack multi-rank injected run, because no
-injector exists to make one rank of a live job run a different config -- the
-config system has no env-override path. Until that injector exists, the evidence
-covers the detector, not the job.
+**Multi-process injected run, added later.** The single-process test constructs
+two recorders sequentially, which never exercises the mechanism the detector
+actually relies on: an exclusive-create race on the shared manifest. There is
+now a four-process concurrent run where one rank holds a divergent config.
+
+Which rank wins the race is not deterministic and the test does not pretend
+otherwise. What is deterministic is the invariant: with two distinct configs
+present, somebody always disagrees with the publisher. If the divergent rank
+wins, the other three detect; otherwise the divergent rank detects alone. So the
+detection count is 1 or 3, never 0, and every detector must leave a typed
+incident naming the config field. Asserting the invariant rather than a winner
+is what makes a racing test trustworthy instead of flaky.
+
+The mutation that removes the recording is pinned against this test too, and
+surfaces sharply: without it the detecting rank's index file is never created at
+all.
+
+**What is still not claimed.** This is four real processes racing on a real
+filesystem, not a fault injected into a live `Trainer` step on GPUs. No injector
+exists to make one rank of a real training job hold a different config, because
+the config system has no env-override path. The evidence now covers the detector
+under genuine concurrency; it still does not cover a running training job.
 
 
 ## Why this ticket exists rather than 04-09
@@ -163,6 +179,15 @@ refuses a size probe skips truncation detection for that file with a warning,
 proven against a genuinely truncated shard; a shard longer than required is not
 a defect because trailing bytes are never read.
 
+**Multi-rank injected run, added later.** Four processes with a real gloo group
+perform one `dcp.save`, rank 0 truncates a shard, and every rank then validates.
+All four detect, which is the property that matters: the sentinel reads the
+whole manifest, so detection must not depend on which rank wrote the damaged
+shard. Gloo on CPU is deliberate -- manifest integrity has nothing to do with
+the accelerator, and a CPU-only test runs anywhere. Under the mutation that
+neuters the truncation comparison, every rank reports MISSED, meaning each one
+loaded a damaged checkpoint.
+
 One discovery worth recording: eight pre-existing tests in `test_checkpoint.py`
 were fixtured with a zero-byte touched `.metadata` -- which is exactly the
 `MANIFEST_UNREADABLE` defect -- and began failing the moment the sentinel was
@@ -219,6 +244,27 @@ detector is the easy half; the evidence is the work.
 Checkpoint corruption including manifest integrity, rank death, and compute plus
 dataloader stragglers. Rank death and the hardware drills come last: they need
 infrastructure rather than formal work.
+
+## Follow-up found while adding the multi-rank runs
+
+The ten single-process checkpoint sentinel tests need a free GPU, and they do
+not need to. They call a real `dcp.save` through `build_real_dcp_checkpoint`,
+and DCP reaches for the accelerator whenever one is visible, so under GPU
+contention all ten fail with `CUDA error: CUDA-capable device(s) is/are busy or
+unavailable`. Observed on a loaded box: 11 failed, 334 passed. With
+`CUDA_VISIBLE_DEVICES=""` the same suite is 57 passed.
+
+This matters beyond the inconvenience. A test that fails when somebody else is
+using a GPU gets marked flaky and then skipped, and a skipped guard checks
+nothing -- the same failure mode this program keeps finding in other forms.
+Manifest integrity is pure filesystem work and has no accelerator dependency at
+all, which is why the four-rank test added here pins its children to CPU
+explicitly.
+
+Fix worth making: pin the sentinel tests CPU-only rather than relying on a free
+device. Not done here because changing how ten tests invoke DCP is its own
+change with its own risk, and it should not ride along with a fault-injection
+commit.
 
 ## Acceptance
 

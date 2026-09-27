@@ -9,6 +9,9 @@ import os
 import pickle
 import queue as queue_lib
 import shutil
+import socket
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -2063,3 +2066,113 @@ class TestModelWrapper(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+_MULTIRANK_CORRUPTION_CHILD = """
+import os, sys
+import torch
+import torch.distributed as dist
+import torch.distributed.checkpoint as dcp
+from torchtitan.components.checkpoint import (
+    CheckpointCorruptionError,
+    validate_dcp_manifest_integrity,
+)
+
+rank = int(os.environ["RANK"])
+ckpt = os.environ["QFV_CKPT"]
+dist.init_process_group("gloo")
+try:
+    state = {"weight": torch.arange(32, dtype=torch.float32) + rank}
+    dcp.save(state, checkpoint_id=ckpt)
+    dist.barrier()
+
+    # Rank 0 injects the fault, then every rank validates. Detection must not
+    # depend on which rank wrote the damaged shard.
+    if rank == 0:
+        shards = sorted(f for f in os.listdir(ckpt) if f.endswith(".distcp"))
+        victim = os.path.join(ckpt, shards[0])
+        os.truncate(victim, max(os.path.getsize(victim) - 16, 0))
+        sys.stderr.write("truncated " + shards[0])
+    dist.barrier()
+
+    try:
+        validate_dcp_manifest_integrity(ckpt)
+    except CheckpointCorruptionError as error:
+        sys.stdout.write("DETECTED " + str(error).splitlines()[0])
+        dist.destroy_process_group()
+        sys.exit(3)
+    sys.stdout.write("MISSED")
+finally:
+    if dist.is_initialized():
+        dist.destroy_process_group()
+"""
+
+
+def test_truncated_shard_is_detected_by_every_rank_of_a_distributed_checkpoint(
+    tmp_path: Path,
+) -> None:
+    """Every rank must detect a corrupted shard, not only the one that wrote it.
+
+    The sentinel validates the whole manifest, so detection should be independent
+    of which rank owns the damaged shard. Asserting that needs a real distributed
+    save: four processes, a gloo group, one dcp.save, one truncation, four
+    validations. The single-process tests cannot show it.
+
+    Gloo on CPU is deliberate -- the property under test is manifest integrity,
+    which has nothing to do with the accelerator, and a CPU-only test can run
+    anywhere.
+    """
+    child = tmp_path / "child.py"
+    child.write_text(_MULTIRANK_CORRUPTION_CHILD, encoding="utf-8")
+    checkpoint_id = tmp_path / "step-1"
+    checkpoint_id.mkdir()
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+
+    world_size = 4
+    repo_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
+    )
+    processes = []
+    for rank in range(world_size):
+        env = os.environ.copy()
+        env.update(
+            {
+                "RANK": str(rank),
+                "LOCAL_RANK": str(rank),
+                "WORLD_SIZE": str(world_size),
+                "MASTER_ADDR": "127.0.0.1",
+                "MASTER_PORT": str(port),
+                "QFV_CKPT": str(checkpoint_id),
+                # DCP reaches for device streams whenever CUDA is visible, even
+                # under gloo, so the children are made CPU-only explicitly.
+                "CUDA_VISIBLE_DEVICES": "",
+                "PYTHONPATH": os.pathsep.join(
+                    [repo_root, env.get("PYTHONPATH", "")]
+                ).rstrip(os.pathsep),
+            }
+        )
+        processes.append(
+            subprocess.Popen(
+                [sys.executable, str(child)],
+                cwd=repo_root,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        )
+
+    outcomes = {}
+    for rank, process in enumerate(processes):
+        stdout, stderr = process.communicate(timeout=600)
+        outcomes[rank] = (process.returncode, stdout, stderr)
+
+    # Every rank detected, and each names the truncation rather than a generic
+    # failure. A rank exiting 0 would mean it loaded a damaged checkpoint.
+    for rank, (code, stdout, stderr) in outcomes.items():
+        assert code == 3, (rank, code, stdout, stderr[-800:])
+        assert "DETECTED" in stdout, (rank, stdout)
+        assert "shard" in stdout.lower(), (rank, stdout)
