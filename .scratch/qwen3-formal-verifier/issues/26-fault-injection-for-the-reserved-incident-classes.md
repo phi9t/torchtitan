@@ -7,8 +7,8 @@ inconsistent per-rank config and collective hang.
 **Blocked by:** none. **Blocks:** 08 — promotion boundary (its detection-latency
 criterion).
 
-**Status:** faults 1, 2, 3 and 4 landed with multi-rank injected runs and
-mutation-tested; fault 5 outstanding, blocked on evidence
+**Status:** all five faults landed with multi-rank injected runs and
+mutation-tested. Trainer wiring and NCCL coverage outstanding.
 
 ## What is proven so far, precisely
 
@@ -244,7 +244,53 @@ Nothing is wired into the trainer. This is a classifier plus proof that it works
 on real injected faults; deciding where the core catches a failed collective is
 a separate change.
 
-### Why fault 5 still needs infrastructure first
+### Fault 5 -- stragglers: LANDED
+
+The blocker I recorded was real but narrower than it looked. Straggler detection
+does need per-step durations, and those are not in the evidence bundle. But the
+detector does not have to read them from the bundle: a caller can hand them
+over, and in a distributed job every rank can learn every rank's duration with
+one `all_gather`. So the same boundary used for faults 2 and 4 applies -- build
+the detector, prove it on a real injected fault, and leave the trainer wiring as
+its own change.
+
+`detect_step_stragglers` compares each rank against the **median**, and that is
+the whole design rather than a detail. A slow rank drags a mean toward itself
+and can hide under any threshold, which is exactly the case the check exists
+for. The mutation swapping median for mean is pinned against the real
+four-process injected run, where it reports an empty result: a genuine
+twentyfold straggler goes completely undetected. A synthetic case catches it
+too, but the injected run is the one that makes the point.
+
+Three deliberate refusals, each tested rather than commented:
+
+- `slowdown_threshold` is required, not defaulted. What counts as a straggler is
+  a property of the job, and a default here would be a number this module
+  invented and then everyone quietly relied on. A threshold at or below 1.0 is
+  refused, since it would flag the median itself.
+- Fewer than three ranks returns nothing by construction. With two samples every
+  median lies between them, so "the slow one" is not separable from "the fast
+  one" without an external baseline this function does not have.
+- The incident class is the caller's to supply, because the duration's meaning
+  is invisible from the number: the same comparison distinguishes a compute
+  straggler from a dataloader one depending on which phase was timed. The two
+  get different attribution loci, and passing any other class is a programmer
+  error.
+
+A straggler is a performance fault, so it records `CONTINUE_BOUNDED_WARNING` and
+`useful_work_preserved=True` -- the step produced the right answer, late. That
+is the one fault here that should not abort.
+
+Injected for real: four processes, a fixed 1.0 s delay on one rank against 0.05
+s elsewhere, durations gathered by `all_gather`, and every rank independently
+names the same straggler. Unanimity matters: ranks disagreeing would make the
+detection useless for attribution.
+
+**Still not wired.** Nothing calls this from the trainer, and per-step durations
+still are not in the bundle, so a post-hoc detector over sealed evidence remains
+future work. What exists is a detector proven against a real injected fault.
+
+### What the evidence gap for fault 5 still is
 
 Investigated rather than assumed. None of the three is a small change, and each
 is blocked on something that does not exist yet:

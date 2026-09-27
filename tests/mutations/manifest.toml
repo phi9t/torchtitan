@@ -474,3 +474,17 @@ rank that dies produce the same RuntimeError type from the same collective and
 differ only in message, so mixing them up is both easy and invisible without a
 test pinning each signature to its class.
 """
+
+[[mutation]]
+id = "straggler-baseline-uses-mean-not-median"
+target = "torchtitan/observability/distributed_faults.py"
+test = "tests/unit_tests/observability/test_distributed_faults.py::test_an_injected_straggler_is_flagged_by_every_rank"
+find = "    baseline = statistics.median(durations_ns)"
+replace = "    baseline = statistics.mean(durations_ns)"
+why = """
+Compares each rank against the mean instead of the median. A slow rank drags the
+mean toward itself, so it can hide under any threshold -- precisely the case the
+check exists for. Pinned against the real four-process injected straggler rather
+than the synthetic case, because under this mutation that run reports FLAGGED
+with an empty list: a genuine twentyfold straggler goes completely undetected.
+"""

@@ -33,7 +33,8 @@ Scope, stated because a signature table is only as wide as it was measured:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import statistics
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from torchtitan.observability.run_evidence import (
@@ -122,3 +123,92 @@ def record_collective_failure(
         terminal_disposition="abort",
         metadata=detail,
     )
+
+
+def detect_step_stragglers(
+    durations_ns: Sequence[int],
+    *,
+    incident_class: IncidentClass,
+    slowdown_threshold: float,
+    step: int | None = None,
+    phase: str | None = None,
+) -> tuple[int, ...]:
+    """Return the ranks whose duration exceeds the median by the threshold.
+
+    The comparison is against the **median**, not the mean, and that is the whole
+    design. One slow rank drags a mean toward itself and can push the ratio under
+    any threshold, which is precisely the case the check exists for; a median over
+    three or more ranks is unmoved by a single outlier.
+
+    `slowdown_threshold` is required rather than defaulted. What counts as a
+    straggler is a property of the job, and a default here would be a number
+    invented by this module and then quietly relied on.
+
+    `incident_class` is the caller's to supply because the duration's meaning is
+    not visible from the number: the same comparison distinguishes
+    COMPUTE_STRAGGLER from DATALOADER_STRAGGLER depending on which phase was
+    timed. Passing any other class is a programmer error.
+
+    Fewer than three ranks returns nothing, by construction rather than by
+    accident: with two samples every median lies between them, so "the slow one"
+    is not separable from "the fast one" without an external baseline this
+    function does not have. A caller wanting two-rank coverage needs a different
+    check, and is told so rather than handed a silent empty result.
+    """
+    assert incident_class in (
+        IncidentClass.COMPUTE_STRAGGLER,
+        IncidentClass.DATALOADER_STRAGGLER,
+    ), f"not a straggler class: {incident_class}"
+    if slowdown_threshold <= 1.0:
+        raise ValueError(
+            "slowdown_threshold must exceed 1.0; "
+            f"{slowdown_threshold} would flag the median itself"
+        )
+    if any(duration <= 0 for duration in durations_ns):
+        raise ValueError("step durations must be positive")
+    if len(durations_ns) < 3:
+        return ()
+
+    baseline = statistics.median(durations_ns)
+    stragglers = tuple(
+        rank
+        for rank, duration in enumerate(durations_ns)
+        if duration > baseline * slowdown_threshold
+    )
+    if not stragglers:
+        return ()
+
+    record_incident(
+        incident_class=incident_class,
+        capture_state=IncidentCaptureState.SUSPECTED,
+        # A straggler is a performance fault, not a correctness one: the step
+        # produced the right answer late. The v1 policy for that is to continue
+        # with a bounded warning rather than abort.
+        policy=IncidentPolicy.CONTINUE_BOUNDED_WARNING,
+        summary=(
+            f"{len(stragglers)} rank(s) exceeded the median step duration by "
+            f"{slowdown_threshold}x: {list(stragglers)}"
+        ),
+        detected_locus=(
+            FaultAttributionLocus.DATALOADER
+            if incident_class is IncidentClass.DATALOADER_STRAGGLER
+            else FaultAttributionLocus.TRAINER_RANK
+        ),
+        # Observed locally from a gathered vector: no inference about a peer's
+        # internal state is involved, only its reported duration.
+        attribution_confidence=FaultConfidence.OBSERVED_LOCAL_FAULT,
+        step=step,
+        last_operation=phase,
+        useful_work_preserved=True,
+        terminal_disposition="continue",
+        metadata={
+            "straggler_ranks": list(stragglers),
+            "median_duration_ns": int(baseline),
+            "slowdown_threshold": slowdown_threshold,
+            "durations_ns": list(durations_ns),
+            "observed_ratios": [
+                round(durations_ns[rank] / baseline, 3) for rank in stragglers
+            ],
+        },
+    )
+    return stragglers
