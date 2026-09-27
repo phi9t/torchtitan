@@ -6,7 +6,7 @@ evidence through the same TLA+ and Lean path.
 
 **Blocked by:** 02 — Scout A: single-rank Qwen3 tracer bullet.
 
-**Status:** review-pending
+**Status:** resolved
 
 - [x] The run uses four CUDA ranks through the normal
   `qwen3_debugmodel`/`ConfigManager` path with data-parallel replicate degree 1,
@@ -291,3 +291,30 @@ whose manifest pinned the uncommitted bytes under review, and those bundles
 verify. What is absent is the final seal from the committed state, which is a
 narrower claim than "never gated" and should be read as such. This ticket stays
 open until ticket 25 lands.
+
+### 2026-09-27: the final-state gate, from the committed tree
+
+Ticket 25 landed the clean-tree lint fallback, and the gate then ran from the
+clean committed tree at `47ebae4d94e3e4aa4826eb6834d962eada6b0227` -- the first
+committed-state gate this project has produced. All nine stages exit 0, sealed
+and verified, at both levels:
+
+- Scout B evidence ID:
+  `sha256:ab0524d820a50c7485046183a863a11d8349a5b171d2d2e9b85bfc96e8478d32`
+- Scout B source ID:
+  `sha256:46840ed779b00d9cf463217f518e51ab53f904172cf783a0d6eeb08d551adbed`
+- Nested Scout A evidence ID:
+  `sha256:19572fec2c3ab426a0c95a691d0f6ff19ba0da840c6396455f5c480e6bea49d7`
+- `lint_coverage.case = head_commit_paths`, 10 paths, at both levels.
+- `entries` is 0, correctly: a clean tree has no uncommitted bytes to pin, and
+  the code identity is `head` plus `status_sha256`. The manifest states that as
+  its case rather than leaving a reader to infer it from the empty list, which
+  is what ticket 25 added.
+
+The 10 linted paths span Python, shell and tests -- `scout_a.py`, `scout_b.py`,
+`run_scout_a.sh`, `run_scout_b.sh`, `scout_a_runner_lib.sh`, three test files,
+a README and a tracker -- so the fallback exercised `pre-commit`, `pyrefly` and
+`bash -n`, not only the markdown hooks.
+
+**This criterion is now satisfied**, and the earlier note that it was
+unsatisfiable stands as the record of why it took until now.

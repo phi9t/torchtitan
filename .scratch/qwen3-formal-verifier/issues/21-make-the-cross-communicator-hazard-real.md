@@ -6,7 +6,8 @@ overlapping communicators can actually deadlock the model, so
 
 **Blocked by:** none. **Blocks:** 12 — DPxTP refinement bridge.
 
-**Status:** review-pending
+**Status:** resolved -- reviewed twice, the second a dedicated soundness review
+(SOUND WITH CAVEATS), gated in `4f252960d`
 
 ## What is wrong
 

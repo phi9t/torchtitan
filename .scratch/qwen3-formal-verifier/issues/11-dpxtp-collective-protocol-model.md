@@ -6,7 +6,8 @@ the same property checked against the observed run.
 
 **Blocked by:** 03 — Scout B: 2x2 DPxTP tracer bullet (for the observed facts).
 
-**Status:** review-pending
+**Status:** resolved -- reviewed (FAIL), repaired under ticket 21, gated in
+`4f252960d`
 
 ## The property
 

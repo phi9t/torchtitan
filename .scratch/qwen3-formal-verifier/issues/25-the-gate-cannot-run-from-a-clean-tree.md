@@ -5,7 +5,8 @@ committed state can be gated at all.
 
 **Blocked by:** none. **Blocks:** closing tickets 03 and 10.
 
-**Status:** ready-for-agent
+**Status:** resolved for criteria 1-3 and 4; the tier-0 residual below
+remains open
 
 ## The finding
 
@@ -101,3 +102,17 @@ the root-commit case broke the first test fixture. The capture uses `--root
 
 Recorded because the ticket stated the command as if it were the answer, and
 it was not.
+
+## Closed 2026-09-27
+
+The fix landed in `47ebae4d9` and the gate then ran from the clean committed
+tree at that commit: all nine stages exit 0 at both levels, with
+`lint_coverage.case = head_commit_paths` over 10 paths spanning Python, shell
+and tests. Scout B
+evidence `sha256:ab0524d8...`, Scout A nested `sha256:19572fec...`.
+
+Tickets 03 and 10 are resolved against that bundle, which is what criterion 4
+asked for and what had been unreachable since the project began.
+
+Still open: the tier-0 residual above. `run_formal_tier0.sh` derives its own
+lint list and still covers nothing on a clean tree, reported as skipped.

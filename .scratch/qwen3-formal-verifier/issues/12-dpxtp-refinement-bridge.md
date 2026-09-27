@@ -5,7 +5,8 @@ of `ScoutBModel` by replaying its issue order through the model's own guards.
 
 **Blocked by:** 11 — DPxTP collective protocol model.
 
-**Status:** review-pending
+**Status:** resolved -- reviewed (PASS WITH FINDINGS), all findings repaired,
+gated in `1f017c065`
 
 Delivers the distributed half of 07. Ticket 10 delivered the single-rank half.
 

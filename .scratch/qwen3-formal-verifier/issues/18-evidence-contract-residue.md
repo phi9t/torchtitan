@@ -5,7 +5,8 @@ where the evidence contract is weaker than it appears.
 
 **Blocked by:** none. Independent of all modelling work.
 
-**Status:** implemented; gate run pending (see Resolution 2026-09-26)
+**Status:** resolved -- gated in `e68b0b367`, with items 5-9 and the two
+workflow findings recorded below
 
 ## 1. Inferred attribution presented as observation
 
@@ -144,7 +145,7 @@ colour bytes -- that part of the contract holds. But it matches `SKIPPED` only.
 
 ## Resolution 2026-09-26
 
-**Status:** implemented, awaiting the gate run. Owning surface: the two host
+**Status:** gated in `e68b0b367`. Owning surface: the two host
 runners, the shared runner library, `scout_a.py`/`scout_b.py`, and the two
 focused unit suites. Nothing under `formal/` was touched.
 
