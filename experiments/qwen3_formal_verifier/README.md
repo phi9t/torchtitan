@@ -53,6 +53,46 @@ trace-dependent checks -- the refinement bridge, the generated fact modules,
 artifact synchronization and the real CUDA step -- run only in the Scout gates
 below. See `formal/README.md` for the exact target list.
 
+### The mutation manifest
+
+Tier 0's last stage runs `tests/mutations/manifest.toml` through
+`tests/mutations/runner.py`. Each entry is a `(target file, textual mutation,
+expected failing test)` triple. The runner copies the tree to a scratch
+directory once, applies each mutation there, runs ONLY the named test, and
+requires it to FAIL; then requires the same test to PASS unmutated. It reverts
+each target by rewriting the pristine bytes and re-comparing the sha256 with
+the source tree, so a later entry cannot measure a tree nobody described. The
+stage fails closed when `killed < total` and its token carries the counts:
+
+```text
+QFV_TIER0 mutations result=success killed=10/10 entries=10 self_test=pass manifest=tests/mutations/manifest.toml
+```
+
+Five guards in this project were written in a shape that could not fail -- a
+test that asserted a shell script *contained* `-ge 2` rather than running it, a
+skip detector whose regex matched zero lines of coloured output, a coverage
+ledger keyed on a name that a deliberately mutated run also carried, an
+argument refusal that asserted only a non-zero exit, and a label assertion that
+enshrined an overclaim on 7 of 20 tokens. Every one was found by mutating the
+subject and noticing the test still passed. The manifest is seeded with those
+five plus five more that were run while building the models, so finding them
+again no longer depends on a reviewer choosing to try.
+
+The runner is itself a guard, so it must be a guard that can fail.
+`tests/unit_tests/test_mutation_runner.py` drives it over a synthetic tree
+whose four entries apply the SAME mutation to the SAME file and differ only in
+the named test, so a mutation that does NOT kill its test, a control that is
+already red, and a control that skips are each required to be reported as
+their own outcome. The stage runs those self-tests before it believes the
+runner. Nothing adds a permanently-red entry to the shipped manifest, so a real
+survivor there is never confused with the self-tests' deliberate one.
+
+An entry whose mutation no longer kills its test is a defect in that test, not
+a reason to delete the entry. Add a test that pins the behaviour instead; two
+of the ten seeds needed that, and their tests are
+`test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs` and
+`test_dpxtp_bridge_admission_is_stronger_than_the_issue_counts`.
+
 ## Scout A: observed single-rank step
 
 `run_scout_a.sh` is the supported tracer-bullet command for one real Qwen3

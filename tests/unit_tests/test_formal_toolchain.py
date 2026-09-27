@@ -2116,6 +2116,93 @@ def test_dpxtp_model_runner_requires_non_vacuity_and_branching() -> None:
     assert "replay, not a model" in runner
 
 
+def test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs(
+    tmp_path: Path,
+) -> None:
+    """Execute the runner's own recording step over pristine and mutated input.
+
+    The ledger reconciles every shipped ScoutBModel*.cfg against the ones a
+    stage actually checked. Keyed on the cfg NAME, the two stages that
+    deliberately run mutated copies satisfied coverage for the cfg they
+    mutate, so deleting the honest run still read shipped=10 checked=10
+    unchecked=0. The fix keys on the bytes fed to TLC instead, and was
+    verified by hand because checking it through the suite costs that
+    target's whole 293s run.
+
+    So this extracts the runner's own `run_tlc` and EXECUTES it with a stub
+    checker. Reading the `cmp` lines out of the script instead is the defect
+    class this suite exists to prevent: it would keep passing if the
+    comparison were applied to a path no stage ever writes.
+
+    Args:
+        tmp_path: pytest scratch directory for the staged work tree.
+    """
+
+    runner = B_MODEL_RUNNER.read_text()
+    assert runner.count("run_tlc() {") == 1, "run_tlc anchor drifted"
+    body = runner.split("run_tlc() {", 1)[1].split("\n}\n", 1)[0]
+    program = "run_tlc() {" + body + "\n}\n"
+    # The extraction must have captured the recording decision and the whole
+    # function, or the harness below would exercise a fragment.
+    assert "checked_configs" in program, program
+    assert "mutated_runs" in program, program
+    assert program.rstrip().endswith("}"), program
+
+    work_dir = tmp_path / "work"
+    fixture_dir = tmp_path / "fixtures"
+    for directory in (work_dir / "pristine", work_dir / "mutant", fixture_dir):
+        directory.mkdir(parents=True)
+    shipped = {
+        name: (FORMAL_DIR / name).read_bytes()
+        for name in ("ScoutBModel.tla", "ScoutBModel.cfg")
+    }
+    for name, payload in shipped.items():
+        (fixture_dir / name).write_bytes(payload)
+        (work_dir / "pristine" / name).write_bytes(payload)
+    # The mutant stage's shape: the module is staged as it ships and the cfg
+    # is rewritten, which is what live_unfair does. A comparison of the module
+    # alone would call this run pristine.
+    (work_dir / "mutant" / "ScoutBModel.tla").write_bytes(shipped["ScoutBModel.tla"])
+    (work_dir / "mutant" / "ScoutBModel.cfg").write_bytes(
+        shipped["ScoutBModel.cfg"] + b"\n\\* rewritten by the mutant stage\n"
+    )
+    harness = (
+        "set -euo pipefail\n"
+        'work_dir="$1"\n'
+        'fixture_dir="$2"\n'
+        'java_bin="$3"\n'
+        "tla_jar=unused\n" + program + "run_tlc pristine ScoutBModel ScoutBModel\n"
+        "run_tlc mutant ScoutBModel ScoutBModel\n"
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            harness,
+            "ledger-test",
+            str(work_dir),
+            str(fixture_dir),
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert result.returncode == 0, result.stdout
+    # Exactly one coverage record, from the run whose cfg AND module were
+    # byte-identical to what ships.
+    assert (work_dir / "checked_configs").read_text().split() == ["ScoutBModel.cfg"]
+    # And the mutant is counted separately, under the stage name, so it can
+    # never satisfy coverage for the cfg it rewrote.
+    assert (work_dir / "mutated_runs").read_text().split() == [
+        "mutant",
+        "ScoutBModel.cfg",
+    ]
+
+
 def test_dpxtp_safety_token_reports_the_bound_it_was_checked_at() -> None:
     """A state count without a bound reads as a claim about the real run.
 
@@ -3109,6 +3196,76 @@ def test_dpxtp_bridge_length_only_admission_would_accept_the_corruption(
     ), output
 
 
+# Extends the shipped bridge and compares its OWN admission predicate against
+# the length-only reading, so the comparison is made of the definition that
+# ships rather than of a copy of it.
+_ADMISSION_PROBE = """\
+-------------------------- MODULE AdmissionProbe --------------------------
+EXTENDS ScoutBRefine
+
+AdmissionIssueOnlyNext ==
+  \\E rank \\in Ranks :
+    /\\ ReplayIssue(rank)
+    /\\ ReplaySkewOK(issued')
+
+AdmissionIssueOnlySpec == Init /\\ [][AdmissionIssueOnlyNext]_vars
+
+AllRanksReachedTheirIssueCount ==
+  \\A rank \\in Ranks : Len(issued[rank]) = MaxIssues
+
+\\* Violated exactly when the shipped admission predicate is STRICTLY
+\\* stronger than the issue counts: some reachable state has every rank at
+\\* its whole replayed prefix and the run still not admitted. Under the
+\\* length-only reading no such state exists, so the invariant holds and the
+\\* run comes back clean.
+AdmissionIsStrongerThanIssueCounts ==
+  ~(AllRanksReachedTheirIssueCount /\\ ReplayedRunIsNotAdmitted)
+
+=============================================================================
+"""
+
+
+def test_dpxtp_bridge_admission_is_stronger_than_the_issue_counts(
+    tmp_path: Path,
+) -> None:
+    """Pin the shipped admission predicate, not only the variant's reachability.
+
+    The test above shows that a length-only admission test is reachable on the
+    corrupted order, which is why admission is `~AllDone`. It does not pin the
+    shipped predicate: rewriting ReplayedRunIsNotAdmitted to the length-only
+    form leaves that test green, so the bridge could go back to the vacuous
+    reading with nothing failing. This runs the shipped predicate against the
+    length-only one and requires them to disagree on a reachable state, which
+    is exactly the gap that made the length-only form vacuous.
+
+    Args:
+        tmp_path: pytest scratch directory for the staged TLC run.
+    """
+
+    cfg = (
+        _refine_constants(
+            MaxIssues="4",
+            MaxReplaySkew="1",
+            GreedyReplay="FALSE",
+        )
+        + "\nSPECIFICATION AdmissionIssueOnlySpec\n\nINVARIANTS\n"
+        "  AdmissionIsStrongerThanIssueCounts\n"
+        "\nCHECK_DEADLOCK FALSE\n"
+    )
+    status, output = _run_tlc(
+        tmp_path,
+        "AdmissionProbe",
+        cfg,
+        fixtures=_refine_fixtures(),
+        files={"AdmissionProbe.tla": _ADMISSION_PROBE},
+    )
+
+    assert status == 12, output
+    assert (
+        "Error: Invariant AdmissionIsStrongerThanIssueCounts is violated." in output
+    ), output
+
+
 # A stand-in ScoutBFacts whose only collective belongs to rank 1. This is the
 # input on which ScoutBIssueOrderInvalid's derived mutation target has no
 # witness.
@@ -3483,8 +3640,13 @@ def test_tier0_runner_selects_the_tier0_suite_and_seals_no_bundle(
     # of the contracts in this file run the real TLC toolchain against a
     # degenerate input; without the mount they would skip and check nothing.
     cache = str(tmp_path / "formal-cache")
+    # The mutation stage gets the same offline network and the same cache mount
+    # as the pytest stage: the tests its manifest names include ones that run
+    # the real TLC and Lean toolchains, and without the mount their controls
+    # would skip.
     assert entrypoint_log.read_text().splitlines() == [
         "networked none",
+        f"offline {cache}",
         f"offline {cache}",
     ]
     assert "not-a-gate" in result.stdout
@@ -3497,7 +3659,7 @@ def test_tier0_runner_defaults_to_networked_and_honours_skips(
 ) -> None:
     env, formal_log, entrypoint_log = _tier0_environment(tmp_path)
 
-    result = _run_tier0(env, "--skip-lint", "--skip-pytest")
+    result = _run_tier0(env, "--skip-lint", "--skip-pytest", "--skip-mutations")
 
     assert result.returncode == 0, result.stdout
     assert formal_log.read_text().splitlines() == [
@@ -3506,6 +3668,133 @@ def test_tier0_runner_defaults_to_networked_and_honours_skips(
         "tier0",
     ]
     assert not entrypoint_log.exists()
+    # The start token has to say which stages were skipped, or a reader meets
+    # a bare result=success for a run that checked one of the four things.
+    assert "lint=0 pytest=0 mutations=0" in result.stdout, result.stdout
+
+
+_MUTATION_SUMMARY_FIELDS = (
+    "entries_selected={selected} entries_total={total}"
+    " control_runs={selected} mutant_runs={selected}"
+    " manifest=tests/mutations/manifest.toml tree_copy_s=0.4 wall_s=12.3"
+)
+
+
+@pytest.mark.parametrize(
+    ("summary", "expected_exit", "diagnostic"),
+    [
+        pytest.param(
+            "QFV_MUT_SUMMARY killed=10/10 "
+            + _MUTATION_SUMMARY_FIELDS.format(selected=10, total=10),
+            0,
+            "",
+            id="all_killed",
+        ),
+        pytest.param(
+            "QFV_MUT_SUMMARY killed=9/10 "
+            + _MUTATION_SUMMARY_FIELDS.format(selected=10, total=10),
+            1,
+            "a mutation survived its named test",
+            id="one_survived",
+        ),
+        pytest.param(
+            "QFV_MUT_SUMMARY killed=3/10 "
+            + _MUTATION_SUMMARY_FIELDS.format(selected=3, total=10),
+            1,
+            "measured 3 of 10 manifest entries",
+            id="subset_run",
+        ),
+        pytest.param(
+            "QFV_MUT_SUMMARY killed=0/0 "
+            + _MUTATION_SUMMARY_FIELDS.format(selected=0, total=0),
+            1,
+            "the manifest declares no entries",
+            id="empty_manifest",
+        ),
+        pytest.param(
+            "the runner printed no summary at all",
+            1,
+            "expected one QFV_MUT_SUMMARY line, found 0",
+            id="no_summary",
+        ),
+        pytest.param(
+            "QFV_MUT_SUMMARY killed=10/10 "
+            + _MUTATION_SUMMARY_FIELDS.format(selected=10, total=10)
+            + "\nQFV_MUT_SUMMARY killed=10/10 "
+            + _MUTATION_SUMMARY_FIELDS.format(selected=10, total=10),
+            1,
+            "expected one QFV_MUT_SUMMARY line, found 2",
+            id="two_summaries",
+        ),
+    ],
+)
+def test_tier0_mutations_stage_fails_closed_on_a_surviving_mutation(
+    tmp_path: Path, summary: str, expected_exit: int, diagnostic: str
+) -> None:
+    """Run the stage's own program, with the runner stubbed to a given summary.
+
+    Failing closed when killed < total is the entire point of the stage, so the
+    decision has to be measured rather than read off the script. The token also
+    has to carry the counts: an aggregate result=success would hide the scope,
+    and a token printed from a literal would survive a runner that measured
+    nothing.
+
+    Args:
+        tmp_path: pytest scratch directory.
+        summary: Stubbed runner stdout.
+        expected_exit: Required exit status of the stage program.
+        diagnostic: Required stderr substring, empty when the stage succeeds.
+    """
+
+    runner = TIER0_RUNNER.read_text()
+    program = runner.split("' tier0-mutations ", 1)[0].rsplit("-- bash -lc '", 1)[1]
+    assert "tests.mutations.runner" in program, program
+    assert "test_mutation_runner.py" in program, program
+
+    # One stub for both invocations: the self-test call and the runner call are
+    # told apart by their arguments, so a stage that dropped the self-test
+    # would leave the marker file absent.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    self_test_marker = tmp_path / "self-test-ran"
+    stub = bin_dir / "python"
+    stub.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case "$*" in\n'
+        f'  *test_mutation_runner.py*) : > "{self_test_marker}" ;;\n'
+        f'  *tests.mutations.runner*) cat "{tmp_path / "summary.txt"}" ;;\n'
+        '  *) echo "unexpected python invocation: $*" >&2; exit 2 ;;\n'
+        "esac\n"
+    )
+    stub.chmod(0o755)
+    (tmp_path / "summary.txt").write_text(summary + "\n")
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    scratch_parent = tmp_path / "scratch-parent"
+    scratch_parent.mkdir()
+
+    result = subprocess.run(
+        ["bash", "-c", program, "tier0-mutations", str(workdir), str(scratch_parent)],
+        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert result.returncode == expected_exit, (result.stdout, result.stderr)
+    assert self_test_marker.exists(), "the stage must run the runner's self-tests"
+    if expected_exit == 0:
+        assert (
+            "QFV_TIER0 mutations result=success killed=10/10 entries=10"
+            " self_test=pass manifest=tests/mutations/manifest.toml" in result.stdout
+        ), result.stdout
+    else:
+        assert "QFV_TIER0 mutations" not in result.stdout, result.stdout
+        assert diagnostic in result.stderr, result.stderr
+    # The stage must leave no scratch tree behind, whichever way it exited.
+    assert list(scratch_parent.iterdir()) == []
 
 
 @pytest.mark.parametrize(

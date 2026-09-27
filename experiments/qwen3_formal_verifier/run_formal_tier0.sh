@@ -25,6 +25,7 @@ GIT_BIN="${TORCHTITAN_SCOUT_GIT:-git}"
 FETCH_MODE="--networked"
 RUN_LINT=1
 RUN_PYTEST=1
+RUN_MUTATIONS=1
 
 usage() {
   cat <<'EOF'
@@ -46,14 +47,21 @@ Still no GPU, no observed trace and no sealed bundle.
      pre-commit hooks, skipping the slow or gate-only ones
      (no-commit-to-branch, check-added-large-files, lychee-link-checker),
      plus pyrefly run directly on changed Python;
-  3. the focused formal-toolchain pytest contracts.
+  3. the focused formal-toolchain pytest contracts;
+  4. the mutation manifest: every (target, textual mutation, expected failing
+     test) triple in tests/mutations/manifest.toml must FAIL its named test on
+     a mutated copy of the tree and PASS it unmutated. Fails closed when
+     killed < total, and runs the runner's own self-tests first, because a
+     mutation runner with an inverted condition would report killed=N/N
+     forever and launder confidence rather than add any.
 
 Options:
-  --networked   Allow Bazel to materialize pinned dependencies (default).
-  --no-fetch    Reuse the materialized formal cache with networking disabled.
-  --skip-lint   Skip changed-source lint.
-  --skip-pytest Skip the focused pytest contracts.
-  -h, --help    Show this help.
+  --networked      Allow Bazel to materialize pinned dependencies (default).
+  --no-fetch       Reuse the materialized formal cache with networking off.
+  --skip-lint      Skip changed-source lint.
+  --skip-pytest    Skip the focused pytest contracts.
+  --skip-mutations Skip the mutation manifest.
+  -h, --help       Show this help.
 
 Environment:
   TORCHTITAN_SCOUT_ROOTFS       Explicit bwrap rootfs directory.
@@ -87,6 +95,10 @@ while [[ $# -gt 0 ]]; do
       RUN_PYTEST=0
       shift
       ;;
+    --skip-mutations)
+      RUN_MUTATIONS=0
+      shift
+      ;;
     -h | --help)
       usage
       exit 0
@@ -114,8 +126,8 @@ done
   || die "formal check wrapper is not executable: ${FORMAL_CHECKS}"
 mkdir -p -- "${FORMAL_CACHE}"
 
-printf 'QFV_TIER0 start mode=%s lint=%s pytest=%s\n' \
-  "${FETCH_MODE#--}" "${RUN_LINT}" "${RUN_PYTEST}"
+printf 'QFV_TIER0 start mode=%s lint=%s pytest=%s mutations=%s\n' \
+  "${FETCH_MODE#--}" "${RUN_LINT}" "${RUN_PYTEST}" "${RUN_MUTATIONS}"
 printf 'QFV_TIER0 scope=trace-free note=not-a-gate bundle=none\n'
 
 env TORCHTITAN_FORMAL_CACHE_HOST="${FORMAL_CACHE}" \
@@ -202,6 +214,94 @@ if ((RUN_PYTEST)); then
     "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc \
     'cd /workspace/torchtitan && pytest -q tests/unit_tests/test_formal_toolchain.py'
   printf 'QFV_TIER0 pytest result=success\n'
+fi
+
+if ((RUN_MUTATIONS)); then
+  # The mutation manifest. Five guards in this project were written in a shape
+  # that could not fail, and every one was found by mutating the subject,
+  # re-running, and noticing the test still passed. This stage makes that
+  # standing: each manifest entry must FAIL its named test on a mutated copy
+  # of the tree and PASS it unmutated.
+  #
+  # The stage prints its own token instead of letting this script print one
+  # after it, because the counts ARE the decision. A host-side printf would
+  # have to carry them from somewhere other than the measurement, and an
+  # aggregate result=success with no counts is exactly the shape this whole
+  # phase exists to prevent. The scratch tree lives under /project/tmp, like
+  # the lint stage's throwaway git dir, so tier 0 still writes nothing under
+  # outputs/.
+  #
+  # Same offline network and formal-cache mount as the pytest stage: the named
+  # tests include ones that run the real TLC and Lean toolchains, and without
+  # the mount they would skip -- which the runner reports as a failed control
+  # rather than passing over.
+  env TORCHTITAN_ROOTFS_NETWORK=offline \
+    TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST="${FORMAL_CACHE}" \
+    "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc '
+      set -euo pipefail
+      workdir="$1"
+      scratch_parent="$2"
+      cd "${workdir}"
+      # The runner is itself a guard, so its polarity is checked before it is
+      # believed. Its self-tests include a synthetic entry whose mutation
+      # deliberately does NOT kill its named test, and require the runner to
+      # report that as a failure; without them an inverted condition or a
+      # swallowed exit code would report killed=N/N forever.
+      python -m pytest -q -rs --color=no -p no:cacheprovider \
+        tests/unit_tests/test_mutation_runner.py
+      # Quote-free on purpose: this program is a single-quoted string here, and
+      # test_tier0_mutations_stage_fails_closed_on_a_surviving_mutation
+      # extracts and RUNS it, which an embedded single quote would break.
+      scratch_dir=""
+      remove_scratch_dir() {
+        [[ -z "${scratch_dir}" ]] || rm -rf -- "${scratch_dir}"
+      }
+      trap remove_scratch_dir EXIT
+      scratch_dir="$(mktemp -d "${scratch_parent}/qfv-tier0-mutations.XXXXXXXX")"
+      summary_file="${scratch_dir}/summary.txt"
+      # errexit plus pipefail: the runner already exits non-zero unless every
+      # entry killed. The parse below is a second, independent check, so a
+      # runner that lost its exit code still cannot get a token printed.
+      python -m tests.mutations.runner --scratch-root "${scratch_dir}/tree" \
+        | tee "${summary_file}"
+      summary_count="$(grep -c -E "^QFV_MUT_SUMMARY " "${summary_file}" || true)"
+      [[ "${summary_count}" == "1" ]] || {
+        printf "error: expected one QFV_MUT_SUMMARY line, found %s\n" \
+          "${summary_count}" >&2
+        exit 1
+      }
+      summary="$(grep -E "^QFV_MUT_SUMMARY " "${summary_file}")"
+      summary_field() { sed -n "s/.* $1=\([^ ]*\).*/\1/p" <<<"${summary}"; }
+      killed_ratio="$(summary_field killed)"
+      selected="$(summary_field entries_selected)"
+      total="$(summary_field entries_total)"
+      [[ "${killed_ratio}" == */* && -n "${selected}" && -n "${total}" ]] || {
+        printf "error: QFV_MUT_SUMMARY is missing counts: %s\n" "${summary}" >&2
+        exit 1
+      }
+      # A manifest with no entries would otherwise satisfy killed == total,
+      # which is a check whose antecedent is never satisfied.
+      [[ "${total}" =~ ^[1-9][0-9]*$ ]] || {
+        printf "error: the manifest declares no entries: %s\n" "${summary}" >&2
+        exit 1
+      }
+      # Scope before verdict, and in this order on purpose. The runner prints
+      # killed out of entries_total, so a subset run already fails the ratio
+      # below -- checking the ratio first would leave this arm with an
+      # antecedent nothing can satisfy, which is the shape this stage exists
+      # to catch. Checked first, it is the arm that reports a subset run.
+      [[ "${selected}" == "${total}" ]] || {
+        printf "error: measured %s of %s manifest entries\n" \
+          "${selected}" "${total}" >&2
+        exit 1
+      }
+      [[ "${killed_ratio}" == "${total}/${total}" ]] || {
+        printf "error: a mutation survived its named test: %s\n" "${summary}" >&2
+        exit 1
+      }
+      printf "QFV_TIER0 mutations result=success killed=%s entries=%s self_test=pass manifest=tests/mutations/manifest.toml\n" \
+        "${killed_ratio}" "${total}"
+    ' tier0-mutations /workspace/torchtitan /project/tmp
 fi
 
 printf 'QFV_TIER0 result=success mode=%s\n' "${FETCH_MODE#--}"

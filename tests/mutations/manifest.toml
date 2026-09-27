@@ -1,0 +1,390 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Mutation manifest: (target file, textual mutation, expected failing test).
+#
+# Data only, on purpose. Adding an entry cannot introduce logic, so a new
+# entry cannot bring its own escape hatch. tests/mutations/runner.py applies
+# each `find` -> `replace` to a scratch copy of the tree, runs ONLY the named
+# test there, and requires it to FAIL; then requires the same test to PASS on
+# the unmutated copy. An entry whose mutation no longer kills its test is a
+# defect in the test, not a reason to delete the entry.
+#
+# Fields:
+#   id           unique slug, used in the QFV_MUT result line
+#   target       repo-relative file the mutation rewrites
+#   test         pytest node id, including a parametrize id where one test
+#                case is enough to kill the mutation
+#   find         exact text to replace; must occur `occurrences` times
+#   replace      exact replacement; "" deletes the matched text
+#   occurrences  required number of matches, default 1. A count rather than a
+#                "replace what you find" rule, so an anchor that drifted or
+#                got duplicated is an error instead of a silent near-miss.
+#   why          what defect the mutation reintroduces, and where the original
+#                measurement of it is recorded
+#
+# Every mutation here was applied and re-run during the sixteen commits that
+# built this verifier. None is invented.
+
+# ---------------------------------------------------------------------------
+# 1-5. The five guards that were written in a shape that could not fail.
+# ---------------------------------------------------------------------------
+
+[[mutation]]
+id = "tier0-gate-argument-arm"
+target = "experiments/qwen3_formal_verifier/run_formal_tier0.sh"
+test = "tests/unit_tests/test_formal_toolchain.py::test_tier0_runner_refuses_gate_and_unknown_arguments"
+find = '''
+    --output-root | --run-id | --attempt-id | --update-artifacts)
+      usage >&2
+      die "$1 is a gate argument; tier 0 seals no evidence bundle"
+      ;;
+'''
+replace = ""
+why = """
+Deletes the gate-argument arm, so --output-root and friends fall into the
+catch-all and are refused as "unknown argument". The refusal test asserted
+only a non-zero exit and a usage banner, so deleting this whole arm left
+every parametrized case passing -- 15 of them when that was recorded, 6 in
+the test as it stands now. The test pins each case's diagnostic instead.
+"""
+
+[[mutation]]
+id = "scout-a-model-branching-floor"
+target = "experiments/qwen3_formal_verifier/formal/run_tlc_scout_a_model.sh"
+test = "tests/unit_tests/test_formal_toolchain.py::test_model_runner_refuses_a_non_branching_specification"
+find = '''  [[ "${safety_outdegree:-0}" -ge 2 ]] || {'''
+replace = '''  [[ "${safety_outdegree:-0}" -ge 1 ]] || {'''
+why = """
+Lowers the branching floor to 1, which admits a cursor walking a recorded
+sequence -- the replay design the abstract model exists to replace. The
+original test asserted that the runner's TEXT contained "-ge 2", which would
+have kept passing if the comparison were applied to a variable no TLC output
+ever populated. The test now runs the real checker over a substituted
+non-branching ScoutAModel.
+"""
+
+[[mutation]]
+id = "skip-guard-ansi-strip"
+target = "experiments/qwen3_formal_verifier/scout_a_runner_lib.sh"
+test = "tests/unit_tests/test_qwen3_formal_scout_a.py::test_runner_library_skip_guard_refuses_only_undeclared_real_pytest_skips"
+find = '''skip_lines="$(sed -e 's/\x1b\[[0-9;]*m//g' "${captured}" \
+  | grep -E '^SKIPPED' || true)"'''
+replace = '''skip_lines="$(cat "${captured}" \
+  | grep -E '^SKIPPED' || true)"'''
+why = """
+Removes the ANSI strip, restoring grep -E "^SKIPPED" over coloured output
+where it matched ZERO lines because pytest emits "\\x1b[33mSKIPPED". A gate
+then passed partly BECAUSE the guard did nothing, after being "verified in
+both directions" against hand-written plain text. The test now drives the
+guard with output from a real pytest run that forces colour back on.
+"""
+
+[[mutation]]
+id = "scout-b-model-coverage-ledger-by-name"
+target = "experiments/qwen3_formal_verifier/formal/run_tlc_scout_b_model.sh"
+test = "tests/unit_tests/test_formal_toolchain.py::test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs"
+find = '''  if cmp --silent \
+       "${work_dir}/${name}/${config}.cfg" "${fixture_dir}/${config}.cfg" \
+     && cmp --silent \
+       "${work_dir}/${name}/${module}.tla" "${fixture_dir}/${module}.tla"; then'''
+replace = '''  if true; then'''
+why = """
+Restores recording by cfg NAME at invocation time, so the two stages that
+deliberately run mutated copies satisfy coverage for the configs they mutate.
+Deleting the honest run then still reported shipped=10 checked=10
+unchecked=0. The byte-identity fix shipped with no test at all -- checking it
+through the suite costs that target's whole 293s run -- so this entry's named
+test extracts the runner's own run_tlc and executes it with a stub checker.
+"""
+
+[[mutation]]
+id = "protocol-witness-claims-bound-none"
+target = "experiments/qwen3_formal_verifier/formal/run_lean_scout_b_protocol.sh"
+test = "tests/unit_tests/test_formal_toolchain.py::test_protocol_runner_reports_each_obligation_as_its_own_theorem_token"
+find = '''  "cyclicWitnessIsStuck|${WITNESS2_LABEL}|witness-is-stuck"'''
+replace = '''  "cyclicWitnessIsStuck|${THEOREM_LABEL}|witness-is-stuck"'''
+why = """
+Relabels a fixed-instance witness, decided at maxIssues = 2, as
+scope=all-topologies-all-schedules bound=none. A blanket assertion that every
+protocol token carries bound=none used to live in this test, which enshrined
+that overclaim on 7 of the 20 tokens. The test now requires each token to
+carry the vocabulary its result deserves, and refuses bound=none on anything
+outside the general set.
+"""
+
+# ---------------------------------------------------------------------------
+# 6-10. Mutations run while building the models themselves.
+# ---------------------------------------------------------------------------
+
+[[mutation]]
+id = "placement-partial-choose-sentinel"
+target = "experiments/qwen3_formal_verifier/formal/ScoutBPlacementPartialInvalid.tla"
+test = "tests/unit_tests/test_formal_toolchain.py::test_the_derived_mutation_guard_is_load_bearing[partial_placement]"
+find = '''MutatedPlacement ==
+  IF ThereIsADpShardPlacement
+  THEN CHOOSE placement \in DpShardPlacements :
+         \A other \in DpShardPlacements :
+           PlacementPosition[placement] <= PlacementPosition[other]
+  ELSE ""'''
+replace = '''MutatedPlacement ==
+  CHOOSE placement \in DpShardPlacements :
+    \A other \in DpShardPlacements :
+      PlacementPosition[placement] <= PlacementPosition[other]'''
+why = """
+Reverts the CHOOSE sentinel guard on the derived mutation target. The guard
+IS load bearing, but only where the sentinel invariant is unlisted: there the
+guarded form degrades to a named invariant and the unguarded form abandons
+the search at exit 75. The comment that justified the guard claimed exit 75
+for the shipped cfg too; measured, both forms exit 151 there, because TLC
+reports the constant-FALSE sentinel before forcing the CHOOSE.
+"""
+
+[[mutation]]
+id = "bridge-length-only-admission"
+target = "experiments/qwen3_formal_verifier/formal/ScoutBRefine.tla"
+test = "tests/unit_tests/test_formal_toolchain.py::test_dpxtp_bridge_admission_is_stronger_than_the_issue_counts"
+find = '''ReplayedRunIsNotAdmitted == ~AllDone'''
+replace = '''ReplayedRunIsNotAdmitted ==
+  ~(\A replayRank \in Ranks : Len(issued[replayRank]) = MaxIssues)'''
+why = """
+Replaces admission with the length-only reading. Issue's guard never reads
+doneOn, so "every rank reached its observed issue count" is satisfiable by
+issuing everything and running nothing -- for the CORRUPTED order too, which
+would have made the bridge and its negative both pass vacuously. The test
+that demonstrated the variant's reachability did not pin the shipped
+predicate, so this entry's named test is new: it requires the shipped
+predicate and the length-only one to disagree on a reachable state.
+"""
+
+[[mutation]]
+id = "stream-of-issue-keyed-on-communicator"
+target = "experiments/qwen3_formal_verifier/formal/ScoutBModel.tla"
+test = "tests/unit_tests/test_formal_toolchain.py::test_dpxtp_instance_puts_distinct_communicators_on_one_rank_stream"
+find = '''StreamOfIssue(e) ==
+  CASE e.op = "all_gather"     -> "ag"
+    [] e.op = "reduce_scatter" -> "rs"
+    [] OTHER                   -> "compute"'''
+replace = '''StreamOfIssue(e) == e.comm'''
+why = """
+Restores the provably-inert stream design: with one stream per communicator,
+per-communicator FIFO already orders everything, AtStreamHead is redundant by
+construction, and StuckByCircularWait is unsatisfiable at any bound on any
+instance. An earlier version of the named test claimed to reconstruct
+StreamOfIssue and never applied the stream map, so it passed under exactly
+this mutation.
+"""
+
+[[mutation]]
+id = "scout-b-valid-invariant-unbound"
+target = "experiments/qwen3_formal_verifier/formal/ScoutBValid.cfg"
+test = "tests/unit_tests/test_formal_toolchain.py::test_every_scout_b_valid_definition_is_bound_as_an_invariant"
+find = '''
+  ScoutBNoPartialAtOptimizer
+'''
+replace = "\n"
+why = """
+Drops one invariant from the positive configuration, leaving it defined in
+ScoutBValid.tla and checked by nothing. The placement work added eight named
+invariants at once, which is exactly where one silently fails to reach the
+cfg; the named test derives both sides rather than searching for known names.
+"""
+
+[[mutation]]
+id = "pre-commit-hook-unclassified"
+target = ".pre-commit-config.yaml"
+test = "tests/unit_tests/test_formal_toolchain.py::test_tier0_lint_classifies_every_pre_commit_hook"
+find = '''    -   id: check-merge-conflict'''
+replace = '''    -   id: check-merge-conflict
+    -   id: mutation-manifest-unclassified-hook'''
+why = """
+Adds a hook that tier 0's loop does not run and the test's deferred set does
+not name, which is how a hook gets skipped by tier 0 forever with nothing
+noticing. The mutation is the one that forced the hook-classification test to
+exist; it is re-run here because the tier-0 hook subset changes whenever the
+gate's hook list does.
+"""
+
+# -------------------------------------------------------------------------
+# Fault-suite detections and process guards added after the first ten.
+# -------------------------------------------------------------------------
+
+[[mutation]]
+id = "checkpoint-sentinel-not-wired"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManager::test_truncated_shard_aborts_manager_load_before_dcp_load"
+find = '''
+            validate_dcp_manifest_integrity(checkpoint_id)
+'''
+replace = ""
+why = """
+Unwires the sentinel from dcp_load, so a corrupt manifest reaches dcp.load
+and fails inside the reader instead of being named. The manager-level test is
+the one that notices, because the sentinel's own tests call it directly.
+"""
+
+[[mutation]]
+id = "checkpoint-manifest-missing-wrong-target"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManifestIntegritySentinel::test_missing_manifest_is_detected"
+find = "if not filesystem.isfile(manifest_path):"
+replace = "if not filesystem.exists(checkpoint_id):"
+why = """
+Checks the directory rather than the manifest, so a checkpoint directory that
+exists but holds no .metadata passes.
+"""
+
+[[mutation]]
+id = "checkpoint-state-dict-metadata-mapping"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManifestIntegritySentinel::test_manifest_without_a_state_dict_metadata_mapping_is_detected"
+find = "isinstance(state_dict_metadata, Mapping)"
+replace = "isinstance(state_dict_metadata, object)"
+why = """
+Accepts any object as the state-dict metadata, so a manifest that
+deserialized into something structurally wrong is treated as well formed.
+"""
+
+[[mutation]]
+id = "checkpoint-shard-existence"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManifestIntegritySentinel::test_missing_shard_is_detected"
+find = "if not filesystem.isfile(shard_path):"
+replace = "if filesystem.isdir(shard_path):"
+why = """
+Inverts the shard existence check into a directory test, so a manifest that
+references a deleted shard passes.
+"""
+
+[[mutation]]
+id = "checkpoint-truncation-comparison"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManifestIntegritySentinel::test_truncated_shard_is_detected"
+find = "if actual_bytes < required_bytes:"
+replace = "if actual_bytes < 0:"
+why = """
+Neuters truncation detection, the heart of the sentinel. The byte ranges come
+from Metadata.storage_data, measured against a real dcp.save where shard size
+equalled last offset plus length exactly.
+"""
+
+[[mutation]]
+id = "checkpoint-truncation-off-by-one"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManifestIntegritySentinel::test_healthy_checkpoint_passes_and_records_no_incident"
+find = "if actual_bytes < required_bytes:"
+replace = "if actual_bytes <= required_bytes:"
+why = """
+Turns an exactly-sized shard into a defect, the false-positive direction. A
+truncation check that reports healthy checkpoints is worse than none, so the
+no-false-positive test is as load bearing as the detection test.
+"""
+
+[[mutation]]
+id = "checkpoint-incident-not-recorded"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManager::test_truncated_shard_aborts_manager_load_before_dcp_load"
+find = "record_incident("
+replace = "(lambda **_dropped: None)("
+why = """
+Drops the incident while still raising, which is detection that leaves no
+record. The fault-1 work nearly shipped exactly this, because
+RunEvidence.__enter__ publishes its manifest before installing the recorder.
+"""
+
+[[mutation]]
+id = "checkpoint-incident-locus"
+target = "torchtitan/components/checkpoint.py"
+test = "tests/unit_tests/test_checkpoint.py::TestCheckpointManifestIntegritySentinel::test_truncated_shard_is_detected"
+find = "FaultAttributionLocus.CHECKPOINT_PATH"
+replace = "FaultAttributionLocus.TRAINER_RANK"
+why = """
+Misattributes a checkpoint defect to the trainer rank. A wrong locus sends a
+reader to the wrong subsystem, so attribution is asserted, not just the class.
+"""
+
+[[mutation]]
+id = "rank-config-incident-not-recorded"
+target = "torchtitan/observability/run_evidence.py"
+test = "tests/unit_tests/observability/test_run_evidence.py::test_divergent_rank_config_is_detected_named_and_recorded"
+find = '''
+        self._record_inconsistent_rank_config(differing, detail)
+'''
+replace = ""
+why = """
+Detects the divergence and records nothing, so the aggregator cannot classify
+a real inconsistent-config abort.
+"""
+
+[[mutation]]
+id = "rank-config-message-names-no-field"
+target = "torchtitan/observability/run_evidence.py"
+test = "tests/unit_tests/observability/test_run_evidence.py::test_divergent_rank_config_is_detected_named_and_recorded"
+find = '''
+        raise EvidenceContractError(
+            "existing run evidence manifest does not match on "
+            f"{', '.join(differing)}: {_canonical_json(detail)}"
+        )'''
+replace = '        raise EvidenceContractError("existing run evidence manifest does not match")'
+why = """
+Reverts to the field-less message. The gate's own bare "dirty source identity
+changed" was the same defect, and it cost a GPU run to diagnose.
+"""
+
+[[mutation]]
+id = "rank-config-emit-through-inactive-facade"
+target = "torchtitan/observability/run_evidence.py"
+test = "tests/unit_tests/observability/test_run_evidence.py::test_divergent_rank_config_is_detected_named_and_recorded"
+find = '''
+            if self._index_file is None:
+                self._open_process_index()
+            self._record_incident('''
+replace = "            record_incident("
+why = """
+Emits through the module-level facade, which at that point in __enter__ finds
+no active recorder and drops the incident silently. The most important entry
+here: indistinguishable from success to a test that only checks the raised
+error.
+"""
+
+[[mutation]]
+id = "scout-source-drift-not-reported"
+target = "experiments/qwen3_formal_verifier/scout_a_runner_lib.sh"
+test = "tests/unit_tests/test_qwen3_formal_scout_a.py::test_source_recheck_names_the_paths_that_moved"
+find = '''
+    scout_report_status_drift "${baseline_status}" "${current_status}"
+'''
+replace = ""
+why = """
+Removes the drift diagnosis, restoring a source-identity failure that names no
+path. That cost a 20-minute GPU run to diagnose.
+"""
+
+[[mutation]]
+id = "width-fence-never-closes"
+target = "scripts/check_line_width.py"
+test = "tests/unit_tests/test_check_line_width.py::test_fenced_code_is_exempt_but_the_fence_closes"
+find = '''
+            if stripped.startswith(fence_marker):
+                in_fence = False
+                fence_marker = ""
+            continue'''
+replace = "            continue"
+why = """
+Never leaves the fence state, so every file whose first fence opens passes.
+Indistinguishable from success without a test checking a line after the close.
+"""
+
+[[mutation]]
+id = "width-url-presence-exempts"
+target = "scripts/check_line_width.py"
+test = "tests/unit_tests/test_check_line_width.py::test_an_unbreakable_token_is_exempt_but_a_short_url_is_not"
+find = "    return any(len(token) > LIMIT for token in text.split())"
+replace = "    return any('://' in token for token in text.split())"
+why = """
+Broadens the unbreakable-token exemption to any line containing a URL, which
+lets most prose through. Also caught by the maintained-corpus test.
+"""
