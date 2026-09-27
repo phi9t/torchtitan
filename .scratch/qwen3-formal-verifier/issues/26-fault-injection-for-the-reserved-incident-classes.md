@@ -176,6 +176,44 @@ The model and the refinement bridge already reason about this, so detection can
 be traced to a named invariant rather than to a crash. Requires a bounded wait,
 because a detector that hangs alongside the job is not a detector.
 
+### Why faults 2, 4 and 5 each need infrastructure first
+
+Investigated rather than assumed. None of the three is a small change, and each
+is blocked on something that does not exist yet:
+
+**Fault 2, collective hang.** Detection is inherently timeout-based, which puts
+it straight against this ticket's abandon criterion: a fixed seed does not make
+a wall-clock threshold deterministic. It is still the most valuable of the
+three, because the protocol model and the refinement bridge already reason about
+exactly this hazard, so a detection could be traced to a named invariant rather
+than to a crash. What it needs is a bounded wait -- a detector that blocks
+alongside the job is not a detector -- which means integrating with the NCCL
+watchdog rather than adding a wait of our own.
+
+**Fault 4, rank death.** Needs process supervision to kill a rank and observe
+the survivors' view. That is launcher-level infrastructure, not formal work,
+which is why this ticket put it last.
+
+**Fault 5, stragglers.** The blocker is evidence, not detection logic. Straggler
+detection is a cross-rank comparison of per-step durations, and those durations
+are not in the bundle:
+
+- `RunEvidence` records `monotonic_ns` per event and `elapsed_monotonic_ns` per
+  process outcome, but no per-step duration.
+- `MetricsProcessor` does compute `time_metrics/end_to_end(s)`,
+  `time_data_loading` and `data_loading_times`, but it averages them over
+  `log_freq` and emits them as TensorBoard scalars.
+- `metrics.py` does import `record_artifact`, which is easy to misread as the
+  timing reaching the bundle. It does not: the artifact records the TensorBoard
+  log *file*, not the values.
+
+So a straggler detector joined by rank and step needs per-step timing added to
+the evidence bundle first, as Tier 0 always-on structured metrics, under the 1%
+median throughput budget. Post-hoc detection over the bundle would then be
+deterministic and CPU-only, which is the attractive part --
+`aggregate_outcome.py` already exists for exactly that shape of analysis. The
+detector is the easy half; the evidence is the work.
+
 ### Faults 3-5
 
 Checkpoint corruption including manifest integrity, rank death, and compute plus
