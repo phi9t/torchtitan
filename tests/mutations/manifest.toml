@@ -488,3 +488,17 @@ check exists for. Pinned against the real four-process injected straggler rather
 than the synthetic case, because under this mutation that run reports FLAGGED
 with an empty list: a genuine twentyfold straggler goes completely undetected.
 """
+
+[[mutation]]
+id = "mesh-ladder-one-communicator-per-axis"
+target = "torchtitan/experiments/qwen3_formal_verifier/mesh_ladder.py"
+test = "tests/unit_tests/test_qwen3_formal_mesh_ladder.py::test_the_derived_2x2_explores_the_shipped_state_graph"
+find = 'DP_SHARD_AXIS_MESH_NAMES: tuple[str, ...] = ("fsdp", "batch", "loss")'
+replace = 'DP_SHARD_AXIS_MESH_NAMES: tuple[str, ...] = ("fsdp",)'
+why = """
+Emits one communicator per mesh axis instead of one per mesh name, producing four
+at 2x2 where the runtime creates eight. This is the eight-versus-four keying error
+ticket 11 exists to prevent, and it makes every invariant vacuously easier: the
+state space drops from 38321 to 5877, a 6.5x understatement. The equivalence test
+catches it quantitatively rather than by inspection.
+"""

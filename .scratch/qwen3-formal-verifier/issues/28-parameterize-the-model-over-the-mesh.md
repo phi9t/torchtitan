@@ -7,9 +7,70 @@ checked past one configuration.
 **Blocked by:** the exporter prerequisite below. **Blocks:** any claim that the
 safety invariants hold for a mesh other than 2x2 dp_shard x tp.
 
-**Status:** open; prerequisite identified and unstarted
+**Status:** the payoff question is answered -- the invariants hold past 2x2, on
+a derived instance proven equivalent to the shipped one. The exporter
+prerequisite and replacing the hand-written quadruple remain.
 
-## The question this answers
+## Answered, and how
+
+`mesh_ladder.py` derives the instance for a dp_shard x tp mesh of any degree,
+and a generated module EXTENDS `ScoutBModel` rather than editing it. That is the
+seam that made this safe to do at all: the invariants are defined over the
+CONSTANTS, so binding different ones checks the same properties against a
+different mesh while the twenty shipped cfgs and the runner's awk scraper over
+the 2x2 definition names stay untouched.
+
+**Two things were wrong in my earlier framing of this ticket.**
+
+First, the exporter change is not a prerequisite for the payoff question.
+Checking whether the invariants survive a larger mesh needs no *observed* larger
+run -- it is a model question, not an evidence question. The exporter fix is
+needed to make the observed 2x2 instance derived rather than hand-written, which
+is a separate and smaller goal.
+
+Second, I recorded this as needing a canonical-trace move and two gate runs. It
+does not. Nothing here touches the recorded trace, the fact modules, or any
+existing file.
+
+**The validation that matters.** Applying the observed convention at 2x2
+reproduces the shipped instance and TLC explores the *same state graph*: 133881
+states generated, 38321 distinct, matching the figure ticket 16 records for the
+hand-written instance. Agreement on rank and communicator counts would not
+establish that the generated instance means the same thing; equivalence of the
+state graph does, and it is what makes replacing the hand-written quadruple
+safe.
+
+**The ladder, measured.** Exhaustive runs only; a run with states left on queue
+explored a prefix and proves nothing, which the test helper now asserts rather
+than assumes.
+
+| mesh | ranks | comms | MaxIssues | distinct states | exhaustive | violations |
+|---|---|---|---|---|---|---|
+| 2x2 | 4 | 8 | 2 | 38321 | yes | none |
+| 2x3 | 6 | 11 | 1 | 4625 | yes | none |
+| 2x4 | 8 | 14 | 1 | 68449 | yes | none |
+| 2x3 | 6 | 11 | 2 | 301862 reached | **no**, 151081 queued | none seen |
+| 3x2 | 6 | 9 | 2 | 206343 reached | **no**, 29510 queued | none seen |
+
+So the answer is yes, the invariants survive past 2x2 -- to eight ranks and
+fourteen communicators at `MaxIssues = 1`. The binding constraint is
+`MaxIssues`, not the mesh: at 2 the search closes at four ranks and does not
+close at six inside ten minutes. The two incomplete rows are reported as
+incomplete rather than as evidence.
+
+## What remains
+
+- The exporter still discards `batch` and `loss` (see below), so the *observed*
+  2x2 instance is not yet derived from recorded evidence.
+- The shipped hand-written quadruple is not yet replaced by generated
+  definitions. The equivalence result above is what would make that safe, and it
+  would also retire the awk scraper's dependency on those four names.
+- `ScoutDistributed.tla` still hardcodes 2x2 independently.
+- Meshes with a third non-trivial axis are not covered: the mesh-name convention
+  for `dp_replicate` was not observed, and inventing one would be exactly the
+  kind of unmeasured assumption this ticket is trying to remove.
+
+## The original question this answers
 
 Every invariant in this program has been checked on exactly one configuration:
 four ranks, eight communicators, two non-trivial mesh axes. Whether they survive
