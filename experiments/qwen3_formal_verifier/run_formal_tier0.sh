@@ -26,6 +26,7 @@ FETCH_MODE="--networked"
 RUN_LINT=1
 RUN_PYTEST=1
 RUN_MUTATIONS=1
+RUN_FIDELITY=1
 
 usage() {
   cat <<'EOF'
@@ -61,6 +62,7 @@ Options:
   --skip-lint      Skip changed-source lint.
   --skip-pytest    Skip the focused pytest contracts.
   --skip-mutations Skip the mutation manifest.
+  --skip-fidelity  Skip the TLA+/Lean fidelity differential.
   -h, --help       Show this help.
 
 Environment:
@@ -99,6 +101,10 @@ while [[ $# -gt 0 ]]; do
       RUN_MUTATIONS=0
       shift
       ;;
+    --skip-fidelity)
+      RUN_FIDELITY=0
+      shift
+      ;;
     -h | --help)
       usage
       exit 0
@@ -126,8 +132,9 @@ done
   || die "formal check wrapper is not executable: ${FORMAL_CHECKS}"
 mkdir -p -- "${FORMAL_CACHE}"
 
-printf 'QFV_TIER0 start mode=%s lint=%s pytest=%s mutations=%s\n' \
-  "${FETCH_MODE#--}" "${RUN_LINT}" "${RUN_PYTEST}" "${RUN_MUTATIONS}"
+printf 'QFV_TIER0 start mode=%s lint=%s pytest=%s mutations=%s fidelity=%s\n' \
+  "${FETCH_MODE#--}" "${RUN_LINT}" "${RUN_PYTEST}" "${RUN_MUTATIONS}" \
+  "${RUN_FIDELITY}"
 printf 'QFV_TIER0 scope=trace-free note=not-a-gate bundle=none\n'
 
 env TORCHTITAN_FORMAL_CACHE_HOST="${FORMAL_CACHE}" \
@@ -302,6 +309,90 @@ if ((RUN_MUTATIONS)); then
       printf "QFV_TIER0 mutations result=success killed=%s entries=%s self_test=pass manifest=tests/mutations/manifest.toml\n" \
         "${killed_ratio}" "${total}"
     ' tier0-mutations /workspace/torchtitan /project/tmp
+fi
+
+if ((RUN_FIDELITY)); then
+  # The TLA+/Lean fidelity differential. ScoutBModel.tla and ScoutBProtocol.lean
+  # are two hand-written models of one protocol, and if they drift the unbounded
+  # Lean proof describes a different system from the one TLC checks. This stage
+  # compares their nine shared predicates on generated instances.
+  #
+  # Two runs, because the clean run alone cannot show the comparator still works.
+  # The polarity run injects one named perturbation and REQUIRES a non-zero exit
+  # with at least one disagreement -- the same reason the mutation stage checks
+  # its runner's polarity before believing its counts. One perturbation rather
+  # than all six: the full sweep lives in the pytest suite, and the point here is
+  # that the stage can fail at all, which one is enough to establish.
+  #
+  # A TLA-side perturbation is chosen on purpose, so the polarity check exercises
+  # the TLA+ emitter, TLC execution and output parsing rather than only Lean's.
+  #
+  # Offline network and the formal cache, like the pytest and mutation stages:
+  # this runs the real Lean and TLC toolchains, and the scratch tree lives under
+  # /project/tmp so tier 0 still writes nothing under outputs/.
+  env TORCHTITAN_ROOTFS_NETWORK=offline \
+    TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST="${FORMAL_CACHE}" \
+    "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc '
+      set -euo pipefail
+      cd /workspace/torchtitan
+      module="torchtitan.experiments.qwen3_formal_verifier.fidelity_diff"
+      clean_dir="$(mktemp -d /project/tmp/qfv-fidelity-clean.XXXXXXXX)"
+      polarity_dir="$(mktemp -d /project/tmp/qfv-fidelity-polarity.XXXXXXXX)"
+      trap '"'"'rm -rf -- "${clean_dir}" "${polarity_dir}"'"'"' EXIT
+
+      clean_log="${clean_dir}/clean.log"
+      python -m "${module}" --work-dir "${clean_dir}" >"${clean_log}" 2>&1 || {
+        cat "${clean_log}" >&2
+        echo "error: fidelity differential failed on the clean run" >&2
+        exit 1
+      }
+      clean_token="$(grep -c "^QFV_FIDELITY_DIFF result=success" "${clean_log}" || true)"
+      [[ "${clean_token}" == "1" ]] || {
+        cat "${clean_log}" >&2
+        echo "error: expected exactly one clean success token, got ${clean_token}" >&2
+        exit 1
+      }
+      # Read the counts out of the measurement, never printed as literals.
+      read -r instances compared disagreements < <(
+        sed -n "s/^QFV_FIDELITY_DIFF result=success .*instances=\([0-9]\+\) predicates_compared=\([0-9]\+\) .*disagreements=\([0-9]\+\) .*/\1 \2 \3/p" \
+          "${clean_log}" | head -1)
+      [[ -n "${instances}" && -n "${compared}" && -n "${disagreements}" ]] || {
+        cat "${clean_log}" >&2
+        echo "error: clean token carried no counts" >&2
+        exit 1
+      }
+      [[ "${disagreements}" == "0" ]] || {
+        echo "error: clean run reported ${disagreements} disagreements" >&2
+        exit 1
+      }
+      (( compared > 0 )) || {
+        echo "error: clean run compared nothing" >&2
+        exit 1
+      }
+
+      # Polarity: the comparator must still catch an injected divergence.
+      polarity_log="${polarity_dir}/polarity.log"
+      polarity_status=0
+      python -m "${module}" --work-dir "${polarity_dir}" --instances 24 \
+        --perturb tla_completed_off_by_one >"${polarity_log}" 2>&1 \
+        || polarity_status=$?
+      (( polarity_status != 0 )) || {
+        cat "${polarity_log}" >&2
+        echo "error: perturbed run exited 0; the comparator cannot fail" >&2
+        exit 1
+      }
+      polarity_disagreements="$(
+        sed -n "s/^QFV_FIDELITY_DIFF result=failure .*disagreements=\([0-9]\+\) .*/\1/p" \
+          "${polarity_log}" | head -1)"
+      [[ -n "${polarity_disagreements}" ]] && (( polarity_disagreements > 0 )) || {
+        cat "${polarity_log}" >&2
+        echo "error: perturbed run reported no disagreements" >&2
+        exit 1
+      }
+
+      printf "QFV_TIER0 fidelity result=success instances=%s predicates_compared=%s disagreements=%s polarity=caught:%s\n" \
+        "${instances}" "${compared}" "${disagreements}" "${polarity_disagreements}"
+    '
 fi
 
 printf 'QFV_TIER0 result=success mode=%s\n' "${FETCH_MODE#--}"

@@ -3643,9 +3643,11 @@ def test_tier0_runner_selects_the_tier0_suite_and_seals_no_bundle(
     # The mutation stage gets the same offline network and the same cache mount
     # as the pytest stage: the tests its manifest names include ones that run
     # the real TLC and Lean toolchains, and without the mount their controls
-    # would skip.
+    # would skip. The fidelity stage is the fourth entry, for the same reason --
+    # it drives both real toolchains itself.
     assert entrypoint_log.read_text().splitlines() == [
         "networked none",
+        f"offline {cache}",
         f"offline {cache}",
         f"offline {cache}",
     ]
@@ -3659,7 +3661,9 @@ def test_tier0_runner_defaults_to_networked_and_honours_skips(
 ) -> None:
     env, formal_log, entrypoint_log = _tier0_environment(tmp_path)
 
-    result = _run_tier0(env, "--skip-lint", "--skip-pytest", "--skip-mutations")
+    result = _run_tier0(
+        env, "--skip-lint", "--skip-pytest", "--skip-mutations", "--skip-fidelity"
+    )
 
     assert result.returncode == 0, result.stdout
     assert formal_log.read_text().splitlines() == [
@@ -3667,10 +3671,15 @@ def test_tier0_runner_defaults_to_networked_and_honours_skips(
         "--suite",
         "tier0",
     ]
+    # Every stage that enters the rootfs is skipped, so the entrypoint must not
+    # be invoked at all. A new stage that ignored its skip flag would show up
+    # here rather than only in the token.
     assert not entrypoint_log.exists()
     # The start token has to say which stages were skipped, or a reader meets
-    # a bare result=success for a run that checked one of the four things.
-    assert "lint=0 pytest=0 mutations=0" in result.stdout, result.stdout
+    # a bare result=success for a run that checked one of the five things.
+    assert (
+        "lint=0 pytest=0 mutations=0 fidelity=0" in result.stdout
+    ), result.stdout
 
 
 _MUTATION_SUMMARY_FIELDS = (
