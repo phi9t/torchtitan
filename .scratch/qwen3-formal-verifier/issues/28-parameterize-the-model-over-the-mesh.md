@@ -41,7 +41,51 @@ docstring example prints exactly that -- and `batch` and `loss` are the two
 extra names the observed eight-communicator run shows. So `ParallelDims` is a
 sound generator source.
 
-## The prerequisite: the exporter drops two axes
+## The prerequisite, localized exactly
+
+`_runtime_topology` in `scout_b.py` **already calls**
+`trainer.parallel_dims.get_all_one_dimensional_meshes()`. It then throws most of
+the answer away:
+
+- it requires only `{"fsdp", "tp"}` to be present;
+- it iterates a hardcoded two-tuple, `(("fsdp", "dp_shard"), ("tp", "tp"))`, so
+  exactly two process groups are recorded per rank;
+- it builds the coordinate as a hardcoded six-element list,
+  `[0, fsdp, 0, tp, 0, 0]`, checked against `[0, rank // 2, 0, rank % 2, 0, 0]`.
+
+So `batch`, `loss` and `efsdp` are returned by the helper and discarded. The
+exporter is not missing access to the mesh; it is discarding it. That makes the
+prerequisite a smaller change than "teach the exporter about ParallelDims", and
+a more delicate one, because those three hardcoded shapes are what the 2x2
+assumption is actually made of.
+
+One thing this rules out: `_group_axis` is **not** the bug. `mesh_batch` and
+`mesh_loss_mesh` are groups *over* the `dp_shard` axis, so returning `dp_shard`
+for members `{0,2}` is correct. What distinguishes them is the mesh name, which
+already reaches the `collective_id` through `description_key`. The gap is that
+the topology never declares those meshes exist, not that the axis is
+misreported.
+
+## Why this needs a deliberate canonical-trace move
+
+Recording more of the mesh changes `process_groups` from two entries per rank to
+four or more, which changes the normalized bundle, which changes `trace_id`,
+which makes all four checked-in fact modules stale. That is a legitimate
+`--update-artifacts` -- the only kind this program should ever do -- but it
+means:
+
+- a schema decision, since `RAW_SCHEMA` currently pins `qwen3.formal.raw.v1`;
+- the `MESH_AXES` / `MESH_DEGREES` literal assertions become wrong as written;
+- two gate runs, one to accept the new trace and one to confirm check mode
+  passes against it;
+- an audit of the 20 cfgs and `ScoutDistributed.tla`, both of which encode 2x2
+  independently.
+
+That is a full ticket, not a quick fix, and it touches a converged gated path.
+Doing it half-way would leave the canonical trace moved and the consumers not
+updated, which is worse than not starting.
+
+## The original framing, kept for context
 
 What is not sound is the recorded evidence. The exporter writes only
 `MeshAxisName` members, so `batch` and `loss` appear nowhere in the recorded
