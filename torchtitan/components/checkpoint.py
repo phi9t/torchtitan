@@ -12,10 +12,11 @@ import queue
 import re
 import threading
 import time
+from collections.abc import Mapping, Sequence
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast, Literal
+from typing import Any, cast, Literal, NoReturn
 
 import torch
 import torch.distributed as dist
@@ -25,6 +26,14 @@ from torch.distributed.checkpoint import HuggingFaceStorageWriter
 from torch.distributed.checkpoint._consolidate_hf_safetensors import (
     consolidate_safetensors_files_on_every_rank,
 )
+
+# Private, and imported at module scope on purpose: this is the exact reader
+# resolution dcp.load performs for a bare checkpoint_id, so the manifest the
+# sentinel validates is the manifest the subsequent load will read. Importing it
+# here makes a future torch reorganisation fail loudly at import time instead of
+# silently at checkpoint-load time. checkpoint.py already depends on
+# _consolidate_hf_safetensors above for the same class of reason.
+from torch.distributed.checkpoint._storage_utils import _storage_setup
 from torch.distributed.checkpoint.staging import DefaultStager, StagingOptions
 from torch.distributed.checkpoint.state_dict_saver import (
     AsyncCheckpointerType,
@@ -40,7 +49,13 @@ from torchtitan.observability import structured_logger as sl
 from torchtitan.observability.run_evidence import (
     ArtifactRelation,
     ArtifactState,
+    FaultAttributionLocus,
+    FaultConfidence,
+    IncidentCaptureState,
+    IncidentClass,
+    IncidentPolicy,
     record_artifact,
+    record_incident,
 )
 from torchtitan.protocols.state_dict_adapter import BaseStateDictAdapter
 from torchtitan.tools import filesystem
@@ -52,6 +67,296 @@ OPTIMIZER = "optimizer"
 LR_SCHEDULER = "lr_scheduler"
 DATALOADER = "dataloader"
 TRAIN_STATE = "train_state"
+
+# The DCP manifest file name. Already the repository's signal for "this
+# directory holds a DCP checkpoint" (see _find_load_step).
+DCP_MANIFEST_NAME = ".metadata"
+
+# Result tokens for the checkpoint-manifest-integrity sentinel. They go into the
+# incident metadata and into the raised error, so a reader of an evidence bundle
+# can tell which check fired without parsing prose.
+MANIFEST_MISSING = "missing_manifest"
+MANIFEST_UNREADABLE = "unreadable_manifest"
+SHARD_MISSING = "missing_shard"
+SHARD_TRUNCATED = "truncated_shard"
+
+
+class CheckpointCorruptionError(ValueError):
+    """A checkpoint's DCP manifest does not describe the files on disk.
+
+    A ValueError subclass because the checkpoint path is user input and load()
+    already reports an invalid user-supplied checkpoint path that way. The
+    dedicated type exists so callers and tests can pin this failure by type
+    rather than by message text.
+    """
+
+
+def _shard_byte_extents(storage_data: Any) -> dict[str, int] | None:
+    """Map each shard file the manifest references to its required end offset.
+
+    DCP's filesystem writer stores ``Metadata.storage_data`` as
+    ``{MetadataIndex: _StorageInfo}``, where ``_StorageInfo`` carries
+    ``relative_path``, a byte ``offset`` into that file, and a byte ``length``.
+    The largest ``offset + length`` targeting a file is the smallest size that
+    file can have and still hold everything the manifest promises, which is what
+    makes truncation detectable from the manifest alone.
+
+    ``Metadata.storage_data`` is typed ``Any`` because it is writer-private, so
+    the fields are read by duck typing rather than by importing ``_StorageInfo``.
+    Returns None when the layout is not recognized: a writer that stores
+    something else must make the sentinel skip, not make it report a defect that
+    is not there.
+    """
+    if not isinstance(storage_data, Mapping) or not storage_data:
+        return None
+    extents: dict[str, int] = {}
+    for info in storage_data.values():
+        relative_path = getattr(info, "relative_path", None)
+        offset = getattr(info, "offset", None)
+        length = getattr(info, "length", None)
+        if not isinstance(relative_path, (str, os.PathLike)):
+            return None
+        # bool is an int subclass, but a bool offset or length would itself be a
+        # malformed manifest, and treating it as 0/1 here would understate the
+        # required size. Rejecting the layout is the conservative outcome.
+        if type(offset) is not int or type(length) is not int:
+            return None
+        key = os.fspath(relative_path)
+        extents[key] = max(extents.get(key, 0), offset + length)
+    return extents
+
+
+def _read_dcp_manifest(checkpoint_id: str, *, manifest_path: str) -> tuple[Any, Any]:
+    """Read a DCP manifest and return its state_dict_metadata and storage_data.
+
+    Resolves the reader exactly as dcp.load does for a bare checkpoint_id, so
+    the manifest validated here is the manifest the subsequent load will read.
+
+    Raises:
+        CheckpointCorruptionError: if the manifest cannot be deserialized.
+    """
+    try:
+        reader = cast(Any, _storage_setup(None, checkpoint_id, reader=True))
+        manifest = reader.read_metadata()
+        return manifest.state_dict_metadata, manifest.storage_data
+    except Exception as error:
+        # Deliberately broad. The manifest is the object in doubt, so the whole
+        # range of deserialization failures is the defect being looked for:
+        # UnpicklingError, EOFError, a truncated read, an AttributeError from an
+        # object that is not a Metadata, or a ModuleNotFoundError from a pickle
+        # naming a class this build does not have. Narrowing the except clause
+        # would let a corrupt manifest escape as an opaque crash, which is
+        # exactly what this sentinel exists to prevent.
+        _report_checkpoint_corruption(
+            [
+                {
+                    "defect": MANIFEST_UNREADABLE,
+                    "path": manifest_path,
+                    "detail": (
+                        "the DCP manifest could not be read: "
+                        f"{type(error).__name__}: {error}"
+                    ),
+                }
+            ],
+            checkpoint_id=checkpoint_id,
+            cause=error,
+        )
+
+
+def _report_checkpoint_corruption(
+    defects: Sequence[Mapping[str, Any]],
+    *,
+    checkpoint_id: str,
+    cause: BaseException | None = None,
+) -> NoReturn:
+    """Record a typed CHECKPOINT_CORRUPTION incident, then raise.
+
+    The incident is emitted through the module-level record_incident facade
+    rather than through a RunEvidence instance. That is safe here and was not
+    safe for the inconsistent-rank-config detector: this runs inside the
+    trainer's lifecycle, well after RunEvidence.__enter__ has installed the
+    active recorder, whereas that detector runs during __enter__ itself and had
+    to bypass the facade to avoid being silently dropped. The durability of this
+    row is asserted by reading it back off disk in
+    test_truncated_shard_aborts_manager_load_before_dcp_load.
+
+    No step is passed: dcp_load does not receive one, and the checkpoint_id in
+    the metadata already names the step folder that was being loaded. The
+    surrounding checkpoint artifact rows carry the numeric step for the join.
+    """
+    summary_parts: list[str] = []
+    for defect in defects:
+        part = f"{defect['defect']} at {defect['path']}"
+        detail = defect.get("detail")
+        if detail:
+            part = f"{part} ({detail})"
+        summary_parts.append(part)
+    summary = "; ".join(summary_parts)
+    record_incident(
+        incident_class=IncidentClass.CHECKPOINT_CORRUPTION,
+        # The sentinel runs before dcp.load touches any training state, so the
+        # capture is complete at the moment of detection and the checkpoint on
+        # disk is left exactly as found for post-hoc inspection.
+        capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+        # ABORT_FATAL rather than CAPTURE_BEFORE_ABORT: there is no separate
+        # capture step to run before aborting, and rather than
+        # CONTINUE_BOUNDED_WARNING because loading a checkpoint whose manifest
+        # does not describe its files would either fail inside the reader or
+        # silently install partial state. That is the silent-correctness class
+        # the repository requires to abort.
+        policy=IncidentPolicy.ABORT_FATAL,
+        summary=f"checkpoint manifest integrity failed for {checkpoint_id}: {summary}",
+        detected_locus=FaultAttributionLocus.CHECKPOINT_PATH,
+        # This process read the manifest and stat'ed the files itself; the defect
+        # is a directly observed local fact, not something inferred from a peer.
+        attribution_confidence=FaultConfidence.OBSERVED_LOCAL_FAULT,
+        last_operation="checkpoint.validate_dcp_manifest_integrity",
+        useful_work_preserved=False,
+        terminal_disposition="abort",
+        metadata={
+            "checkpoint_id": str(checkpoint_id),
+            "defect_kinds": sorted({str(defect["defect"]) for defect in defects}),
+            "defects": [dict(defect) for defect in defects],
+        },
+    )
+    error = CheckpointCorruptionError(
+        f"checkpoint at {checkpoint_id} failed manifest integrity validation "
+        f"before load: {summary}"
+    )
+    if cause is not None:
+        raise error from cause
+    raise error
+
+
+def validate_dcp_manifest_integrity(checkpoint_id: str) -> None:
+    """Validate a DCP checkpoint's manifest against the files on disk.
+
+    This is the "checkpoint manifest integrity" sentinel of the minimum
+    correctness set in docs/robust_training_reliability.md. It runs before
+    dcp.load so a damaged checkpoint aborts with a named defect and a typed
+    CHECKPOINT_CORRUPTION incident instead of whatever the reader happens to
+    raise from inside a worker thread.
+
+    Four defects are detected, each named by the token it reports:
+
+    1. ``missing_manifest`` -- ``.metadata`` is absent from the checkpoint.
+    2. ``unreadable_manifest`` -- ``.metadata`` is present but does not
+       deserialize, or deserializes into something carrying no
+       ``state_dict_metadata`` mapping.
+    3. ``missing_shard`` -- the manifest references a shard file that is not
+       there.
+    4. ``truncated_shard`` -- a referenced shard file is shorter than the
+       largest ``offset + length`` the manifest assigns to it.
+
+    What this sentinel does NOT detect, stated rather than implied:
+
+    - Bit flips or any other corruption inside shard data. The manifest records
+      byte ranges, not checksums, so a shard of the right length with wrong
+      contents passes. Detecting that needs per-shard digests DCP does not
+      write.
+    - A shard that is longer than required. Trailing bytes past the last
+      recorded range are not read, so extra length is not evidence of a defect.
+    - Anything in a HuggingFace safetensors checkpoint. That path uses a
+      different storage reader and a ``model.safetensors.index.json`` manifest;
+      it is not validated here, and dcp_load warns when it takes that path.
+    - Corruption of the manifest that still deserializes into a well-formed
+      Metadata whose ranges happen to fit the files present.
+
+    Remote (fsspec) checkpoints are validated, not skipped: the cost is one
+    isfile plus one size probe per referenced shard, which for DCP is one pair
+    per writing rank, paid once per load. When a backend declines to report a
+    size, truncation detection for that file is skipped with a warning rather
+    than guessed.
+
+    Raises:
+        CheckpointCorruptionError: if any defect above is found.
+    """
+    manifest_path = filesystem.join(checkpoint_id, DCP_MANIFEST_NAME)
+    if not filesystem.isfile(manifest_path):
+        _report_checkpoint_corruption(
+            [
+                {
+                    "defect": MANIFEST_MISSING,
+                    "path": manifest_path,
+                    "detail": "the DCP manifest is absent from the checkpoint",
+                }
+            ],
+            checkpoint_id=checkpoint_id,
+        )
+
+    state_dict_metadata, storage_data = _read_dcp_manifest(
+        checkpoint_id, manifest_path=manifest_path
+    )
+
+    if not isinstance(state_dict_metadata, Mapping):
+        _report_checkpoint_corruption(
+            [
+                {
+                    "defect": MANIFEST_UNREADABLE,
+                    "path": manifest_path,
+                    "detail": (
+                        "the DCP manifest carries no state_dict_metadata mapping "
+                        f"(found {type(state_dict_metadata).__name__})"
+                    ),
+                }
+            ],
+            checkpoint_id=checkpoint_id,
+        )
+
+    extents = _shard_byte_extents(storage_data)
+    if extents is None:
+        logger.warning(
+            "Checkpoint manifest integrity: shard existence and length checks "
+            f"are SKIPPED for {checkpoint_id}. Its manifest's storage_data is "
+            "not the {MetadataIndex: _StorageInfo} mapping written by DCP's "
+            "filesystem writer, so no shard file could be identified. A missing "
+            "or truncated shard in this checkpoint is NOT detected."
+        )
+        return
+
+    defects: list[dict[str, Any]] = []
+    for relative_path, required_bytes in sorted(extents.items()):
+        shard_path = filesystem.join(checkpoint_id, relative_path)
+        if not filesystem.isfile(shard_path):
+            defects.append(
+                {
+                    "defect": SHARD_MISSING,
+                    "path": shard_path,
+                    "required_bytes": required_bytes,
+                    "detail": "referenced by the manifest but not present",
+                }
+            )
+            continue
+        try:
+            actual_bytes = filesystem.getsize(shard_path)
+        except OSError as error:
+            # A backend that cannot report a size makes truncation undetectable
+            # for this file. Warn rather than guess: an unknown size is not
+            # evidence of a defect, and treating it as zero would abort a
+            # healthy load.
+            logger.warning(
+                "Checkpoint manifest integrity: length check SKIPPED for "
+                f"{shard_path} because its size could not be read "
+                f"({type(error).__name__}: {error}). Truncation of this shard "
+                "is NOT detected."
+            )
+            continue
+        if actual_bytes < required_bytes:
+            defects.append(
+                {
+                    "defect": SHARD_TRUNCATED,
+                    "path": shard_path,
+                    "required_bytes": required_bytes,
+                    "actual_bytes": actual_bytes,
+                    "detail": (
+                        f"{required_bytes - actual_bytes} bytes short of the "
+                        "manifest's largest recorded byte range"
+                    ),
+                }
+            )
+
+    if defects:
+        _report_checkpoint_corruption(defects, checkpoint_id=checkpoint_id)
 
 
 class AsyncMode(str, enum.Enum):
@@ -685,12 +990,29 @@ class CheckpointManager(Configurable):
 
         Raises:
             AssertionError: If `from_hf` is True but no `sd_adapter` is available.
+            CheckpointCorruptionError: If the native DCP manifest does not
+                describe the files on disk. See
+                validate_dcp_manifest_integrity for what that covers and what it
+                does not.
         """
 
         if from_hf:
             assert self.sd_adapter is not None, (
                 "trying to load checkpoint in HF safetensors format, "
                 "but sd_adapter is not provided."
+            )
+
+            # The manifest integrity sentinel below reads a DCP .metadata
+            # pickle. A HF checkpoint has no such file: it is described by
+            # model.safetensors.index.json and read through the adapter's own
+            # storage reader. Warn rather than stay silent, since a user who
+            # expects the sentinel to guard every load would otherwise get no
+            # signal that it did not run.
+            logger.warning(
+                "Checkpoint manifest integrity is NOT validated for the "
+                f"HuggingFace safetensors checkpoint at {checkpoint_id}. The "
+                "sentinel covers native DCP .metadata manifests only; a missing "
+                "or truncated safetensors shard is not detected here."
             )
 
             hf_state_dict = self.sd_adapter.to_hf(state_dict)
@@ -703,6 +1025,12 @@ class CheckpointManager(Configurable):
             state_dict = self.sd_adapter.from_hf(hf_state_dict)
             self.states[MODEL].load_state_dict(state_dict)
         else:
+            # Validate before dcp.load, not after a failure: the point is to
+            # name the defect and the file while nothing has been loaded, so the
+            # incident attributes the abort to the checkpoint path instead of to
+            # whatever the reader raises from a worker thread.
+            validate_dcp_manifest_integrity(checkpoint_id)
+
             dcp.load(state_dict, checkpoint_id=checkpoint_id)
 
             # TODO: Since we flatten the model states in state_dict, we need to

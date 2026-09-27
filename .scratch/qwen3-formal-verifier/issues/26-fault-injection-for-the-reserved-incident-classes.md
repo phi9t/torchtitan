@@ -7,8 +7,8 @@ inconsistent per-rank config and collective hang.
 **Blocked by:** none. **Blocks:** 08 — promotion boundary (its detection-latency
 criterion).
 
-**Status:** fault 1 detector landed and mutation-tested; fault 1 injector and
-faults 2-5 outstanding
+**Status:** faults 1 and 3 landed and mutation-tested; their multi-rank
+injected runs and faults 2, 4, 5 outstanding
 
 ## What is proven so far, precisely
 
@@ -127,6 +127,48 @@ Smallest and highest-value, because the detector exists.
 - Non-detection to record explicitly: fields excluded from the comparison cannot
   be detected this way. State which, and prove a divergence in an excluded field
   is *not* reported, so the check's scope is measured rather than assumed.
+
+### Fault 3 -- checkpoint manifest integrity: LANDED
+
+`docs/robust_training_reliability.md:113-118` names this as the first of four
+minimum correctness sentinels and it had no implementation. It now runs in
+`dcp_load`'s plain-DCP branch immediately before `dcp.load`, so the defect is
+named while nothing has been loaded and the abort is attributed to the
+checkpoint path rather than to whatever the reader raises from a worker thread.
+
+Four defects detected, each with its own result token: `MANIFEST_MISSING`,
+`MANIFEST_UNREADABLE`, `SHARD_MISSING`, `SHARD_TRUNCATED`. The incident is
+`CHECKPOINT_CORRUPTION` / `ABORT_FATAL` / `CHECKPOINT_PATH`, and unlike fault 1
+it does carry `attribution_confidence=OBSERVED_LOCAL_FAULT`, which is justified:
+this process read the manifest and stat-ed the files itself, inferring nothing
+from a peer.
+
+Truncation detection needed a measurement to establish. `ChunkStorageMetadata`
+offsets are tensor coordinates, not file bytes; the byte ranges live in
+`Metadata.storage_data`, which for `FileSystemWriter` maps `MetadataIndex` to
+`_StorageInfo(relative_path, offset, length, ...)`. Confirmed against a real
+`dcp.save`, where the shard's size equalled the last recorded offset plus its
+length exactly. `storage_data` is typed `Any` and writer-private, so the fields
+are read by duck typing and an unrecognised layout skips shard checks with a
+warning rather than reporting a defect it did not observe.
+
+Cost, measured inside the rootfs: 0.066 ms median for one shard, 2.794 ms for
+512. It is O(num_shards) stat pairs paid once per load, so it does not touch
+steady-state throughput.
+
+Non-detections recorded as tests rather than comments: bit flips inside shard
+data are invisible because DCP writes no per-shard checksum; the HF safetensors
+path is not covered and warns once per job that it is not; a backend that
+refuses a size probe skips truncation detection for that file with a warning,
+proven against a genuinely truncated shard; a shard longer than required is not
+a defect because trailing bytes are never read.
+
+One discovery worth recording: eight pre-existing tests in `test_checkpoint.py`
+were fixtured with a zero-byte touched `.metadata` -- which is exactly the
+`MANIFEST_UNREADABLE` defect -- and began failing the moment the sentinel was
+wired. They were repaired with a hand-built real `Metadata` pickle and matching
+shard, not by weakening the sentinel. The fixtures had been describing a corrupt
+checkpoint all along and nothing noticed.
 
 ### Fault 2 -- collective hang
 

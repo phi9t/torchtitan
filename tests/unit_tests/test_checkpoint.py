@@ -6,6 +6,7 @@
 
 import json
 import os
+import pickle
 import queue as queue_lib
 import shutil
 import tempfile
@@ -20,21 +21,73 @@ from unittest import mock
 
 import fsspec
 import torch
+import torch.distributed.checkpoint as dcp
 import torch.nn as nn
+from torch.distributed.checkpoint.filesystem import _StorageInfo
+from torch.distributed.checkpoint.metadata import (
+    BytesStorageMetadata,
+    Metadata,
+    MetadataIndex,
+)
 from torch.distributed.checkpoint.state_dict_saver import AsyncSaveResponse
 from torch.utils.data import DataLoader
 from torchtitan.components.checkpoint import (
+    CheckpointCorruptionError,
     CheckpointManager,
+    DCP_MANIFEST_NAME,
+    MANIFEST_MISSING,
+    MANIFEST_UNREADABLE,
     MODEL,
     ModelWrapper,
     purge_thread,
+    SHARD_MISSING,
+    SHARD_TRUNCATED,
     Terminate,
+    validate_dcp_manifest_integrity,
 )
 from torchtitan.observability.run_evidence import (
     ArtifactState,
     record_artifact as record_run_artifact,
     RunEvidence,
 )
+
+
+def write_dcp_manifest(checkpoint_id: str, *, shard_name: str = "__0_0.distcp") -> None:
+    """Give a hand-made checkpoint directory a DCP manifest matching its files.
+
+    The manifest integrity sentinel runs before dcp.load, so a directory holding
+    an empty touched .metadata is exactly the corruption it reports. This writes
+    a real Metadata pickle describing one small shard file, plus that shard, so
+    the sentinel passes on a fixture whose dcp.save/dcp.load are mocked.
+
+    Hand-built rather than produced by dcp.save on purpose: the tests here patch
+    "torchtitan.components.checkpoint.dcp.save", which resolves to
+    torch.distributed.checkpoint.save itself, so a helper calling dcp.save would
+    reach the test's own mock instead of writing a manifest.
+    """
+    os.makedirs(checkpoint_id, exist_ok=True)
+    shard_bytes = b"\x00" * 64
+    Path(checkpoint_id, shard_name).write_bytes(shard_bytes)
+    manifest = Metadata(
+        state_dict_metadata={"manifest_probe": BytesStorageMetadata()},
+        storage_data={
+            MetadataIndex(fqn="manifest_probe"): _StorageInfo(
+                relative_path=shard_name, offset=0, length=len(shard_bytes)
+            )
+        },
+    )
+    Path(checkpoint_id, DCP_MANIFEST_NAME).write_bytes(pickle.dumps(manifest))
+
+
+def build_real_dcp_checkpoint(checkpoint_id: str) -> str:
+    """Write a genuine single-process DCP checkpoint and return its shard path."""
+    dcp.save(
+        {"weight": torch.arange(64, dtype=torch.float32), "bias": torch.ones(8)},
+        checkpoint_id=checkpoint_id,
+    )
+    shards = [name for name in os.listdir(checkpoint_id) if name.endswith(".distcp")]
+    assert len(shards) == 1, shards
+    return os.path.join(checkpoint_id, shards[0])
 
 
 @contextmanager
@@ -70,7 +123,27 @@ def checkpoint_artifact_rows(evidence: RunEvidence) -> list[dict]:
     return [
         row
         for row in (json.loads(line) for line in index_path.read_text().splitlines())
-        if row["kind"] == "torchtitan.checkpoint"
+        # Incident rows share the index and carry no "kind", so read it
+        # defensively rather than by subscript.
+        if row.get("kind") == "torchtitan.checkpoint"
+    ]
+
+
+def incident_rows(evidence: RunEvidence) -> list[dict]:
+    """Read the typed incident rows this process appended to its index."""
+    index_path = next(
+        (
+            Path(evidence.dump_folder)
+            / "run_evidence"
+            / evidence.run_id
+            / evidence.attempt_id
+            / "indexes"
+        ).glob("artifacts.*.jsonl")
+    )
+    return [
+        row
+        for row in (json.loads(line) for line in index_path.read_text().splitlines())
+        if row["record_type"] == "incident"
     ]
 
 
@@ -223,6 +296,10 @@ class TestCheckpointManager(unittest.TestCase):
             elif isinstance(val, torch.Tensor):
                 sd_to_save[key] = val
         torch.save(sd_to_save, os.path.join(checkpoint_id, "state_dict.pt"))
+        # A load of this directory goes through the manifest integrity sentinel
+        # before reaching the mocked dcp.load, so the fake save has to leave a
+        # manifest that matches the files it wrote.
+        write_dcp_manifest(checkpoint_id)
 
     def fake_load(self, states: dict, checkpoint_id=None):
         path = os.path.join(checkpoint_id, "state_dict.pt")
@@ -368,8 +445,7 @@ class TestCheckpointManager(unittest.TestCase):
     @mock.patch("torchtitan.components.checkpoint.dcp.load")
     def test_sync_load_records_checkpoint_evidence(self, mock_load, mock_rank):
         checkpoint_id = os.path.join(self.test_folder, "step-5")
-        os.makedirs(checkpoint_id)
-        Path(checkpoint_id, ".metadata").touch()
+        write_dcp_manifest(checkpoint_id)
         manager = CheckpointManager(
             dataloader=self.data_loader,
             model_parts=self.model_parts,
@@ -409,8 +485,7 @@ class TestCheckpointManager(unittest.TestCase):
         self, mock_load, mock_rank
     ):
         checkpoint_id = os.path.join(self.test_folder, "step-6")
-        os.makedirs(checkpoint_id)
-        Path(checkpoint_id, ".metadata").touch()
+        write_dcp_manifest(checkpoint_id)
         mock_load.side_effect = RuntimeError("native load failed")
         manager = CheckpointManager(
             dataloader=self.data_loader,
@@ -437,8 +512,7 @@ class TestCheckpointManager(unittest.TestCase):
         self, mock_load, mock_rank
     ):
         checkpoint_id = os.path.join(self.test_folder, "step-7")
-        os.makedirs(checkpoint_id)
-        Path(checkpoint_id, ".metadata").touch()
+        write_dcp_manifest(checkpoint_id)
         manager = CheckpointManager(
             dataloader=self.data_loader,
             model_parts=self.model_parts,
@@ -473,8 +547,7 @@ class TestCheckpointManager(unittest.TestCase):
         self, mock_load, mock_rank
     ):
         checkpoint_id = os.path.join(self.test_folder, "step-7")
-        os.makedirs(checkpoint_id)
-        Path(checkpoint_id, ".metadata").touch()
+        write_dcp_manifest(checkpoint_id)
         failed_transitions = []
 
         def fail_failed_transition(**kwargs):
@@ -886,9 +959,7 @@ class TestCheckpointManager(unittest.TestCase):
         ckpt_folder = os.path.join(self.test_folder, "checkpoints")
         os.makedirs(ckpt_folder, exist_ok=True)
         for s in (2, 5):
-            d = os.path.join(ckpt_folder, f"step-{s}")
-            os.makedirs(d, exist_ok=True)
-            open(os.path.join(d, ".metadata"), "w").close()
+            write_dcp_manifest(os.path.join(ckpt_folder, f"step-{s}"))
         cfg = self.trainer_config.checkpoint
         cfg.folder = "checkpoints"
         manager = CheckpointManager(
@@ -915,7 +986,7 @@ class TestCheckpointManager(unittest.TestCase):
         self, mock_load, mock_rank
     ):
         initial_load_path = os.path.join(self.base_temp_dir, "initial", "step-100")
-        os.makedirs(initial_load_path, exist_ok=True)
+        write_dcp_manifest(initial_load_path)
 
         cfg = self.trainer_config.checkpoint
         cfg.initial_load_path = initial_load_path
@@ -952,8 +1023,7 @@ class TestCheckpointManager(unittest.TestCase):
         os.makedirs(initial_load_path, exist_ok=True)
         ckpt_folder = os.path.join(self.test_folder, "checkpoints")
         step_dir = os.path.join(ckpt_folder, "step-5")
-        os.makedirs(step_dir, exist_ok=True)
-        open(os.path.join(step_dir, ".metadata"), "w").close()
+        write_dcp_manifest(step_dir)
 
         cfg = self.trainer_config.checkpoint
         cfg.folder = "checkpoints"
@@ -1441,6 +1511,321 @@ class TestCheckpointManager(unittest.TestCase):
         )
 
         manager.maybe_wait_for_saving()
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    def test_healthy_dcp_checkpoint_round_trips_without_false_positive(self, mock_rank):
+        """A real save and load must survive the manifest integrity sentinel.
+
+        Neither dcp.save nor dcp.load is mocked here, so this is the
+        no-false-positive proof: the sentinel inspects a manifest DCP actually
+        wrote, then the real reader restores the state.
+        """
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=self.trainer_config.checkpoint,
+            sd_adapter=None,
+            base_folder="",
+        )
+
+        weight_before = self.model_part.weight.clone()
+        self.assertTrue(manager.save(curr_step=3))
+        with torch.no_grad():
+            self.model_part.weight.zero_()
+
+        with checkpoint_evidence(self.test_folder, self._testMethodName) as evidence:
+            self.assertTrue(manager.load(step=3))
+            self.assertEqual(incident_rows(evidence), [])
+
+        self.assertTrue(torch.equal(self.model_part.weight, weight_before))
+        manager.close()
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    @mock.patch("torchtitan.components.checkpoint.dcp.load")
+    def test_truncated_shard_aborts_manager_load_before_dcp_load(
+        self, mock_load, mock_rank
+    ):
+        """The sentinel must fire on the real load path, before the reader runs.
+
+        Reading the incident back off disk is the point rather than incidental.
+        record_incident is a no-op when no recorder is active, so an
+        implementation that detected the truncation but emitted it at a moment
+        with no active recorder would leave no record at all and still pass a
+        test that only checked the raised error. Unlike the manifest-divergence
+        detector, this seam runs well inside the trainer lifecycle, so the
+        module-level facade is the correct emitter -- and this assertion is what
+        establishes that rather than assuming it.
+        """
+        checkpoint_id = os.path.join(self.test_folder, "step-9")
+        shard_path = build_real_dcp_checkpoint(checkpoint_id)
+        intact_bytes = os.path.getsize(shard_path)
+        os.truncate(shard_path, intact_bytes - 16)
+
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=self.trainer_config.checkpoint,
+            sd_adapter=None,
+            base_folder="",
+        )
+
+        with checkpoint_evidence(self.test_folder, self._testMethodName) as evidence:
+            with self.assertRaises(CheckpointCorruptionError) as caught:
+                manager.load(step=9)
+            incidents = incident_rows(evidence)
+            artifacts = checkpoint_artifact_rows(evidence)
+
+        # Nothing was read: the sentinel runs before dcp.load, so the abort
+        # cannot have installed partial state.
+        mock_load.assert_not_called()
+        self.assertIn(SHARD_TRUNCATED, str(caught.exception))
+        self.assertIn(shard_path, str(caught.exception))
+
+        self.assertEqual(len(incidents), 1, incidents)
+        recorded = incidents[0]
+        self.assertEqual(recorded["incident_class"], "checkpoint_corruption")
+        self.assertEqual(recorded["detected_locus"], "checkpoint_path")
+        self.assertEqual(recorded["policy"], "abort_fatal")
+        self.assertEqual(recorded["metadata"]["defect_kinds"], [SHARD_TRUNCATED])
+        self.assertEqual(
+            recorded["metadata"]["defects"][0]["actual_bytes"], intact_bytes - 16
+        )
+        # The load attempt is still recorded as a failed input artifact, so the
+        # incident and the lineage row describe the same step folder.
+        self.assertEqual([row["state"] for row in artifacts], ["declared", "failed"])
+        manager.close()
+
+    @mock.patch("torchtitan.components.checkpoint.logger")
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    @mock.patch("torchtitan.components.checkpoint.dcp.load")
+    def test_hf_load_warns_that_manifest_integrity_is_not_validated(
+        self, mock_load, mock_rank, mock_logger
+    ):
+        """The safetensors path is a recorded non-detection, not coverage.
+
+        A HF checkpoint has no DCP .metadata and is read through the adapter's
+        own storage reader, so the sentinel cannot run. The user is told once
+        per load rather than left to assume every load is guarded.
+        """
+        checkpoint_id = os.path.join(self.test_folder, "hf-checkpoint")
+        os.makedirs(checkpoint_id)
+        config = self.trainer_config.checkpoint
+        config.folder = "new-checkpoints"
+        config.initial_load_path = checkpoint_id
+        config.initial_load_model_only = True
+        config.initial_load_in_hf = True
+        sd_adapter = mock.MagicMock()
+        sd_adapter.to_hf.side_effect = lambda states: states
+        sd_adapter.from_hf.side_effect = lambda states: states
+        sd_adapter.get_hf_storage_reader.return_value = mock.sentinel.hf_reader
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=config,
+            sd_adapter=sd_adapter,
+            base_folder=self.test_folder,
+        )
+
+        self.assertTrue(manager.load())
+
+        warnings = [call.args[0] for call in mock_logger.warning.call_args_list]
+        skip_warnings = [
+            message
+            for message in warnings
+            if "manifest integrity is NOT validated" in message
+            and checkpoint_id in message
+        ]
+        self.assertEqual(len(skip_warnings), 1, warnings)
+        manager.close()
+
+
+class TestCheckpointManifestIntegritySentinel(unittest.TestCase):
+    """Fault 3 of the v1 suite: checkpoint manifest integrity.
+
+    Each case injects one deterministic defect into a genuine DCP checkpoint
+    written by dcp.save, then runs the sentinel against it inside an active
+    run-evidence recorder, so both the raised error and the durable incident row
+    are checked against a real manifest rather than a hand-made stand-in.
+    """
+
+    def setUp(self):
+        self.base_temp_dir = tempfile.mkdtemp()
+        self.checkpoint_id = os.path.join(self.base_temp_dir, "step-4")
+        self.shard_path = build_real_dcp_checkpoint(self.checkpoint_id)
+        self.manifest_path = os.path.join(self.checkpoint_id, DCP_MANIFEST_NAME)
+
+    def tearDown(self):
+        shutil.rmtree(self.base_temp_dir)
+
+    def _detect(self):
+        """Run the sentinel under a recorder; return the error and its incidents."""
+        with checkpoint_evidence(self.base_temp_dir, self._testMethodName) as evidence:
+            with self.assertRaises(CheckpointCorruptionError) as caught:
+                validate_dcp_manifest_integrity(self.checkpoint_id)
+            return caught.exception, incident_rows(evidence)
+
+    def _assert_incident_envelope(self, incident, *, defect_kinds):
+        self.assertEqual(incident["incident_class"], "checkpoint_corruption")
+        self.assertEqual(incident["capture_state"], "abort_and_preserve")
+        self.assertEqual(incident["policy"], "abort_fatal")
+        self.assertEqual(incident["detected_locus"], "checkpoint_path")
+        self.assertEqual(incident["attribution_confidence"], "observed_local_fault")
+        self.assertEqual(incident["terminal_disposition"], "abort")
+        self.assertIs(incident["useful_work_preserved"], False)
+        self.assertEqual(
+            incident["last_operation"], "checkpoint.validate_dcp_manifest_integrity"
+        )
+        self.assertEqual(incident["metadata"]["checkpoint_id"], self.checkpoint_id)
+        self.assertEqual(incident["metadata"]["defect_kinds"], defect_kinds)
+
+    def test_healthy_checkpoint_passes_and_records_no_incident(self):
+        with checkpoint_evidence(self.base_temp_dir, self._testMethodName) as evidence:
+            validate_dcp_manifest_integrity(self.checkpoint_id)
+            self.assertEqual(incident_rows(evidence), [])
+
+    def test_missing_manifest_is_detected(self):
+        os.remove(self.manifest_path)
+
+        error, incidents = self._detect()
+
+        self.assertIn(MANIFEST_MISSING, str(error))
+        self.assertIn(self.manifest_path, str(error))
+        self.assertEqual(len(incidents), 1, incidents)
+        self._assert_incident_envelope(incidents[0], defect_kinds=[MANIFEST_MISSING])
+        self.assertEqual(
+            incidents[0]["metadata"]["defects"][0]["path"], self.manifest_path
+        )
+
+    def test_unreadable_manifest_is_detected(self):
+        Path(self.manifest_path).write_bytes(b"this is not a pickle")
+
+        error, incidents = self._detect()
+
+        self.assertIn(MANIFEST_UNREADABLE, str(error))
+        self.assertIn(self.manifest_path, str(error))
+        # The deserialization failure is preserved as the cause rather than
+        # discarded, so the original diagnostic is still reachable.
+        self.assertIsInstance(error.__cause__, Exception)
+        self.assertEqual(len(incidents), 1, incidents)
+        self._assert_incident_envelope(incidents[0], defect_kinds=[MANIFEST_UNREADABLE])
+        self.assertIn(
+            "could not be read", incidents[0]["metadata"]["defects"][0]["detail"]
+        )
+
+    def test_manifest_without_a_state_dict_metadata_mapping_is_detected(self):
+        """A manifest that unpickles but describes nothing is still corrupt."""
+        Path(self.manifest_path).write_bytes(
+            pickle.dumps(Metadata(state_dict_metadata=None, storage_data={}))
+        )
+
+        error, incidents = self._detect()
+
+        self.assertIn(MANIFEST_UNREADABLE, str(error))
+        self.assertIn("no state_dict_metadata mapping", str(error))
+        self.assertEqual(len(incidents), 1, incidents)
+        self._assert_incident_envelope(incidents[0], defect_kinds=[MANIFEST_UNREADABLE])
+
+    def test_missing_shard_is_detected(self):
+        os.remove(self.shard_path)
+
+        error, incidents = self._detect()
+
+        self.assertIn(SHARD_MISSING, str(error))
+        self.assertIn(self.shard_path, str(error))
+        self.assertEqual(len(incidents), 1, incidents)
+        self._assert_incident_envelope(incidents[0], defect_kinds=[SHARD_MISSING])
+        defect = incidents[0]["metadata"]["defects"][0]
+        self.assertEqual(defect["path"], self.shard_path)
+        self.assertGreater(defect["required_bytes"], 0)
+
+    def test_truncated_shard_is_detected(self):
+        intact_bytes = os.path.getsize(self.shard_path)
+        os.truncate(self.shard_path, intact_bytes - 16)
+
+        error, incidents = self._detect()
+
+        self.assertIn(SHARD_TRUNCATED, str(error))
+        self.assertIn(self.shard_path, str(error))
+        self.assertEqual(len(incidents), 1, incidents)
+        self._assert_incident_envelope(incidents[0], defect_kinds=[SHARD_TRUNCATED])
+        defect = incidents[0]["metadata"]["defects"][0]
+        self.assertEqual(defect["actual_bytes"], intact_bytes - 16)
+        self.assertGreater(defect["required_bytes"], defect["actual_bytes"])
+
+    @mock.patch("torchtitan.components.checkpoint.logger")
+    def test_unrecognized_manifest_layout_warns_and_skips_shard_checks(
+        self, mock_logger
+    ):
+        """An unreadable storage_data layout is a recorded non-detection.
+
+        Metadata.storage_data is typed Any because it is writer-private. When it
+        is not the {MetadataIndex: _StorageInfo} mapping DCP's filesystem writer
+        produces, no shard file can be identified, so shard existence and length
+        are not checked. The sentinel says so instead of reporting a defect it
+        did not observe -- proven here by deleting the shard and getting no
+        error.
+        """
+        Path(self.manifest_path).write_bytes(
+            pickle.dumps(
+                Metadata(
+                    state_dict_metadata={"weight": BytesStorageMetadata()},
+                    storage_data={"weight": "an unrecognized storage record"},
+                )
+            )
+        )
+        os.remove(self.shard_path)
+
+        with checkpoint_evidence(self.base_temp_dir, self._testMethodName) as evidence:
+            validate_dcp_manifest_integrity(self.checkpoint_id)
+            self.assertEqual(incident_rows(evidence), [])
+
+        warnings = [call.args[0] for call in mock_logger.warning.call_args_list]
+        skip_warnings = [
+            message
+            for message in warnings
+            if "SKIPPED" in message and self.checkpoint_id in message
+        ]
+        self.assertEqual(len(skip_warnings), 1, warnings)
+
+    @mock.patch("torchtitan.components.checkpoint.logger")
+    def test_unreadable_shard_size_warns_and_skips_truncation_detection(
+        self, mock_logger
+    ):
+        """A backend that cannot report a size must warn, not guess.
+
+        Remote filesystems can refuse a size probe. Treating an unknown size as
+        zero would abort a healthy load, so truncation detection is skipped for
+        that file and the skip is announced. The shard here is genuinely
+        truncated, which makes the non-detection explicit rather than theoretical.
+        """
+        os.truncate(self.shard_path, 16)
+
+        with mock.patch(
+            "torchtitan.components.checkpoint.filesystem.getsize",
+            side_effect=OSError("size unavailable"),
+        ):
+            with checkpoint_evidence(
+                self.base_temp_dir, self._testMethodName
+            ) as evidence:
+                validate_dcp_manifest_integrity(self.checkpoint_id)
+                self.assertEqual(incident_rows(evidence), [])
+
+        warnings = [call.args[0] for call in mock_logger.warning.call_args_list]
+        skip_warnings = [
+            message
+            for message in warnings
+            if "length check SKIPPED" in message and self.shard_path in message
+        ]
+        self.assertEqual(len(skip_warnings), 1, warnings)
 
 
 class TestConfigPostInit(unittest.TestCase):
