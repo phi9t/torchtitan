@@ -7,8 +7,8 @@ inconsistent per-rank config and collective hang.
 **Blocked by:** none. **Blocks:** 08 — promotion boundary (its detection-latency
 criterion).
 
-**Status:** faults 1 and 3 landed with multi-process injected runs and
-mutation-tested; faults 2, 4, 5 outstanding
+**Status:** faults 1, 2, 3 and 4 landed with multi-rank injected runs and
+mutation-tested; fault 5 outstanding, blocked on evidence
 
 ## What is proven so far, precisely
 
@@ -201,7 +201,50 @@ The model and the refinement bridge already reason about this, so detection can
 be traced to a named invariant rather than to a crash. Requires a bounded wait,
 because a detector that hangs alongside the job is not a detector.
 
-### Why faults 2, 4 and 5 each need infrastructure first
+### Faults 2 and 4 -- collective hang and rank death: LANDED
+
+My own blocker claim for fault 2 was wrong, and the correction is the useful
+part. I wrote that detection is timeout-based and therefore not deterministic.
+That conflates latency with outcome: a rank that never issues a collective
+always causes its peers to time out. The latency varies; the outcome does not.
+That makes it injectable.
+
+Measured on four ranks with a four-second Gloo timeout, the two faults are
+distinguishable, which was not obvious beforehand:
+
+| injection | Gloo signature |
+|---|---|
+| rank stays alive, never issues | `Timed out waiting 4000ms for recv/send operation` |
+| rank exits, closing its sockets | `Connection closed by peer`, `Read error` |
+
+Both arrive as a plain `RuntimeError` from the same collective, so the class has
+to come from the message. `torchtitan/observability/distributed_faults.py`
+classifies them and records the matched signature in the incident metadata, so a
+reader can see what the classification rested on rather than trusting it.
+
+`FaultConfidence.COLLECTIVE_TIMEOUT_INSUFFICIENT_EVIDENCE` already existed for
+exactly this ambiguity -- a timeout says a peer did not arrive, not which peer
+or why -- and that is what a hang records. Rank death records
+`SUSPECTED_PEER_FAULT`.
+
+Injected for real, four processes each time: one run where rank 1 sleeps through
+the collective, one where it exits. Every survivor records the right class, and
+neither run produces the other's class.
+
+**The scope limit, which is narrow and must not be forgotten.** The signatures
+are **Gloo's**. NCCL reports timeouts and aborts through a different path with
+different text and is **not covered**. An unrecognized error is returned
+unclassified rather than guessed, and that is tested with a NCCL watchdog
+message among the cases -- because over-classification is the dangerous
+direction here: a wrong class sends a reader to the wrong subsystem, which is
+worse than an honest "unclassified". The mutation that makes the table match
+everything is caught by precisely that case.
+
+Nothing is wired into the trainer. This is a classifier plus proof that it works
+on real injected faults; deciding where the core catches a failed collective is
+a separate change.
+
+### Why fault 5 still needs infrastructure first
 
 Investigated rather than assumed. None of the three is a small change, and each
 is blocked on something that does not exist yet:

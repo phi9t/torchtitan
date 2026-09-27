@@ -443,3 +443,34 @@ reports MISSED, meaning each one loaded a damaged checkpoint -- which is the
 failure the multi-rank test exists to catch, and which no single-process test can
 demonstrate.
 """
+
+[[mutation]]
+id = "collective-fault-signature-matches-everything"
+target = "torchtitan/observability/distributed_faults.py"
+test = "tests/unit_tests/observability/test_distributed_faults.py::test_an_unrecognized_error_is_not_classified"
+find = "        if signature in text:"
+replace = "        if True:"
+why = """
+Makes the signature table match every error, so a NCCL watchdog message or an
+unrelated RuntimeError is labelled a collective hang. Over-classification is the
+dangerous direction: a wrong fault class sends a reader to the wrong subsystem,
+which is worse than an honest "unclassified". The NCCL case in the parametrized
+test is what catches it.
+"""
+
+[[mutation]]
+id = "collective-hang-mislabelled-as-rank-death"
+target = "torchtitan/observability/distributed_faults.py"
+test = "tests/unit_tests/observability/test_distributed_faults.py::test_a_true_hang_signature_classifies_as_collective_hang"
+find = '''
+        "timed out waiting",
+        IncidentClass.COLLECTIVE_HANG,'''
+replace = '''
+        "timed out waiting",
+        IncidentClass.RANK_DEATH,'''
+why = """
+Swaps the two classes the table exists to distinguish. A rank that hangs and a
+rank that dies produce the same RuntimeError type from the same collective and
+differ only in message, so mixing them up is both easy and invisible without a
+test pinning each signature to its class.
+"""
