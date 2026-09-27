@@ -178,3 +178,24 @@ Status stays `review-pending` for one reason only: the acceptance criterion
 requiring a full nine-stage gate from the final state was out of the reviewer's
 scope, and that evidence is stale for the same reason as ticket 03's. It is
 deferred to the end of the formalization sequence.
+
+### 2026-09-27: the final-state criterion is unsatisfiable, not merely unmet
+
+The final re-seal was attempted from the clean committed tree at `d8b1016d5`,
+after every other phase closed. It **fails**, in the nested Scout A gate's
+`lint` stage, whose log is ten lines with no hook run.
+
+The manifest from a clean tree has zero verified and zero process entries, so
+`source_manifest_lint_paths` yields nothing and the lint stage's "at least one
+file" assertion fails. Tracked as ticket 25.
+
+So this ticket's criterion -- re-execute the supported commands from the final
+worktree state -- cannot be satisfied as the gate is written, because the final
+state is a committed state, a committed state is a clean tree, and a clean tree
+has no lint paths. Every bundle this project has sealed came from a dirty tree.
+
+This does not mean the work was ungated. Each phase ran a real nine-stage gate
+whose manifest pinned the uncommitted bytes under review, and those bundles
+verify. What is absent is the final seal from the committed state, which is a
+narrower claim than "never gated" and should be read as such. This ticket stays
+open until ticket 25 lands.

@@ -53,6 +53,11 @@ non-empty.
 
 ## 4. Source manifest coverage narrows after commit
 
+> **Understated, corrected 2026-09-27.** It does not merely narrow. On a fully
+> clean tree coverage is **zero** and the gate **fails** in its lint stage, so a
+> committed state cannot be gated at all. See ticket 25.
+
+
 The manifest covered 87 entries while work was uncommitted and 13 afterwards,
 because coverage is derived from working-tree status. So the sealed manifest
 is weakest exactly when the tree is clean -- the state a reviewer sees.
