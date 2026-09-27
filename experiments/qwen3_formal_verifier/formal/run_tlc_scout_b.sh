@@ -183,6 +183,63 @@ placement_invariants="$(
 printf 'SCOUT_B_TLA_PARTIAL_PLACEMENT_NEGATIVE invariant=ScoutBNoPartialAtOptimizer result=named_violation invariants=%s exit=%s\n' \
   "${placement_invariants}" "${placement_status}"
 
+# Collective payload identity. Two derived negatives, because the observed run
+# satisfies both payload properties and a positive result alone says nothing
+# about what either would catch.
+#
+# 1. One member of a collective called it with twice the volume of its peers.
+#    Ordering agreement is in that control's survivor set on purpose: a volume
+#    mismatch leaves every communicator's operation order exactly as observed,
+#    which is why the ordering property cannot stand in for this one.
+# 2. One collective's operation relabelled on EVERY member, the way an exporter
+#    bug would mislabel it. Ordering agreement survives that too -- all four
+#    ranks agree on the wrong label -- and only the volume relation notices.
+for entry in \
+  ScoutBPayloadSizeInvalid:ScoutBCollectivePayloadAgreement:PAYLOAD_SIZE \
+  ScoutBPayloadOperationInvalid:ScoutBCollectivePayloadSizeRelation:PAYLOAD_OPERATION
+do
+  payload_module="${entry%%:*}"
+  payload_rest="${entry#*:}"
+  payload_invariant="${payload_rest%%:*}"
+  payload_token="${payload_rest##*:}"
+  payload_dir="${work_dir}/${payload_module}"
+  mkdir -p "${payload_dir}"
+  for name in ScoutDistributed ScoutBFacts "${payload_module}"; do
+    cp "${fixture_dir}/${name}.tla" "${payload_dir}/${name}.tla"
+  done
+  cp "${fixture_dir}/${payload_module}.cfg" \
+    "${payload_dir}/${payload_module}.cfg"
+
+  payload_status=0
+  (
+    cd "${payload_dir}"
+    timeout 120 "${java_bin}" -XX:+UseParallelGC -cp "${tla_jar}" tlc2.TLC \
+      -workers 1 -metadir "${payload_dir}/states" \
+      "${payload_module}.tla" -config "${payload_module}.cfg"
+  ) >"${payload_dir}.log" 2>&1 || payload_status=$?
+  payload_output="$(<"${payload_dir}.log")"
+  formal_classify_tlc_transition_negative \
+    "${payload_status}" "${payload_output}" "${payload_invariant}" || {
+    cat "${payload_dir}.log" >&2
+    echo "TLC Scout B ${payload_module} did not violate exactly" \
+      "${payload_invariant}" >&2
+    exit 1
+  }
+  # The survivor set is the attribution, derived from the cfg the checker was
+  # given rather than restated here.
+  payload_invariants="$(
+    formal_cfg_invariants "${fixture_dir}/${payload_module}.cfg"
+  )"
+  [[ -n "${payload_invariants}" ]] || {
+    echo "could not read the invariant list out of" \
+      "${payload_module}.cfg" >&2
+    exit 1
+  }
+  printf 'SCOUT_B_TLA_%s_NEGATIVE invariant=%s result=named_violation invariants=%s exit=%s\n' \
+    "${payload_token}" "${payload_invariant}" "${payload_invariants}" \
+    "${payload_status}"
+done
+
 # Structural placement facts: how much of ScoutBFacts.tla they are. Parse cost
 # is charged before a single state is generated, and the refinement runner's
 # SCOUT_B_REFINE_PARSE token reports the whole-file parse time, so the share
@@ -201,3 +258,21 @@ placement_count="$(
 }
 printf 'SCOUT_B_TLA_PLACEMENT_FACTS facts_bytes=%s placement_bytes=%s\n' \
   "${facts_bytes}" "${placement_bytes}"
+
+# Collective payload facts: the byte cost of this export on its own, for the
+# same reason the placement block is delimited -- parse cost is charged before a
+# single state is generated, and parse_ms measures machine load first.
+payload_bytes="$(
+  awk '/BEGIN collective payload facts/,/END collective payload facts/' \
+    "${fixture_dir}/ScoutBFacts.tla" | wc -c
+)"
+payload_count="$(
+  grep -c '^CollectivePayloadInputElements == ' \
+    "${fixture_dir}/ScoutBFacts.tla" || true
+)"
+[[ "${payload_bytes}" -gt 0 && "${payload_count}" -eq 1 ]] || {
+  echo "ScoutBFacts.tla carries no delimited collective payload facts" >&2
+  exit 1
+}
+printf 'SCOUT_B_TLA_PAYLOAD_FACTS facts_bytes=%s payload_bytes=%s\n' \
+  "${facts_bytes}" "${payload_bytes}"

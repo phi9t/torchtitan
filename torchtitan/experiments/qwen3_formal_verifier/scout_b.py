@@ -25,7 +25,7 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torch
 import torch.distributed as dist
@@ -58,7 +58,14 @@ from torchtitan.trainer import Trainer
 
 SCOUT_B_RUN_ID = "qfv-scout-b-seed42"
 SCOUT_B_ATTEMPT_ID = "four-rank-dp2-tp2-v1"
-RAW_SCHEMA = "qwen3.formal.raw.v0"
+# Bumped from v0 when collective payload identity became a required part of a
+# raw per-rank trace. The string is compared by exact equality, so without the
+# bump a v0 trace -- which carries no payload at all -- fails on a missing-field
+# message that a third party cannot tell apart from tampering. Same reasoning as
+# PROVENANCE_CONTRACT_VERSION below. Nothing outside this module reads it:
+# scout_a.py keeps its own single-rank RAW_SCHEMA, which is unaffected because a
+# single-rank trace observes no collective.
+RAW_SCHEMA = "qwen3.formal.raw.v1"
 SCOUT_SCHEMA = "qwen3.formal.scout.v0"
 RUNTIME_MANIFEST_SCHEMA = "qwen3.formal.scout-b.runtime-manifest.v0"
 STAGE_MANIFEST_SCHEMA = "qwen3.formal.scout-b.stage-manifest.v0"
@@ -67,7 +74,7 @@ RAW_EVENT_PROJECTION_SCHEMA = "qwen3.formal.raw-event-projection.v0"
 # The contract carries its own version because it is compared by exact
 # equality. Without it, adding a field makes every previously sealed bundle
 # fail with a message a third party cannot tell apart from tampering.
-PROVENANCE_CONTRACT_VERSION = "qwen3.formal.scout.provenance-contract.v1"
+PROVENANCE_CONTRACT_VERSION = "qwen3.formal.scout.provenance-contract.v2"
 PROVENANCE_CONTRACT = {
     "version": PROVENANCE_CONTRACT_VERSION,
     "normalized_projection": {
@@ -83,6 +90,32 @@ PROVENANCE_CONTRACT = {
     "full_raw_bytes": {
         "binding": "runtime_manifest.files",
         "digest": "sha256",
+    },
+    # Collective payload identity is OBSERVED, and the distinction from the
+    # inferred_attribution block below is the whole point of stating it here:
+    # these four lists are read straight off the NCCL Flight Recorder entry the
+    # rank recorded, not attributed to it by a positional zip. The fields are
+    # PLURAL and per-tensor -- one shape and one dtype name per tensor the
+    # collective was given -- so a reader must not collapse them to one dtype.
+    # Element counts are NOT in the raw evidence: the exporter derives them from
+    # these shapes, and the checkers recompute the product rather than trusting
+    # the derivation.
+    "observed_payload": {
+        "inferred": False,
+        "observed": True,
+        "source": "nccl_flight_recorder_entry",
+        "per_tensor": True,
+        "fields": [
+            "observation.payload.input_sizes for collective.*",
+            "observation.payload.output_sizes for collective.*",
+            "observation.payload.input_dtypes for collective.*",
+            "observation.payload.output_dtypes for collective.*",
+        ],
+        "shape": (
+            "input_sizes/output_sizes are per-tensor shape lists; "
+            "input_dtypes/output_dtypes are the parallel per-tensor dtype "
+            "names; an empty shape list is a 0-dim tensor of one element"
+        ),
     },
     # Producer and stream attribution is INFERRED, not observed, and the
     # exported names -- CollectiveProducers, CollectiveStream,
@@ -681,6 +714,12 @@ def _validate_raw_collectives(
             "work_id",
             "operation",
             "process_group",
+            # Payload identity is a property of the work, not of a lifecycle
+            # state, so it must be the same in all three events. Without it here
+            # a trace could carry one size at enqueue and another at completion,
+            # and the exported facts -- which read the first event -- would not
+            # show the difference.
+            "payload",
             "executor",
             "stream",
             "producer",
@@ -699,6 +738,10 @@ def _validate_raw_collectives(
         group = _mapping(observations[0], "process_group")
         if rank not in group.get("members", []):
             raise ValueError(f"rank {rank} collective process group omits its rank")
+        _validate_payload(
+            _mapping(observations[0], "payload"),
+            label=f"rank {rank} collective {work_id}",
+        )
         if not _mapping(observations[0], "executor").get("thread_id"):
             raise ValueError(f"rank {rank} collective lacks executor evidence")
         if _mapping(observations[0], "stream").get("resource_id") is None:
@@ -1252,6 +1295,59 @@ def _placement_facts(
     }
 
 
+# The operations whose members must agree on payload identity, with the size
+# relation each one implies between one member's input and its output. Named
+# here rather than inferred at the checker so an operation family nothing
+# relates cannot pass vacuously.
+_PAYLOAD_SIZE_RELATIONS = {
+    "all_gather": "output_is_member_count_times_input",
+    "reduce_scatter": "input_is_member_count_times_output",
+    "all_reduce": "input_equals_output",
+    "broadcast": "input_equals_output",
+}
+
+
+def _collective_payload(
+    observation: Mapping[str, object], *, work_id: str
+) -> dict[str, Any]:
+    """Project one work's observed payload identity, with derived element counts.
+
+    The four Flight Recorder lists are carried through unreduced, per tensor.
+    ``input_elements``/``output_elements`` are DERIVED here as the total element
+    count, because the size relation an operation implies is a relation between
+    volumes rather than between shapes -- an all-gather may concatenate along any
+    dimension. The derivation is not trusted downstream: both checkers recompute
+    the product from the exported shapes.
+    """
+
+    payload = _mapping(observation, "payload")
+    _validate_payload(payload, label=f"formal collective {work_id}")
+    input_sizes = [
+        [int(size) for size in shape]
+        for shape in cast(list[list[int]], payload["input_sizes"])
+    ]
+    output_sizes = [
+        [int(size) for size in shape]
+        for shape in cast(list[list[int]], payload["output_sizes"])
+    ]
+    operation = str(observation.get("operation", ""))
+    if operation not in _PAYLOAD_SIZE_RELATIONS:
+        raise ValueError(
+            f"collective {work_id} has no payload size relation for {operation!r}"
+        )
+    return {
+        "comm": str(_mapping(observation, "process_group").get("canonical_id", "")),
+        "operation": operation,
+        "size_relation": _PAYLOAD_SIZE_RELATIONS[operation],
+        "input_sizes": input_sizes,
+        "output_sizes": output_sizes,
+        "input_dtypes": list(_string_list(payload, "input_dtypes")),
+        "output_dtypes": list(_string_list(payload, "output_dtypes")),
+        "input_elements": _payload_elements(input_sizes),
+        "output_elements": _payload_elements(output_sizes),
+    }
+
+
 def _formal_projection(bundle: Mapping[str, object]) -> dict[str, Any]:
     validate_normalized_bundle(bundle)
     rank_traces = _mapping_list(bundle, "rank_traces")
@@ -1312,6 +1408,15 @@ def _formal_projection(bundle: Mapping[str, object]) -> dict[str, Any]:
                     ),
                     "operation": str(first.get("operation", "")),
                     "axis": str(first.get("axis", "")),
+                    # OBSERVED per-tensor payload identity, keyed on the same
+                    # canonical communicator id as "comm" above and never on
+                    # runtime_pg_id. Keying is what ticket 11's eight-vs-four
+                    # confusion came from, so the key is exported inside the
+                    # payload too: the equality with "comm" is a regression
+                    # tripwire, and the load-bearing check is that two works
+                    # sharing a payload key share a member set, which a per-rank
+                    # runtime id does not satisfy.
+                    "payload": _collective_payload(first, work_id=work_id),
                     # Opaque label only: stream identity is INFERRED by a
                     # positional zip of Flight Recorder entries to Kineto
                     # kernels, not observed. Do not build a guard on it.
@@ -1991,6 +2096,115 @@ def _export_scout_b_tla_module(
                     for work in collectives
                 ]
             ),
+            # OBSERVED per-tensor payload identity, read off each rank's own
+            # NCCL Flight Recorder entry -- not inferred by the positional zip
+            # that produces CollectiveProducers and CollectiveStream. Delimited
+            # so the byte cost of this export is measurable on its own, the way
+            # the structural placement block is.
+            r"\* BEGIN collective payload facts",
+            r"\* OBSERVED, per tensor, and PLURAL: a collective over several",
+            r"\* tensors has one shape and one dtype name per tensor, so the",
+            r"\* size and dtype sequences run in parallel. An EMPTY shape is a",
+            r"\* 0-dim tensor of one element -- a reduced scalar -- and is",
+            r"\* accepted; a zero or negative dimension is not.",
+            r"\* CollectivePayloadComm is process_group.canonical_id, the same",
+            r"\* key as CollectiveComm and never runtime_pg_id, which is",
+            r"\* per-rank local numbering: PayloadCommKeyIsCommunicatorIdentity",
+            r"\* refutes a runtime-id keying by requiring works that share a",
+            r"\* payload key to share a member set.",
+            r"\* Element counts are DERIVED by the exporter. The checkers",
+            r"\* recompute them from the shapes rather than trusting them.",
+            "CollectivePayloadComm == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        _tla_string(str(work["payload"]["comm"])),
+                    )
+                    for work in collectives
+                ]
+            ),
+            "CollectivePayloadSizeRelation == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        _tla_string(str(work["payload"]["size_relation"])),
+                    )
+                    for work in collectives
+                ]
+            ),
+            "CollectivePayloadInputSizes == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        _tla_shape_sequence(work["payload"]["input_sizes"]),
+                    )
+                    for work in collectives
+                ]
+            ),
+            "CollectivePayloadOutputSizes == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        _tla_shape_sequence(work["payload"]["output_sizes"]),
+                    )
+                    for work in collectives
+                ]
+            ),
+            "CollectivePayloadInputDtypes == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        "<<"
+                        + ", ".join(
+                            _tla_string(str(name))
+                            for name in work["payload"]["input_dtypes"]
+                        )
+                        + ">>",
+                    )
+                    for work in collectives
+                ]
+            ),
+            "CollectivePayloadOutputDtypes == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        "<<"
+                        + ", ".join(
+                            _tla_string(str(name))
+                            for name in work["payload"]["output_dtypes"]
+                        )
+                        + ">>",
+                    )
+                    for work in collectives
+                ]
+            ),
+            "CollectivePayloadInputElements == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        str(int(work["payload"]["input_elements"])),
+                    )
+                    for work in collectives
+                ]
+            ),
+            "CollectivePayloadOutputElements == "
+            + _tla_function(
+                [
+                    (
+                        _tla_string(str(work["work_id"])),
+                        str(int(work["payload"]["output_elements"])),
+                    )
+                    for work in collectives
+                ]
+            ),
+            r"\* END collective payload facts",
             "",
             "=============================================================================",
             "",
@@ -2326,6 +2540,120 @@ def _export_scout_b_lean_module(
             + " }",
             "def collectiveLifecycle : List CollectiveObservation := "
             + " ++ ".join(collective_rank_names),
+        ]
+    )
+
+    # OBSERVED per-tensor payload identity, kept in its own lists rather than
+    # added to CollectiveObservation. Two reasons: the payload predicates read
+    # nothing else, so self-contained lists keep their kernel evaluation
+    # independent of the lifecycle checks, and every existing structure literal
+    # stays untouched. payloadCoversCollectives is the bridge that stops the
+    # lists describing different works.
+    #
+    # SHAPE, AND WHY IT DIFFERS FROM THE TLA EXPORT. TLC evaluates an all-pairs
+    # agreement predicate over 432 works without trouble; the Lean kernel does
+    # not. MEASURED: a rfl over the all-pairs form at that scale had not
+    # finished after four minutes, against the runner's 120s per-module budget.
+    # So the Lean facts carry one ROW per collective, reached from each work by a
+    # Nat index, and one row per distinct communicator key. Same facts, a join
+    # the kernel can afford.
+    #
+    # The row takes its values from ONE member and the exporter does NOT check
+    # that the others agree. That is deliberate: an exporter that refused a
+    # mismatch would decide the property before any checker saw it.
+    payload_collective_ids = sorted(
+        {str(work["collective_id"]) for work in facts["collectives"]}
+    )
+    payload_collective_index = {
+        collective_id: index
+        for index, collective_id in enumerate(payload_collective_ids)
+    }
+    payload_representative: dict[str, Mapping[str, Any]] = {}
+    for work in facts["collectives"]:
+        payload_representative.setdefault(str(work["collective_id"]), work)
+    lines.extend(["", "def collectivePayloads : List CollectivePayload := ["])
+    for work_index, work in enumerate(facts["collectives"]):
+        if work_index and work_index % 64 == 0:
+            lines.append("] ++ [")
+        payload = work["payload"]
+        lines.append(
+            "  { "
+            f"workId := {_lean_string(str(work['work_id']))}, "
+            f"rank := {work['rank']}, "
+            f"collectiveId := {_lean_string(str(work['collective_id']))}, "
+            "collectiveIndex := "
+            f"{payload_collective_index[str(work['collective_id'])]}, "
+            f"comm := {_lean_string(str(payload['comm']))}, "
+            f"operation := {_lean_string(str(payload['operation']))}, "
+            f"sizeRelation := {_lean_string(str(payload['size_relation']))}, "
+            "members := ["
+            + ", ".join(str(int(member)) for member in work["members"])
+            + "], inputSizes := "
+            + _lean_shape_list(payload["input_sizes"])
+            + ", outputSizes := "
+            + _lean_shape_list(payload["output_sizes"])
+            + ", inputDtypes := ["
+            + ", ".join(_lean_string(str(name)) for name in payload["input_dtypes"])
+            + "], outputDtypes := ["
+            + ", ".join(_lean_string(str(name)) for name in payload["output_dtypes"])
+            + "], "
+            f"inputElements := {int(payload['input_elements'])}, "
+            f"outputElements := {int(payload['output_elements'])} "
+            "},"
+        )
+    lines.append("]")
+
+    lines.extend(["", "def payloadCollectiveRows : List PayloadCollectiveRow := ["])
+    for row_index, collective_id in enumerate(payload_collective_ids):
+        if row_index and row_index % 64 == 0:
+            lines.append("] ++ [")
+        work = payload_representative[collective_id]
+        payload = work["payload"]
+        lines.append(
+            "  { "
+            f"collectiveId := {_lean_string(collective_id)}, "
+            f"comm := {_lean_string(str(payload['comm']))}, "
+            f"operation := {_lean_string(str(payload['operation']))}, "
+            f"sizeRelation := {_lean_string(str(payload['size_relation']))}, "
+            "members := ["
+            + ", ".join(str(int(member)) for member in work["members"])
+            + "], inputDtypes := ["
+            + ", ".join(_lean_string(str(name)) for name in payload["input_dtypes"])
+            + "], outputDtypes := ["
+            + ", ".join(_lean_string(str(name)) for name in payload["output_dtypes"])
+            + "], "
+            f"inputElements := {int(payload['input_elements'])}, "
+            f"outputElements := {int(payload['output_elements'])} "
+            "},"
+        )
+    lines.append("]")
+
+    # One row per DISTINCT communicator key. Built by first appearance of the
+    # key, again without checking that the member sets agree: a key that denoted
+    # two member sets would produce two rows with the same key, and
+    # payloadCommKeyIsCommunicatorIdentity is what refuses that.
+    comm_rows: list[tuple[str, list[int]]] = []
+    for collective_id in payload_collective_ids:
+        work = payload_representative[collective_id]
+        comm = str(work["payload"]["comm"])
+        members = [int(member) for member in work["members"]]
+        if (comm, members) not in comm_rows:
+            comm_rows.append((comm, members))
+    lines.append("")
+    lines.append(
+        "def payloadCommTable : List PayloadCommMembership := ["
+        + ", ".join(
+            "{ "
+            + f"comm := {_lean_string(comm)}, members := ["
+            + ", ".join(str(member) for member in members)
+            + "] }"
+            for comm, members in comm_rows
+        )
+        + "]"
+    )
+
+    lines.extend(
+        [
             "",
             f"end Qwen3Formal.{namespace}",
             "",
@@ -2915,6 +3243,118 @@ def _parse_flight_group(
     return description, members
 
 
+def _tensor_shapes(entry: Mapping[str, object], key: str) -> list[list[int]]:
+    """Read one per-tensor shape list off a Flight Recorder entry.
+
+    ``read_sizes`` in FlightRecorderDetail.hpp emits a list with one entry per
+    tensor, each entry that tensor's shape. An EMPTY shape is legitimate and
+    occurs in this run: a 0-dim tensor -- the reduced scalar loss -- has one
+    element and no dimensions. A zero or negative dimension is not legitimate
+    and is refused rather than silently contributing a zero element count.
+    """
+
+    value = entry.get(key)
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"Flight Recorder entry has no {key} list: {value!r}")
+    shapes: list[list[int]] = []
+    for shape in value:
+        if not isinstance(shape, list) or not all(
+            isinstance(size, int) and not isinstance(size, bool) for size in shape
+        ):
+            raise ValueError(f"Flight Recorder {key} is not a shape list: {shape!r}")
+        if any(size <= 0 for size in shape):
+            raise ValueError(
+                f"Flight Recorder {key} has a non-positive size: {shape!r}"
+            )
+        shapes.append([int(size) for size in shape])
+    return shapes
+
+
+def _tensor_dtypes(entry: Mapping[str, object], key: str) -> list[str]:
+    value = entry.get(key)
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(name, str) and name for name in value)
+    ):
+        raise ValueError(f"Flight Recorder entry has no {key} list: {value!r}")
+    return [str(name) for name in value]
+
+
+def _flight_payload(entry: Mapping[str, object]) -> dict[str, object]:
+    """Return the observed per-tensor payload identity of one collective work.
+
+    The Flight Recorder records these four lists per work, and they are PLURAL:
+    ``input_sizes`` and ``input_dtypes`` are parallel lists with one element per
+    input tensor, and likewise for the outputs. A one-dtype model would be wrong
+    for a collective over several tensors, so the pairing is validated here and
+    carried into the raw evidence unreduced. No element count is derived at this
+    point: the raw trace stays what the runtime reported.
+    """
+
+    payload: dict[str, object] = {
+        "input_sizes": _tensor_shapes(entry, "input_sizes"),
+        "output_sizes": _tensor_shapes(entry, "output_sizes"),
+        "input_dtypes": _tensor_dtypes(entry, "input_dtypes"),
+        "output_dtypes": _tensor_dtypes(entry, "output_dtypes"),
+    }
+    _validate_payload(payload, label="Flight Recorder entry")
+    return payload
+
+
+def _validate_payload(payload: Mapping[str, object], *, label: str) -> None:
+    """Refuse payload evidence whose size and dtype lists do not pair up.
+
+    Used both where the payload is collected and where a raw trace read back
+    from disk is validated, so a hand-edited bundle meets the same contract the
+    runtime did.
+    """
+
+    for sizes_key, dtypes_key in (
+        ("input_sizes", "input_dtypes"),
+        ("output_sizes", "output_dtypes"),
+    ):
+        sizes = payload.get(sizes_key)
+        dtypes = payload.get(dtypes_key)
+        if not isinstance(sizes, list) or not sizes:
+            raise ValueError(f"{label} has no {sizes_key}")
+        if (
+            not isinstance(dtypes, list)
+            or not dtypes
+            or not all(isinstance(name, str) and name for name in dtypes)
+        ):
+            raise ValueError(f"{label} has no {dtypes_key}")
+        if len(sizes) != len(dtypes):
+            raise ValueError(
+                f"{label} pairs {len(sizes)} {sizes_key} with "
+                f"{len(dtypes)} {dtypes_key}"
+            )
+        for shape in sizes:
+            if not isinstance(shape, list) or not all(
+                isinstance(size, int) and not isinstance(size, bool) and size > 0
+                for size in shape
+            ):
+                raise ValueError(
+                    f"{label} has a malformed {sizes_key} shape: {shape!r}"
+                )
+
+
+def _payload_elements(shapes: Sequence[Sequence[int]]) -> int:
+    """Total element count over a per-tensor shape list.
+
+    An empty shape is a 0-dim tensor, whose element count is one, so the product
+    of no dimensions is deliberately 1 and not 0.
+    """
+
+    total = 0
+    for shape in shapes:
+        elements = 1
+        for size in shape:
+            elements *= int(size)
+        total += elements
+    return total
+
+
 def _group_axis(members: Sequence[int]) -> str:
     member_tuple = tuple(members)
     if member_tuple in {(0, 1), (2, 3)}:
@@ -3013,6 +3453,10 @@ def _collective_observations(
                         "members": members,
                         "backend": "nccl",
                     },
+                    # OBSERVED, not inferred: read straight off this rank's own
+                    # Flight Recorder entry. Per-tensor and unreduced; the
+                    # exporter derives element counts, the raw trace does not.
+                    "payload": _flight_payload(entry),
                     "executor": {
                         "thread_id": str(entry.get("thread_id", "")),
                         "thread_name": str(entry.get("thread_name", "")),
@@ -3382,6 +3826,25 @@ def _tla_function(pairs: Sequence[tuple[str, str]]) -> str:
     return terms[0]
 
 
+def _tla_shape_sequence(shapes: Sequence[Sequence[int]]) -> str:
+    """Render a per-tensor shape list as a TLA sequence of sequences.
+
+    A 0-dim tensor renders as the empty sequence ``<<>>``, which is what it is:
+    no dimensions, one element.
+    """
+
+    # Spaces around the inner sequences on purpose: "<<<<" would hand the TLA
+    # lexer three consecutive angle brackets to split.
+    return (
+        "<< "
+        + ", ".join(
+            "<<" + ", ".join(str(int(size)) for size in shape) + ">>"
+            for shape in shapes
+        )
+        + " >>"
+    )
+
+
 def _tla_sequence(values: Sequence[str], *, chunk_size: int = 64) -> str:
     if not values:
         return "<<>>"
@@ -3390,6 +3853,18 @@ def _tla_sequence(values: Sequence[str], *, chunk_size: int = 64) -> str:
         for index in range(0, len(values), chunk_size)
     ]
     return " \\o ".join(chunks)
+
+
+def _lean_shape_list(shapes: Sequence[Sequence[int]]) -> str:
+    """Render a per-tensor shape list as a Lean ``List (List Nat)``."""
+
+    return (
+        "["
+        + ", ".join(
+            "[" + ", ".join(str(int(size)) for size in shape) + "]" for shape in shapes
+        )
+        + "]"
+    )
 
 
 def _lean_string(value: str) -> str:

@@ -441,4 +441,162 @@ RuntimePgIdAgreesWithinRank(workIds, collectiveRank, collectiveComm, runtimePgId
          collectiveRank[a] = collectiveRank[b] =>
            (collectiveComm[a] = collectiveComm[b] <=> runtimePgId[a] = runtimePgId[b])
 
+
+(***************************************************************************)
+(* Collective payload identity.                                            *)
+(*                                                                         *)
+(* Matching operation order on a communicator is necessary but does not     *)
+(* make a collective well formed. Its members must also agree on dtype and  *)
+(* on volume, and a mismatch there is a different failure from a hang: NCCL *)
+(* errors or corrupts rather than deadlocking, so nothing in the ordering   *)
+(* predicates above can express it.                                        *)
+(*                                                                         *)
+(* WHERE THE FACTS COME FROM: input_sizes, output_sizes, input_dtypes and   *)
+(* output_dtypes off each rank's own NCCL Flight Recorder entry. They are   *)
+(* OBSERVED, unlike CollectiveProducers and CollectiveStream, which are     *)
+(* attributed by a positional zip. They are also PLURAL and per tensor: one *)
+(* shape and one dtype name per tensor the collective was given, the two    *)
+(* lists running in parallel. A single-dtype model would be wrong for a      *)
+(* collective over several tensors.                                        *)
+(*                                                                         *)
+(* SHAPES VERSUS VOLUME: the relation an operation implies is between       *)
+(* element counts, not shapes, because an all-gather may concatenate along  *)
+(* any dimension. The element counts are DERIVED by the exporter, so        *)
+(* CollectivePayloadWellFormed recomputes them from the exported shapes     *)
+(* rather than trusting the derivation -- the same reason the placement     *)
+(* schema digest is recomputed instead of compared.                        *)
+(*                                                                         *)
+(* An EMPTY shape is a 0-dim tensor: no dimensions, one element. So the      *)
+(* product of no sizes is deliberately 1 and not 0.                        *)
+(***************************************************************************)
+
+RECURSIVE ProductOfSizes(_)
+ProductOfSizes(shape) ==
+  IF Len(shape) = 0 THEN 1 ELSE Head(shape) * ProductOfSizes(Tail(shape))
+
+RECURSIVE TotalElements(_)
+TotalElements(shapes) ==
+  IF Len(shapes) = 0
+  THEN 0
+  ELSE ProductOfSizes(Head(shapes)) + TotalElements(Tail(shapes))
+
+PayloadSizeRelations == {
+  "output_is_member_count_times_input",
+  "input_is_member_count_times_output",
+  "input_equals_output"
+}
+
+\* The relation each operation family implies. OTHER deliberately returns a
+\* value outside PayloadSizeRelations, so an operation this predicate does not
+\* know about fails rather than passing vacuously.
+ImpliedSizeRelation(operation) ==
+  CASE operation = "all_gather" -> "output_is_member_count_times_input"
+    [] operation = "reduce_scatter" -> "input_is_member_count_times_output"
+    [] operation = "all_reduce" -> "input_equals_output"
+    [] operation = "broadcast" -> "input_equals_output"
+    [] OTHER -> "unsupported_operation"
+
+DtypesOf(inputDtypes, outputDtypes, work) ==
+  SequenceElements(inputDtypes[work]) \union SequenceElements(outputDtypes[work])
+
+\* Domains, the per-tensor pairing of shapes with dtype names, and the element
+\* counts recomputed from the shapes.
+CollectivePayloadWellFormed(
+    workIds, payloadComm, payloadInputSizes, payloadOutputSizes,
+    payloadInputDtypes, payloadOutputDtypes, payloadInputElements,
+    payloadOutputElements) ==
+  LET workSet == SequenceElements(workIds)
+  IN /\ Len(workIds) = Cardinality(workSet)
+     /\ DOMAIN payloadComm = workSet
+     /\ DOMAIN payloadInputSizes = workSet
+     /\ DOMAIN payloadOutputSizes = workSet
+     /\ DOMAIN payloadInputDtypes = workSet
+     /\ DOMAIN payloadOutputDtypes = workSet
+     /\ DOMAIN payloadInputElements = workSet
+     /\ DOMAIN payloadOutputElements = workSet
+     /\ \A work \in workSet :
+          /\ payloadComm[work] # ""
+          /\ Len(payloadInputSizes[work]) > 0
+          /\ Len(payloadOutputSizes[work]) > 0
+          /\ Len(payloadInputSizes[work]) = Len(payloadInputDtypes[work])
+          /\ Len(payloadOutputSizes[work]) = Len(payloadOutputDtypes[work])
+          /\ \A index \in DOMAIN payloadInputDtypes[work] :
+               payloadInputDtypes[work][index] # ""
+          /\ \A index \in DOMAIN payloadOutputDtypes[work] :
+               payloadOutputDtypes[work][index] # ""
+          /\ \A index \in DOMAIN payloadInputSizes[work] :
+               \A dim \in DOMAIN payloadInputSizes[work][index] :
+                 payloadInputSizes[work][index][dim] > 0
+          /\ \A index \in DOMAIN payloadOutputSizes[work] :
+               \A dim \in DOMAIN payloadOutputSizes[work][index] :
+                 payloadOutputSizes[work][index][dim] > 0
+          \* Recomputed, not trusted.
+          /\ payloadInputElements[work] = TotalElements(payloadInputSizes[work])
+          /\ payloadOutputElements[work]
+               = TotalElements(payloadOutputSizes[work])
+
+\* The payload is keyed on the global communicator identity, canonical_id, the
+\* same key as CollectiveComm. The first conjunct is a tripwire against the two
+\* exports drifting apart; the second is what actually refutes a runtime_pg_id
+\* keying, which is per-rank local numbering and therefore maps one key onto
+\* communicators with different member sets -- the eight-versus-four confusion.
+PayloadCommKeyIsCommunicatorIdentity(
+    workIds, payloadComm, collectiveComm, collectiveMembers) ==
+  LET workSet == SequenceElements(workIds)
+  IN /\ \A work \in workSet : payloadComm[work] = collectiveComm[work]
+     /\ \A a \in workSet :
+          \A b \in workSet :
+            payloadComm[a] = payloadComm[b]
+              => collectiveMembers[a] = collectiveMembers[b]
+
+\* THE first property: the members of one collective agree on what they are
+\* exchanging. A dtype or volume mismatch between members is a corrupt or failed
+\* collective, not a hang, so per-communicator order agreement cannot see it.
+\* One dtype per collective is included because NCCL requires it of both buffers
+\* and every member, and because a per-tensor list makes it expressible at all.
+CollectivePayloadAgreement(
+    workIds, collectiveId, payloadInputDtypes, payloadOutputDtypes,
+    payloadInputElements, payloadOutputElements) ==
+  LET workSet == SequenceElements(workIds)
+  IN \A work \in workSet :
+       /\ Cardinality(
+            DtypesOf(payloadInputDtypes, payloadOutputDtypes, work)) = 1
+       /\ \A peer \in workSet :
+            collectiveId[peer] = collectiveId[work] =>
+              /\ payloadInputDtypes[peer] = payloadInputDtypes[work]
+              /\ payloadOutputDtypes[peer] = payloadOutputDtypes[work]
+              /\ payloadInputElements[peer] = payloadInputElements[work]
+              /\ payloadOutputElements[peer] = payloadOutputElements[work]
+
+\* THE second property: the volume relation the operation implies holds. This is
+\* what catches an exporter that mislabelled an operation -- exactly the class of
+\* error that produced the communicator-keying confusion -- because an
+\* all-gather's output is its member count times its input, a reduce-scatter's
+\* the inverse, and an all-reduce's the same. The exported relation label is
+\* checked against the operation first, so a label and an operation cannot
+\* disagree silently.
+\*
+\* Named ...Holds because CollectivePayloadSizeRelation is the FACTS function
+\* this predicate reads, and a module extending both would otherwise define one
+\* name twice.
+CollectivePayloadSizeRelationHolds(
+    workIds, collectiveOperation, collectiveMembers, payloadSizeRelation,
+    payloadInputElements, payloadOutputElements) ==
+  LET workSet == SequenceElements(workIds)
+  IN \A work \in workSet :
+       LET members == Cardinality(collectiveMembers[work])
+       IN /\ payloadSizeRelation[work] \in PayloadSizeRelations
+          /\ payloadSizeRelation[work]
+               = ImpliedSizeRelation(collectiveOperation[work])
+          /\ CASE payloadSizeRelation[work]
+                    = "output_is_member_count_times_input"
+                  -> payloadOutputElements[work]
+                       = members * payloadInputElements[work]
+               [] payloadSizeRelation[work]
+                    = "input_is_member_count_times_output"
+                  -> payloadInputElements[work]
+                       = members * payloadOutputElements[work]
+               [] OTHER
+                  -> payloadInputElements[work] = payloadOutputElements[work]
+
 =============================================================================

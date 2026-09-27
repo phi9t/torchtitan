@@ -271,6 +271,104 @@ machine load first and about the facts only after the load is ruled out. Use an
 interleaved A/B like the one above for a cost claim. `placement_bytes=` beside
 it is the number that tracks the export's growth, and it is exact.
 
+### Collective payload identity
+
+Matching operation order on a communicator is necessary but does not make a
+collective well formed. Its members must also agree on dtype and on volume, and a
+mismatch there is a different failure from a hang: NCCL errors or corrupts
+instead of deadlocking, so the ordering predicates cannot express it at all.
+
+The facts carry, per collective work, `input_sizes`, `output_sizes`,
+`input_dtypes` and `output_dtypes` read off that rank's own NCCL Flight Recorder
+entry. They are OBSERVED -- unlike `CollectiveProducers` and `CollectiveStream`,
+which are attributed by a positional zip -- and the sealed bundle says so in the
+provenance contract's `observed_payload` block. They are also PLURAL and per
+tensor: one shape and one dtype name per tensor the collective was given, the
+lists running in parallel, so a single-dtype model would be wrong for a
+collective over several tensors. An empty shape is a 0-dim tensor: no dimensions,
+one element, which is why the product of no sizes is 1 and not 0.
+
+Element counts are DERIVED by the exporter, because the relation an operation
+implies is between volumes rather than shapes -- an all-gather may concatenate
+along any dimension. Both checkers recompute them from the exported shapes rather
+than trusting the derivation, the same way the placement schema digest is
+recomputed rather than compared.
+
+Four invariants, taking `ScoutBValid` from 19 to 23:
+
+- `ScoutBCollectivePayloadWellFormed` -- domains, the per-tensor pairing of
+  shapes with dtype names, positive dimensions, and the recomputed element
+  counts.
+- `ScoutBPayloadCommKey` -- the payload is keyed on `process_group.canonical_id`,
+  the same key as `CollectiveComm`, and NEVER on `runtime_pg_id`. The equality
+  with `CollectiveComm` is a tripwire against the two exports drifting; the
+  load-bearing half is that works sharing a payload key share a member set, which
+  a per-rank local numbering cannot satisfy. That is the eight-versus-four
+  communicator confusion, refuted rather than commented on.
+- `ScoutBCollectivePayloadAgreement` -- THE property: the members of one
+  collective agree on dtype and on volume, and a collective uses one dtype for
+  both buffers, as NCCL requires.
+- `ScoutBCollectivePayloadSizeRelation` -- THE second property: an all-gather's
+  output volume is its member count times its input, a reduce-scatter's the
+  inverse, an all-reduce's the same, with the exported relation label checked
+  against the operation so the two cannot disagree silently. An operation the
+  table does not know maps to a label outside the relation set and fails rather
+  than passing vacuously.
+
+Two named negatives, because the observed run satisfies both properties and a
+positive result alone says nothing about what either would catch. Both are
+overrides of the real `ScoutBFacts` rather than mutated multi-megabyte copies,
+and both derive their target from the facts.
+
+`ScoutBPayloadSizeInvalid.tla` doubles the first dimension of every shape of ONE
+member of one collective, recomputing that member's element counts from the
+mutated shapes. Doubling both sides keeps the operation's implied relation
+intact, so the only thing it breaks is agreement between members. TLC must report
+exactly `ScoutBCollectivePayloadAgreement`. Token:
+`SCOUT_B_TLA_PAYLOAD_SIZE_NEGATIVE`.
+
+`ScoutBPayloadOperationInvalid.tla` relabels one collective's operation on EVERY
+member work, with the relation label moved to the one the wrong operation
+implies -- what the exporter would have written had it read the operation
+wrongly. TLC must report exactly `ScoutBCollectivePayloadSizeRelation`. Token:
+`SCOUT_B_TLA_PAYLOAD_OPERATION_NEGATIVE`.
+
+`PerCommunicatorIssueOrderAgreement` is in BOTH survivor sets, and that is the
+whole argument for having these properties rather than treating ordering
+agreement as sufficient. A volume mismatch leaves every communicator's operation
+order exactly as observed. A symmetric mislabelling leaves it too, because all
+four ranks then agree on the wrong label. Each control asserts that survival over
+the mutated facts rather than claiming it in prose, and each cfg pins its
+invariant order -- sentinel first, property under test last -- with the reason in
+the file, because TLC reports only the first failing invariant and an unpinned
+order silently decides which one a reader sees.
+
+`ScoutBPayloadChecks.lean` and `ScoutBPayloadMutationChecks.lean` are the Lean
+counterparts, under `SCOUT_B_LEAN_PAYLOAD` and `SCOUT_B_LEAN_PAYLOAD_MUTATION`.
+Their facts are shaped differently from the TLA ones on purpose, and the reason
+is measured. TLC evaluates an all-pairs agreement predicate over 432 works
+without trouble; the Lean kernel does not -- a `rfl` over that form had not
+finished after four minutes, against a 120s per-module budget. So the Lean facts
+add one row per collective, reached from each work by a `Nat` index, plus one row
+per distinct communicator key, and the predicates join through those instead.
+At the observed scale that is about 26s for agreement and 13s for
+well-formedness per evaluation, which is also why the positives and the mutations
+are separate modules with a 300s budget: `rfl` caches nothing between theorems.
+Two things that form leaves elsewhere, stated rather than hidden. The exporter
+takes each row's values from ONE member and does NOT check that the others agree,
+because an exporter that refused a mismatch would decide the property before any
+checker saw it. And the prefix relation between the communicator key and the
+collective id -- the one check no integer key could satisfy -- is asserted at the
+exporter seam by
+`test_collective_payload_is_keyed_on_the_canonical_communicator_id`, because every
+Lean route to a string prefix goes through `String.toList`, which is not
+axiom-free under `rfl`.
+
+`SCOUT_B_TLA_PAYLOAD_FACTS` reports the payload share of `ScoutBFacts.tla`
+beside the whole-file size, for the same reason the placement block is
+delimited. Read it with the same caveat: `payload_bytes=` is exact, `parse_ms=`
+measures machine load first.
+
 The Scout B suite includes all smoke and Scout A targets:
 
 ```bash
@@ -295,7 +393,8 @@ closed by `rfl` or `decide`. That is a kernel-checked, axiom-free statement
 about THIS run, and nothing more. Its tokens -- `SCOUT_A_LEAN_VALID`,
 `SCOUT_A_LEAN_NEGATIVE`, `SCOUT_B_LEAN_VALID`, `SCOUT_B_LEAN_MUTATION`,
 `SCOUT_B_LEAN_NEGATIVE`, `SCOUT_B_LEAN_PLACEMENT`,
-`SCOUT_B_LEAN_PLACEMENT_MUTATION` -- carry
+`SCOUT_B_LEAN_PLACEMENT_MUTATION`, `SCOUT_B_LEAN_PAYLOAD`,
+`SCOUT_B_LEAN_PAYLOAD_MUTATION` -- carry
 `kind=evaluation scope=observed-trace`.
 
 `lean_scout_b_protocol_test` is the other kind. It reads no facts module. Its

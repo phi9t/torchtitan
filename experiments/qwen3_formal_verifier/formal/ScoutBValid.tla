@@ -176,6 +176,55 @@ ScoutBRuntimePgIdConsistent ==
     CollectiveWorkIds, CollectiveRank, CollectiveComm, CollectiveRuntimePgId
   )
 
+\* Collective payload identity. OBSERVED off the Flight Recorder, per tensor,
+\* and keyed on the canonical communicator id -- never runtime_pg_id.
+ScoutBCollectivePayloadWellFormed ==
+  CollectivePayloadWellFormed(
+    CollectiveWorkIds,
+    CollectivePayloadComm,
+    CollectivePayloadInputSizes,
+    CollectivePayloadOutputSizes,
+    CollectivePayloadInputDtypes,
+    CollectivePayloadOutputDtypes,
+    CollectivePayloadInputElements,
+    CollectivePayloadOutputElements
+  )
+
+\* Guards the payload against being keyed on the per-rank runtime pg id, which
+\* would put communicators with different member sets under one key.
+ScoutBPayloadCommKey ==
+  PayloadCommKeyIsCommunicatorIdentity(
+    CollectiveWorkIds,
+    CollectivePayloadComm,
+    CollectiveComm,
+    CollectiveMembers
+  )
+
+\* THE property: the members of one collective agree on dtype and on volume. A
+\* mismatch corrupts or errors rather than hanging, so ordering agreement says
+\* nothing about it.
+ScoutBCollectivePayloadAgreement ==
+  CollectivePayloadAgreement(
+    CollectiveWorkIds,
+    CollectiveId,
+    CollectivePayloadInputDtypes,
+    CollectivePayloadOutputDtypes,
+    CollectivePayloadInputElements,
+    CollectivePayloadOutputElements
+  )
+
+\* THE property: the volume relation the operation implies. This is what would
+\* catch an exporter that mislabelled an operation.
+ScoutBCollectivePayloadSizeRelation ==
+  CollectivePayloadSizeRelationHolds(
+    CollectiveWorkIds,
+    CollectiveOperation,
+    CollectiveMembers,
+    CollectivePayloadSizeRelation,
+    CollectivePayloadInputElements,
+    CollectivePayloadOutputElements
+  )
+
 ScoutBCollectiveEventEvidence ==
   CollectiveEventEvidence(
     CollectiveWorkIds,

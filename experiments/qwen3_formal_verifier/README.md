@@ -95,10 +95,12 @@ save remain disabled.
 
 The experiment records each rank's runtime mesh coordinate, actual NCCL process
 groups, all model-parameter DTensor placements, and NCCL Flight Recorder
-enqueue/start/complete records. Kineto supplies the executing CUDA stream and
+enqueue/start/complete records with each collective's per-tensor input and output
+sizes and dtypes. Kineto supplies the executing CUDA stream and
 producer launch correlation. Four `all_gather_object` rank traces are rejected
 before export if identity, topology, TP-peer input, placement, group, lifecycle,
-or producer evidence is incomplete or conflicting. Normalization keeps a
+or producer evidence is incomplete or conflicting, or if a collective's payload
+sizes and dtype names do not pair up per tensor. Normalization keeps a
 separate source clock per rank and introduces only unordered synchronization
 edges across ranks.
 

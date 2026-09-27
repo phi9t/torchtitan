@@ -22,6 +22,8 @@ from torchtitan.experiments.qwen3_formal_verifier.scout_b import (
     _evidence_file_record,
     _expected_trace_id,
     _formal_projection,
+    _operation_family,
+    _PAYLOAD_SIZE_RELATIONS,
     _sha256_json,
     _write_attempt_bundle,
     _write_immutable,
@@ -73,17 +75,36 @@ def _collective_events(
     start: int,
     axis: str,
     members: list[int],
-    collective_id: str,
+    seq: int = 1,
+    operation: str = "all_reduce",
+    input_sizes: list[list[int]] | None = None,
+    output_sizes: list[list[int]] | None = None,
+    input_dtypes: list[str] | None = None,
+    output_dtypes: list[str] | None = None,
 ) -> list[dict[str, object]]:
+    # Identity shaped as the collector builds it: the canonical communicator id
+    # is a prefix of the collective id, which is what lets a checker tell a
+    # canonical key from any other string.
+    canonical_id = f"{axis}:{','.join(str(member) for member in members)}"
+    collective_id = f"{canonical_id}:seq{seq}:{operation}"
     producer = f"kineto-r{rank}-{collective_id}"
     work_id = f"work-r{rank}-{collective_id}"
+    # Payload identity, shaped as the NCCL Flight Recorder reports it: per-tensor
+    # shape lists with parallel per-tensor dtype names. The default is an
+    # all_reduce, whose input and output volumes are equal.
     common: dict[str, object] = {
         "axis": axis,
         "collective_id": collective_id,
         "work_id": work_id,
-        "operation": "all_reduce",
+        "operation": operation,
+        "payload": {
+            "input_sizes": [[128, 256]] if input_sizes is None else input_sizes,
+            "output_sizes": [[128, 256]] if output_sizes is None else output_sizes,
+            "input_dtypes": ["BFloat16"] if input_dtypes is None else input_dtypes,
+            "output_dtypes": ["BFloat16"] if output_dtypes is None else output_dtypes,
+        },
         "process_group": {
-            "canonical_id": f"{axis}:{','.join(str(member) for member in members)}",
+            "canonical_id": canonical_id,
             "members": members,
             "backend": "nccl",
             # Per-rank local pg numbering. Distinct communicators may share a
@@ -139,16 +160,21 @@ def _rank_trace(rank: int) -> dict[str, Any]:
             start=4,
             axis="tp",
             members=tp_members,
-            collective_id=f"tp-dp{dp}-seq1",
         ),
         _raw_event(rank, 7, "forward.completed", "forward"),
         _raw_event(rank, 8, "backward.started", "backward"),
+        # A reduce_scatter, so the fixture carries a collective whose input
+        # volume is its member count times its output volume rather than only
+        # volume-preserving all_reduces. The payload size relation is vacuous
+        # over a fixture where every operation preserves volume.
         *_collective_events(
             rank=rank,
             start=9,
             axis="dp_shard",
             members=dp_members,
-            collective_id=f"dp-tp{tp}-seq1",
+            operation="reduce_scatter",
+            input_sizes=[[256, 256]],
+            output_sizes=[[128, 256]],
         ),
         _raw_event(rank, 12, "gradient.ready", "backward"),
         _raw_event(rank, 13, "backward.completed", "backward"),
@@ -202,7 +228,7 @@ def _rank_trace(rank: int) -> dict[str, Any]:
             )
             last_core_id = raw_event_id
     return {
-        "schema": "qwen3.formal.raw.v0",
+        "schema": "qwen3.formal.raw.v1",
         "identity": {
             "run_id": "scout-b-test",
             "attempt_id": "attempt-0",
@@ -425,7 +451,7 @@ def test_rank_bundle_merge_is_deterministic_without_cross_rank_total_order() -> 
     assert first["provenance_contract"] == {
         # Versioned so a later shape change is distinguishable from tampering
         # rather than failing every older bundle with one ambiguous message.
-        "version": "qwen3.formal.scout.provenance-contract.v1",
+        "version": "qwen3.formal.scout.provenance-contract.v2",
         "normalized_projection": {
             "schema": "qwen3.formal.raw-event-projection.v0",
             "digest": "sha256",
@@ -439,6 +465,27 @@ def test_rank_bundle_merge_is_deterministic_without_cross_rank_total_order() -> 
         "full_raw_bytes": {
             "binding": "runtime_manifest.files",
             "digest": "sha256",
+        },
+        # Payload identity is the one collective fact that is OBSERVED rather
+        # than attributed by position, and the contract has to say which it is:
+        # a reader who cannot tell them apart would treat the inferred producer
+        # identity and the recorded tensor shapes as evidence of the same kind.
+        "observed_payload": {
+            "inferred": False,
+            "observed": True,
+            "source": "nccl_flight_recorder_entry",
+            "per_tensor": True,
+            "fields": [
+                "observation.payload.input_sizes for collective.*",
+                "observation.payload.output_sizes for collective.*",
+                "observation.payload.input_dtypes for collective.*",
+                "observation.payload.output_dtypes for collective.*",
+            ],
+            "shape": (
+                "input_sizes/output_sizes are per-tensor shape lists; "
+                "input_dtypes/output_dtypes are the parallel per-tensor dtype "
+                "names; an empty shape list is a 0-dim tensor of one element"
+            ),
         },
         # Producer and stream attribution is inferred by a positional zip, and
         # the sealed bundle has to say so: the exported names read exactly like
@@ -1240,3 +1287,294 @@ def test_placement_export_refuses_malformed_placement_evidence(
 
     with pytest.raises(ValueError, match=message):
         _formal_projection(normalized)
+
+
+def _payload_of(normalized: dict[str, Any], work_id: str) -> dict[str, Any]:
+    collective = next(
+        work
+        for work in _formal_projection(normalized)["collectives"]
+        if work["work_id"] == work_id
+    )
+    return cast(dict[str, Any], collective["payload"])
+
+
+def _rewrite_payloads(
+    normalized: dict[str, Any],
+    mutate: Callable[[dict[str, Any]], None],
+    *,
+    ranks: tuple[int, ...] | None = None,
+    lifecycles: tuple[str, ...] = ("enqueued", "started", "completed"),
+) -> None:
+    """Rewrite collective payloads the way a real run would have reported them.
+
+    Payload identity is a property of the work, so it is repeated across the
+    three lifecycle events and the raw validator requires all three to agree.
+    Mutating only one is the incoherent-trace case, which ``lifecycles`` selects.
+    """
+
+    for rank, trace in enumerate(normalized["rank_traces"]):
+        if ranks is not None and rank not in ranks:
+            continue
+        for event in trace["events"]:
+            if not str(event["kind"]).startswith("collective."):
+                continue
+            observation = event["observation"]
+            if observation["lifecycle"] not in lifecycles:
+                continue
+            mutate(observation)
+    normalized["trace_id"] = _expected_trace_id(normalized)
+
+
+def test_collective_payload_carries_per_tensor_sizes_and_dtypes() -> None:
+    """Sizes and dtypes are plural and per tensor, with derived element counts.
+
+    Drives the real projection rather than inspecting a checked-in fixture. The
+    element counts are what the size relation is stated over, because an
+    all-gather may concatenate along any dimension, so the shapes alone do not
+    give the relation.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    collectives = _formal_projection(normalized)["collectives"]
+
+    assert collectives, "fixture must produce collectives"
+    by_operation = {
+        str(work["operation"]): cast(dict[str, Any], work["payload"])
+        for work in collectives
+    }
+    assert set(by_operation) == {"all_reduce", "reduce_scatter"}
+    assert by_operation["all_reduce"]["input_sizes"] == [[128, 256]]
+    assert by_operation["all_reduce"]["input_dtypes"] == ["BFloat16"]
+    assert by_operation["all_reduce"]["input_elements"] == 128 * 256
+    assert by_operation["all_reduce"]["output_elements"] == 128 * 256
+    assert by_operation["all_reduce"]["size_relation"] == "input_equals_output"
+    # The inverse relation, and one the fixture really exhibits: two members, so
+    # the input volume is twice the output volume.
+    assert by_operation["reduce_scatter"]["input_elements"] == 256 * 256
+    assert by_operation["reduce_scatter"]["output_elements"] == 128 * 256
+    assert (
+        by_operation["reduce_scatter"]["size_relation"]
+        == "input_is_member_count_times_output"
+    )
+    for work in collectives:
+        payload = cast(dict[str, Any], work["payload"])
+        assert len(payload["input_sizes"]) == len(payload["input_dtypes"])
+        assert len(payload["output_sizes"]) == len(payload["output_dtypes"])
+
+
+def test_collective_payload_is_keyed_on_the_canonical_communicator_id() -> None:
+    """Never on runtime_pg_id, which denotes different communicators by rank.
+
+    Three separate claims, because they fail differently. The payload key is the
+    observed canonical id; it is a prefix of the collective id, which no integer
+    key could be; and it partitions the works by member set, which a per-rank
+    local numbering does not -- that is the eight-versus-four confusion. The
+    prefix claim is asserted here because the Lean route to it is not axiom-free;
+    see payloadCommKeyIsCommunicatorIdentity.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    collectives = _formal_projection(normalized)["collectives"]
+
+    members_by_comm: dict[str, list[int]] = {}
+    runtime_ids = set()
+    for work in collectives:
+        payload = cast(dict[str, Any], work["payload"])
+        comm = str(payload["comm"])
+        assert comm == str(work["comm"])
+        assert str(work["collective_id"]).startswith(f"{comm}:seq")
+        assert comm != str(work["runtime_pg_id"])
+        runtime_ids.add(int(work["runtime_pg_id"]))
+        members = [int(member) for member in work["members"]]
+        assert members_by_comm.setdefault(comm, members) == members
+    # Guard against a vacuous pass: the fixture must really have a runtime id
+    # that two different member sets share, or the keying claim tests nothing.
+    by_runtime: dict[int, set[tuple[int, ...]]] = {}
+    for work in collectives:
+        by_runtime.setdefault(int(work["runtime_pg_id"]), set()).add(
+            tuple(int(member) for member in work["members"])
+        )
+    assert any(len(values) > 1 for values in by_runtime.values()), by_runtime
+    assert len(members_by_comm) > len(runtime_ids)
+
+
+def test_collective_payload_facts_are_delimited_and_reach_both_checkers() -> None:
+    """The exported facts, in both checkers, in the shape each one needs.
+
+    The TLA export keys flat functions by work id, which TLC can join all-pairs.
+    The Lean export adds a per-collective row and a distinct-communicator table,
+    because the kernel cannot afford the same join; the two are the same facts.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    tla = export_scout_b_tla_facts(normalized)
+    lean = export_scout_b_lean_facts(normalized)
+
+    lines = tla.splitlines()
+    start = lines.index(r"\* BEGIN collective payload facts")
+    end = lines.index(r"\* END collective payload facts")
+    block = "\n".join(lines[start : end + 1])
+    assert start < end
+    for operator in (
+        "CollectivePayloadComm == ",
+        "CollectivePayloadSizeRelation == ",
+        "CollectivePayloadInputSizes == ",
+        "CollectivePayloadOutputSizes == ",
+        "CollectivePayloadInputDtypes == ",
+        "CollectivePayloadOutputDtypes == ",
+        "CollectivePayloadInputElements == ",
+        "CollectivePayloadOutputElements == ",
+    ):
+        assert operator in block, operator
+        # Defined exactly once, and inside the delimiters rather than beside
+        # them, so the measured byte share is the whole export.
+        assert tla.count(f"\n{operator}") == 1, operator
+    # Sequences of sequences need separating spaces, or the lexer meets three
+    # consecutive angle brackets.
+    assert "<<<<" not in tla
+
+    for definition in (
+        "def collectivePayloads : List CollectivePayload := [",
+        "def payloadCollectiveRows : List PayloadCollectiveRow := [",
+        "def payloadCommTable : List PayloadCommMembership := [",
+    ):
+        assert lean.count(definition) == 1, definition
+    collectives = _formal_projection(normalized)["collectives"]
+    # One row per collective, one entry per distinct communicator key.
+    assert lean.count("{ collectiveId := ") == len(
+        {str(work["collective_id"]) for work in collectives}
+    )
+    assert lean.count("{ comm := ") == len(
+        {str(cast(dict[str, Any], work["payload"])["comm"]) for work in collectives}
+    )
+
+
+def test_collective_payload_rows_take_one_member_without_checking_agreement() -> None:
+    """The exporter must not decide the property the checkers exist to decide.
+
+    A per-collective row is a representative, not a verdict: if the exporter
+    refused a bundle whose members disagreed, the disagreement would never reach
+    a checker and the formal property would be unfalsifiable. So a one-member
+    mismatch exports cleanly, with the row keeping the other member's value.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    _rewrite_payloads(
+        normalized,
+        lambda observation: observation["payload"].__setitem__(
+            "input_sizes", [[256, 256]]
+        ),
+        ranks=(1,),
+    )
+
+    lean = export_scout_b_lean_facts(normalized)
+
+    # Exported, not refused, and the mutated member really differs from its peer.
+    projection = _formal_projection(normalized)
+    volumes = {
+        int(work["rank"]): int(cast(dict[str, Any], work["payload"])["input_elements"])
+        for work in projection["collectives"]
+        if str(work["axis"]) == "tp" and int(work["rank"]) in {0, 1}
+    }
+    assert volumes[0] != volumes[1], volumes
+    assert "def payloadCollectiveRows : List PayloadCollectiveRow := [" in lean
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing_payload", "has no input_sizes"),
+        ("dtype_count_differs", "pairs 1 input_sizes with 2 input_dtypes"),
+        ("empty_dtypes", "has no input_dtypes"),
+        ("zero_dimension", "malformed input_sizes shape"),
+        ("empty_sizes", "has no output_sizes"),
+        ("payload_changes_mid_lifecycle", "collective lifecycle changes within"),
+        ("unknown_operation", "no payload size relation"),
+    ],
+)
+def test_collective_payload_refuses_malformed_evidence(
+    mutation: str, message: str
+) -> None:
+    """Bad data from disk is a ValueError, not a silently degenerate export.
+
+    ``payload_changes_mid_lifecycle`` is the one that would otherwise be
+    invisible: the facts read the first event of a work, so a payload that
+    differed at completion would never appear in the export.
+    """
+
+    normalized = merge_rank_traces(_rank_bundle())
+    mutations: dict[str, Callable[[dict[str, Any]], None]] = {
+        "missing_payload": lambda observation: observation["payload"].pop(
+            "input_sizes"
+        ),
+        "dtype_count_differs": lambda observation: observation["payload"].__setitem__(
+            "input_dtypes", ["BFloat16", "Float"]
+        ),
+        "empty_dtypes": lambda observation: observation["payload"].__setitem__(
+            "input_dtypes", []
+        ),
+        "zero_dimension": lambda observation: observation["payload"].__setitem__(
+            "input_sizes", [[0, 256]]
+        ),
+        "empty_sizes": lambda observation: observation["payload"].__setitem__(
+            "output_sizes", []
+        ),
+        "unknown_operation": lambda observation: observation.__setitem__(
+            "operation", "reduce"
+        ),
+    }
+    if mutation == "payload_changes_mid_lifecycle":
+        _rewrite_payloads(
+            normalized,
+            lambda observation: observation["payload"].__setitem__(
+                "input_sizes", [[64, 256]]
+            ),
+            lifecycles=("completed",),
+        )
+    else:
+        _rewrite_payloads(normalized, mutations[mutation])
+
+    with pytest.raises(ValueError, match=message):
+        _formal_projection(normalized)
+
+
+def test_raw_trace_schema_bump_names_the_schema_rather_than_a_missing_field() -> None:
+    """A v0 trace carries no payload, and must fail saying exactly that.
+
+    The bump exists for the same reason PROVENANCE_CONTRACT_VERSION does: without
+    it every previously sealed trace fails on a missing-field message that a
+    third party cannot tell apart from tampering.
+    """
+
+    ranks = _rank_bundle()
+    for trace in ranks:
+        trace["schema"] = "qwen3.formal.raw.v0"
+
+    with pytest.raises(
+        ValueError, match="raw trace schema must be qwen3.formal.raw.v1"
+    ):
+        merge_rank_traces(ranks)
+
+
+def test_every_observable_operation_family_has_a_payload_size_relation() -> None:
+    """The two tables must not drift apart.
+
+    ``_operation_family`` decides which collectives the collector accepts at all;
+    ``_PAYLOAD_SIZE_RELATIONS`` decides which ones have a checkable volume
+    relation. A family in the first and not the second would reach the facts and
+    then fail the export on every run, and the reverse would be a relation for an
+    operation that can never be observed.
+    """
+
+    families = {
+        _operation_family(name)
+        for name in (
+            "nccl:all_reduce",
+            "nccl:all_gather_into_tensor",
+            "nccl:reduce_scatter_tensor",
+            "nccl:broadcast",
+        )
+    }
+
+    assert None not in families
+    assert families == set(_PAYLOAD_SIZE_RELATIONS)

@@ -70,6 +70,8 @@ valid_modules=(
   ScoutBEventRank1
   ScoutBEventRank2
   ScoutBEventRank3
+  ScoutBPayloadChecks
+  ScoutBPayloadMutationChecks
   ScoutBPlacementChecks
   ScoutBProducerCheck
   ScoutBSyncChunk0
@@ -102,6 +104,8 @@ set +e
     ScoutBEventRank1
     ScoutBEventRank2
     ScoutBEventRank3
+    ScoutBPayloadChecks
+    ScoutBPayloadMutationChecks
     ScoutBPlacementChecks
     ScoutBProducerCheck
     ScoutBSyncChunk0
@@ -109,10 +113,23 @@ set +e
     ScoutBSyncChunk2
     ScoutBSyncChunk3
   )
+  # Per-module budget. 120s suits the small modules. The payload modules
+  # evaluate their predicates over all 432 works with no caching between
+  # theorems, MEASURED at about 26s per agreement evaluation and 13s per
+  # well-formedness evaluation at that scale, so they get 300s. Splitting the
+  # payload positives from the payload mutations is the other half of that
+  # decision; the all-pairs form of the agreement predicate had not finished
+  # after four minutes and is why the Lean facts carry a per-collective row.
+  module_timeout() {
+    case "$1" in
+      ScoutBPayloadChecks | ScoutBPayloadMutationChecks) printf '300\n' ;;
+      *) printf '120\n' ;;
+    esac
+  }
   pids=()
   for name in "${check_modules[@]}"; do
     (
-      LEAN_PATH=. timeout 120 "${lean_bin}" \
+      LEAN_PATH=. timeout "$(module_timeout "${name}")" "${lean_bin}" \
         -o "${name}.olean" "${name}.lean"
     ) >"${name}.log" 2>&1 &
     pids+=("$!")
@@ -201,6 +218,53 @@ do
       exit 1
     }
   printf 'SCOUT_B_LEAN_PLACEMENT_MUTATION theorem=Qwen3Formal.ScoutBChecks.%s kind=evaluation scope=observed-trace role=%s axioms=[]\n' \
+    "${theorem}" "${role}"
+done
+
+# Collective payload identity. OBSERVED off each rank's own NCCL Flight
+# Recorder entry -- unlike the producer and stream fields, which are attributed
+# by a positional zip -- and per tensor: one shape and one dtype name per tensor.
+for theorem in \
+  payloadWellFormedObserved \
+  payloadCoversCollectivesObserved \
+  payloadCommKeyObserved \
+  payloadAgreementObserved \
+  payloadSizeRelationObserved
+do
+  grep -Fxq \
+    "'Qwen3Formal.ScoutBChecks.${theorem}' does not depend on any axioms" \
+    <<<"${valid_output}" || {
+      cat "${work_dir}/valid.log" >&2
+      echo "Lean Scout B payload check was not axiom-free: ${theorem}" >&2
+      exit 1
+    }
+  printf 'SCOUT_B_LEAN_PAYLOAD theorem=Qwen3Formal.ScoutBChecks.%s kind=evaluation scope=observed-trace axioms=[]\n' \
+    "${theorem}"
+done
+
+# The observed run has no payload mismatch and no mislabelled operation, so the
+# positives above prove nothing about whether either would be caught. These are
+# the two derived injections, with the role of each theorem spelled out: only one
+# of each group is the rejection, and labelling the guard and the survivors
+# "rejected" too would misreport what the log shows.
+for entry in \
+  injectedSizeMismatchIsIsolated:mutation-is-not-a-no-op \
+  rejectsInjectedSizeMismatch:agreement-rejects-it \
+  injectedSizeMismatchPassesTheOtherPayloadChecks:survivors-hold \
+  mislabelledEveryMemberOfOneCollective:mutation-covers-every-member \
+  rejectsMislabelledOperation:size-relation-rejects-it \
+  mislabelledOperationPassesTheOtherPayloadChecks:survivors-hold
+do
+  theorem="${entry%%:*}"
+  role="${entry##*:}"
+  grep -Fxq \
+    "'Qwen3Formal.ScoutBChecks.${theorem}' does not depend on any axioms" \
+    <<<"${valid_output}" || {
+      cat "${work_dir}/valid.log" >&2
+      echo "Lean Scout B payload injection was not axiom-free: ${theorem}" >&2
+      exit 1
+    }
+  printf 'SCOUT_B_LEAN_PAYLOAD_MUTATION theorem=Qwen3Formal.ScoutBChecks.%s kind=evaluation scope=observed-trace role=%s axioms=[]\n' \
     "${theorem}" "${role}"
 done
 

@@ -4455,6 +4455,35 @@ def test_partial_placement_control_names_its_missing_target_instead_of_crashing(
     ), (status, output)
 
 
+_PAYLOAD_SIZE_GUARD = """\
+MutatedWork ==
+  IF ThereIsASizedWorkWithAPeer
+  THEN CHOOSE work \\in ScalableWorks :
+         \\A other \\in ScalableWorks :
+           WorkPosition[work] <= WorkPosition[other]
+  ELSE \"\""""
+
+_PAYLOAD_SIZE_UNGUARDED = """\
+MutatedWork ==
+  CHOOSE work \\in ScalableWorks :
+    \\A other \\in ScalableWorks :
+      WorkPosition[work] <= WorkPosition[other]"""
+
+_PAYLOAD_OPERATION_GUARD = """\
+MutatedWork ==
+  IF ThereIsAVolumeChangingCollective
+  THEN CHOOSE work \\in VolumeChangingWorks :
+         \\A other \\in VolumeChangingWorks :
+           WorkPosition[work] <= WorkPosition[other]
+  ELSE \"\""""
+
+_PAYLOAD_OPERATION_UNGUARDED = """\
+MutatedWork ==
+  CHOOSE work \\in VolumeChangingWorks :
+    \\A other \\in VolumeChangingWorks :
+      WorkPosition[work] <= WorkPosition[other]"""
+
+
 @pytest.mark.parametrize(
     ("module", "facts", "guard", "unguarded", "sentinel", "named"),
     [
@@ -4474,8 +4503,29 @@ def test_partial_placement_control_names_its_missing_target_instead_of_crashing(
             "Rank0HasACollective",
             "MutationIsIsolated",
         ),
+        (
+            "ScoutBPayloadSizeInvalid",
+            "_B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD",
+            _PAYLOAD_SIZE_GUARD,
+            _PAYLOAD_SIZE_UNGUARDED,
+            "ThereIsASizedWorkWithAPeer",
+            "MutationIsIsolated",
+        ),
+        (
+            "ScoutBPayloadOperationInvalid",
+            "_B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD",
+            _PAYLOAD_OPERATION_GUARD,
+            _PAYLOAD_OPERATION_UNGUARDED,
+            "ThereIsAVolumeChangingCollective",
+            "MutationIsIsolated",
+        ),
     ],
-    ids=["partial_placement", "issue_order"],
+    ids=[
+        "partial_placement",
+        "issue_order",
+        "payload_size",
+        "payload_operation",
+    ],
 )
 def test_the_derived_mutation_guard_is_load_bearing(
     tmp_path: Path,
@@ -4500,6 +4550,7 @@ def test_the_derived_mutation_guard_is_load_bearing(
     facts_text = {
         "_B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT": _B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT,
         "_B_FACTS_WITHOUT_RANK_ZERO": _B_FACTS_WITHOUT_RANK_ZERO,
+        "_B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD": (_B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD),
     }[facts]
     source = (FORMAL_DIR / f"{module}.tla").read_text()
     assert source.count(guard) == 1, "guard anchor drifted from the module"
@@ -4564,8 +4615,23 @@ def test_the_derived_mutation_guard_is_load_bearing(
             "Rank0HasACollective",
             "ScoutBPerCommunicatorIssueOrder",
         ),
+        (
+            "ScoutBPayloadSizeInvalid",
+            "ThereIsASizedWorkWithAPeer",
+            "ScoutBCollectivePayloadAgreement",
+        ),
+        (
+            "ScoutBPayloadOperationInvalid",
+            "ThereIsAVolumeChangingCollective",
+            "ScoutBCollectivePayloadSizeRelation",
+        ),
     ],
-    ids=["partial_placement", "issue_order"],
+    ids=[
+        "partial_placement",
+        "issue_order",
+        "payload_size",
+        "payload_operation",
+    ],
 )
 def test_placement_negative_configurations_pin_their_invariant_order(
     module: str, first: str, last: str
@@ -4622,20 +4688,32 @@ def test_scout_b_tokens_name_the_invariants_they_checked() -> None:
         "ScoutBPlacementPartialInvalid.cfg",
     ):
         assert f'formal_cfg_invariants "${{fixture_dir}}/{cfg}"' in runner, cfg
+    # The two payload negatives share one loop, so their cfg name is a variable.
+    # The loop must still derive the list the same way, and must name both
+    # modules, or a negative could run with its invariants unreported.
+    assert (
+        'formal_cfg_invariants "${fixture_dir}/${payload_module}.cfg"' in runner
+    ), runner
+    for module in ("ScoutBPayloadSizeInvalid", "ScoutBPayloadOperationInvalid"):
+        assert module in runner, module
     for token in (
         "SCOUT_B_TLA_VALID",
         "SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE",
         "SCOUT_B_TLA_PARTIAL_PLACEMENT_NEGATIVE",
+        "SCOUT_B_TLA_%s_NEGATIVE",
     ):
+        # Stripped, because the payload token is emitted inside a loop and is
+        # therefore indented.
         line = next(
-            candidate
+            candidate.strip()
             for candidate in runner.splitlines()
-            if candidate.startswith(f"printf '{token} ")
+            if candidate.strip().startswith(f"printf '{token} ")
         )
         assert "invariants=%s" in line, line
     # Fails closed rather than printing an empty list, which would read as
     # "no invariants were checked" and classify green.
-    assert runner.count("could not read the invariant list out of") == 3, runner
+    # One per literal cfg plus one shared by the payload loop.
+    assert runner.count("could not read the invariant list out of") == 4, runner
 
 
 def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
@@ -4673,7 +4751,7 @@ def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
     assert parsed.returncode == 0, parsed.stdout
     listed = set(parsed.stdout.strip().split(","))
 
-    assert len(defined) == 19, sorted(defined)
+    assert len(defined) == 23, sorted(defined)
     assert defined == listed, sorted(defined ^ listed)
     for invariant in (
         "ScoutBPlacementValid",
@@ -4685,5 +4763,256 @@ def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
         "ScoutBShardedDimDividesAxisDegree",
         "ScoutBLocalShapeReflectsSharding",
         "ScoutBStridedShardComposition",
+        "ScoutBCollectivePayloadWellFormed",
+        "ScoutBPayloadCommKey",
+        "ScoutBCollectivePayloadAgreement",
+        "ScoutBCollectivePayloadSizeRelation",
     ):
         assert invariant in listed, invariant
+
+
+# Tiny hand-written payload facts, so the payload predicates are exercised on
+# inputs they must reject as well as on the observed run they accept. Two works
+# of one two-member collective, plus a second collective on the same
+# communicator, which is what the keying property needs to be non-trivial. The
+# probe asserts the NEGATION of each predicate on a bad input, so one clean TLC
+# run proves several rejections instead of stopping at the first.
+_PAYLOAD_PROBE = """\
+------------------------------ MODULE PayloadProbe ------------------------------
+EXTENDS Naturals, Sequences, FiniteSets, TLC, ScoutDistributed
+
+VARIABLE cursor
+vars == <<cursor>>
+Init == cursor = 0
+Next == UNCHANGED cursor
+Spec == Init /\\ [][Next]_vars
+
+Works == <<"w0", "w1">>
+Ids == ("w0" :> "tp:0,1:mesh_tp:seq1:all_gather")
+         @@ ("w1" :> "tp:0,1:mesh_tp:seq1:all_gather")
+Comm == ("w0" :> "tp:0,1:mesh_tp") @@ ("w1" :> "tp:0,1:mesh_tp")
+Members == ("w0" :> {0, 1}) @@ ("w1" :> {0, 1})
+Operation == ("w0" :> "all_gather") @@ ("w1" :> "all_gather")
+Relation == ("w0" :> "output_is_member_count_times_input")
+              @@ ("w1" :> "output_is_member_count_times_input")
+
+\\* An all-gather of one 4x8 tensor per member into a 8x8 output: two members,
+\\* so the output volume is twice the input volume. Plus a 0-dim tensor, which
+\\* has no dimensions and one element, because the observed run can contain one.
+InSizes == ("w0" :> << <<4, 8>>, <<>> >>) @@ ("w1" :> << <<4, 8>>, <<>> >>)
+OutSizes == ("w0" :> << <<8, 8>>, <<2>> >>) @@ ("w1" :> << <<8, 8>>, <<2>> >>)
+InDtypes == ("w0" :> <<"BFloat16", "BFloat16">>)
+              @@ ("w1" :> <<"BFloat16", "BFloat16">>)
+OutDtypes == ("w0" :> <<"BFloat16", "BFloat16">>)
+               @@ ("w1" :> <<"BFloat16", "BFloat16">>)
+InElements == ("w0" :> 33) @@ ("w1" :> 33)
+OutElements == ("w0" :> 66) @@ ("w1" :> 66)
+
+WellFormed(inSizes, outSizes, inDtypes, outDtypes, inElements, outElements) ==
+  CollectivePayloadWellFormed(
+    Works, Comm, inSizes, outSizes, inDtypes, outDtypes, inElements,
+    outElements)
+
+Agreement(inDtypes, outDtypes, inElements, outElements) ==
+  CollectivePayloadAgreement(
+    Works, Ids, inDtypes, outDtypes, inElements, outElements)
+
+Relates(operation, members, relation, inElements, outElements) ==
+  CollectivePayloadSizeRelationHolds(
+    Works, operation, members, relation, inElements, outElements)
+
+CommKey(comm, members) ==
+  PayloadCommKeyIsCommunicatorIdentity(Works, comm, comm, members)
+
+\\* Not vacuous: the good input satisfies every predicate. The element counts
+\\* are 4*8 + 1 = 33 and 8*8 + 2 = 66, so the product of no dimensions is 1.
+GoodInputIsAccepted ==
+  /\\ WellFormed(
+       InSizes, OutSizes, InDtypes, OutDtypes, InElements, OutElements)
+  /\\ Agreement(InDtypes, OutDtypes, InElements, OutElements)
+  /\\ Relates(Operation, Members, Relation, InElements, OutElements)
+  /\\ CommKey(Comm, Members)
+  /\\ ProductOfSizes(<<>>) = 1
+  /\\ TotalElements(<< <<4, 8>>, <<>> >>) = 33
+
+\\* An element count the shapes do not support. This is the exporter's own
+\\* arithmetic being recomputed rather than trusted.
+DerivedElementCountIsRecomputed ==
+  ~WellFormed(
+     InSizes, OutSizes, InDtypes, OutDtypes,
+     ("w0" :> 34) @@ ("w1" :> 33), OutElements)
+
+\\* One shape per tensor, one dtype name per tensor: a dtype list that does not
+\\* pair up with the shapes is not payload identity.
+UnpairedDtypeListIsRejected ==
+  ~WellFormed(
+     InSizes, OutSizes, ("w0" :> <<"BFloat16">>) @@ ("w1" :> <<"BFloat16">>),
+     OutDtypes, InElements, OutElements)
+
+\\* A zero dimension would make a volume relation hold vacuously.
+ZeroDimensionIsRejected ==
+  ~WellFormed(
+     ("w0" :> << <<0, 8>>, <<>> >>) @@ ("w1" :> << <<4, 8>>, <<>> >>),
+     OutSizes, InDtypes, OutDtypes, ("w0" :> 1) @@ ("w1" :> 33), OutElements)
+
+\\* THE property: one member exchanging a different volume from its peer.
+MemberVolumeMismatchIsRejected ==
+  ~Agreement(
+     InDtypes, OutDtypes, ("w0" :> 66) @@ ("w1" :> 33),
+     ("w0" :> 132) @@ ("w1" :> 66))
+
+\\* And one member exchanging a different dtype from its peer.
+MemberDtypeMismatchIsRejected ==
+  ~Agreement(
+     ("w0" :> <<"Float", "BFloat16">>) @@ ("w1" :> <<"BFloat16", "BFloat16">>),
+     OutDtypes, InElements, OutElements)
+
+\\* NCCL requires one dtype for both buffers of a collective.
+MixedInputOutputDtypeIsRejected ==
+  ~Agreement(
+     InDtypes,
+     ("w0" :> <<"Float", "Float">>) @@ ("w1" :> <<"Float", "Float">>),
+     InElements, OutElements)
+
+\\* THE second property: the operation relabelled the way an exporter bug would,
+\\* on every member, with the relation label moved to match. Ordering agreement
+\\* cannot see this; the volume relation can.
+MislabelledOperationIsRejected ==
+  ~Relates(
+     ("w0" :> "all_reduce") @@ ("w1" :> "all_reduce"),
+     Members,
+     ("w0" :> "input_equals_output") @@ ("w1" :> "input_equals_output"),
+     InElements, OutElements)
+
+\\* A label that disagrees with the operation it claims to describe.
+RelationLabelMustMatchTheOperationIsRejected ==
+  ~Relates(
+     Operation, Members,
+     ("w0" :> "input_equals_output") @@ ("w1" :> "input_equals_output"),
+     InElements, OutElements)
+
+\\* An operation the relation table does not know must fail, not pass vacuously.
+UnknownOperationIsRejected ==
+  /\\ ImpliedSizeRelation("reduce") \\notin PayloadSizeRelations
+  /\\ ~Relates(
+        ("w0" :> "reduce") @@ ("w1" :> "reduce"), Members, Relation,
+        InElements, OutElements)
+
+\\* The keying property: a per-rank runtime id puts communicators with different
+\\* member sets under one key, which is the eight-versus-four confusion.
+RuntimeIdKeyingIsRejected ==
+  ~CommKey(
+     ("w0" :> "2") @@ ("w1" :> "2"),
+     ("w0" :> {0, 2}) @@ ("w1" :> {1, 3}))
+
+=============================================================================
+"""
+
+_PAYLOAD_PROBE_CFG = """\
+SPECIFICATION Spec
+
+INVARIANTS
+  GoodInputIsAccepted
+  DerivedElementCountIsRecomputed
+  UnpairedDtypeListIsRejected
+  ZeroDimensionIsRejected
+  MemberVolumeMismatchIsRejected
+  MemberDtypeMismatchIsRejected
+  MixedInputOutputDtypeIsRejected
+  MislabelledOperationIsRejected
+  RelationLabelMustMatchTheOperationIsRejected
+  UnknownOperationIsRejected
+  RuntimeIdKeyingIsRejected
+"""
+
+
+def test_payload_predicates_reject_the_payloads_they_are_for(
+    tmp_path: Path,
+) -> None:
+    """Run the real payload predicates over inputs they must refuse.
+
+    The observed run satisfies all of them, which on its own says nothing about
+    what they would catch -- and the checked-in facts module cannot carry payload
+    facts until a fresh four-rank run regenerates it. This applies the shipped
+    ScoutDistributed definitions, not a copy, to tiny hand-written facts, and
+    asserts the NEGATION of each predicate on a bad input plus acceptance of a
+    good one so the rejections are not vacuous.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        "PayloadProbe",
+        _PAYLOAD_PROBE_CFG,
+        fixtures=("ScoutDistributed.tla",),
+        files={"PayloadProbe.tla": _PAYLOAD_PROBE},
+    )
+
+    assert (
+        _run_classifier("formal_classify_tlc_valid", status, output).returncode == 0
+    ), (status, output)
+
+
+# A stand-in ScoutBFacts with one single-member collective over a 0-dim tensor.
+# This is the input on which both payload controls' derived mutation targets have
+# no witness: no work has a peer, no shape can be scaled, and no operation
+# changes volume.
+_B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD = """\
+------------------------------ MODULE ScoutBFacts ------------------------------
+EXTENDS Naturals, Sequences, FiniteSets, TLC
+
+CollectiveWorkIds == <<"work:r0:only">>
+CollectiveRank == ("work:r0:only" :> 0)
+CollectiveId == ("work:r0:only" :> "tp:0:mesh_tp:seq1:all_reduce")
+CollectiveComm == ("work:r0:only" :> "tp:0:mesh_tp")
+CollectiveOperation == ("work:r0:only" :> "all_reduce")
+CollectiveMembers == ("work:r0:only" :> {0})
+CollectiveIssueOrder == ("work:r0:only" :> 4)
+CollectivePayloadComm == ("work:r0:only" :> "tp:0:mesh_tp")
+CollectivePayloadSizeRelation == ("work:r0:only" :> "input_equals_output")
+CollectivePayloadInputSizes == ("work:r0:only" :> << <<>> >>)
+CollectivePayloadOutputSizes == ("work:r0:only" :> << <<>> >>)
+CollectivePayloadInputDtypes == ("work:r0:only" :> <<"BFloat16">>)
+CollectivePayloadOutputDtypes == ("work:r0:only" :> <<"BFloat16">>)
+CollectivePayloadInputElements == ("work:r0:only" :> 1)
+CollectivePayloadOutputElements == ("work:r0:only" :> 1)
+
+=============================================================================
+"""
+
+
+@pytest.mark.parametrize(
+    ("module", "sentinel"),
+    [
+        ("ScoutBPayloadSizeInvalid", "ThereIsASizedWorkWithAPeer"),
+        ("ScoutBPayloadOperationInvalid", "ThereIsAVolumeChangingCollective"),
+    ],
+    ids=["payload_size", "payload_operation"],
+)
+def test_payload_controls_name_their_missing_target_instead_of_crashing(
+    tmp_path: Path, module: str, sentinel: str
+) -> None:
+    """The derived mutation target must be reported, not crashed on.
+
+    `MutatedWork` is a constant definition, so TLC folds it before checking
+    anything; an unguarded CHOOSE over facts with no eligible work abandons the
+    search with an evaluation error and exit 75, which is not a checking result.
+    The sentinel listed first turns that into a named invariant, and because the
+    invariant mentions no variables TLC refutes it as a false constant
+    expression.
+    """
+
+    status, output = _run_tlc(
+        tmp_path,
+        module,
+        (FORMAL_DIR / f"{module}.cfg").read_text(),
+        fixtures=("ScoutDistributed.tla", f"{module}.tla"),
+        files={"ScoutBFacts.tla": _B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD},
+    )
+
+    assert "Attempted to compute the value of an expression of form" not in output
+    assert (
+        _run_classifier(
+            "formal_classify_tlc_constant_false", status, output, sentinel
+        ).returncode
+        == 0
+    ), (status, output)
