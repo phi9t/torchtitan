@@ -354,6 +354,163 @@ def test_shared_manifest_allows_distinct_rank_indexes(
     ]
 
 
+def _incident_rows_for_process(tmp_path, identity, process_id):
+    """Read one named rank's index.
+
+    read_artifact_rows takes next(glob(...)), which is rank 0's index. The
+    divergence incident is written by the rank that detected it, so it has to be
+    read from that rank's file by name.
+    """
+    index = (
+        tmp_path
+        / "run_evidence"
+        / identity.run_id
+        / identity.attempt_id
+        / "indexes"
+        / f"artifacts.{process_id}.jsonl"
+    )
+    return [
+        row
+        for row in (json.loads(line) for line in index.read_text().splitlines())
+        if row["record_type"] == "incident"
+    ]
+
+
+def _diverged_rank(tmp_path, *, rank, job_config):
+    """A second rank of the same attempt, holding a genuinely different config."""
+    return RunEvidence(
+        RunEvidence.Config(),
+        dump_folder=str(tmp_path),
+        job_config=job_config,
+        role="trainer",
+        actor_id="core",
+    )
+
+
+def test_divergent_rank_config_is_detected_named_and_recorded(
+    tmp_path, launcher_identity, monkeypatch
+):
+    """Inconsistent per-rank config must produce a typed, durable incident.
+
+    Reading the row back off disk is the point of this test rather than
+    incidental. __enter__ publishes the manifest before it opens the process
+    index and before it installs the recorder as active, so an implementation
+    that emitted through the module-level record_incident facade would find no
+    active recorder, drop the incident silently, and still pass a test that only
+    checked that EvidenceContractError was raised.
+    """
+    with build_evidence(tmp_path):  # rank 0 publishes {"training": {"steps": 3}}
+        pass
+
+    monkeypatch.setenv("RANK", "1")
+    diverged = _diverged_rank(tmp_path, rank=1, job_config={"training": {"steps": 4}})
+    with pytest.raises(EvidenceContractError) as excinfo:
+        with diverged:
+            pass
+
+    # The error names the field, not merely that something did not match.
+    assert "does not match on config" in str(excinfo.value)
+
+    incidents = _incident_rows_for_process(
+        tmp_path, launcher_identity, "trainer.core.global_rank_000001"
+    )
+    assert len(incidents) == 1, incidents
+    recorded = incidents[0]
+    assert recorded["incident_class"] == "inconsistent_rank_config"
+    assert recorded["policy"] == "abort_fatal"
+    assert recorded["capture_state"] == "abort_and_preserve"
+    assert recorded["detected_locus"] == "trainer_rank"
+    assert recorded["terminal_disposition"] == "abort"
+    assert recorded["useful_work_preserved"] is False
+    assert recorded["last_operation"] == "run_evidence.publish_manifest"
+    # Attributed to the rank that observed the divergence, which is rank 1.
+    assert recorded["process_id"] == "trainer.core.global_rank_000001"
+    assert recorded["metadata"]["differing_fields"] == ["config"]
+    # Confidence is omitted, not guessed: this rank cannot tell which side of the
+    # disagreement holds the wrong value.
+    assert "attribution_confidence" not in recorded
+
+
+def test_divergence_detail_carries_digests_not_whole_configs(
+    tmp_path, launcher_identity, monkeypatch
+):
+    """The report must stay compact enough to read and to store.
+
+    A normalized job config is far too large for an error message or an incident
+    record, so config divergence is reported by the digests the manifest already
+    carries.
+    """
+    with build_evidence(tmp_path):
+        pass
+
+    monkeypatch.setenv("RANK", "1")
+    diverged = _diverged_rank(
+        tmp_path, rank=1, job_config={"training": {"steps": 4, "seq_len": 4096}}
+    )
+    with pytest.raises(EvidenceContractError) as excinfo:
+        with diverged:
+            pass
+
+    message = str(excinfo.value)
+    assert "published_sha256" in message and "local_sha256" in message
+    assert "seq_len" not in message, message
+
+    detail = _incident_rows_for_process(
+        tmp_path, launcher_identity, "trainer.core.global_rank_000001"
+    )[0]["metadata"]["divergence"]["config"]
+    assert detail["published_sha256"] != detail["local_sha256"]
+    assert len(detail["local_sha256"]) == 64
+
+
+def test_only_the_declared_manifest_fields_are_compared(tmp_path):
+    """The comparison's scope is pinned, and a field outside it is not detected.
+
+    This is the recorded non-detection for the fault: divergence the manifest
+    does not carry -- per-rank environment, host libraries, device state -- is
+    invisible to this check, and so is any manifest key outside the tuple.
+    """
+    assert RunEvidence.SHARED_MANIFEST_FIELDS == (
+        "schema_version",
+        "run_id",
+        "attempt_id",
+        "config",
+        "source",
+        "command",
+        "runtime",
+    )
+
+    evidence = build_evidence(tmp_path)
+    agreed = {field: "same" for field in RunEvidence.SHARED_MANIFEST_FIELDS}
+    # An extra key differs, and is deliberately not reported.
+    evidence._validate_shared_manifest(
+        {**agreed, "unlisted_field": "peer value"},
+        {**agreed, "unlisted_field": "local value"},
+    )
+
+
+def test_failing_to_record_the_incident_does_not_mask_the_divergence(
+    tmp_path, launcher_identity, monkeypatch
+):
+    """The divergence is the primary finding; a recording failure is not.
+
+    If the incident write were allowed to propagate it would replace a precise
+    "the manifest does not match on config" with an unrelated write error.
+    """
+    with build_evidence(tmp_path):
+        pass
+
+    monkeypatch.setenv("RANK", "1")
+    diverged = _diverged_rank(tmp_path, rank=1, job_config={"training": {"steps": 4}})
+
+    def explode() -> None:
+        raise EvidenceWriteError("index unavailable")
+
+    monkeypatch.setattr(diverged, "_open_process_index", explode)
+    with pytest.raises(EvidenceContractError, match="does not match on config"):
+        with diverged:
+            pass
+
+
 def test_shared_manifest_accepts_configs_built_in_independent_rank_processes(
     tmp_path,
 ):

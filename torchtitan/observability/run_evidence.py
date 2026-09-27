@@ -360,20 +360,90 @@ class RunEvidence(Configurable):
             "existing run evidence manifest could not be read"
         ) from last_error
 
+    # The manifest fields every rank of an attempt must agree on. Divergence in
+    # any of them is the inconsistent-per-rank-config fault of the v1 suite:
+    # "config" catches a differing job config, "source" a differing code state,
+    # "command" a differing argv, and "runtime" a differing Python or torch.
+    #
+    # What this comparison cannot see, stated rather than implied: anything not
+    # in this tuple, and anything the manifest does not record at all -- per-rank
+    # environment variables, host library versions, and device state among them.
+    # A divergence outside these fields is not detected here.
+    SHARED_MANIFEST_FIELDS = (
+        "schema_version",
+        "run_id",
+        "attempt_id",
+        "config",
+        "source",
+        "command",
+        "runtime",
+    )
+
     def _validate_shared_manifest(
         self, existing: Mapping[str, Any], expected: Mapping[str, Any]
     ) -> None:
-        fields = (
-            "schema_version",
-            "run_id",
-            "attempt_id",
-            "config",
-            "source",
-            "command",
-            "runtime",
+        differing = tuple(
+            field
+            for field in self.SHARED_MANIFEST_FIELDS
+            if existing.get(field) != expected[field]
         )
-        if any(existing.get(field) != expected[field] for field in fields):
-            raise EvidenceContractError("existing run evidence manifest does not match")
+        if not differing:
+            return
+        detail = _manifest_divergence_detail(existing, expected, differing)
+        self._record_inconsistent_rank_config(differing, detail)
+        raise EvidenceContractError(
+            "existing run evidence manifest does not match on "
+            f"{', '.join(differing)}: {_canonical_json(detail)}"
+        )
+
+    def _record_inconsistent_rank_config(
+        self, differing: tuple[str, ...], detail: Mapping[str, Any]
+    ) -> None:
+        """Record manifest divergence as a typed incident before the publish fails.
+
+        Written through the instance rather than the module-level record_incident
+        facade on purpose. __enter__ publishes the manifest before it opens the
+        process index and before it installs this recorder as the active one, so
+        the facade would find no active recorder and drop the incident silently --
+        a detection that leaves no record at all. The index is opened here for the
+        same reason, and only on this already-fatal path: opening it eagerly would
+        leave an index file behind whenever a publish failed for an unrelated
+        reason, which would poison a retry of the same attempt.
+
+        Recording never masks the EvidenceContractError the caller then raises.
+        The divergence is the primary finding; a failure to record it is not.
+        """
+        try:
+            if self._index_file is None:
+                self._open_process_index()
+            self._record_incident(
+                incident_class=IncidentClass.INCONSISTENT_RANK_CONFIG,
+                capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+                policy=IncidentPolicy.ABORT_FATAL,
+                summary=(
+                    "run evidence manifest published for this attempt disagrees "
+                    f"on {', '.join(differing)}"
+                ),
+                detected_locus=FaultAttributionLocus.TRAINER_RANK,
+                # Which side holds the wrong value is not determined here: this
+                # rank observes only that it disagrees with whichever rank
+                # published first. FaultConfidence is omitted rather than guessed,
+                # per its own contract that an absent field means not collected.
+                attribution_confidence=None,
+                step=None,
+                last_operation="run_evidence.publish_manifest",
+                useful_work_preserved=False,
+                terminal_disposition="abort",
+                metadata={
+                    "differing_fields": list(differing),
+                    "divergence": dict(detail),
+                },
+            )
+        except RunEvidenceError:
+            _logger.exception(
+                "failed to record the inconsistent rank config incident; the "
+                "manifest divergence is still reported by the raised error"
+            )
 
     def _open_process_index(self) -> None:
         global_rank = int(os.environ.get("RANK", "0"))
@@ -743,6 +813,53 @@ def record_artifact(
             )
             return None
         raise
+
+
+def _manifest_config_digest(manifest: Mapping[str, Any]) -> str:
+    """Return a manifest's recorded config digest, or a sentinel.
+
+    Reads the digest the manifest already carries rather than recomputing it, and
+    tolerates a malformed or truncated peer manifest: this runs on a failure path
+    where the other side's file is exactly what is in doubt.
+    """
+    config = manifest.get("config")
+    if isinstance(config, Mapping):
+        digest = config.get("sha256")
+        if isinstance(digest, str):
+            return digest
+    return "unavailable"
+
+
+def _truncate_for_report(value: Any, limit: int = 160) -> str:
+    text = repr(value)
+    return text if len(text) <= limit else f"{text[:limit]}...<truncated>"
+
+
+def _manifest_divergence_detail(
+    existing: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    differing: tuple[str, ...],
+) -> dict[str, dict[str, str]]:
+    """Summarize each differing manifest field compactly.
+
+    The normalized config is far too large for an error message or an incident
+    record, so config divergence is reported by the two digests. The remaining
+    fields are shown directly but truncated, because "runtime" carries a full
+    Python version banner and "source" can carry a long path.
+    """
+    detail: dict[str, dict[str, str]] = {}
+    for field in differing:
+        if field == "config":
+            detail[field] = {
+                "published_sha256": _manifest_config_digest(existing),
+                "local_sha256": _manifest_config_digest(expected),
+            }
+        else:
+            detail[field] = {
+                "published": _truncate_for_report(existing.get(field)),
+                "local": _truncate_for_report(expected[field]),
+            }
+    return detail
 
 
 def record_incident(

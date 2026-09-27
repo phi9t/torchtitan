@@ -109,3 +109,73 @@ def test_the_maintained_corpus_conforms() -> None:
         stderr=subprocess.STDOUT,
     )
     assert result.returncode == 0, result.stdout
+
+
+REFLOWER = REPO_ROOT / "scripts" / "reflow_markdown.py"
+
+
+def _reflow(path: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(REFLOWER), str(path)],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+
+def test_reflowing_makes_an_over_width_file_pass_the_checker(tmp_path: Path) -> None:
+    """The two tools must agree: what the formatter produces, the checker accepts.
+
+    This is the property that makes the pair useful. Testing them separately
+    would let the formatter emit lines the checker still rejects.
+    """
+    path = _write(tmp_path, f"# Heading\n\n{OVER}\n")
+    assert _run(path).returncode == 1, "fixture must start over-width"
+
+    assert _reflow(path).returncode == 0
+    assert _run(path).returncode == 0, path.read_text(encoding="utf-8")
+
+
+def test_reflowing_preserves_the_token_stream(tmp_path: Path) -> None:
+    body = f"Some prose. {OVER} And a tail sentence here.\n"
+    path = _write(tmp_path, body)
+    _reflow(path)
+    assert path.read_text(encoding="utf-8").split() == body.split()
+
+
+def test_reflowing_leaves_conforming_prose_byte_identical(tmp_path: Path) -> None:
+    body = "A short paragraph.\nStill short.\n\nAnother one.\n"
+    path = _write(tmp_path, body)
+    assert _reflow(path).returncode == 0
+    assert path.read_text(encoding="utf-8") == body
+
+
+def test_reflowing_does_not_touch_fenced_content(tmp_path: Path) -> None:
+    fenced = f"```\n{OVER}\n```\n"
+    path = _write(tmp_path, fenced)
+    assert _reflow(path).returncode == 0
+    assert path.read_text(encoding="utf-8") == fenced
+
+
+def test_reflowing_is_idempotent(tmp_path: Path) -> None:
+    path = _write(tmp_path, f"{OVER}\n")
+    _reflow(path)
+    once = path.read_text(encoding="utf-8")
+    _reflow(path)
+    assert path.read_text(encoding="utf-8") == once
+
+
+def test_a_wrapped_list_item_keeps_a_hanging_indent(tmp_path: Path) -> None:
+    """A bullet's continuation must align under its text, not at column zero.
+
+    Wrapping a bullet without the hanging indent turns one list item into a
+    list item plus a stray paragraph, which is how hand-reflowing broke these
+    documents in the first place.
+    """
+    path = _write(tmp_path, f"- {OVER}\n")
+    _reflow(path)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) > 1, lines
+    assert lines[0].startswith("- ")
+    assert all(line.startswith("  ") and line[2:3] != " " for line in lines[1:]), lines
