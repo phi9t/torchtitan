@@ -27,6 +27,7 @@ from torchtitan.experiments.qwen3_formal_verifier.scout_b import (
     _sha256_json,
     _write_attempt_bundle,
     _write_immutable,
+    artifact_sync_diagnosis,
     artifact_sync_mismatches,
     build_scout_b_config,
     export_scout_b_lean_bad_facts,
@@ -777,6 +778,63 @@ def test_artifact_sync_writes_and_detects_stale_scout_b_fact_modules(
     stale = tmp_path / "ScoutBFacts.tla"
     stale.write_text(stale.read_text() + "\\* stale\n")
     assert artifact_sync_mismatches(normalized, tmp_path) == (str(stale),)
+
+
+def test_stale_artifact_diagnosis_names_an_identity_mismatch(tmp_path: Path) -> None:
+    """A stale-artifact failure must distinguish a wrong identity from a new trace.
+
+    The run and attempt identity is part of every event id, so a run recorded
+    under a different --attempt-id disagrees on all of them, the digest differs,
+    and all four modules mismatch at once. That reads as a changed trace, and the
+    obvious remedy then looks like --update-artifacts, which would replace the
+    canonical trace with one recorded under the wrong identity. This cost a
+    twenty-minute gate run to work out by hand.
+    """
+    normalized = merge_rank_traces(_rank_bundle())
+    sync_checked_in_artifacts(normalized, tmp_path)
+    assert artifact_sync_mismatches(normalized, tmp_path) == ()
+
+    # Same trace recorded under a different attempt id. The identity has to be
+    # rewritten everywhere it appears, including inside every event id, because
+    # that is what the exporter produces -- and changing only the top-level field
+    # is rejected by bundle validation, which is its own guard working.
+    renamed_ranks = json.loads(
+        json.dumps(_rank_bundle()).replace("attempt-0", "some-other-attempt")
+    )
+    renamed = merge_rank_traces(renamed_ranks)
+    assert renamed["attempt_id"] == "some-other-attempt"
+    mismatches = artifact_sync_mismatches(renamed, tmp_path)
+    assert len(mismatches) == 4, mismatches
+
+    diagnosis = artifact_sync_diagnosis(renamed, tmp_path, mismatches)
+    assert "checked-in artifacts are stale" in diagnosis
+    assert "attempt_id=some-other-attempt" in diagnosis
+    assert "attempt_id=attempt-0" in diagnosis
+    assert "identity mismatch" in diagnosis
+    assert "NOT pass --update-artifacts" in diagnosis
+
+
+def test_stale_artifact_diagnosis_stays_quiet_when_the_identity_matches(
+    tmp_path: Path,
+) -> None:
+    """A genuinely changed trace must not be misreported as an identity mismatch.
+
+    Without this the identity block could be printed unconditionally, which would
+    send someone hunting a --attempt-id typo that does not exist while the real
+    cause is a trace that actually moved.
+    """
+    normalized = merge_rank_traces(_rank_bundle())
+    sync_checked_in_artifacts(normalized, tmp_path)
+
+    stale = tmp_path / "ScoutBFacts.tla"
+    stale.write_text(stale.read_text() + "\\* stale\n")
+    mismatches = artifact_sync_mismatches(normalized, tmp_path)
+    assert mismatches == (str(stale),)
+
+    diagnosis = artifact_sync_diagnosis(normalized, tmp_path, mismatches)
+    assert "checked-in artifacts are stale" in diagnosis
+    assert "identity mismatch" not in diagnosis
+    assert "--update-artifacts" not in diagnosis
 
 
 def test_finalization_and_verification_seal_complete_scout_b_bundle(

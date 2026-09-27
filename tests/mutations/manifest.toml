@@ -26,8 +26,9 @@
 #   why          what defect the mutation reintroduces, and where the original
 #                measurement of it is recorded
 #
-# Every mutation here was applied and re-run during the sixteen commits that
-# built this verifier. None is invented.
+# Every mutation here was applied and re-run against the change it guards
+# before being recorded. None is invented. Append new entries at the end
+# rather than rewriting the file, so concurrent work does not clobber it.
 
 # ---------------------------------------------------------------------------
 # 1-5. The five guards that were written in a shape that could not fail.
@@ -387,4 +388,29 @@ replace = "    return any('://' in token for token in text.split())"
 why = """
 Broadens the unbreakable-token exemption to any line containing a URL, which
 lets most prose through. Also caught by the maintained-corpus test.
+"""
+
+[[mutation]]
+id = "artifact-sync-identity-not-named"
+target = "torchtitan/experiments/qwen3_formal_verifier/scout_b.py"
+test = "tests/unit_tests/test_qwen3_formal_scout_b.py::test_stale_artifact_diagnosis_names_an_identity_mismatch"
+find = "    if checked_in is not None and checked_in != observed:"
+replace = "    if False:"
+why = """
+Never names the identity mismatch, restoring a bare "artifacts are stale" that
+blames four files when the cause is a run recorded under a different attempt id.
+The remedy that message suggests is --update-artifacts, which would replace the
+canonical trace. Cost a twenty-minute gate run to work out by hand.
+"""
+
+[[mutation]]
+id = "artifact-sync-identity-always-claimed"
+target = "torchtitan/experiments/qwen3_formal_verifier/scout_b.py"
+test = "tests/unit_tests/test_qwen3_formal_scout_b.py::test_stale_artifact_diagnosis_stays_quiet_when_the_identity_matches"
+find = "    if checked_in is not None and checked_in != observed:"
+replace = "    if checked_in is not None:"
+why = """
+Claims an identity mismatch unconditionally, the false-positive direction: a
+genuinely changed trace would send someone hunting an --attempt-id typo that does
+not exist. Both polarities of the guard are pinned, not just the detection.
 """

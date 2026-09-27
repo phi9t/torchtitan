@@ -65,7 +65,7 @@ the source tree, so a later entry cannot measure a tree nobody described. The
 stage fails closed when `killed < total` and its token carries the counts:
 
 ```text
-QFV_TIER0 mutations result=success killed=10/10 entries=10 self_test=pass manifest=tests/mutations/manifest.toml
+QFV_TIER0 mutations result=success killed=N/N entries=N self_test=pass manifest=tests/mutations/manifest.toml
 ```
 
 Five guards in this project were written in a shape that could not fail -- a
@@ -89,9 +89,24 @@ survivor there is never confused with the self-tests' deliberate one.
 
 An entry whose mutation no longer kills its test is a defect in that test, not
 a reason to delete the entry. Add a test that pins the behaviour instead; two
-of the ten seeds needed that, and their tests are
+of the ten seed entries needed that, and their tests are
 `test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs` and
-`test_dpxtp_bridge_admission_is_stronger_than_the_issue_counts`.
+`test_dpxtp_bridge_admission_is_stronger_than_the_issue_counts`. The manifest
+has grown past those ten as later work added its own detections; append
+entries rather than rewriting the file.
+
+Running the runner standalone needs the same environment the stage gives it.
+Entries whose named test drives the real TLC or Lean toolchain read the
+toolchain out of the mounted formal cache, so without
+`TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST` set on the rootfs entry their controls
+SKIP. The runner reports that as `result=control_failed` with pytest's own skip
+reason quoted, and refuses -- it never reports a kill it did not measure:
+
+```bash
+TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST="$HOME/.cache/torchtitan/formal" \
+  scripts/rootfs/enter_rootfs.sh --rootfs /path/to/rootfs -- \
+  bash -lc 'cd /workspace/torchtitan && python -m tests.mutations.runner'
+```
 
 ## Scout A: observed single-rank step
 

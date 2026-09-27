@@ -2684,6 +2684,60 @@ def artifact_sync_mismatches(
     )
 
 
+_CHECKED_IN_IDENTITY_RE = re.compile(
+    r"event:([A-Za-z0-9._-]+):([A-Za-z0-9._-]+):r\d+:\d+"
+)
+
+
+def _checked_in_identity(formal_dir: Path) -> tuple[str, str] | None:
+    """Recover the run and attempt identity baked into the checked-in facts.
+
+    Returns None when the file is missing or carries no event id, because this
+    runs on a failure path where the file itself may be what is wrong.
+    """
+    try:
+        text = (formal_dir / "ScoutBFacts.tla").read_text()
+    except OSError:
+        return None
+    match = _CHECKED_IN_IDENTITY_RE.search(text)
+    return (match.group(1), match.group(2)) if match else None
+
+
+def artifact_sync_diagnosis(
+    bundle: Mapping[str, object],
+    formal_dir: str | Path,
+    mismatches: Sequence[str],
+) -> str:
+    """Explain a stale-artifact failure, naming an identity mismatch when it is one.
+
+    "Artifacts are stale" is true but misleading when the real cause is a run
+    recorded under a different attempt id. The identity is part of every event
+    id, so every id differs, the trace digest differs, and all four modules
+    mismatch at once -- which reads as a changed trace. The obvious remedy then
+    looks like --update-artifacts, and that would overwrite the canonical trace
+    with one recorded under the wrong identity.
+    """
+    lines = ["Scout B checked-in artifacts are stale: " + ", ".join(mismatches)]
+    observed = (str(bundle.get("run_id", "")), str(bundle.get("attempt_id", "")))
+    checked_in = _checked_in_identity(Path(formal_dir))
+    if checked_in is not None and checked_in != observed:
+        lines.extend(
+            [
+                f"  observed identity:   run_id={observed[0]} "
+                f"attempt_id={observed[1]}",
+                f"  checked-in identity: run_id={checked_in[0]} "
+                f"attempt_id={checked_in[1]}",
+                "  The identity is part of every event id, so a run under a",
+                "  different --run-id/--attempt-id disagrees on all of them and",
+                "  every module mismatches at once. This is an identity mismatch,",
+                "  not a changed trace: re-run with the checked-in identity. Do",
+                "  NOT pass --update-artifacts here -- it would replace the",
+                "  canonical trace with one recorded under the wrong identity.",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def sync_checked_in_artifacts(
     bundle: Mapping[str, object], formal_dir: str | Path
 ) -> None:
@@ -4284,7 +4338,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         mismatches = artifact_sync_mismatches(bundle, args.formal_dir)
         if mismatches:
             raise SystemExit(
-                "Scout B checked-in artifacts are stale: " + ", ".join(mismatches)
+                artifact_sync_diagnosis(bundle, args.formal_dir, mismatches)
             )
         print("SCOUT_B_ARTIFACT_SYNC result=success")
         return
