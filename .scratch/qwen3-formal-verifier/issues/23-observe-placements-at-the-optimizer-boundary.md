@@ -6,7 +6,10 @@ about gradients.
 
 **Blocked by:** none. Needs one fresh 4-GPU run, so it pairs with ticket 15.
 
-**Status:** ready-for-agent
+**Status:** resolved -- the optimizer-boundary placement observation and
+`ScoutBPlacementPartialInvalid.tla` landed in `19a485a7d`. This line read
+`ready-for-agent` until a status audit corrected it; the work had been
+committed for some time and the ledger was advertising it as available.
 
 ## Why ticket 17 could not finish this
 

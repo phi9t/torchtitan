@@ -5,7 +5,10 @@ issued collective eventually completes, under weak fairness.
 
 **Blocked by:** 11 — DPxTP collective protocol model.
 
-**Status:** ready-for-agent
+**Status:** resolved -- the liveness property in `ScoutBModel.tla` landed in
+`87d341c89`. This line read `ready-for-agent` until a status audit corrected it;
+the work had been committed for some time and the ledger was advertising it as
+available.
 
 ## Why safety is not enough here
 

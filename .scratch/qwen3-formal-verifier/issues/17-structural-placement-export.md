@@ -5,7 +5,10 @@ sharding contract, replacing the two booleans per rank in use today.
 
 **Blocked by:** none. Independent of the protocol model work.
 
-**Status:** ready-for-agent
+**Status:** resolved -- `_placement_facts` and `ScoutBPlacementChecks.lean`
+landed in `19a485a7d`. This line read `ready-for-agent` until a status audit
+corrected it; the work had been committed for some time and the ledger was
+advertising it as available.
 
 ## What is lost today
 

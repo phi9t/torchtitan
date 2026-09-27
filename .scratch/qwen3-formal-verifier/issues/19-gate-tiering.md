@@ -5,7 +5,9 @@ without a GPU, and only trace-dependent checks need a fresh run.
 
 **Blocked by:** none.
 
-**Status:** ready-for-agent
+**Status:** resolved -- `run_formal_tier0.sh` landed in `d0cecdf64`. This line
+read `ready-for-agent` until a status audit corrected it; the work had been
+committed for some time and the ledger was advertising it as available.
 
 ## The problem
 

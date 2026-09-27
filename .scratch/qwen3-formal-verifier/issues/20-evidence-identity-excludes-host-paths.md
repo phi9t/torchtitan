@@ -6,7 +6,10 @@ own digests.
 
 **Blocked by:** none.
 
-**Status:** ready-for-agent
+**Status:** resolved -- `HEAD_COMMIT_PATHS_EVIDENCE_PATH` keeping host paths out
+of the identity chain landed in `47ebae4d9`. This line read `ready-for-agent`
+until a status audit corrected it; the work had been committed for some time and
+the ledger was advertising it as available.
 
 ## The problem
 

@@ -6,7 +6,10 @@ cover.
 
 **Blocked by:** 11 — DPxTP collective protocol model.
 
-**Status:** ready-for-agent
+**Status:** resolved -- the `_collective_payload` exporter, the payload facts
+and `ScoutBPayloadChecks.lean` landed in `d8b1016d5`. This line read
+`ready-for-agent` until a status audit corrected it; the work had been committed
+for some time and the ledger was advertising it as available.
 
 ## Why this is cheap
 
