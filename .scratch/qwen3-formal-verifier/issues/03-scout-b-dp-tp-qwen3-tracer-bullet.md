@@ -203,11 +203,12 @@ evidence and are no longer machine re-verifiable -- an intentional, named cost.
 
 ### Scope note on producer correlation
 
-Producer correlation is **not** observed correspondence. `_collective_observations`
-in `scout_b.py` groups NCCL Flight Recorder entries and Kineto kernels by
-operation family, sorts the kernels by GPU `start_ns()` (kernel sort), sorts the
-entries by `record_id` (entry sort), requires the two counts to be equal, and
-then pairs them positionally with `zip(entries, kernels, strict=True)`.
+Producer correlation is **not** observed correspondence.
+`_collective_observations` in `scout_b.py` groups NCCL Flight Recorder entries
+and Kineto kernels by operation family, sorts the kernels by GPU `start_ns()`
+(kernel sort), sorts the entries by `record_id` (entry sort), requires the two
+counts to be equal, and then pairs them positionally with `zip(entries, kernels,
+strict=True)`.
 
 > Corrected by ticket 18 item 8: this note previously cited
 > `scout_b.py:2439-2455`, which is `_operation_family`/`_flight_snapshot`, not
@@ -239,11 +240,11 @@ ticket does not make it.
 
 The attempt ID is hashed into every event ID and therefore into every exported
 digest, so the checked-in `ScoutB*Facts` fixtures are keyed to
-`four-rank-dp2-tp2-v1`. A re-seal under a different attempt ID reports them stale
-even when the trace is semantically identical. This gate reused the canonical
-attempt ID rather than passing `--update-artifacts`, which would have accepted a
-new canonical trace silently. Ticket 04 owns whether the fixture should become
-attempt-ID independent.
+`four-rank-dp2-tp2-v1`. A re-seal under a different attempt ID reports them
+stale even when the trace is semantically identical. This gate reused the
+canonical attempt ID rather than passing `--update-artifacts`, which would have
+accepted a new canonical trace silently. Ticket 04 owns whether the fixture
+should become attempt-ID independent.
 
 ### Review round 2026-09-26 (independent, clean context): FAIL
 

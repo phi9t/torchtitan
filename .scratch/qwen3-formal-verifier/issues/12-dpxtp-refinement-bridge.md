@@ -160,9 +160,9 @@ token. Measured results, one worker:
   `SCOUT_B_REFINE_GUARD_ISOLATION relaxed=RequireMatchedIssueOrder
   result=admitted`. The state counts are now emitted by the runner rather than
   quoted from a scratch log.
-- `SCOUT_B_REFINE_NEGATIVE_GUARD_SET guards=positive result=refused_at_spmd_guard
-  witness=CorruptedColumnIsNeverFormed distinct_states=2555` -- the same
-  corruption under the positive's guard set.
+- `SCOUT_B_REFINE_NEGATIVE_GUARD_SET guards=positive
+  result=refused_at_spmd_guard witness=CorruptedColumnIsNeverFormed
+  distinct_states=2555` -- the same corruption under the positive's guard set.
 
 ### Three things in this ticket were wrong
 
@@ -253,8 +253,9 @@ And **admission cannot be a length test**. `Issue`'s guard never reads `doneOn`,
 so "every rank reached its observed issue count" is reachable by issuing
 everything and running nothing, for the corrupted order as much as for the real
 one -- the bridge and its negative control would both have passed vacuously.
-Admission is `AllDone`. `test_dpxtp_bridge_length_only_admission_would_accept_the_corruption`
-runs that vacuous variant against the corrupted order and shows it is reachable.
+Admission is `AllDone`.
+`test_dpxtp_bridge_length_only_admission_would_accept_the_corruption` runs that
+vacuous variant against the corrupted order and shows it is reachable.
 
 ### Inherited hazards, both fixed
 

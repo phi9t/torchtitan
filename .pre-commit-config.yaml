@@ -126,3 +126,15 @@ repos:
       language: system
       pass_filenames: true
       exclude: '^tests/assets/c4_test/data\.json$'
+
+    # Keep the formal-verifier notes reflowed at 80 columns. Scoped to that
+    # corpus on purpose: most markdown elsewhere in the repository is wider,
+    # and widening this hook would mean mechanically reflowing other programs'
+    # documents. Extending the scope means extending "files" and reflowing the
+    # newly covered corpus in the same change.
+    - id: check-line-width
+      name: check-line-width
+      entry: python scripts/check_line_width.py
+      language: system
+      pass_filenames: true
+      files: '^\.scratch/qwen3-formal-verifier/.*\.md$'

@@ -165,7 +165,7 @@ if ((RUN_LINT)); then
         for hook in \
           trailing-whitespace check-ast check-merge-conflict \
           end-of-file-fixer insert-license flake8 ufmt pydoclint \
-          codespell check-no-pii
+          codespell check-no-pii check-line-width
         do
           pre-commit run "${hook}" --files "${source_files[@]}"
         done

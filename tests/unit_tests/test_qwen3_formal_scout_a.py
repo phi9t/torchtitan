@@ -1240,7 +1240,7 @@ def test_lint_stage_lints_the_head_commit_when_the_tree_is_clean(
     ) in stderr
     # Every declared hook ran, over exactly the HEAD-commit paths.
     hook_lines = [line for line in stdout.splitlines() if line.startswith("pre-commit")]
-    assert len(hook_lines) == 13, hook_lines
+    assert len(hook_lines) == 14, hook_lines
     for line in hook_lines:
         assert line.endswith("--files .scratch/notes.md module.py script.sh"), line
     assert (
@@ -1325,7 +1325,7 @@ def test_lint_stage_still_lints_the_dirty_tree_bytes(
         f"SCOUT_LINT_PATHS case={LINT_COVERAGE_DIRTY_TREE_BYTES} num_paths=2"
     ) in result.stderr.decode()
     hook_lines = [line for line in stdout.splitlines() if line.startswith("pre-commit")]
-    assert len(hook_lines) == 13, hook_lines
+    assert len(hook_lines) == 14, hook_lines
     for line in hook_lines:
         assert line.endswith("--files added.py script.sh"), line
     assert "module.py" not in stdout
@@ -1831,6 +1831,72 @@ def test_source_recheck_fails_when_git_diff_check_fails(tmp_path: Path) -> None:
     assert "SCOUT_A_SOURCE_RECHECK result=success" not in failing.stdout
     assert passing.returncode == 0, passing.stdout
     assert "SCOUT_A_SOURCE_RECHECK result=success head=" in passing.stdout
+
+
+def test_source_recheck_names_the_paths_that_moved(tmp_path: Path) -> None:
+    """A source-identity failure must name paths, not only report a mismatch.
+
+    The bare message sent me looking for a checker bug when the real cause was
+    an edit I had made to a ticket while the gate ran. The assertions below are
+    on the paths, because a test that only checked for a non-zero exit would
+    pass against the version that named nothing.
+    """
+
+    baseline = tmp_path / "baseline-status"
+    baseline.write_bytes(b"M  kept.py\x00D  vanished.py\x00")
+    fake_git = tmp_path / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env bash\n"
+        'case "$*" in\n'
+        "  *rev-parse*) printf '%040d\\n' 0 ;;\n"
+        '  *status*) printf "${QFV_TEST_STATUS}" ;;\n'
+        '  *"diff --check"*) exit 0 ;;\n'
+        "  *) exit 1 ;;\n"
+        "esac\n"
+    )
+    fake_git.chmod(0o755)
+
+    def run_recheck(status_payload: str) -> Any:
+        env = os.environ.copy()
+        env["QFV_TEST_STATUS"] = status_payload
+        return subprocess.run(
+            [
+                "bash",
+                "-c",
+                f"source {RUNNER_LIBRARY}; scout_verify_source_identity "
+                '"$1" "$2" "$3" "$4" "$5"',
+                "drift-test",
+                str(fake_git),
+                str(REPO_ROOT),
+                "0" * 40,
+                str(baseline),
+                "A",
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+
+    # "kept.py" is unchanged, "vanished.py" is gone, "appeared.md" is new.
+    drifted = run_recheck(r"M  kept.py\0?? appeared.md\0")
+    assert drifted.returncode != 0, drifted.stdout
+    assert "dirty source identity changed" in drifted.stdout
+    assert "appeared during the run: ?? appeared.md" in drifted.stdout
+    assert "disappeared during the run: D  vanished.py" in drifted.stdout
+    # The entry present in both snapshots must not be reported as moved.
+    assert "kept.py" not in drifted.stdout.split("cause:")[0].replace(
+        "appeared during the run: ?? appeared.md", ""
+    ).replace("disappeared during the run: D  vanished.py", "")
+    assert "Re-run without touching the tree." in drifted.stdout
+
+    # An unchanged tree must produce no drift report at all.
+    unchanged = run_recheck(r"M  kept.py\0D  vanished.py\0")
+    assert unchanged.returncode == 0, unchanged.stdout
+    assert "SCOUT_A_SOURCE_RECHECK result=success head=" in unchanged.stdout
+    assert "appeared during the run" not in unchanged.stdout
+    assert "disappeared during the run" not in unchanged.stdout
 
 
 def test_complete_sealed_bundle_verification_detects_log_tampering(

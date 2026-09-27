@@ -160,14 +160,14 @@ first, the property under test last. Reordering either way now fails a test
 rather than silently producing a green negative with unevaluated survivors.
 
 Lower priority, all done. (a) `PlacementBooleansDerivable` oversold its name and
-is now `PlacementBooleansAgreeWithFacts` /
-`placementBooleansAgreeWithFacts` / `ScoutBPlacementBooleansAgree`, with the two
-limits written into the predicate header: no rank argument, so for ranks 1-3 it
-is agreement with the one exported list rather than a derivation, and one bit
-per axis, so a projection dropping all but one shard placement per axis would
-still satisfy it. (b) The Lean control now asserts the same survivor set as the
-TLA one -- well-formedness, divisibility, strided composition, schema agreement
--- as `injectedPartialPassesTheOtherPlacementChecks`, and states the exclusion
+is now `PlacementBooleansAgreeWithFacts` / `placementBooleansAgreeWithFacts` /
+`ScoutBPlacementBooleansAgree`, with the two limits written into the predicate
+header: no rank argument, so for ranks 1-3 it is agreement with the one exported
+list rather than a derivation, and one bit per axis, so a projection dropping
+all but one shard placement per axis would still satisfy it. (b) The Lean
+control now asserts the same survivor set as the TLA one -- well-formedness,
+divisibility, strided composition, schema agreement -- as
+`injectedPartialPassesTheOtherPlacementChecks`, and states the exclusion
 positively as `injectedPartialBreaksLocalShapeAgreement`; the misleading
 `role=no-other-check-catches-it` label is gone. (c) The README now says PER RANK
 and gives the across-rank figures. (d) Counts, verified rather than recalled: 9
@@ -177,14 +177,14 @@ check, and 32 collected test cases in the two owning files covering this work.
 (e) The README now records that `RankCoordinates` is synthesized as `rank // 2`
 and `rank % 2` in the projection, with the link to observation being
 `_runtime_topology`'s refusal of any run whose real mesh coordinate differs --
-sound, but not two independent observations agreeing. (f) `parse_ms` is KEPT with
-a caveat rather than dropped: it is still the only in-gate record that the parse
-completed and roughly what the fixed cost was, but the README now says plainly
-that it measures machine load first (32 concurrent SANY parsers reproduce 1671 ms
-on the unchanged fixture, 96 bracket 2008), that a cost claim needs an
-interleaved A/B, and that `placement_bytes=` is the exact number tracking the
-export. The earlier "no measurable regression" is corrected to a real and
-reproducible +35 to +50 ms (4-5%).
+sound, but not two independent observations agreeing. (f) `parse_ms` is KEPT
+with a caveat rather than dropped: it is still the only in-gate record that the
+parse completed and roughly what the fixed cost was, but the README now says
+plainly that it measures machine load first (32 concurrent SANY parsers
+reproduce 1671 ms on the unchanged fixture, 96 bracket 2008), that a cost claim
+needs an interleaved A/B, and that `placement_bytes=` is the exact number
+tracking the export. The earlier "no measurable regression" is corrected to a
+real and reproducible +35 to +50 ms (4-5%).
 
 ### Gate evidence
 

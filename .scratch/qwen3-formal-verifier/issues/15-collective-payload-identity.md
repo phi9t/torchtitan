@@ -92,15 +92,15 @@ Collector, `torchtitan/experiments/qwen3_formal_verifier/scout_b.py`:
   `output_dtypes` off each Flight Recorder entry and carries them into the raw
   per-rank evidence as `observation.payload`, unreduced and per tensor. No
   element count is derived there: the raw trace stays what the runtime reported.
-- `payload` joins the stable fields of `_validate_raw_collectives`, so it must be
-  identical across a work's three lifecycle events. Without that, a trace could
-  carry one size at enqueue and another at completion and the facts -- which read
-  the first event -- would not show it.
+- `payload` joins the stable fields of `_validate_raw_collectives`, so it must
+  be identical across a work's three lifecycle events. Without that, a trace
+  could carry one size at enqueue and another at completion and the facts --
+  which read the first event -- would not show it.
 - An empty shape is accepted and means a 0-dim tensor of one element, which the
   reduced scalar loss produces. A zero or negative dimension is refused.
-- `_collective_payload` projects the four lists plus derived total element counts
-  and the operation's implied size relation. Element counts, not shapes, because
-  an all-gather may concatenate along any dimension.
+- `_collective_payload` projects the four lists plus derived total element
+  counts and the operation's implied size relation. Element counts, not shapes,
+  because an all-gather may concatenate along any dimension.
 
 ### Raw schema
 
@@ -116,8 +116,8 @@ Keyed off `RAW_SCHEMA`: only `raw_trace()`, `_validate_raw_rank_trace` and the
 unit-test bundle. `scout_a.py` has its own constant of the same value, left
 alone -- a single-rank trace observes no collective. `SCOUT_SCHEMA` and
 `RAW_EVENT_PROJECTION_SCHEMA` are NOT bumped: the projection rule (same
-exclusions, same digest) is unchanged, and a stale normalized bundle now fails on
-the contract version, which is the designed path.
+exclusions, same digest) is unchanged, and a stale normalized bundle now fails
+on the contract version, which is the designed path.
 
 ### The facts, and what they are keyed on
 
@@ -127,9 +127,9 @@ Per collective work, keyed by work id, with the communicator key being
 `...InputDtypes`, `...OutputDtypes`, `...InputElements`, `...OutputElements`, in
 a delimited block so `SCOUT_B_TLA_PAYLOAD_FACTS` can report its byte share.
 
-Lean's shape differs, and the reason is measured rather than assumed: TLC handles
-an all-pairs agreement predicate over 432 works, the Lean kernel does not -- a
-`rfl` over that form had not finished after four minutes against a 120s
+Lean's shape differs, and the reason is measured rather than assumed: TLC
+handles an all-pairs agreement predicate over 432 works, the Lean kernel does
+not -- a `rfl` over that form had not finished after four minutes against a 120s
 per-module budget. So the Lean facts add `payloadCollectiveRows` (one row per
 collective, reached by a `Nat` index) and `payloadCommTable` (one row per
 distinct communicator key), and the predicates join through those.
@@ -149,12 +149,13 @@ eight-versus-four confusion, refuted rather than commented on.
 ### The negatives, and their survivor sets
 
 `ScoutBPayloadSizeInvalid` doubles the first dimension of every shape of ONE
-member and recomputes that member's element counts. Doubling both sides preserves
-the operation's relation, so the only thing it breaks is agreement. TLC reports
-`ScoutBCollectivePayloadAgreement` at exit 12. Survivors, all asserted over the
-mutated facts: `ThereIsASizedWorkWithAPeer`, `MutationIsIsolated`,
-`StructureSurvivesTheMutation`, `OtherCollectiveChecksSurviveTheMutation` --
-which includes `PerCommunicatorIssueOrderAgreement`.
+member and recomputes that member's element counts. Doubling both sides
+preserves the operation's relation, so the only thing it breaks is agreement.
+TLC reports `ScoutBCollectivePayloadAgreement` at exit 12. Survivors, all
+asserted over the mutated facts: `ThereIsASizedWorkWithAPeer`,
+`MutationIsIsolated`, `StructureSurvivesTheMutation`,
+`OtherCollectiveChecksSurviveTheMutation` -- which includes
+`PerCommunicatorIssueOrderAgreement`.
 
 `ScoutBPayloadOperationInvalid` relabels one collective's operation on EVERY
 member, with the relation label moved to match, which is what an exporter bug
@@ -162,10 +163,10 @@ does. TLC reports `ScoutBCollectivePayloadSizeRelation` at exit 12. Survivors:
 `ThereIsAVolumeChangingCollective`, `MutationIsIsolated`,
 `StructureSurvivesTheMutation`, `IssueOrderAgreementSurvivesTheMislabelling`.
 
-That last survivor is the argument for the whole ticket: a symmetric mislabelling
-is invisible to order agreement because all four ranks agree on the wrong label.
-Both cfgs pin their invariant order -- sentinel first, property last -- with the
-reason in the file, and both are covered by
+That last survivor is the argument for the whole ticket: a symmetric
+mislabelling is invisible to order agreement because all four ranks agree on the
+wrong label. Both cfgs pin their invariant order -- sentinel first, property
+last -- with the reason in the file, and both are covered by
 `test_placement_negative_configurations_pin_their_invariant_order` and by a
 missing-target control over a hand-written stand-in facts module.
 
@@ -174,10 +175,11 @@ missing-target control over a hand-written stand-in facts module.
 - An empty `input_sizes` shape is not malformed. It is a 0-dim tensor of one
   element, so the product of no dimensions is 1 and not 0. A collector that
   refused it would refuse the reduced scalar loss.
-- "A predicate requiring members to agree on dtype and on the size relation" runs
-  two properties together. They need separate invariants and separate negatives:
-  a volume mismatch between members and an exporter mislabelling an operation are
-  different faults, and a single mutation cannot be attributed to both.
+- "A predicate requiring members to agree on dtype and on the size relation"
+  runs two properties together. They need separate invariants and separate
+  negatives: a volume mismatch between members and an exporter mislabelling an
+  operation are different faults, and a single mutation cannot be attributed to
+  both.
 
 ### Cost, measured rather than assumed
 
@@ -205,17 +207,17 @@ estimated here, for the reason ticket 17 records: `payload_bytes=` is exact and
 
 - Exporter driven for real over the four-rank unit-test bundle: payload facts
   present, per-tensor, element counts equal to the products, keyed on the
-  canonical id and never on `runtime_pg_id`, with the fixture's shared runtime id
-  across two member sets making that claim non-vacuous.
+  canonical id and never on `runtime_pg_id`, with the fixture's shared runtime
+  id across two member sets making that claim non-vacuous.
 - `run_tlc_scout_b.sh` run end to end against exporter-generated facts: all 23
   invariants clean, and both new negatives reporting exactly their invariant at
   exit 12 with their survivor sets in the token.
 - Both Lean payload modules compiled against exporter-generated facts: 11
   results, every one axiom-free.
-- Real TLC over the shipped `ScoutDistributed` predicates and hand-written payload
-  facts: one good input accepted and ten bad ones refused -- unpaired dtype list,
-  zero dimension, an element count the shapes do not support, member volume
-  mismatch, member dtype mismatch, mixed input/output dtype, symmetric
+- Real TLC over the shipped `ScoutDistributed` predicates and hand-written
+  payload facts: one good input accepted and ten bad ones refused -- unpaired
+  dtype list, zero dimension, an element count the shapes do not support, member
+  volume mismatch, member dtype mismatch, mixed input/output dtype, symmetric
   mislabelling, a relation label disagreeing with its operation, an unknown
   operation, and a `runtime_pg_id` keying.
 - 187 cases in the two owning pytest files, up from 167.
@@ -223,26 +225,27 @@ estimated here, for the reason ticket 17 records: `payload_bytes=` is exact and
 ### Verifiable only after the gate produces a new trace
 
 - That the OBSERVED payload satisfies the two properties. Two specific claims to
-  watch, because both are about the real run rather than about the code. The size
-  relation: if FSDP2's all-gather or reduce-scatter volumes do not come out as
-  member-count multiples, the predicate or the collector's operation-family
+  watch, because both are about the real run rather than about the code. The
+  size relation: if FSDP2's all-gather or reduce-scatter volumes do not come out
+  as member-count multiples, the predicate or the collector's operation-family
   mapping needs revisiting, not the trace. And one dtype per collective: NCCL
-  requires it, and FSDP2 collectives move one flat buffer, so it should hold, but
-  a collective recorded over tensors of mixed dtypes would refute it and the
+  requires it, and FSDP2 collectives move one flat buffer, so it should hold,
+  but a collective recorded over tensors of mixed dtypes would refute it and the
   invariant would then have to weaken to per-buffer uniformity.
 - The checked-in `ScoutBFacts.tla`, `ScoutBBadFacts.tla`, `ScoutBFacts.lean` and
   `ScoutBBadFacts.lean` are STALE until an `--update-artifacts` run regenerates
   them. Until then the `scout-b` suite fails at parse time on the missing
-  `CollectivePayload*` operators and at `rfl` on the missing `collectivePayloads`,
-  which is the correct report, not a regression.
+  `CollectivePayload*` operators and at `rfl` on the missing
+  `collectivePayloads`, which is the correct report, not a regression.
 - The real byte and parse cost of the payload block, and the real Lean kernel
   time for `ScoutBPayloadChecks` and `ScoutBPayloadMutationChecks` at 432 works.
   The measured 26s/13s per evaluation is why those two modules get 300s rather
-  than the shared 120s, and why the positives and mutations are separate modules.
+  than the shared 120s, and why the positives and mutations are separate
+  modules.
 - `run_lean_scout_b.sh`'s payload token emission. The runner cannot be exercised
   end to end on the unit-test bundle, because that bundle's event schedule does
-  not satisfy the maintained Lean event-kind grammar -- a pre-existing property of
-  the fixture, unrelated to payloads.
+  not satisfy the maintained Lean event-kind grammar -- a pre-existing property
+  of the fixture, unrelated to payloads.
 
 ### Suite results at this commit
 

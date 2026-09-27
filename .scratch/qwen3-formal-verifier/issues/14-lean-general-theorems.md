@@ -78,9 +78,9 @@ What was NOT made unconditional, and why:
   is an instance-and-guards question, which is what TLC answers. The
   unconditional, unbounded statement remains open.
 
-`TypeOK` is carried because it is free. Its `doneOn \in [CommIds -> 0..MaxIssues]`
-conjunct is deliberately omitted: it is the only part of `TypeOK` that mentions
-the bound, and keeping it would put the bound back into the claim.
+`TypeOK` is carried because it is free. Its `doneOn \in [CommIds ->
+0..MaxIssues]` conjunct is deliberately omitted: it is the only part of `TypeOK`
+that mentions the bound, and keeping it would put the bound back into the claim.
 
 ### The general protocol theorem
 

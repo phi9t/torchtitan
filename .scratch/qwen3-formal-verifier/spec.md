@@ -16,8 +16,8 @@ Ticket status vocabulary, in lifecycle order:
 
 ## Problem Statement
 
-The existing branch demonstrates useful pieces of an accelerator trace schema,
-a semantic tracer, a logical emulator, a Qwen3 DPxTP trace builder, and generated
+The existing branch demonstrates useful pieces of an accelerator trace schema, a
+semantic tracer, a logical emulator, a Qwen3 DPxTP trace builder, and generated
 TLA+ and Lean text. It does not yet demonstrate that those pieces form a real
 formal-verification path. The TLA+ artifact has not been accepted by TLC, the
 Lean artifact has not been compiled by Lean, and the current trace is synthetic
@@ -193,13 +193,13 @@ full gate.
   silently changing this comparison profile.
 - Both scouts select `qwen3_debugmodel` through `ConfigManager` and apply their
   overrides through the normal CLI precedence. They use the repository-local
-  `c4_test` data and test tokenizer, record the exact first-batch identity, start
-  from seed-42 model initialization with checkpoint loading and saving disabled,
-  and create no experiment-owned configuration path. Scout A explicitly sets
-  every mesh degree to 1. Scout B explicitly sets data-parallel replicate
-  degree 1, data-parallel shard degree 2, tensor-parallel degree 2, and every
-  other mesh degree 1; `DP=2` never leaves the replicate-versus-shard choice to
-  inference.
+  `c4_test` data and test tokenizer, record the exact first-batch identity,
+  start from seed-42 model initialization with checkpoint loading and saving
+  disabled, and create no experiment-owned configuration path. Scout A
+  explicitly sets every mesh degree to 1. Scout B explicitly sets data-parallel
+  replicate degree 1, data-parallel shard degree 2, tensor-parallel degree 2,
+  and every other mesh degree 1; `DP=2` never leaves the replicate-versus-shard
+  choice to inference.
 - The runtime adapter stays experiment-owned during Phase 1 and observes the
   unchanged `Trainer` through PyTorch contexts and hooks. Core never imports the
   tracer or formal packages. If required evidence cannot be observed without a
@@ -240,8 +240,8 @@ full gate.
   that approves it.
 - Scout A's TLA+ model is a finite bounded single-rank step transition system;
   Scout B adds the bounded 2x2 mesh and collective lifecycle. Both have an
-  initial state, next-state relation, named invariants, and a stuttering-complete
-  specification accepted by TLC.
+  initial state, next-state relation, named invariants, and a
+  stuttering-complete specification accepted by TLC.
 - The negative TLC model changes one controlled fact or action and must produce
   the expected named invariant violation. A checker error is not an acceptable
   negative result.
@@ -336,9 +336,9 @@ full gate.
 - Phase 2 adds a regression test before each semantic refinement and preserves
   both real Phase 1 end-to-end scout gates throughout. From every refinement's
   final state, the supported Scout A and Scout B commands must re-execute the
-  real 1x1 and 2x2 Trainer paths and both formal backends; checked-in or replayed
-  fixtures alone do not satisfy this regression gate. Every refinement receives
-  its own fresh clean-context Codex review gate.
+  real 1x1 and 2x2 Trainer paths and both formal backends; checked-in or
+  replayed fixtures alone do not satisfy this regression gate. Every refinement
+  receives its own fresh clean-context Codex review gate.
 - GPU or distributed claims require the repository's integration runner and
   matched topology evidence. CPU, fake-backend, or local-tensor runs are labeled
   as plumbing or simulation evidence only.

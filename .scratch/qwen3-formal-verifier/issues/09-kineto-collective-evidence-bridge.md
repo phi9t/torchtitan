@@ -13,12 +13,13 @@ bounded, schema-validated diagnostic.
 
 Ticket 03's accepted bundles and its Codex audit cover the `-final` worktree
 source. A draft of this bridge already exists in the sibling worktree
-`.worktrees/qwen3-formal-verifier` (branch `phi9t/traecode/qwen3-formal-verifier`),
-written after ticket 03's re-review and never gated or reviewed. Merging it into
-ticket 03 would put an unreviewed 882-line delta inside a closed verdict, so it
-is scoped here instead. The draft is prior art to reconcile, not an accepted
-implementation; it also bumps the Scout B runtime, stage, and evidence manifest
-schemas to `-b.v1`, which this ticket must justify or drop.
+`.worktrees/qwen3-formal-verifier` (branch
+`phi9t/traecode/qwen3-formal-verifier`), written after ticket 03's re-review and
+never gated or reviewed. Merging it into ticket 03 would put an unreviewed
+882-line delta inside a closed verdict, so it is scoped here instead. The draft
+is prior art to reconcile, not an accepted implementation; it also bumps the
+Scout B runtime, stage, and evidence manifest schemas to `-b.v1`, which this
+ticket must justify or drop.
 
 It also responds to a recorded lower-severity finding: exact graph completeness
 is currently owned by Python before export, with TLA+ and Lean validating

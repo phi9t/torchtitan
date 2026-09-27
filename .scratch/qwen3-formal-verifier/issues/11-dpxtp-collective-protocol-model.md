@@ -121,9 +121,12 @@ in the token and add `SCOUT_B_MODEL_STREAMS` and `SCOUT_B_MODEL_OPMISMATCH`.
 `SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE` is unaffected: it reads the observed facts,
 not this model.
 
-- Scout B  `sha256:084426e69dff3ede0194d3e4e78465158bc7ae04eca9f4635144a51e936368f1`
-- Scout A  `sha256:c4222e595de7dd2a002c46356be8a29813538da4837a7ef0f956578fcbc74a2d`
-- source   `sha256:d2786828e12f6906718f8dea004ff3a96a1ac29e7cfc0b917ae670bf154f5b06`
+- Scout B
+  `sha256:084426e69dff3ede0194d3e4e78465158bc7ae04eca9f4635144a51e936368f1`
+- Scout A
+  `sha256:c4222e595de7dd2a002c46356be8a29813538da4837a7ef0f956578fcbc74a2d`
+- source
+  `sha256:d2786828e12f6906718f8dea004ff3a96a1ac29e7cfc0b917ae670bf154f5b06`
 
 ## What committing does to the evidence contract
 

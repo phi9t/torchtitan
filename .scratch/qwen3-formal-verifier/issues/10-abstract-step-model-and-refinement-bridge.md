@@ -124,9 +124,10 @@ trace to `EventKinds`, so identities, phases, predecessors, provenance and
 projection digests are outside what the model admits. Those remain the job of
 the Python validators and the fact-module checkers, and this bridge does not
 subsume them. It does not model the 2x2 DPxTP topology, collectives, multi-step
-training, convergence, or performance. The abstract model is not claimed to be a faithful model of
-TorchTitan; it is a model of the step lifecycle contract stated in its own
-actions, and its value depends on that contract being the right one.
+training, convergence, or performance. The abstract model is not claimed to be a
+faithful model of TorchTitan; it is a model of the step lifecycle contract
+stated in its own actions, and its value depends on that contract being the
+right one.
 
 ## Incident: checker products sealed as source
 

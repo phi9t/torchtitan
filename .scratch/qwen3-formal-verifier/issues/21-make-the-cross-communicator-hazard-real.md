@@ -234,17 +234,17 @@ SCOUT_B_MODEL_UNGUARDED  invariant=RendezvousOpAgreement result=named_violation
 
 ### The stream claim, restated after review
 
-The first repair rechecked the divergent configuration with
-`RequireStreamOrder = FALSE`, found `DeadlockFreedom` satisfied over 1,146,243
-distinct states, and read that as earning the claim. **It does not.** With the
-edge deleted, `AtStreamHead` is `TRUE`, so `MemberReady(c, r)` reduces to
-`CommCount(r, c) >= Front(c)` and `StartAllowed(c)` to
-`FullyPending(c) /\ OpsAgreeAtFront(c)` -- which `Stuck` already denies for every
-`c`. `StuckByCircularWait` is therefore unsatisfiable by construction, at any
-bound on any instance, and that exhaustive search proved a two-line lemma.
-Corroborated twice by the reviewer: deleting the balance conjunct changed nothing
-there, and `StuckImpliesAllDone` WAS violated under that cfg, so removing the
-edge removed the classification rather than the stuckness.
+The first repair rechecked the divergent configuration with `RequireStreamOrder
+= FALSE`, found `DeadlockFreedom` satisfied over 1,146,243 distinct states, and
+read that as earning the claim. **It does not.** With the edge deleted,
+`AtStreamHead` is `TRUE`, so `MemberReady(c, r)` reduces to `CommCount(r, c) >=
+Front(c)` and `StartAllowed(c)` to `FullyPending(c) /\ OpsAgreeAtFront(c)` --
+which `Stuck` already denies for every `c`. `StuckByCircularWait` is therefore
+unsatisfiable by construction, at any bound on any instance, and that exhaustive
+search proved a two-line lemma. Corroborated twice by the reviewer: deleting the
+balance conjunct changed nothing there, and `StuckImpliesAllDone` WAS violated
+under that cfg, so removing the edge removed the classification rather than the
+stuckness.
 
 `ScoutBModelStreams.cfg` and its stage are deleted. The lemma is stated in the
 module header instead, and what is checked is its hypothesis -- that the shipped
@@ -262,13 +262,13 @@ state-predicate classifiers reject it, which the test also checks.
 
 ### The witness
 
-`DeadlockFreedom was violated` says nothing about WHICH stuck state was found, so
-the shape is now a checked property rather than a sentence in a report.
+`DeadlockFreedom was violated` says nothing about WHICH stuck state was found,
+so the shape is now a checked property rather than a sentence in a report.
 `NoCrossCommunicatorCycleWitness` is violated only by a state where the cycle
-spans at least two distinct communicators, the operations agree, issue counts are
-equal on every communicator of the chain, and every rank has spent its whole
-budget. Its cfg differs from the divergent cfg in the invariant and nothing else,
-which the runner verifies.
+spans at least two distinct communicators, the operations agree, issue counts
+are equal on every communicator of the chain, and every rank has spent its whole
+budget. Its cfg differs from the divergent cfg in the invariant and nothing
+else, which the runner verifies.
 
 This is the guard that would have caught the balance defect below.
 
@@ -298,16 +298,17 @@ rank 1 not at all.
 
 The fix imposes the condition on the blocking closure instead. `BlockedBy(c)`
 collects the communicators of the uncompleted earlier same-stream issues of c's
-members; `BlockingClosure(c)` is its least fixpoint; `CircularWaitAt(c)` requires
-every communicator in that closure to be fully pending with agreeing operations.
-Each closure element then has a blocker inside the closure, the closure is
-finite, so the chain must close into a cycle -- and extra budget cannot help,
-because a new issue is appended after the blocker.
+members; `BlockingClosure(c)` is its least fixpoint; `CircularWaitAt(c)`
+requires every communicator in that closure to be fully pending with agreeing
+operations. Each closure element then has a blocker inside the closure, the
+closure is finite, so the chain must close into a cycle -- and extra budget
+cannot help, because a new issue is appended after the blocker.
 
 Note this is deliberately WEAKER than count equality on the closure: two members
 of a chain communicator may have issued it a different number of times and the
 cycle is still a cycle. Count equality is asserted of the witness instead, where
-it is a statement about the counterexample rather than a condition on the hazard.
+it is a statement about the counterexample rather than a condition on the
+hazard.
 
 Evaluated on the reviewer's witness pinned as an initial state:
 

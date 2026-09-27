@@ -98,7 +98,8 @@ push, pull-request creation, and merge remain unauthorized.
 
 Closure evidence for this ticket lives outside this tracker, in the sibling
 worktree `.worktrees/qwen3-formal-verifier` under `.superpowers/sdd/spec/`:
-`task-01-report.md`, `task-01-codex-review.md`, and `task-01-codex-finalizer.md`.
-That directory is gitignored and worktree-local, so it must not be deleted while
-this ticket's closure is load-bearing. Task 01 sealed no run-attempt bundle; its
-durable artifact is the populated external formal cache described in the report.
+`task-01-report.md`, `task-01-codex-review.md`, and
+`task-01-codex-finalizer.md`. That directory is gitignored and worktree-local,
+so it must not be deleted while this ticket's closure is load-bearing. Task 01
+sealed no run-attempt bundle; its durable artifact is the populated external
+formal cache described in the report.

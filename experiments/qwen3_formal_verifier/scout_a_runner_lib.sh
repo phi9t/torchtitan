@@ -323,6 +323,48 @@ PROGRAM
 #
 # Arguments: <git-binary> <repo-root> <expected-head> <baseline-status-file>
 # <scout-label>, where the label is the bare scout letter, e.g. A or B.
+# Report which git-status entries appeared or disappeared between two
+# porcelain=v1 -z snapshots.
+#
+# Why this exists: the source recheck used to fail with only "dirty source
+# identity changed", naming no path. The cause is almost always an edit made
+# while the gate ran -- including an edit to a file that has nothing to do with
+# the run, because the snapshot covers the whole tree. Without the paths the
+# failure reads as a checker bug rather than as "you touched the tree", which
+# cost a 20-minute GPU run to rediscover.
+#
+# This is diagnostic only. It must never change the caller's outcome, so every
+# failure inside it returns 0 and the caller still fails on its own finding.
+scout_report_status_drift() {
+  local baseline="$1"
+  local current="$2"
+  local baseline_sorted current_sorted
+  baseline_sorted="$(mktemp "${TMPDIR:-/tmp}/qfv-drift-base.XXXXXX")" || return 0
+  current_sorted="$(mktemp "${TMPDIR:-/tmp}/qfv-drift-curr.XXXXXX")" || {
+    rm -f -- "${baseline_sorted}"
+    return 0
+  }
+  # porcelain -z separates entries with NUL; one entry per line is what comm
+  # needs. Rename entries occupy two NUL fields, which surface as two lines
+  # here -- acceptable for a diagnostic, and both lines name a real path.
+  tr '\0' '\n' <"${baseline}" | LC_ALL=C sort >"${baseline_sorted}"
+  tr '\0' '\n' <"${current}" | LC_ALL=C sort >"${current_sorted}"
+  local entry
+  while IFS= read -r entry; do
+    [[ -n "${entry}" ]] || continue
+    printf '  appeared during the run: %s\n' "${entry}" >&2
+  done < <(LC_ALL=C comm -13 "${baseline_sorted}" "${current_sorted}")
+  while IFS= read -r entry; do
+    [[ -n "${entry}" ]] || continue
+    printf '  disappeared during the run: %s\n' "${entry}" >&2
+  done < <(LC_ALL=C comm -23 "${baseline_sorted}" "${current_sorted}")
+  printf '  cause: some file changed while the gate ran. The snapshot covers\n' >&2
+  printf '         the whole tree, so editing any tracked or untracked file --\n' >&2
+  printf '         including notes and tickets -- moves it and refuses the run.\n' >&2
+  printf '         Re-run without touching the tree.\n' >&2
+  rm -f -- "${baseline_sorted}" "${current_sorted}"
+}
+
 scout_verify_source_identity() {
   local git_bin="$1"
   local repo_root="$2"
@@ -348,9 +390,11 @@ scout_verify_source_identity() {
     return 1
   fi
   if ! cmp --silent "${baseline_status}" "${current_status}"; then
-    rm -f -- "${current_status}"
     printf 'error: dirty source identity changed during Scout %s gate\n' \
       "${scout_label}" >&2
+    # Diff before deleting the snapshot -- the paths are the whole diagnosis.
+    scout_report_status_drift "${baseline_status}" "${current_status}"
+    rm -f -- "${current_status}"
     return 1
   fi
   rm -f -- "${current_status}"
@@ -442,7 +486,7 @@ for hook in \
   trailing-whitespace check-ast check-merge-conflict \
   no-commit-to-branch check-added-large-files end-of-file-fixer \
   insert-license flake8 ufmt pydoclint codespell \
-  lychee-link-checker check-no-pii
+  lychee-link-checker check-no-pii check-line-width
 do
   pre-commit run "${hook}" --files "${source_files[@]}"
 done
