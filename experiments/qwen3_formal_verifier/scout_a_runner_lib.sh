@@ -361,3 +361,107 @@ scout_verify_source_identity() {
   printf 'SCOUT_%s_SOURCE_RECHECK result=success head=%s\n' \
     "${scout_label}" "${expected_head}"
 }
+
+# Emit the bash program the lint stage runs inside the rootfs.
+#
+# Why one shared program instead of a copy in each runner: the two copies were
+# identical apart from the module name, and the clean-tree defect this replaces
+# lived in both of them. One copy is also the only shape a test can execute --
+# and executing it is the point, because a test that greps a runner for a
+# string is how the defect survived.
+#
+# The repository root is a parameter rather than a hardcoded
+# /workspace/torchtitan so the stage can be run against a throwaway tree.
+#
+# Program arguments:
+#   $1  scout module name under torchtitan.experiments.qwen3_formal_verifier
+#   $2  repository root: working directory, GIT_WORK_TREE, and --repo-root
+#   $3  writable scratch directory for the bare repository and the path list
+#   $4  lint identity, which names the throwaway bare repository
+#   $5  source manifest path
+#   $6  host-captured Git status file
+#   $7  host-captured HEAD-commit path list
+#   $8  expected Git HEAD
+#   $9  attempt directory
+scout_lint_stage_program() {
+  cat <<'PROGRAM'
+set -euo pipefail
+scout_module="$1"
+repo_root="$2"
+scratch_dir="$3"
+lint_identity="$4"
+source_manifest="$5"
+status_file="$6"
+head_paths_file="$7"
+head_id="$8"
+attempt_dir="$9"
+cd "${repo_root}"
+git_dir="${scratch_dir}/${lint_identity}.git"
+[[ ! -e "${git_dir}" ]]
+git init --bare "${git_dir}" >/dev/null
+export GIT_DIR="${git_dir}"
+export GIT_WORK_TREE="${repo_root}"
+declare -a source_files=()
+# Write to a file first: consuming the producer through process substitution
+# discards its exit status, so a producer that emitted some paths and then
+# crashed would lint a partial set and still seal as a successful stage.
+# mktemp, not a derived name: the scratch directory persists across runs, so a
+# name derived from the stage identity collides when the same output root is
+# reused, and the fail-closed check then aborts the stage before it writes
+# anything -- an empty log rather than a diagnosis.
+lint_paths_file="$(mktemp "${scratch_dir}/lint-paths.XXXXXXXX")"
+# Removed when this stage exits, including on failure. The scratch directory
+# persists between runs, so without this every lint stage of every run leaves
+# one more file behind -- the accumulation that produced the original collision
+# in the first place.
+trap 'rm -f -- "${lint_paths_file}"' EXIT
+# --status-file/--head-paths-file/--repo-root/--head/--attempt-dir make
+# lint-time manifest validation identical to seal-time validation: without them
+# the path list is shape-validated only, and the process-entry roster
+# comparison -- the one check that can notice an ABSENT entry -- runs at
+# finalize. --head-paths-file additionally decides what lint covers when the
+# working tree is clean, where the dirty status yields nothing at all.
+python -m "torchtitan.experiments.qwen3_formal_verifier.${scout_module}" \
+  lint-paths --manifest "${source_manifest}" \
+  --repo-root "${repo_root}" --status-file "${status_file}" \
+  --head-paths-file "${head_paths_file}" \
+  --head "${head_id}" --attempt-dir "${attempt_dir}" >"${lint_paths_file}"
+while IFS= read -r -d "" source_file; do
+  source_files+=("${source_file}")
+done <"${lint_paths_file}"
+# Retained as defence in depth even though lint-paths now fails with a named
+# error when it has nothing to yield: this is the assertion that turned a clean
+# tree into a ten-line log with no diagnosis, so it says what it means now.
+((${#source_files[@]} > 0)) || {
+  printf 'error: lint stage derived no source paths from %s\n' \
+    "${source_manifest}" >&2
+  exit 1
+}
+git add -- "${source_files[@]}"
+for hook in \
+  trailing-whitespace check-ast check-merge-conflict \
+  no-commit-to-branch check-added-large-files end-of-file-fixer \
+  insert-license flake8 ufmt pydoclint codespell \
+  lychee-link-checker check-no-pii
+do
+  pre-commit run "${hook}" --files "${source_files[@]}"
+done
+declare -a python_files=()
+declare -a shell_files=()
+for source_file in "${source_files[@]}"; do
+  case "${source_file}" in
+    *.py) python_files+=("${source_file}") ;;
+    *.sh) shell_files+=("${source_file}") ;;
+  esac
+done
+if ((${#python_files[@]} > 0)); then
+  pyrefly check --remove-unused-ignores --summarize-errors "${python_files[@]}"
+fi
+if ((${#shell_files[@]} > 0)); then
+  for shell_file in "${shell_files[@]}"; do
+    bash -n "${shell_file}"
+  done
+fi
+printf 'SCOUT_LINT_STAGE result=success num_paths=%s\n' "${#source_files[@]}"
+PROGRAM
+}

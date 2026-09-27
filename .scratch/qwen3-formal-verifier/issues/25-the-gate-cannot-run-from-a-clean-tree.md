@@ -74,3 +74,30 @@ sealed and verified, with the manifest pinning the uncommitted bytes under
 review. What is missing is the *final* seal from the committed state, which is
 a different and weaker claim than "the work was never gated". Ticket 03's
 stale-evidence note should be read with that distinction.
+
+## Residual after the fix: tier 0 still lints nothing on a clean tree
+
+Disclosed by the implementation. `run_formal_tier0.sh` derives its own lint
+list from git directly rather than from the source manifest, so on a clean
+tree it prints `QFV_TIER0 lint result=skipped reason=no_changed_files`.
+
+That is a different failure from the gate's. Tier 0 degrades **honestly**: it
+says it skipped and why, rather than failing obscurely or passing while
+checking nothing -- so it was correctly left alone. But the consequence is the
+same in kind: iterating on a committed state, tier 0's lint stage covers
+nothing.
+
+- [ ] Give tier 0 the same fallback, or have it say plainly that lint coverage
+  on a clean tree belongs to the gate. Either is fine; silently skipping while
+  the gate has been taught to cope is the combination to avoid.
+
+## A correction to this ticket's own prescription
+
+`git diff-tree --no-commit-id --name-only -r HEAD`, which this ticket
+suggested, is insufficient: it prints nothing for a merge commit and nothing
+for a repository's root commit. Both were measured during implementation, and
+the root-commit case broke the first test fixture. The capture uses `--root
+-m`.
+
+Recorded because the ticket stated the command as if it were the answer, and
+it was not.

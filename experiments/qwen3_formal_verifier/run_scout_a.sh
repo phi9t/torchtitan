@@ -22,7 +22,7 @@ usage() {
 Usage: experiments/qwen3_formal_verifier/run_scout_a.sh [options]
 
 Run the complete Scout A acceptance gate:
-  1. immutable HEAD and dirty-source identity capture;
+  1. immutable HEAD, dirty-source, and HEAD-commit path capture;
   2. focused pytest contracts;
   3. one real CUDA Qwen3 optimizer step through the core Trainer on GPU 0;
   4. the owning pytest suite;
@@ -133,12 +133,25 @@ HEAD_ID="$("${GIT_BIN}" -C "${REPO_ROOT}" rev-parse --verify HEAD)"
   || die "invalid Git HEAD identity: ${HEAD_ID}"
 source_status_host="${attempt_host}/manifests/source-status.porcelain-v1-z"
 source_status_inner="${attempt_inner}/manifests/source-status.porcelain-v1-z"
+head_paths_host="${attempt_host}/manifests/head-commit-paths.name-only-z"
+head_paths_inner="${attempt_inner}/manifests/head-commit-paths.name-only-z"
 source_manifest_host="${attempt_host}/manifests/source.json"
 source_manifest_inner="${attempt_inner}/manifests/source.json"
 stage_journal_host="${checker_host}/stages.tsv"
 scout_capture_fresh_file \
   "${attempt_host}" "${source_status_host}" -- \
   "${GIT_BIN}" -C "${REPO_ROOT}" status --porcelain=v1 -z --untracked-files=all
+# Captured on the host, and only here: the lint stage runs against a throwaway
+# bare repository whose GIT_DIR has no history, so it cannot ask about HEAD.
+# This list is what lint covers when the working tree is clean -- the committed
+# state -- where the status capture above is empty and yields nothing to lint.
+# -m so a merge HEAD reports paths and --root so a root commit does: measured,
+# not assumed -- without -m "git diff-tree -r" prints nothing at all for a merge
+# commit, and without --root it prints nothing for a repository's first commit.
+scout_capture_fresh_file \
+  "${attempt_host}" "${head_paths_host}" -- \
+  "${GIT_BIN}" -C "${REPO_ROOT}" diff-tree --root -m --no-commit-id \
+    --name-only -r -z HEAD
 scout_create_fresh_log "${attempt_host}" "${stage_journal_host}"
 
 run_logged() {
@@ -171,10 +184,11 @@ run_logged source_manifest checker/source-manifest.log \
     set -euo pipefail
     cd /workspace/torchtitan
     python -m torchtitan.experiments.qwen3_formal_verifier.scout_a source \
-      --status-file "$1" --output "$2" --repo-root /workspace/torchtitan \
-      --head "$3" --attempt-dir "$4"
+      --status-file "$1" --head-paths-file "$2" --output "$3" \
+      --repo-root /workspace/torchtitan \
+      --head "$4" --attempt-dir "$5"
   ' scout-a \
-    "${source_status_inner}" "${source_manifest_inner}" \
+    "${source_status_inner}" "${head_paths_inner}" "${source_manifest_inner}" \
     "${HEAD_ID}" "${attempt_inner}"
 scout_require_regular_file "${attempt_host}" "${source_manifest_host}"
 
@@ -254,76 +268,16 @@ run_logged formal_no_fetch checker/formal-no-fetch.log \
   "${REPO_ROOT}/scripts/run_formal_checks.sh" --no-fetch --suite scout-a
 
 run_lint_and_verify_source() {
+  # The stage body lives in scout_lint_stage_program so both runners share one
+  # copy and a test can execute it. Every argument the program needs is passed
+  # explicitly; nothing about the sandbox is hardcoded inside it.
   if env TORCHTITAN_ROOTFS_NETWORK=networked \
-    "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- bash -lc '
-      set -euo pipefail
-      cd /workspace/torchtitan
-      source_manifest="$1"
-      lint_identity="$2"
-      git_dir="/project/tmp/${lint_identity}.git"
-      [[ ! -e "${git_dir}" ]]
-      git init --bare "${git_dir}" >/dev/null
-      export GIT_DIR="${git_dir}"
-      export GIT_WORK_TREE=/workspace/torchtitan
-      declare -a source_files=()
-      # Write to a file first: consuming the producer through process
-      # substitution discards its exit status, so a producer that emitted some
-      # paths and then crashed would lint a partial set and still seal as a
-      # successful stage.
-      # mktemp, not a derived name: /project/tmp persists across runs, so a
-      # name derived from the stage identity collides when the same output
-      # root is reused, and the fail-closed check then aborts the stage before
-      # it writes anything -- an empty log rather than a diagnosis.
-      lint_paths_file="$(mktemp /project/tmp/lint-paths.XXXXXXXX)"
-      # Removed when this stage exits, including on failure. /project/tmp
-      # persists between runs, so without this every lint stage of every run
-      # leaves one more file behind -- the accumulation that produced the
-      # original collision in the first place.
-      # Double quotes, and $ escaped: this text is inside the single-quoted
-      # inner script, so a literal single quote would close it and the outer
-      # shell would expand the variable to nothing.
-      trap "rm -f -- \"\${lint_paths_file}\"" EXIT
-      # --status-file/--repo-root/--head/--attempt-dir make lint-time manifest
-      # validation identical to seal-time validation: without them the path
-      # list is shape-validated only, and the process-entry roster comparison
-      # -- the one check that can notice an ABSENT entry -- runs at finalize.
-      python -m torchtitan.experiments.qwen3_formal_verifier.scout_a \
-        lint-paths --manifest "${source_manifest}" \
-        --repo-root /workspace/torchtitan --status-file "$3" \
-        --head "$4" --attempt-dir "$5" >"${lint_paths_file}"
-      while IFS= read -r -d "" source_file; do
-        source_files+=("${source_file}")
-      done <"${lint_paths_file}"
-      ((${#source_files[@]} > 0))
-      git add -- "${source_files[@]}"
-      for hook in \
-        trailing-whitespace check-ast check-merge-conflict \
-        no-commit-to-branch check-added-large-files end-of-file-fixer \
-        insert-license flake8 ufmt pydoclint codespell \
-        lychee-link-checker check-no-pii
-      do
-        pre-commit run "${hook}" --files "${source_files[@]}"
-      done
-      declare -a python_files=()
-      declare -a shell_files=()
-      for source_file in "${source_files[@]}"; do
-        case "${source_file}" in
-          *.py) python_files+=("${source_file}") ;;
-          *.sh) shell_files+=("${source_file}") ;;
-        esac
-      done
-      if ((${#python_files[@]} > 0)); then
-        pyrefly check --remove-unused-ignores --summarize-errors \
-          "${python_files[@]}"
-      fi
-      if ((${#shell_files[@]} > 0)); then
-        for shell_file in "${shell_files[@]}"; do
-          bash -n "${shell_file}"
-        done
-      fi
-    ' scout-a "${source_manifest_inner}" \
+    "${ROOTFS_ENTRYPOINT}" --rootfs "${ROOTFS}" -- \
+    bash -lc "$(scout_lint_stage_program)" scout-a \
+      scout_a /workspace/torchtitan /project/tmp \
       "qfv-scout-lint-${output_relative//\//_}-${RUN_ID}-${ATTEMPT_ID}" \
-      "${source_status_inner}" "${HEAD_ID}" "${attempt_inner}"
+      "${source_manifest_inner}" "${source_status_inner}" \
+      "${head_paths_inner}" "${HEAD_ID}" "${attempt_inner}"
   then
     :
   else

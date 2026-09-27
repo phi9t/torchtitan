@@ -25,7 +25,7 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
 
 import torch
 
@@ -38,7 +38,18 @@ RAW_SCHEMA = "qwen3.formal.raw.v0"
 SCOUT_SCHEMA = "qwen3.formal.scout.v0"
 SCOUT_A_RUN_ID = "qfv-scout-a-seed42-fix1"
 SCOUT_A_ATTEMPT_ID = "single-rank-cuda-fix1"
-SOURCE_MANIFEST_SCHEMA = "qwen3.formal.scout.source-manifest.v1"
+# v2 adds the required lint_coverage section. A v1 manifest carries no record
+# of which paths its lint stage covered, so it is refused rather than read with
+# the section treated as optional: an optional section is one a forged manifest
+# can simply omit.
+SOURCE_MANIFEST_SCHEMA = "qwen3.formal.scout.source-manifest.v2"
+# Host-captured evidence the source manifest is derived from. The status bytes
+# pin the dirty tree; the HEAD-commit path list says what lint covers when the
+# tree is clean and there are no dirty bytes to pin. Both are captured on the
+# host because the lint stage runs against a throwaway bare repository created
+# with "git init --bare" and GIT_WORK_TREE, which has no real history.
+SOURCE_STATUS_EVIDENCE_PATH = "manifests/source-status.porcelain-v1-z"
+HEAD_COMMIT_PATHS_EVIDENCE_PATH = "manifests/head-commit-paths.name-only-z"
 RUNTIME_MANIFEST_SCHEMA = "qwen3.formal.scout.runtime-manifest.v1"
 STAGE_MANIFEST_SCHEMA = "qwen3.formal.scout.stage-manifest.v0"
 EVIDENCE_MANIFEST_SCHEMA = "qwen3.formal.scout.evidence-manifest.v1"
@@ -744,6 +755,44 @@ _PROCESS_PRESENT_KEYS = frozenset(
 _PROCESS_DELETED_KEYS = frozenset({"status", "path", "kind", "verified"})
 _SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
+# Which paths the lint stage covered. The gate used to derive them from the
+# dirty status alone, so gating a committed -- and therefore clean -- tree
+# produced zero lint paths and the lint stage aborted on its own non-empty
+# assertion. The clean case falls back to the paths HEAD touched.
+#
+# The case is recorded rather than left to be inferred from an entry count: a
+# reader of a sealed bundle must be able to tell whether lint covered pinned
+# dirty bytes or a HEAD-derived path list, because those are different claims.
+LINT_COVERAGE_DIRTY_TREE_BYTES = "dirty_tree_bytes"
+LINT_COVERAGE_HEAD_COMMIT_PATHS = "head_commit_paths"
+_LINT_COVERAGE_CASES = (
+    LINT_COVERAGE_DIRTY_TREE_BYTES,
+    LINT_COVERAGE_HEAD_COMMIT_PATHS,
+)
+_LINT_COVERAGE_KEYS = frozenset(
+    {
+        "note",
+        "case",
+        "head_commit_paths_sha256",
+        "num_head_commit_paths",
+        "head_commit_lint_paths",
+    }
+)
+_LINT_COVERAGE_NOTE = (
+    "what the lint stage covered; "
+    f"{LINT_COVERAGE_DIRTY_TREE_BYTES} means the working tree reported paths "
+    "and every one of them is pinned byte-for-byte in entries or "
+    f"process_informational; {LINT_COVERAGE_HEAD_COMMIT_PATHS} means the tree "
+    "was clean, so lint covered the still-present files the HEAD commit "
+    "touched -- lint targets only, outside source_id, and no byte-level "
+    "identity claim"
+)
+_LINT_COVERAGE_NOTHING_TO_LINT = (
+    "the source manifest yields no lint paths: the working tree is clean and "
+    "the HEAD commit touched no still-present file, so the lint stage has "
+    "nothing to check"
+)
+
 
 def is_process_source_path(path_text: str) -> bool:
     """Return True when a repository-relative path is a process document.
@@ -936,12 +985,187 @@ def _require_safe_lint_path(path_text: str) -> None:
         raise ValueError(f"lint path escapes the checkout: {path_text!r}")
 
 
+def _dirty_lint_paths(
+    verified_entries: Sequence[object],
+    process_entries: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    """Return the still-present paths the dirty working tree reported.
+
+    A ``deleted`` entry is covered by the manifest but cannot be linted, so it
+    is excluded. Every returned path is checked against the lint-argument rules
+    because the result is handed to ``git add`` and ``pre-commit --files``.
+    """
+
+    paths: set[str] = set()
+    for entry in (*verified_entries, *process_entries):
+        if not isinstance(entry, dict):
+            raise ValueError("source manifest entries must be mappings")
+        path_text = entry.get("path")
+        if not isinstance(path_text, str) or not path_text:
+            raise ValueError("source manifest entries must carry a path")
+        _require_safe_lint_path(path_text)
+        if entry.get("kind") != "deleted":
+            paths.add(path_text)
+    return tuple(sorted(paths))
+
+
+def _parse_head_commit_paths(head_commit_paths: bytes) -> tuple[str, ...]:
+    """Parse host-captured ``git diff-tree --name-only -r -z HEAD`` bytes.
+
+    The capture passes ``-m`` so a merge HEAD reports paths at all, and
+    ``--root`` so a repository's first commit does -- both measured: without
+    them ``git diff-tree -r`` prints nothing for a merge commit and nothing for
+    a root commit, either of which would leave a clean tree with nothing to
+    lint and no indication why. ``-m`` emits one diff per parent, so the same
+    path can appear more than once; duplicates are dropped rather than treated
+    as an error.
+    """
+
+    paths: list[str] = []
+    seen: set[str] = set()
+    for encoded_path in head_commit_paths.split(b"\0"):
+        if not encoded_path:
+            continue
+        try:
+            path_text = encoded_path.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ValueError("HEAD-commit path capture is not UTF-8 -z data") from None
+        _require_safe_lint_path(path_text)
+        if path_text in seen:
+            continue
+        seen.add(path_text)
+        paths.append(path_text)
+    return tuple(paths)
+
+
+def _present_head_commit_lint_paths(
+    head_paths: Sequence[str],
+    *,
+    root: Path,
+) -> tuple[str, ...]:
+    """Keep only the HEAD-commit paths that are regular files right now.
+
+    A commit that deletes a file still reports it, and a path that HEAD added
+    as a symlink is not something to lint, so both are dropped. The filter is
+    deliberately by ``lstat`` rather than ``exists`` so a symlink is never
+    followed out of the checkout.
+    """
+
+    present: list[str] = []
+    for path_text in head_paths:
+        candidate = root / path_text
+        try:
+            candidate_status = candidate.lstat()
+        except OSError:
+            continue
+        if stat.S_ISREG(candidate_status.st_mode):
+            present.append(path_text)
+    return tuple(sorted(present))
+
+
+def _build_lint_coverage(
+    *,
+    head_commit_paths: bytes,
+    root: Path,
+    dirty_paths: Sequence[str],
+) -> dict[str, object]:
+    """Derive the lint-coverage section from the dirty and HEAD path sets."""
+
+    head_paths = _parse_head_commit_paths(head_commit_paths)
+    case = (
+        LINT_COVERAGE_DIRTY_TREE_BYTES
+        if dirty_paths
+        else LINT_COVERAGE_HEAD_COMMIT_PATHS
+    )
+    # Recorded only in the case that actually uses it. A list recorded beside a
+    # dirty-tree case would state coverage that the lint stage did not have.
+    head_lint_paths = (
+        []
+        if case == LINT_COVERAGE_DIRTY_TREE_BYTES
+        else list(_present_head_commit_lint_paths(head_paths, root=root))
+    )
+    return {
+        "note": _LINT_COVERAGE_NOTE,
+        "case": case,
+        "head_commit_paths_sha256": _sha256_bytes(head_commit_paths),
+        "num_head_commit_paths": len(head_paths),
+        "head_commit_lint_paths": head_lint_paths,
+    }
+
+
+def _validate_lint_coverage(
+    manifest: Mapping[str, object],
+    *,
+    dirty_paths: Sequence[str],
+) -> dict[str, object]:
+    """Validate the lint-coverage section and return it.
+
+    The recorded ``case`` is recomputed from the manifest's own entries rather
+    than trusted. A manifest claiming ``dirty_tree_bytes`` while carrying no
+    present entry, or claiming ``head_commit_paths`` while carrying some, would
+    otherwise misdescribe what the lint stage covered -- which is the exact
+    thing this section exists to state.
+    """
+
+    coverage = manifest.get("lint_coverage")
+    if not isinstance(coverage, Mapping):
+        raise ValueError("source manifest lacks a lint_coverage section")
+    if set(coverage) != _LINT_COVERAGE_KEYS:
+        raise ValueError(f"lint_coverage has an unexpected key set: {sorted(coverage)}")
+    case = coverage.get("case")
+    if case not in _LINT_COVERAGE_CASES:
+        raise ValueError(f"lint_coverage case is unsupported: {case!r}")
+    digest = coverage.get("head_commit_paths_sha256")
+    if not isinstance(digest, str) or not _SHA256_HEX_RE.match(digest):
+        raise ValueError("lint_coverage needs a hex head_commit_paths_sha256")
+    num_head_paths = coverage.get("num_head_commit_paths")
+    if not isinstance(num_head_paths, int) or isinstance(num_head_paths, bool):
+        raise ValueError("lint_coverage num_head_commit_paths must be an integer")
+    if num_head_paths < 0:
+        raise ValueError("lint_coverage num_head_commit_paths must not be negative")
+    head_lint_paths = coverage.get("head_commit_lint_paths")
+    if not isinstance(head_lint_paths, list):
+        raise ValueError("lint_coverage head_commit_lint_paths must be a list")
+    for path_text in head_lint_paths:
+        if not isinstance(path_text, str) or not path_text:
+            raise ValueError("lint_coverage head_commit_lint_paths needs paths")
+        _require_safe_lint_path(path_text)
+    if len(set(head_lint_paths)) != len(head_lint_paths):
+        raise ValueError("lint_coverage head_commit_lint_paths has duplicates")
+    if len(head_lint_paths) > num_head_paths:
+        raise ValueError(
+            "lint_coverage lists more HEAD lint paths than the capture held"
+        )
+    expected_case = (
+        LINT_COVERAGE_DIRTY_TREE_BYTES
+        if dirty_paths
+        else LINT_COVERAGE_HEAD_COMMIT_PATHS
+    )
+    if case != expected_case:
+        raise ValueError(
+            f"lint_coverage case must be {expected_case} for this manifest, "
+            f"found {case}"
+        )
+    if case == LINT_COVERAGE_DIRTY_TREE_BYTES and head_lint_paths:
+        raise ValueError(
+            "lint_coverage must not list HEAD lint paths in the "
+            f"{LINT_COVERAGE_DIRTY_TREE_BYTES} case"
+        )
+    return dict(coverage)
+
+
 def source_manifest_lint_paths(
     manifest: Mapping[str, object],
     *,
     repo_root: Path | None = None,
 ) -> tuple[str, ...]:
-    """Return every present path the manifest covers, verified and process alike.
+    """Return the paths the lint stage must cover for this manifest.
+
+    Two cases, and the manifest states which one applies. When the working tree
+    reported paths, those paths are returned: lint covers exactly the bytes
+    ``source_id`` pins. When the tree is clean there are no such paths at all,
+    which used to yield nothing and abort the lint stage, so the still-present
+    files the HEAD commit touched are returned instead.
 
     Lint must keep covering process documents even though their bytes leave
     ``source_id``. Reading only ``entries`` would silently shrink lint coverage
@@ -966,17 +1190,19 @@ def source_manifest_lint_paths(
     verified_entries = manifest["entries"]
     if not isinstance(verified_entries, list):
         raise ValueError("source manifest entries must be a list")
-    paths: set[str] = set()
-    for entry in (*verified_entries, *process_entries):
-        if not isinstance(entry, dict):
-            raise ValueError("source manifest entries must be mappings")
-        path_text = entry.get("path")
-        if not isinstance(path_text, str) or not path_text:
-            raise ValueError("source manifest entries must carry a path")
-        _require_safe_lint_path(path_text)
-        if entry.get("kind") != "deleted":
-            paths.add(path_text)
-    return tuple(sorted(paths))
+    dirty_paths = _dirty_lint_paths(verified_entries, process_entries)
+    coverage = _validate_lint_coverage(manifest, dirty_paths=dirty_paths)
+    if coverage["case"] == LINT_COVERAGE_DIRTY_TREE_BYTES:
+        return dirty_paths
+    head_lint_paths = cast(list[str], coverage["head_commit_lint_paths"])
+    if not head_lint_paths:
+        # Raised here rather than in build_source_manifest: a manifest that
+        # covers nothing lintable is still a truthful description of the tree,
+        # and verifying an already sealed bundle must not fail on it. The lint
+        # stage is where it is actionable, and a named error beats the shell's
+        # bare "((${#source_files[@]} > 0))" failing with an empty log.
+        raise ValueError(_LINT_COVERAGE_NOTHING_TO_LINT)
+    return tuple(head_lint_paths)
 
 
 def build_source_manifest(
@@ -984,6 +1210,7 @@ def build_source_manifest(
     head: str,
     status_bytes: bytes,
     *,
+    head_commit_paths: bytes,
     expected: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Hash the complete uncommitted Git status without using Git in Insula.
@@ -991,6 +1218,14 @@ def build_source_manifest(
     Executable and checked-in source is hashed into ``source_id``. Process
     documents are recorded separately and informationally; see
     ``_PROCESS_SOURCE_ROOTS``.
+
+    ``head_commit_paths`` is the host capture of the paths the HEAD commit
+    touched. It is required, not defaulted: a default would make a clean tree
+    silently produce an empty lint set again, which is the defect. Those bytes
+    are deliberately kept out of ``source_id`` -- they decide what lint covers
+    when there are no dirty bytes to pin, and are not an identity claim about
+    the tree. They are still compared against ``expected``, so the recorded
+    coverage cannot drift from the capture it was derived from.
     """
 
     if not re.fullmatch(r"[0-9a-f]{40,64}", head):
@@ -1095,6 +1330,11 @@ def build_source_manifest(
         "predicate": _PROCESS_SOURCE_PREDICATE_TEXT,
         "entries": process_records,
     }
+    manifest["lint_coverage"] = _build_lint_coverage(
+        head_commit_paths=head_commit_paths,
+        root=root,
+        dirty_paths=_dirty_lint_paths(records, process_records),
+    )
     if expected is not None:
         if expected.get("schema") != SOURCE_MANIFEST_SCHEMA:
             raise ValueError(
@@ -1125,24 +1365,43 @@ def build_source_manifest(
                 "source manifest process roster does not match the status: "
                 f"missing={missing} unexpected={unexpected}"
             )
+        # Recomputed and compared, never read back and trusted. The section is
+        # outside source_id, so without this comparison a sealed bundle could
+        # claim a coverage case its lint stage never had -- and a reader has no
+        # other way to tell.
+        if expected.get("lint_coverage") != manifest["lint_coverage"]:
+            raise ValueError(
+                "source manifest lint coverage does not match the current "
+                "source tree and HEAD-commit path capture"
+            )
     return manifest
 
 
 def write_source_manifest(
     *,
     status_path: str | Path,
+    head_paths_path: str | Path,
     output_path: str | Path,
     repo_root: str | Path,
     head: str,
     attempt_dir: str | Path,
 ) -> Path:
-    """Create one immutable source manifest from host-produced Git status."""
+    """Create one immutable source manifest from host-produced Git evidence."""
 
     _require_rootfs()
     attempt = Path(attempt_dir)
     status_file = Path(status_path)
     status_bytes = _require_regular_readonly(status_file, root=attempt)
-    manifest = build_source_manifest(repo_root, head, status_bytes)
+    head_commit_paths = _require_regular_readonly(
+        Path(head_paths_path),
+        root=attempt,
+    )
+    manifest = build_source_manifest(
+        repo_root,
+        head,
+        status_bytes,
+        head_commit_paths=head_commit_paths,
+    )
     output = Path(output_path)
     _write_immutable(output, _canonical_json_text(manifest), root=attempt)
     return output
@@ -1152,6 +1411,7 @@ def verify_source_manifest(
     manifest_path: str | Path,
     status_path: str | Path,
     *,
+    head_paths_path: str | Path,
     repo_root: str | Path,
     expected_head: str,
     attempt_dir: str | Path,
@@ -1161,6 +1421,10 @@ def verify_source_manifest(
     attempt = Path(attempt_dir)
     manifest_bytes = _require_regular_readonly(Path(manifest_path), root=attempt)
     status_bytes = _require_regular_readonly(Path(status_path), root=attempt)
+    head_commit_paths = _require_regular_readonly(
+        Path(head_paths_path),
+        root=attempt,
+    )
     manifest = json.loads(manifest_bytes)
     if (
         not isinstance(manifest, dict)
@@ -1176,6 +1440,7 @@ def verify_source_manifest(
         repo_root,
         expected_head,
         status_bytes,
+        head_commit_paths=head_commit_paths,
         expected=manifest,
     )
 
@@ -1602,10 +1867,12 @@ def _write_attempt_bundle(
             f"source manifest must be {expected_source_manifest}, "
             f"found {source_manifest_path}"
         )
-    source_status_path = attempt_dir / "manifests" / "source-status.porcelain-v1-z"
+    source_status_path = attempt_dir / SOURCE_STATUS_EVIDENCE_PATH
+    head_paths_path = attempt_dir / HEAD_COMMIT_PATHS_EVIDENCE_PATH
     source = verify_source_manifest(
         source_manifest_path,
         source_status_path,
+        head_paths_path=head_paths_path,
         repo_root=source_root,
         expected_head=expected_head,
         attempt_dir=attempt_dir,
@@ -1635,7 +1902,7 @@ def _write_attempt_bundle(
         )
         for path in artifacts
     }
-    for source_path in (source_status_path, source_manifest_path):
+    for source_path in (source_status_path, head_paths_path, source_manifest_path):
         manifest_files[
             str(source_path.relative_to(attempt_dir))
         ] = _evidence_file_record(source_path, root=attempt_dir)
@@ -1650,6 +1917,12 @@ def _write_attempt_bundle(
             "source_id": source["source_id"],
             "manifest_path": str(source_manifest_path.relative_to(attempt_dir)),
             "status_path": str(source_status_path.relative_to(attempt_dir)),
+            "head_paths_path": str(head_paths_path.relative_to(attempt_dir)),
+            # The manifest's own statement of what its lint stage covered.
+            # Promoted into the runtime source section so a bundle reader sees
+            # it beside head/source_id instead of having to open source.json
+            # and count entries.
+            "lint_coverage_case": _mapping(source, "lint_coverage")["case"],
         },
         "rootfs_sentinel": os.environ.get("TORCHTITAN_IN_ROOTFS"),
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
@@ -1774,7 +2047,8 @@ def verify_runtime_bundle(
         "generated/ScoutABadFacts.tla",
         "generated/ScoutAFacts.lean",
         "generated/ScoutABadFacts.lean",
-        "manifests/source-status.porcelain-v1-z",
+        SOURCE_STATUS_EVIDENCE_PATH,
+        HEAD_COMMIT_PATHS_EVIDENCE_PATH,
         "manifests/source.json",
     }
     if set(files) != expected_files:
@@ -1796,12 +2070,18 @@ def verify_runtime_bundle(
     source_manifest = verify_source_manifest(
         attempt / str(source.get("manifest_path", "")),
         attempt / str(source.get("status_path", "")),
+        head_paths_path=attempt / str(source.get("head_paths_path", "")),
         repo_root=source_root,
         expected_head=expected_head,
         attempt_dir=attempt,
     )
     if source.get("source_id") != source_manifest.get("source_id"):
         raise ValueError("runtime source identity disagrees with source manifest")
+    if (
+        source.get("lint_coverage_case")
+        != _mapping(source_manifest, "lint_coverage")["case"]
+    ):
+        raise ValueError("runtime lint coverage case disagrees with source manifest")
 
     raw = json.loads(verified_bytes["raw/observed.json"])
     normalized = json.loads(verified_bytes["normalized/scout_a.json"])
@@ -2332,6 +2612,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "source", help="create the immutable source identity manifest"
     )
     source_parser.add_argument("--status-file", required=True)
+    source_parser.add_argument("--head-paths-file", required=True)
     source_parser.add_argument("--output", required=True)
     source_parser.add_argument("--repo-root", required=True)
     source_parser.add_argument("--head", required=True)
@@ -2353,13 +2634,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
     lint_paths_parser = subparsers.add_parser(
         "lint-paths",
-        help="print every covered path, verified and process alike, NUL separated",
+        help=(
+            "print the paths the lint stage must cover, NUL separated: the "
+            "dirty tree's verified and process paths, or the paths HEAD "
+            "touched when the tree is clean"
+        ),
     )
     lint_paths_parser.add_argument("--manifest", required=True)
     # Required, so lint can never silently fall back to shape-only validation:
     # with these the lint stage runs the same verification the seal does.
     lint_paths_parser.add_argument("--repo-root", required=True)
     lint_paths_parser.add_argument("--status-file", required=True)
+    lint_paths_parser.add_argument("--head-paths-file", required=True)
     lint_paths_parser.add_argument("--head", required=True)
     lint_paths_parser.add_argument("--attempt-dir", required=True)
     return parser.parse_args(argv)
@@ -2395,6 +2681,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.command == "source":
         manifest = write_source_manifest(
             status_path=args.status_file,
+            head_paths_path=args.head_paths_file,
             output_path=args.output,
             repo_root=args.repo_root,
             head=args.head,
@@ -2417,15 +2704,26 @@ def main(argv: Sequence[str] | None = None) -> None:
         manifest = verify_source_manifest(
             args.manifest,
             args.status_file,
+            head_paths_path=args.head_paths_file,
             repo_root=args.repo_root,
             expected_head=args.head,
             attempt_dir=args.attempt_dir,
         )
-        for path_text in source_manifest_lint_paths(
+        lint_paths = source_manifest_lint_paths(
             manifest, repo_root=Path(args.repo_root)
-        ):
+        )
+        for path_text in lint_paths:
             sys.stdout.buffer.write(path_text.encode() + b"\0")
         sys.stdout.buffer.flush()
+        # On stderr, because stdout is the NUL-separated path stream. The stage
+        # merges stderr into its log, so the log states which case applied
+        # instead of leaving a reader to infer it from a path count.
+        print(
+            "SCOUT_LINT_PATHS "
+            f"case={_mapping(manifest, 'lint_coverage')['case']} "
+            f"num_paths={len(lint_paths)}",
+            file=sys.stderr,
+        )
         return
     assert args.command == "verify", f"unhandled command: {args.command}"
     evidence = verify_evidence_bundle(

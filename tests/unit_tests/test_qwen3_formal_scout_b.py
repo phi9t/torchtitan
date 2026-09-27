@@ -316,6 +316,7 @@ def _create_sealable_bundle(
     monkeypatch: pytest.MonkeyPatch,
     *,
     status_bytes: bytes = b"",
+    head_commit_paths: bytes = b"",
     source_files: dict[str, str] | None = None,
     empty_stage_log: str | None = None,
 ) -> Path:
@@ -336,9 +337,12 @@ def _create_sealable_bundle(
     (attempt / "manifests").mkdir(parents=True)
     status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
     _write_immutable(status_path, status_bytes, root=attempt)
+    head_paths_path = attempt / "manifests" / "head-commit-paths.name-only-z"
+    _write_immutable(head_paths_path, head_commit_paths, root=attempt)
     source_path = attempt / "manifests" / "source.json"
     write_source_manifest(
         status_path=status_path,
+        head_paths_path=head_paths_path,
         output_path=source_path,
         repo_root=tmp_path,
         head="a" * 40,

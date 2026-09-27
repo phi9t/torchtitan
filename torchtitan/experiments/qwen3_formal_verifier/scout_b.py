@@ -48,7 +48,9 @@ from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
     _verify_file_record,
     _walk_tensors,
     _write_immutable,
+    HEAD_COMMIT_PATHS_EVIDENCE_PATH,
     source_manifest_lint_paths,
+    SOURCE_STATUS_EVIDENCE_PATH,
     verify_source_manifest,
     write_source_manifest,
 )
@@ -3628,10 +3630,12 @@ def _write_attempt_bundle(
             "QFV_SCOUT_EXPECTED_HEAD, and QFV_SCOUT_SOURCE_ROOT"
         )
     source_manifest_path = Path(source_manifest_value)
-    source_status_path = attempt_dir / "manifests" / "source-status.porcelain-v1-z"
+    source_status_path = attempt_dir / SOURCE_STATUS_EVIDENCE_PATH
+    head_paths_path = attempt_dir / HEAD_COMMIT_PATHS_EVIDENCE_PATH
     source = verify_source_manifest(
         source_manifest_path,
         source_status_path,
+        head_paths_path=head_paths_path,
         repo_root=source_root,
         expected_head=expected_head,
         attempt_dir=attempt_dir,
@@ -3686,7 +3690,7 @@ def _write_attempt_bundle(
         )
         for path in manifest_paths
     }
-    for source_path in (source_status_path, source_manifest_path):
+    for source_path in (source_status_path, head_paths_path, source_manifest_path):
         manifest_files[
             str(source_path.relative_to(attempt_dir))
         ] = _evidence_file_record(source_path, root=attempt_dir)
@@ -3701,6 +3705,11 @@ def _write_attempt_bundle(
             "source_id": source["source_id"],
             "manifest_path": str(source_manifest_path.relative_to(attempt_dir)),
             "status_path": str(source_status_path.relative_to(attempt_dir)),
+            "head_paths_path": str(head_paths_path.relative_to(attempt_dir)),
+            # See the same field in scout_a._write_attempt_bundle: the coverage
+            # case belongs beside head/source_id so a bundle reader does not
+            # have to open source.json and count entries.
+            "lint_coverage_case": _mapping(source, "lint_coverage")["case"],
         },
         "rootfs_sentinel": os.environ.get("TORCHTITAN_IN_ROOTFS"),
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
@@ -3888,7 +3897,8 @@ def _runtime_expected_files() -> set[str]:
         "generated/ScoutBBadFacts.tla",
         "generated/ScoutBFacts.lean",
         "generated/ScoutBBadFacts.lean",
-        "manifests/source-status.porcelain-v1-z",
+        SOURCE_STATUS_EVIDENCE_PATH,
+        HEAD_COMMIT_PATHS_EVIDENCE_PATH,
         "manifests/source.json",
     }
 
@@ -3976,12 +3986,21 @@ def verify_runtime_bundle(
     source_manifest = verify_source_manifest(
         _managed_evidence_path(attempt, str(source.get("manifest_path", ""))),
         _managed_evidence_path(attempt, str(source.get("status_path", ""))),
+        head_paths_path=_managed_evidence_path(
+            attempt,
+            str(source.get("head_paths_path", "")),
+        ),
         repo_root=source_root,
         expected_head=expected_head,
         attempt_dir=attempt,
     )
     if source.get("source_id") != source_manifest.get("source_id"):
         raise ValueError("Scout B runtime source identity disagrees")
+    if (
+        source.get("lint_coverage_case")
+        != _mapping(source_manifest, "lint_coverage")["case"]
+    ):
+        raise ValueError("Scout B runtime lint coverage case disagrees")
     raw_traces = []
     for rank in range(4):
         value = json.loads(verified[f"raw/ranks/rank-{rank:05d}.json"])
@@ -4207,6 +4226,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "source", help="create an immutable source identity manifest"
     )
     source_parser.add_argument("--status-file", required=True)
+    source_parser.add_argument("--head-paths-file", required=True)
     source_parser.add_argument("--output", required=True)
     source_parser.add_argument("--repo-root", required=True)
     source_parser.add_argument("--head", required=True)
@@ -4228,13 +4248,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
     lint_paths_parser = subparsers.add_parser(
         "lint-paths",
-        help="print every covered path, verified and process alike, NUL separated",
+        help=(
+            "print the paths the lint stage must cover, NUL separated: the "
+            "dirty tree's verified and process paths, or the paths HEAD "
+            "touched when the tree is clean"
+        ),
     )
     lint_paths_parser.add_argument("--manifest", required=True)
     # Required, so lint can never silently fall back to shape-only validation:
     # with these the lint stage runs the same verification the seal does.
     lint_paths_parser.add_argument("--repo-root", required=True)
     lint_paths_parser.add_argument("--status-file", required=True)
+    lint_paths_parser.add_argument("--head-paths-file", required=True)
     lint_paths_parser.add_argument("--head", required=True)
     lint_paths_parser.add_argument("--attempt-dir", required=True)
     return parser.parse_args(argv)
@@ -4266,6 +4291,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.command == "source":
         output = write_source_manifest(
             status_path=args.status_file,
+            head_paths_path=args.head_paths_file,
             output_path=args.output,
             repo_root=args.repo_root,
             head=args.head,
@@ -4288,15 +4314,24 @@ def main(argv: Sequence[str] | None = None) -> None:
         manifest = verify_source_manifest(
             args.manifest,
             args.status_file,
+            head_paths_path=args.head_paths_file,
             repo_root=args.repo_root,
             expected_head=args.head,
             attempt_dir=args.attempt_dir,
         )
-        for path_text in source_manifest_lint_paths(
+        lint_paths = source_manifest_lint_paths(
             manifest, repo_root=Path(args.repo_root)
-        ):
+        )
+        for path_text in lint_paths:
             sys.stdout.buffer.write(path_text.encode() + b"\0")
         sys.stdout.buffer.flush()
+        # On stderr, because stdout is the NUL-separated path stream.
+        print(
+            "SCOUT_LINT_PATHS "
+            f"case={_mapping(manifest, 'lint_coverage')['case']} "
+            f"num_paths={len(lint_paths)}",
+            file=sys.stderr,
+        )
         return
     assert args.command == "verify", f"unhandled command: {args.command}"
     evidence = verify_evidence_bundle(

@@ -187,9 +187,10 @@ Three consequences are worth stating plainly rather than discovering later:
   section back into `source_id`.
 - Lint still covers both sets. The runners build their lint file list through
   `scout_a lint-paths` / `scout_b lint-paths`, which returns the union and
-  raises on a manifest that is the wrong schema or is missing the process
-  section. Reading only `entries` would silently shrink lint coverage while the
-  lint log still reported success.
+  raises on a manifest that is the wrong schema or is missing the process or
+  lint-coverage section. Reading only `entries` would silently shrink lint
+  coverage while the lint log still reported success. When the tree is clean
+  there is no union to return; see "Lint coverage on a clean tree" below.
 
 A process path may not carry executable or formal source. This is enforced with
 an **allowlist**, not a denylist: a process document may only be `.md` or
@@ -218,6 +219,54 @@ Two operational rules follow. Do not create a new tracker file while a gate is
 running -- the end-of-gate recheck compares a freshly captured `git status`
 against the sealed one, so the path set must be stable even though process bytes
 are not. And bundles sealed under the superseded
-`qwen3.formal.scout.source-manifest.v0` schema are refused with
+`qwen3.formal.scout.source-manifest.v0` and `...v1` schemas are refused with
 `source manifest has an unsupported schema`; they remain on disk as historical
 evidence but are no longer machine re-verifiable.
+
+## Lint coverage on a clean tree
+
+The source manifest is derived from `git status`, so on a **clean** tree it has
+zero verified entries and zero process entries. That is not a weaker gate, it
+was a broken one: the lint path list came out empty and the stage aborted on its
+own non-empty assertion, so the committed -- and therefore clean -- state could
+not be gated at all. Measured from `d8b1016d5`: `FINAL_GATE_EXIT=1` inside the
+nested Scout A `lint` stage, whose log was ten lines of `git init` hints and
+nothing else.
+
+The runners therefore take a second host capture beside the status bytes,
+`manifests/head-commit-paths.name-only-z`, from
+`git diff-tree --root -m --no-commit-id --name-only -r -z HEAD`. It must be
+captured on the host: the lint stage runs against a throwaway bare repository
+created with `git init --bare` plus `GIT_WORK_TREE`, which has no real history
+and cannot answer a question about `HEAD`. `-m` and `--root` are both present
+because without them `git diff-tree -r` prints nothing for a merge commit and
+nothing for a repository's first commit -- both measured, not assumed.
+
+The v2 manifest carries a required `lint_coverage` section stating which of two
+cases applied, so a bundle says what its lint stage covered instead of leaving a
+reader to infer it from an entry count:
+
+- `case: dirty_tree_bytes` -- the working tree reported paths, and lint covered
+  exactly those, every one of them pinned byte-for-byte in `entries` or
+  `process_informational`. `head_commit_lint_paths` is empty, because listing
+  paths lint did not cover would misdescribe the stage.
+- `case: head_commit_paths` -- the tree was clean, so lint covered the
+  still-present files the HEAD commit touched, listed in
+  `head_commit_lint_paths`.
+
+What this does **not** change is what the manifest pins. The HEAD-commit bytes
+stay outside `source_id`: they decide what lint covers when there are no dirty
+bytes to pin, and are not an identity claim about the tree. They are still
+recomputed and compared against the sealed section on every verify, exactly like
+the process roster, so a bundle cannot claim a coverage case its lint stage
+never had. `runtime_manifest.source.lint_coverage_case` repeats the case beside `head`
+and `source_id`, and the lint stage log carries
+`SCOUT_LINT_PATHS case=... num_paths=...` and
+`SCOUT_LINT_STAGE result=success num_paths=...`.
+
+The stage body itself lives in one place, `scout_lint_stage_program` in
+`scout_a_runner_lib.sh`, so both runners execute the same program and
+`tests/unit_tests/test_qwen3_formal_scout_a.py` can **run** it against a real
+clean one-commit repository with `pre-commit` and `pyrefly` stubbed. A test that
+greps a runner for a string is how the clean-tree defect survived; these tests
+execute the stage.

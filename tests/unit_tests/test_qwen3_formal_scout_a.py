@@ -29,7 +29,10 @@ from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
     export_scout_a_lean_facts,
     export_scout_a_tla_facts,
     finalize_evidence_manifest,
+    HEAD_COMMIT_PATHS_EVIDENCE_PATH,
     is_process_source_path,
+    LINT_COVERAGE_DIRTY_TREE_BYTES,
+    LINT_COVERAGE_HEAD_COMMIT_PATHS,
     normalize_raw_trace,
     SCOUT_A_ATTEMPT_ID,
     SCOUT_A_REQUIRED_STAGES,
@@ -37,6 +40,7 @@ from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
     SCOUT_SCHEMA,
     source_manifest_lint_paths,
     SOURCE_MANIFEST_SCHEMA,
+    SOURCE_STATUS_EVIDENCE_PATH,
     validate_normalized_trace,
     verify_evidence_bundle,
     verify_source_manifest,
@@ -149,11 +153,27 @@ def _raw_trace() -> dict[str, Any]:
     }
 
 
+def _write_source_captures(
+    attempt: Path,
+    *,
+    status_bytes: bytes,
+    head_commit_paths: bytes,
+) -> tuple[Path, Path]:
+    """Write the two host captures the source manifest is derived from."""
+
+    status_path = attempt / SOURCE_STATUS_EVIDENCE_PATH
+    _write_immutable(status_path, status_bytes, root=attempt)
+    head_paths_path = attempt / HEAD_COMMIT_PATHS_EVIDENCE_PATH
+    _write_immutable(head_paths_path, head_commit_paths, root=attempt)
+    return status_path, head_paths_path
+
+
 def _create_sealable_bundle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     *,
     status_bytes: bytes = b"",
+    head_commit_paths: bytes = b"",
     source_files: dict[str, str] | None = None,
     empty_stage_log: str | None = None,
 ) -> Path:
@@ -161,6 +181,11 @@ def _create_sealable_bundle(
 
     ``source_files`` maps repository-relative paths to contents and must agree
     with ``status_bytes``; both default to an empty source tree.
+
+    ``head_commit_paths`` is the host HEAD-commit path capture. Defaulting both
+    it and ``status_bytes`` to empty seals a bundle whose lint coverage case is
+    ``head_commit_paths`` with nothing to lint, which is a truthful description
+    of an empty tree; the lint stage, not sealing, is where that fails.
 
     ``empty_stage_log`` names one required stage whose log is written zero-byte,
     which is what a stage that aborted before emitting anything leaves behind.
@@ -172,11 +197,15 @@ def _create_sealable_bundle(
         target.write_text(contents)
     attempt = tmp_path / SCOUT_A_RUN_ID / SCOUT_A_ATTEMPT_ID
     (attempt / "manifests").mkdir(parents=True)
-    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
-    _write_immutable(status_path, status_bytes, root=attempt)
+    status_path, head_paths_path = _write_source_captures(
+        attempt,
+        status_bytes=status_bytes,
+        head_commit_paths=head_commit_paths,
+    )
     source_path = attempt / "manifests" / "source.json"
     write_source_manifest(
         status_path=status_path,
+        head_paths_path=head_paths_path,
         output_path=source_path,
         repo_root=tmp_path,
         head="a" * 40,
@@ -755,13 +784,15 @@ def test_source_manifest_is_deterministic_and_detects_executable_source_change(
     source.write_text("value = 1\n")
     status = b"?? source.py\0"
 
-    first = build_source_manifest(tmp_path, "b" * 40, status)
-    second = build_source_manifest(tmp_path, "b" * 40, status)
+    first = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
+    second = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
 
     assert first == second
     source.write_text("value = 2\n")
     with pytest.raises(ValueError, match="no longer matches the current source tree"):
-        build_source_manifest(tmp_path, "b" * 40, status, expected=first)
+        build_source_manifest(
+            tmp_path, "b" * 40, status, head_commit_paths=b"", expected=first
+        )
 
 
 @pytest.mark.parametrize(
@@ -796,7 +827,7 @@ def test_process_document_bytes_do_not_change_source_identity(
     ticket.write_text("**Status:** review-pending\n")
     status = b"?? source.py\0?? .scratch/qwen3-formal-verifier/issues/03-scout-b.md\0"
 
-    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+    sealed = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
     entries = cast(list[dict[str, Any]], sealed["entries"])
     assert [entry["path"] for entry in entries] == ["source.py"]
     section = cast(dict[str, Any], sealed["process_informational"])
@@ -809,7 +840,9 @@ def test_process_document_bytes_do_not_change_source_identity(
     ticket.write_text(
         "**Status:** resolved\n\n## Gate evidence\n\nevidence_id: sha256:abc\n"
     )
-    rebuilt = build_source_manifest(tmp_path, "b" * 40, status, expected=sealed)
+    rebuilt = build_source_manifest(
+        tmp_path, "b" * 40, status, head_commit_paths=b"", expected=sealed
+    )
     assert rebuilt["source_id"] == sealed["source_id"]
 
 
@@ -818,7 +851,7 @@ def test_process_entries_are_labelled_unverified(tmp_path: Path) -> None:
     (tmp_path / ".scratch" / "notes.md").write_text("notes\n")
     status = b"?? .scratch/notes.md\0"
 
-    manifest = build_source_manifest(tmp_path, "b" * 40, status)
+    manifest = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
 
     section = cast(dict[str, Any], manifest["process_informational"])
     assert section["note"]
@@ -842,12 +875,16 @@ def test_process_root_rejects_executable_extension(tmp_path: Path) -> None:
     (tmp_path / ".scratch" / "tool.py").write_text("value = 1\n")
 
     with pytest.raises(ValueError, match="may not carry executable"):
-        build_source_manifest(tmp_path, "b" * 40, b"?? .scratch/tool.py\0")
+        build_source_manifest(
+            tmp_path, "b" * 40, b"?? .scratch/tool.py\0", head_commit_paths=b""
+        )
 
 
 def test_source_identity_payload_key_set_is_closed(tmp_path: Path) -> None:
     (tmp_path / "source.py").write_text("value = 1\n")
-    manifest = build_source_manifest(tmp_path, "b" * 40, b"?? source.py\0")
+    manifest = build_source_manifest(
+        tmp_path, "b" * 40, b"?? source.py\0", head_commit_paths=b""
+    )
 
     payload = _source_identity_payload(manifest)
 
@@ -866,7 +903,7 @@ def test_lint_paths_cover_verified_and_process_paths(tmp_path: Path) -> None:
     (tmp_path / ".scratch").mkdir()
     (tmp_path / ".scratch" / "notes.md").write_text("notes\n")
     status = b"?? source.py\0?? .scratch/notes.md\0"
-    manifest = build_source_manifest(tmp_path, "b" * 40, status)
+    manifest = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
 
     assert source_manifest_lint_paths(manifest) == (".scratch/notes.md", "source.py")
 
@@ -879,19 +916,495 @@ def test_lint_paths_cover_verified_and_process_paths(tmp_path: Path) -> None:
         source_manifest_lint_paths(stripped)
 
 
-def test_verify_source_manifest_rejects_superseded_v0_schema(
+@pytest.mark.parametrize(
+    "mutate,expected",
+    [
+        pytest.param(
+            lambda coverage: {**coverage, "case": LINT_COVERAGE_HEAD_COMMIT_PATHS},
+            f"case must be {LINT_COVERAGE_DIRTY_TREE_BYTES}",
+            id="claims_clean_while_dirty",
+        ),
+        pytest.param(
+            lambda coverage: {**coverage, "head_commit_lint_paths": ["other.py"]},
+            "must not list HEAD lint paths",
+            id="lists_head_paths_while_dirty",
+        ),
+        pytest.param(
+            lambda coverage: {**coverage, "head_commit_paths_sha256": "not-hex"},
+            "hex head_commit_paths_sha256",
+            id="non_hex_digest",
+        ),
+        pytest.param(
+            lambda coverage: {**coverage, "num_head_commit_paths": -1},
+            "must not be negative",
+            id="negative_count",
+        ),
+        pytest.param(
+            lambda coverage: {**coverage, "num_head_commit_paths": True},
+            "must be an integer",
+            id="boolean_count",
+        ),
+        pytest.param(
+            lambda coverage: {k: v for k, v in coverage.items() if k != "case"},
+            "unexpected key set",
+            id="missing_case",
+        ),
+    ],
+)
+def test_forged_lint_coverage_is_rejected(
+    mutate: Any,
+    expected: str,
     tmp_path: Path,
 ) -> None:
+    """The section states what lint covered, so a forged one must not read."""
+
+    (tmp_path / "source.py").write_text("value = 1\n")
+    manifest = build_source_manifest(
+        tmp_path,
+        "b" * 40,
+        b"?? source.py\0",
+        head_commit_paths=b"other.py\0",
+    )
+    forged = {**manifest, "lint_coverage": mutate(manifest["lint_coverage"])}
+
+    with pytest.raises(ValueError, match=expected):
+        source_manifest_lint_paths(forged)
+
+
+def test_sealed_lint_coverage_must_match_the_recomputed_section(
+    tmp_path: Path,
+) -> None:
+    """Outside source_id, so it is compared rather than hashed into identity."""
+
+    (tmp_path / "source.py").write_text("value = 1\n")
+    status = b"?? source.py\0"
+    sealed = build_source_manifest(
+        tmp_path,
+        "b" * 40,
+        status,
+        head_commit_paths=b"other.py\0",
+    )
+    coverage = cast(dict[str, Any], sealed["lint_coverage"])
+    forged = {
+        **sealed,
+        "lint_coverage": {**coverage, "head_commit_paths_sha256": "0" * 64},
+    }
+
+    # Identity is untouched by the forgery, which is exactly why the section
+    # needs its own comparison.
+    assert _source_identity_payload(forged) == _source_identity_payload(sealed)
+    with pytest.raises(ValueError, match="lint coverage does not match"):
+        build_source_manifest(
+            tmp_path,
+            "b" * 40,
+            status,
+            head_commit_paths=b"other.py\0",
+            expected=forged,
+        )
+
+
+def test_head_commit_paths_stay_out_of_the_source_identity(
+    tmp_path: Path,
+) -> None:
+    """Criterion: the fallback decides what to lint, not what is pinned."""
+
+    (tmp_path / "source.py").write_text("value = 1\n")
+    status = b"?? source.py\0"
+    without = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
+    with_paths = build_source_manifest(
+        tmp_path, "b" * 40, status, head_commit_paths=b"source.py\0other.py\0"
+    )
+
+    assert with_paths["source_id"] == without["source_id"]
+    assert with_paths["entries"] == without["entries"]
+    assert with_paths["lint_coverage"] != without["lint_coverage"]
+    # Lint still covers only the dirty bytes while the tree is dirty.
+    assert source_manifest_lint_paths(with_paths) == ("source.py",)
+
+
+def test_duplicate_head_commit_paths_from_merge_diffs_collapse(
+    tmp_path: Path,
+) -> None:
+    """``git diff-tree -m`` emits one diff per parent, so paths repeat."""
+
+    (tmp_path / "module.py").write_text("value = 1\n")
+
+    manifest = build_source_manifest(
+        tmp_path,
+        "b" * 40,
+        b"",
+        head_commit_paths=b"module.py\0module.py\0missing.py\0",
+    )
+
+    coverage = cast(dict[str, Any], manifest["lint_coverage"])
+    assert coverage["case"] == LINT_COVERAGE_HEAD_COMMIT_PATHS
+    assert coverage["num_head_commit_paths"] == 2
+    # missing.py is reported by the commit but absent now, so it is dropped.
+    assert coverage["head_commit_lint_paths"] == ["module.py"]
+    assert source_manifest_lint_paths(manifest) == ("module.py",)
+
+
+def _lint_stage_program() -> str:
+    """Return the exact bash program the gate's lint stage runs."""
+
+    result = subprocess.run(
+        ["bash", "-c", f"source {RUNNER_LIBRARY}; scout_lint_stage_program"],
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout.decode()
+
+
+def _write_stub_tool(directory: Path, name: str) -> None:
+    """Install a PATH stub that echoes its argument list and succeeds.
+
+    pre-commit and pyrefly are the two tools the lint stage shells out to. What
+    is under test is the stage's own behaviour -- which paths it derives and
+    which it hands on -- so the tools are stubbed and their argument lists are
+    read back out of the stage's captured output.
+    """
+
+    script = directory / name
+    script.write_text(
+        "#!/usr/bin/env bash\n"
+        f'printf "{name}"\n'
+        'for argument in "$@"; do printf " %s" "${argument}"; done\n'
+        'printf "\\n"\n'
+        "exit 0\n"
+    )
+    script.chmod(0o755)
+
+
+def _run_lint_stage(
+    *,
+    repo_root: Path,
+    attempt_dir: Path,
+    scratch_dir: Path,
+    head: str,
+    stub_dir: Path,
+    identity: str = "lint-stage-test",
+) -> subprocess.CompletedProcess[bytes]:
+    """Execute the gate's lint stage against a throwaway tree."""
+
+    program = _lint_stage_program()
+    environment = dict(os.environ)
+    environment["PATH"] = f"{stub_dir}{os.pathsep}{environment['PATH']}"
+    environment["PYTHONPATH"] = str(REPO_ROOT)
+    environment["TORCHTITAN_IN_ROOTFS"] = "1"
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            program,
+            "scout-a-lint-stage-test",
+            "scout_a",
+            str(repo_root),
+            str(scratch_dir),
+            identity,
+            str(attempt_dir / "manifests" / "source.json"),
+            str(attempt_dir / SOURCE_STATUS_EVIDENCE_PATH),
+            str(attempt_dir / HEAD_COMMIT_PATHS_EVIDENCE_PATH),
+            head,
+            str(attempt_dir),
+        ],
+        capture_output=True,
+        env=environment,
+    )
+
+
+def _committed_source_tree(tmp_path: Path) -> tuple[Path, str, bytes, bytes]:
+    """Build a real one-commit repository and capture the host Git evidence.
+
+    Returns the repository root, HEAD, the porcelain status bytes, and the
+    HEAD-commit path bytes -- the two captures the runners take on the host,
+    taken here with the same commands.
+    """
+
+    repo_root = tmp_path / "repo"
+    (repo_root / ".scratch").mkdir(parents=True)
+    (repo_root / "module.py").write_text("value = 1\n")
+    (repo_root / "script.sh").write_text("#!/usr/bin/env bash\necho ok\n")
+    (repo_root / ".scratch" / "notes.md").write_text("notes\n")
+    git = ["git", "-C", str(repo_root)]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", "-A"], check=True)
+    subprocess.run(
+        [
+            *git,
+            "-c",
+            "user.name=scout",
+            "-c",
+            "user.email=scout@example.invalid",  # pii-allow: fixture identity
+            "commit",
+            "-q",
+            "-m",
+            "one",
+        ],
+        check=True,
+    )
+    head = (
+        subprocess.run(
+            [*git, "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    status_bytes = subprocess.run(
+        [*git, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        capture_output=True,
+        check=True,
+    ).stdout
+    head_commit_paths = subprocess.run(
+        [
+            *git,
+            "diff-tree",
+            "--root",
+            "-m",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "-z",
+            "HEAD",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    return repo_root, head, status_bytes, head_commit_paths
+
+
+def test_lint_stage_lints_the_head_commit_when_the_tree_is_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ticket-25 regression, run rather than read.
+
+    Gating a committed state means gating a clean tree. The source manifest is
+    derived from ``git status``, so a clean tree reported zero entries, the path
+    list was empty, and the stage died on its own non-empty assertion with a
+    ten-line log. This executes the stage's real program against a real clean
+    one-commit repository.
+    """
+
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    repo_root, head, status_bytes, head_commit_paths = _committed_source_tree(tmp_path)
+    assert status_bytes == b"", "the fixture repository must be clean"
+
     attempt = tmp_path / "attempt"
     (attempt / "manifests").mkdir(parents=True)
-    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
-    _write_immutable(status_path, b"", root=attempt)
+    status_path, head_paths_path = _write_source_captures(
+        attempt,
+        status_bytes=status_bytes,
+        head_commit_paths=head_commit_paths,
+    )
+    write_source_manifest(
+        status_path=status_path,
+        head_paths_path=head_paths_path,
+        output_path=attempt / "manifests" / "source.json",
+        repo_root=repo_root,
+        head=head,
+        attempt_dir=attempt,
+    )
+    manifest = json.loads((attempt / "manifests" / "source.json").read_text())
+    coverage = manifest["lint_coverage"]
+    assert manifest["entries"] == []
+    assert coverage["case"] == LINT_COVERAGE_HEAD_COMMIT_PATHS
+    assert coverage["head_commit_lint_paths"] == [
+        ".scratch/notes.md",
+        "module.py",
+        "script.sh",
+    ]
+
+    stub_dir = tmp_path / "stubs"
+    stub_dir.mkdir()
+    for tool in ("pre-commit", "pyrefly"):
+        _write_stub_tool(stub_dir, tool)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+
+    result = _run_lint_stage(
+        repo_root=repo_root,
+        attempt_dir=attempt,
+        scratch_dir=scratch,
+        head=head,
+        stub_dir=stub_dir,
+    )
+
+    stdout = result.stdout.decode()
+    stderr = result.stderr.decode()
+    assert result.returncode == 0, stdout + stderr
+    assert "SCOUT_LINT_STAGE result=success num_paths=3" in stdout
+    assert (
+        f"SCOUT_LINT_PATHS case={LINT_COVERAGE_HEAD_COMMIT_PATHS} num_paths=3"
+    ) in stderr
+    # Every declared hook ran, over exactly the HEAD-commit paths.
+    hook_lines = [line for line in stdout.splitlines() if line.startswith("pre-commit")]
+    assert len(hook_lines) == 13, hook_lines
+    for line in hook_lines:
+        assert line.endswith("--files .scratch/notes.md module.py script.sh"), line
+    assert (
+        "pyrefly check --remove-unused-ignores --summarize-errors module.py" in stdout
+    )
+
+
+def test_lint_stage_still_lints_the_dirty_tree_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dirty-tree path is unchanged: lint covers the reported paths only.
+
+    Shown rather than asserted. ``module.py`` is committed and untouched, so it
+    appears in the HEAD-commit capture but must not be linted while the tree is
+    dirty -- the fallback is a fallback.
+    """
+
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    repo_root, head, _, head_commit_paths = _committed_source_tree(tmp_path)
+    (repo_root / "script.sh").write_text("#!/usr/bin/env bash\necho changed\n")
+    (repo_root / "added.py").write_text("value = 2\n")
+    status_bytes = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert status_bytes != b""
+
+    attempt = tmp_path / "attempt"
+    (attempt / "manifests").mkdir(parents=True)
+    status_path, head_paths_path = _write_source_captures(
+        attempt,
+        status_bytes=status_bytes,
+        head_commit_paths=head_commit_paths,
+    )
+    write_source_manifest(
+        status_path=status_path,
+        head_paths_path=head_paths_path,
+        output_path=attempt / "manifests" / "source.json",
+        repo_root=repo_root,
+        head=head,
+        attempt_dir=attempt,
+    )
+    manifest = json.loads((attempt / "manifests" / "source.json").read_text())
+    coverage = manifest["lint_coverage"]
+    assert coverage["case"] == LINT_COVERAGE_DIRTY_TREE_BYTES
+    assert coverage["head_commit_lint_paths"] == []
+    assert coverage["num_head_commit_paths"] == 3
+    assert [entry["path"] for entry in manifest["entries"]] == [
+        "added.py",
+        "script.sh",
+    ]
+
+    stub_dir = tmp_path / "stubs"
+    stub_dir.mkdir()
+    for tool in ("pre-commit", "pyrefly"):
+        _write_stub_tool(stub_dir, tool)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+
+    result = _run_lint_stage(
+        repo_root=repo_root,
+        attempt_dir=attempt,
+        scratch_dir=scratch,
+        head=head,
+        stub_dir=stub_dir,
+    )
+
+    stdout = result.stdout.decode()
+    assert result.returncode == 0, stdout + result.stderr.decode()
+    assert "SCOUT_LINT_STAGE result=success num_paths=2" in stdout
+    assert (
+        f"SCOUT_LINT_PATHS case={LINT_COVERAGE_DIRTY_TREE_BYTES} num_paths=2"
+    ) in result.stderr.decode()
+    hook_lines = [line for line in stdout.splitlines() if line.startswith("pre-commit")]
+    assert len(hook_lines) == 13, hook_lines
+    for line in hook_lines:
+        assert line.endswith("--files added.py script.sh"), line
+    assert "module.py" not in stdout
+
+
+def test_lint_stage_fails_with_a_diagnosis_when_nothing_is_lintable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty tree has nothing to lint, and must say so.
+
+    This is the shape of the original failure -- no paths at all -- and the
+    stage must now name the reason instead of exiting on a bare arithmetic
+    assertion with an otherwise empty log.
+    """
+
+    monkeypatch.setenv("TORCHTITAN_IN_ROOTFS", "1")
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    attempt = tmp_path / "attempt"
+    (attempt / "manifests").mkdir(parents=True)
+    status_path, head_paths_path = _write_source_captures(
+        attempt,
+        status_bytes=b"",
+        head_commit_paths=b"",
+    )
+    write_source_manifest(
+        status_path=status_path,
+        head_paths_path=head_paths_path,
+        output_path=attempt / "manifests" / "source.json",
+        repo_root=repo_root,
+        head="b" * 40,
+        attempt_dir=attempt,
+    )
+    stub_dir = tmp_path / "stubs"
+    stub_dir.mkdir()
+    for tool in ("pre-commit", "pyrefly"):
+        _write_stub_tool(stub_dir, tool)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+
+    result = _run_lint_stage(
+        repo_root=repo_root,
+        attempt_dir=attempt,
+        scratch_dir=scratch,
+        head="b" * 40,
+        stub_dir=stub_dir,
+    )
+
+    assert result.returncode != 0
+    assert "the source manifest yields no lint paths" in result.stderr.decode()
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        pytest.param("qwen3.formal.scout.source-manifest.v0", id="v0"),
+        pytest.param("qwen3.formal.scout.source-manifest.v1", id="v1"),
+    ],
+)
+def test_verify_source_manifest_rejects_superseded_schemas(
+    schema: str,
+    tmp_path: Path,
+) -> None:
+    """A v1 manifest records no lint coverage, so it is refused, not read."""
+
+    attempt = tmp_path / "attempt"
+    (attempt / "manifests").mkdir(parents=True)
+    status_path, head_paths_path = _write_source_captures(
+        attempt,
+        status_bytes=b"",
+        head_commit_paths=b"",
+    )
     manifest_path = attempt / "manifests" / "source.json"
     _write_immutable(
         manifest_path,
         json.dumps(
             {
-                "schema": "qwen3.formal.scout.source-manifest.v0",
+                "schema": schema,
                 "head": "b" * 40,
                 "status_sha256": "0" * 64,
                 "entries": [],
@@ -905,6 +1418,7 @@ def test_verify_source_manifest_rejects_superseded_v0_schema(
         verify_source_manifest(
             manifest_path,
             status_path,
+            head_paths_path=head_paths_path,
             repo_root=tmp_path,
             expected_head="b" * 40,
             attempt_dir=attempt,
@@ -914,8 +1428,11 @@ def test_verify_source_manifest_rejects_superseded_v0_schema(
 def test_verify_rejects_process_entry_that_fails_predicate(tmp_path: Path) -> None:
     attempt = tmp_path / "attempt"
     (attempt / "manifests").mkdir(parents=True)
-    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
-    _write_immutable(status_path, b"", root=attempt)
+    status_path, head_paths_path = _write_source_captures(
+        attempt,
+        status_bytes=b"",
+        head_commit_paths=b"",
+    )
     manifest_path = attempt / "manifests" / "source.json"
     _write_immutable(
         manifest_path,
@@ -950,6 +1467,7 @@ def test_verify_rejects_process_entry_that_fails_predicate(tmp_path: Path) -> No
         verify_source_manifest(
             manifest_path,
             status_path,
+            head_paths_path=head_paths_path,
             repo_root=tmp_path,
             expected_head="b" * 40,
             attempt_dir=attempt,
@@ -1367,12 +1885,27 @@ def test_complete_sealed_bundle_rejects_unmanaged_file(
         )
 
 
-def _v1_manifest_with_process(
+def _manifest_with_process(
     entries: list[dict[str, Any]],
     process_entries: list[dict[str, Any]],
+    *,
+    head_commit_lint_paths: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    """Hand-build a v1 manifest so forged process sections can be exercised."""
+    """Hand-build a manifest so forged sections can be exercised.
 
+    The lint-coverage case is derived from the entries exactly as production
+    derives it, so a hand-built manifest is not accidentally self-inconsistent
+    and the forged-section tests still fail for the reason they name.
+    """
+
+    dirty = {
+        entry["path"]
+        for entry in (*entries, *process_entries)
+        if isinstance(entry, dict)
+        and isinstance(entry.get("path"), str)
+        and entry.get("kind") != "deleted"
+    }
+    case = LINT_COVERAGE_DIRTY_TREE_BYTES if dirty else LINT_COVERAGE_HEAD_COMMIT_PATHS
     return {
         "schema": SOURCE_MANIFEST_SCHEMA,
         "head": "b" * 40,
@@ -1383,6 +1916,13 @@ def _v1_manifest_with_process(
             "note": "n",
             "predicate": "p",
             "entries": process_entries,
+        },
+        "lint_coverage": {
+            "note": "n",
+            "case": case,
+            "head_commit_paths_sha256": "0" * 64,
+            "num_head_commit_paths": len(head_commit_lint_paths),
+            "head_commit_lint_paths": list(head_commit_lint_paths),
         },
     }
 
@@ -1400,7 +1940,7 @@ def _good_process_entry(path_text: str = ".scratch/notes.md") -> dict[str, Any]:
 
 
 def test_lint_paths_accepts_a_well_formed_process_section() -> None:
-    manifest = _v1_manifest_with_process([], [_good_process_entry()])
+    manifest = _manifest_with_process([], [_good_process_entry()])
 
     assert source_manifest_lint_paths(manifest) == (".scratch/notes.md",)
 
@@ -1421,7 +1961,7 @@ def test_lint_paths_rejects_paths_that_must_not_reach_lint(
 ) -> None:
     """The path list is handed to git add and pre-commit --files verbatim."""
 
-    manifest = _v1_manifest_with_process(
+    manifest = _manifest_with_process(
         [{"status": "??", "path": path_text, "kind": "file"}],
         [],
     )
@@ -1506,7 +2046,7 @@ def test_forged_process_entries_are_rejected(
 ) -> None:
     """A forged process section must never reach lint or verification."""
 
-    manifest = _v1_manifest_with_process([], [mutate(_good_process_entry())])
+    manifest = _manifest_with_process([], [mutate(_good_process_entry())])
 
     with pytest.raises(ValueError, match=expected):
         source_manifest_lint_paths(manifest)
@@ -1524,13 +2064,16 @@ def test_process_entry_cannot_hide_a_present_file_as_deleted(
 
     attempt = tmp_path / "attempt"
     (attempt / "manifests").mkdir(parents=True)
-    status_path = attempt / "manifests" / "source-status.porcelain-v1-z"
-    _write_immutable(status_path, b"", root=attempt)
+    status_path, head_paths_path = _write_source_captures(
+        attempt,
+        status_bytes=b"",
+        head_commit_paths=b"",
+    )
     (tmp_path / ".scratch").mkdir()
     (tmp_path / ".scratch" / "notes.md").write_text("present\n")
 
-    forged = _v1_manifest_with_process(
-        [],
+    forged = _manifest_with_process(
+        [{"status": "??", "path": "source.py", "kind": "file"}],
         [
             {
                 "status": "??",
@@ -1544,11 +2087,12 @@ def test_process_entry_cannot_hide_a_present_file_as_deleted(
     _write_immutable(manifest_path, json.dumps(forged), root=attempt)
 
     # Lint alone cannot see it, which is why verification must.
-    assert source_manifest_lint_paths(forged) == ()
+    assert source_manifest_lint_paths(forged) == ("source.py",)
     with pytest.raises(ValueError, match="recorded deleted but the file is present"):
         verify_source_manifest(
             manifest_path,
             status_path,
+            head_paths_path=head_paths_path,
             repo_root=tmp_path,
             expected_head="b" * 40,
             attempt_dir=attempt,
@@ -1569,7 +2113,7 @@ def test_malformed_manifest_raises_value_error_not_programmer_error() -> None:
                 },
             }
         )
-    manifest = _v1_manifest_with_process([{"path": ".scratch/x.md"}], [])
+    manifest = _manifest_with_process([{"path": ".scratch/x.md"}], [])
     with pytest.raises(ValueError, match="never reach the verified source entry list"):
         source_manifest_lint_paths(manifest)
 
@@ -1589,15 +2133,21 @@ def test_process_membership_changes_source_id_but_content_does_not(
     (scratch / "one.md").write_text("one\n")
     status_one = b"?? source.py\0?? .scratch/one.md\0"
 
-    baseline = build_source_manifest(tmp_path, "b" * 40, status_one)
+    baseline = build_source_manifest(
+        tmp_path, "b" * 40, status_one, head_commit_paths=b""
+    )
 
     (scratch / "one.md").write_text("substantially rewritten tracker text\n")
-    text_changed = build_source_manifest(tmp_path, "b" * 40, status_one)
+    text_changed = build_source_manifest(
+        tmp_path, "b" * 40, status_one, head_commit_paths=b""
+    )
     assert text_changed["source_id"] == baseline["source_id"]
 
     (scratch / "two.md").write_text("two\n")
     status_two = b"?? source.py\0?? .scratch/one.md\0?? .scratch/two.md\0"
-    path_added = build_source_manifest(tmp_path, "b" * 40, status_two)
+    path_added = build_source_manifest(
+        tmp_path, "b" * 40, status_two, head_commit_paths=b""
+    )
     assert path_added["source_id"] != baseline["source_id"]
     assert path_added["entries"] == baseline["entries"]
 
@@ -1617,7 +2167,7 @@ def test_process_roster_omission_is_rejected(tmp_path: Path) -> None:
     (scratch / "hidden.md").write_text("hidden\n")
     status = b"?? source.py\0?? .scratch/kept.md\0?? .scratch/hidden.md\0"
 
-    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+    sealed = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
     section = cast(dict[str, Any], sealed["process_informational"])
     assert len(cast(list[dict[str, Any]], section["entries"])) == 2
 
@@ -1631,14 +2181,16 @@ def test_process_roster_omission_is_rejected(tmp_path: Path) -> None:
     assert ".scratch/hidden.md" not in source_manifest_lint_paths(forged)
 
     with pytest.raises(ValueError, match="process roster does not match"):
-        build_source_manifest(tmp_path, "b" * 40, status, expected=forged)
+        build_source_manifest(
+            tmp_path, "b" * 40, status, head_commit_paths=b"", expected=forged
+        )
 
 
 def test_process_roster_addition_is_rejected(tmp_path: Path) -> None:
     (tmp_path / ".scratch").mkdir()
     (tmp_path / ".scratch" / "real.md").write_text("real\n")
     status = b"?? .scratch/real.md\0"
-    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+    sealed = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
 
     forged = json.loads(json.dumps(sealed))
     forged["process_informational"]["entries"].append(
@@ -1654,7 +2206,9 @@ def test_process_roster_addition_is_rejected(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="process roster does not match"):
-        build_source_manifest(tmp_path, "b" * 40, status, expected=forged)
+        build_source_manifest(
+            tmp_path, "b" * 40, status, head_commit_paths=b"", expected=forged
+        )
 
 
 @pytest.mark.parametrize(
@@ -1681,8 +2235,10 @@ def test_deleting_a_captured_process_path_fails_verification(
     tracker = tmp_path / ".scratch" / "notes.md"
     tracker.write_text("notes\n")
     status = b"?? .scratch/notes.md\0"
-    sealed = build_source_manifest(tmp_path, "b" * 40, status)
+    sealed = build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
 
     tracker.unlink()
     with pytest.raises(ValueError, match="missing without deletion status"):
-        build_source_manifest(tmp_path, "b" * 40, status, expected=sealed)
+        build_source_manifest(
+            tmp_path, "b" * 40, status, head_commit_paths=b"", expected=sealed
+        )

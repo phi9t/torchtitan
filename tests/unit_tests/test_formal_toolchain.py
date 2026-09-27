@@ -1560,7 +1560,7 @@ def test_generated_checker_products_are_refused_from_source_identity(
 
     status = b"?? experiments/qwen3_formal_verifier/formal/states/TlcSmokeBad.st\0"
     with pytest.raises(ValueError, match="generated model-checker products"):
-        build_source_manifest(tmp_path, "b" * 40, status)
+        build_source_manifest(tmp_path, "b" * 40, status, head_commit_paths=b"")
 
 
 @pytest.mark.parametrize(
@@ -1594,7 +1594,9 @@ def test_generated_checker_product_guard_is_not_overbroad(
     target = tmp_path / path_text
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("value = 1\n")
-    manifest = build_source_manifest(tmp_path, "b" * 40, f"?? {path_text}\0".encode())
+    manifest = build_source_manifest(
+        tmp_path, "b" * 40, f"?? {path_text}\0".encode(), head_commit_paths=b""
+    )
 
     entries = cast(list[dict[str, Any]], manifest["entries"])
     assert [entry["path"] for entry in entries] == [path_text]
@@ -1630,7 +1632,9 @@ def test_generated_checker_products_are_refused(
     target.write_text("generated\n")
 
     with pytest.raises(ValueError, match="generated model-checker products"):
-        build_source_manifest(tmp_path, "b" * 40, f"?? {path_text}\0".encode())
+        build_source_manifest(
+            tmp_path, "b" * 40, f"?? {path_text}\0".encode(), head_commit_paths=b""
+        )
 
 
 def test_checker_contract_rejects_a_crash_after_the_expected_diagnostic() -> None:
@@ -1693,6 +1697,37 @@ def test_runners_reject_an_empty_stage_log() -> None:
         assert "produced an empty log" in runner, name
 
 
+def _lint_stage_program() -> str:
+    """Return the lint-stage program both runners execute.
+
+    The stage body used to be pasted into each runner, so these contracts read
+    the runner text. It now lives in one emitter in the runner library, which is
+    also what the executing clean-tree test in test_qwen3_formal_scout_a.py
+    runs, so the text is read from there instead.
+    """
+
+    library = (
+        REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "scout_a_runner_lib.sh"
+    )
+    result = subprocess.run(
+        ["bash", "-c", f"source {library}; scout_lint_stage_program"],
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout.decode()
+
+
+def test_both_runners_use_the_shared_lint_stage_program() -> None:
+    """Neither runner may keep a private copy of the lint stage body."""
+
+    for name in ("run_scout_a.sh", "run_scout_b.sh"):
+        runner = (
+            REPO_ROOT / "experiments" / "qwen3_formal_verifier" / name
+        ).read_text()
+        assert 'bash -lc "$(scout_lint_stage_program)"' in runner, name
+        assert "git init --bare" not in runner, name
+
+
 def test_runners_syntax_check_every_shell_file_not_just_the_first() -> None:
     """`bash -n a.sh b.sh` parses only a.sh; the rest become arguments.
 
@@ -1715,12 +1750,9 @@ def test_runners_syntax_check_every_shell_file_not_just_the_first() -> None:
     assert both.returncode == 0, "bash -n silently ignores files after the first"
     assert only_bad.returncode != 0, "the second file really is malformed"
 
-    for name in ("run_scout_a.sh", "run_scout_b.sh"):
-        runner = (
-            REPO_ROOT / "experiments" / "qwen3_formal_verifier" / name
-        ).read_text()
-        assert 'bash -n "${shell_file}"' in runner, name
-        assert 'bash -n "${shell_files[@]}"' not in runner, name
+    program = _lint_stage_program()
+    assert 'bash -n "${shell_file}"' in program
+    assert 'bash -n "${shell_files[@]}"' not in program
 
 
 B_MODEL = FORMAL_DIR / "ScoutBModel.tla"
@@ -3160,12 +3192,9 @@ def test_lint_path_file_does_not_collide_across_runs() -> None:
     any output, which surfaced only as a zero-byte log.
     """
 
-    for name in ("run_scout_a.sh", "run_scout_b.sh"):
-        runner = (
-            REPO_ROOT / "experiments" / "qwen3_formal_verifier" / name
-        ).read_text()
-        assert "mktemp /project/tmp/lint-paths." in runner, name
-        assert '"/project/tmp/${lint_identity}.paths"' not in runner, name
+    program = _lint_stage_program()
+    assert 'mktemp "${scratch_dir}/lint-paths.' in program
+    assert '"${scratch_dir}/${lint_identity}.paths"' not in program
 
 
 TIER0_RUNNER = (
