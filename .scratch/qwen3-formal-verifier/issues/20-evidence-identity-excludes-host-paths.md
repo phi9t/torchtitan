@@ -13,7 +13,7 @@ the ledger was advertising it as available.
 
 ## The problem
 
-`scout_append_stage` (`experiments/qwen3_formal_verifier/scout_a_runner_lib.sh`)
+`qfv_append_stage` (`experiments/qwen3_formal_verifier/runner_lib.sh`)
 records the full stage command, which contains absolute host paths. Verified in
 the current bundle:
 

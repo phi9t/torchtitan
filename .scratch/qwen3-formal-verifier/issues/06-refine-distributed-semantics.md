@@ -10,11 +10,12 @@ work, executor, producer, and causal consistency by both formal backends.
 
 ## Status note (2026-09-26): partly delivered by ticket 11
 
-Ticket 11 delivered the protocol layer: `ScoutBModel.tla` with per-communicator
-FIFO, rendezvous membership and op agreement, stream-head ordering and deadlock
-freedom, checked over every interleaving; `PerCommunicatorIssueOrderAgreement`
-checked against the real 108-collective run; and negatives that TLC discovers,
-including the one showing order agreement is necessary but **not** sufficient.
+Ticket 11 delivered the protocol layer: `DeviceMeshModel.tla` with
+per-communicator FIFO, rendezvous membership and op agreement, stream-head
+ordering and deadlock freedom, checked over every interleaving;
+`PerCommunicatorIssueOrderAgreement` checked against the real 108-collective
+run; and negatives that TLC discovers, including the one showing order agreement
+is necessary but **not** sufficient.
 
 Two corrections from that work that this ticket's wording predates:
 
@@ -45,15 +46,15 @@ What remains from this ticket:
   premature step completion.
 - [ ] Each checker result is tied to the exact mutation it exercises; no broad
   failure-class or arbitrary-topology claim is made.
-- [ ] The accepted Scout B trace remains green, and incomplete four-rank bundles
-  remain ineligible for export.
+- [ ] The accepted Device-mesh trace remains green, and incomplete four-rank
+  bundles remain ineligible for export.
 - [ ] Generated facts, maintained semantics, raw evidence, and normalization
   provenance remain distinct and auditable.
 - [ ] This ticket owns the distributed topology, placement, and collective
   module and consumes ticket 04's stable contract without redefining the
   single-rank lifecycle semantics owned by ticket 05; ticket 07 composes the
   independently reviewable refinements.
-- [ ] From the final state, the supported Scout A and Scout B commands
+- [ ] From the final state, the supported Single-rank and Device-mesh commands
   re-execute the real 1x1 and 2x2 Trainer paths and both formal backends;
   checked-in or replayed fixtures alone do not satisfy this regression gate.
 - [ ] Focused/distributed tests, lint, and separate Standards and Spec reviews

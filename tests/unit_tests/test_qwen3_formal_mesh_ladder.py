@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Tests for deriving a ScoutBModel instance for a mesh of any degree.
+"""Tests for deriving a DeviceMeshModel instance for a mesh of any degree.
 
 The load-bearing test is the equivalence one: TLC over the DERIVED 2x2 instance
 must explore exactly the state graph the shipped hand-written instance does,
@@ -32,7 +32,7 @@ from torchtitan.experiments.qwen3_formal_verifier.mesh_ladder import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FORMAL_DIR = REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "formal"
 
-# The shipped instance, transcribed from ScoutBModel.tla's CommMembers2x2 and
+# The shipped instance, transcribed from DeviceMeshModel.tla's CommMembers2x2 and
 # CommOps2x2. The point of holding it here is to fail when either side moves.
 SHIPPED_2X2_MEMBERS = {
     (0, 1): 1,  # tp
@@ -106,10 +106,10 @@ def _run_tlc(tmp_path: Path, dp_shard: int, tp: int, max_issues: int) -> str:
 
     work = tmp_path / f"d{dp_shard}t{tp}m{max_issues}"
     work.mkdir()
-    shutil.copy(FORMAL_DIR / "ScoutBModel.tla", work / "ScoutBModel.tla")
+    shutil.copy(FORMAL_DIR / "DeviceMeshModel.tla", work / "DeviceMeshModel.tla")
     instance = derive_instance(dp_shard, tp)
-    (work / "ScoutBMeshLadder.tla").write_text(render_module(instance))
-    (work / "ScoutBMeshLadder.cfg").write_text(
+    (work / "DeviceMeshMeshLadder.tla").write_text(render_module(instance))
+    (work / "DeviceMeshMeshLadder.cfg").write_text(
         render_cfg(instance, max_issues=max_issues)
     )
     completed = subprocess.run(
@@ -123,12 +123,12 @@ def _run_tlc(tmp_path: Path, dp_shard: int, tp: int, max_issues: int) -> str:
             str(toolchain.tla2tools),
             "tlc2.TLC",
             "-config",
-            "ScoutBMeshLadder.cfg",
+            "DeviceMeshMeshLadder.cfg",
             "-metadir",
             str(work / "states"),
             "-workers",
             "4",
-            "ScoutBMeshLadder",
+            "DeviceMeshMeshLadder",
         ],
         cwd=work,
         text=True,

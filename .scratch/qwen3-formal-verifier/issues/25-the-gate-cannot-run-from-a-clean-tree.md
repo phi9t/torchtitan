@@ -18,11 +18,11 @@ It fails:
 FINAL_GATE_EXIT=1
 source_manifest exit=0   focused_pytest exit=0   cuda_pytest exit=0
 owning_pytest   exit=0   artifact_sync  exit=0
-error: stage command failed ... scout-a-regression.log
+error: stage command failed ... single-rank-regression.log
 ```
 
-The failure is inside the nested Scout A gate's `lint` stage, whose log is ten
-lines long -- the `git init` hints and nothing else. No pre-commit hook ran.
+The failure is inside the nested Single-rank gate's `lint` stage, whose log is
+ten lines long -- the `git init` hints and nothing else. No pre-commit hook ran.
 
 Cause: the source manifest is derived from `git status`, so on a clean tree it
 has
@@ -108,8 +108,8 @@ it was not.
 The fix landed in `47ebae4d9` and the gate then ran from the clean committed
 tree at that commit: all nine stages exit 0 at both levels, with
 `lint_coverage.case = head_commit_paths` over 10 paths spanning Python, shell
-and tests. Scout B
-evidence `sha256:ab0524d8...`, Scout A nested `sha256:19572fec...`.
+and tests. Device-mesh
+evidence `sha256:ab0524d8...`, Single-rank nested `sha256:19572fec...`.
 
 Tickets 03 and 10 are resolved against that bundle, which is what criterion 4
 asked for and what had been unreachable since the project began.

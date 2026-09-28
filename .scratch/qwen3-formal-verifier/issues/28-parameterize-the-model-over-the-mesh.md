@@ -1,6 +1,6 @@
 # 28 — Parameterize the protocol model over the mesh
 
-**What to build:** A generated instance of `ScoutBModel` derived from an
+**What to build:** A generated instance of `DeviceMeshModel` derived from an
 observed mesh, replacing the hand-written 2x2 instance, so the invariants can be
 checked past one configuration.
 
@@ -14,8 +14,8 @@ prerequisite and replacing the hand-written quadruple remain.
 ## Answered, and how
 
 `mesh_ladder.py` derives the instance for a dp_shard x tp mesh of any degree,
-and a generated module EXTENDS `ScoutBModel` rather than editing it. That is the
-seam that made this safe to do at all: the invariants are defined over the
+and a generated module EXTENDS `DeviceMeshModel` rather than editing it. That is
+the seam that made this safe to do at all: the invariants are defined over the
 CONSTANTS, so binding different ones checks the same properties against a
 different mesh while the twenty shipped cfgs and the runner's awk scraper over
 the 2x2 definition names stay untouched.
@@ -65,7 +65,7 @@ incomplete rather than as evidence.
 - The shipped hand-written quadruple is not yet replaced by generated
   definitions. The equivalence result above is what would make that safe, and it
   would also retire the awk scraper's dependency on those four names.
-- `ScoutDistributed.tla` still hardcodes 2x2 independently.
+- `MeshTopology.tla` still hardcodes 2x2 independently.
 - Meshes with a third non-trivial axis are not covered: the mesh-name convention
   for `dp_replicate` was not observed, and inventing one would be exactly the
   kind of unmeasured assumption this ticket is trying to remove.
@@ -104,7 +104,7 @@ sound generator source.
 
 ## The prerequisite, localized exactly
 
-`_runtime_topology` in `scout_b.py` **already calls**
+`_runtime_topology` in `device_mesh.py` **already calls**
 `trainer.parallel_dims.get_all_one_dimensional_meshes()`. It then throws most of
 the answer away:
 
@@ -139,7 +139,7 @@ means:
 - the `MESH_AXES` / `MESH_DEGREES` literal assertions become wrong as written;
 - two gate runs, one to accept the new trace and one to confirm check mode
   passes against it;
-- an audit of the 20 cfgs and `ScoutDistributed.tla`, both of which encode 2x2
+- an audit of the 20 cfgs and `MeshTopology.tla`, both of which encode 2x2
   independently.
 
 That is a full ticket, not a quick fix, and it touches a converged gated path.
@@ -158,23 +158,24 @@ evidence, not merely a phase-5 inconvenience, and it has to land first.
 Changing the exporter moves the recorded trace, so it needs a 4-rank gate run to
 regenerate fixtures. That is the expensive part of this ticket.
 
-Name collision to beware when reading `scout_b.py`: `:281` and `:314` use the
-key `"batch"` for `local_batch_size`/`global_batch_size` in the profile check.
-That is the training batch size, not the `batch` mesh axis, and it is not
+Name collision to beware when reading `device_mesh.py`: `:281` and `:314` use
+the key `"batch"` for `local_batch_size`/`global_batch_size` in the profile
+check. That is the training batch size, not the `batch` mesh axis, and it is not
 evidence the axis is covered.
 
 ## Four binding sites beyond the model file
 
 1. **Twenty cfgs** bind `Ranks2x2 / CommIds2x2 / CommMembers2x2 / CommOps2x2` by
    definition override. Parameterizing the model alone changes nothing.
-2. `run_tlc_scout_b_model.sh:189-200` **textually scrapes those four names with
-   awk** to build its `bound_ranks=` / `bound_communicators=` token. Rename them
-   and the token silently reports the wrong bound -- a result token claiming
-   more scope than the run had, which is item 5 of the review checklist.
-3. `ScoutDistributed.tla:7-27,207-215` **independently hardcodes 2x2** in
+2. `run_tlc_device_mesh_model.sh:189-200` **textually scrapes those four names
+   with awk** to build its `bound_ranks=` / `bound_communicators=` token. Rename
+   them and the token silently reports the wrong bound -- a result token
+   claiming more scope than the run had, which is item 5 of the review
+   checklist.
+3. `MeshTopology.tla:7-27,207-215` **independently hardcodes 2x2** in
    `ExpectedCoordinates`, `AllowedGroups` and
    `DOMAIN meshAxisDegree = {"dp_shard","tp"}`. A second model to parameterize.
-4. `MESH_DEGREES` in `scout_b.py` is **asserted, not observed**, and
+4. `MESH_DEGREES` in `device_mesh.py` is **asserted, not observed**, and
    `_group_axis` hardcodes member tuples. Both must become derived.
 
 ## The trap

@@ -1,7 +1,7 @@
 # 12 — DPxTP refinement bridge
 
-**What to build:** Prove the observed four-rank run is an admitted behaviour
-of `ScoutBModel` by replaying its issue order through the model's own guards.
+**What to build:** Prove the observed four-rank run is an admitted behaviour of
+`DeviceMeshModel` by replaying its issue order through the model's own guards.
 
 **Blocked by:** 11 — DPxTP collective protocol model.
 
@@ -12,7 +12,7 @@ Delivers the distributed half of 07. Ticket 10 delivered the single-rank half.
 
 ## Why this matters
 
-`ScoutBModel` and the observed run are currently unrelated artifacts. The
+`DeviceMeshModel` and the observed run are currently unrelated artifacts. The
 model says what the protocol permits; the facts say what happened. Without a
 bridge, a reader may reasonably assume the model was checked against reality,
 and it was not.
@@ -35,14 +35,14 @@ Let the model schedule `Start` and `Complete` by its own guards.
 
 ## Acceptance criteria
 
-- [ ] `ScoutBRefine` replays each rank's observed issue sequence, ordered by
+- [ ] `DeviceMeshRefine` replays each rank's observed issue sequence, ordered by
       the `collective.enqueued` event, and takes no ordering information from
       the `started`/`completed` events.
 - [ ] `Start` and `Complete` are taken by the model's guards, not driven by
   evidence.
 - [ ] The observed run is admitted, reported as a positive result token; the
   runner translates the reachability-by-refutation polarity as it already does
-  for Scout A.
+  for Single-rank.
 - [ ] Cost is linear in the trace, not combinatorial. A prefix-constrained
   search over all 4x335 events explores roughly `336^4` and is not viable; the
   greedy replay is about 760 steps.
@@ -55,9 +55,9 @@ Let the model schedule `Start` and `Complete` by its own guards.
       so the ops disagree at a position, and is refused **at the rendezvous
       guard**. Transposing across different communicators would be refused by
       the stream-head or deadlock guard instead -- the wrong guard.
-- [ ] The negative carries the four-invariant discipline of `ScoutARefineBad`:
-  corruption isolated, not admitted, refusal not earlier than the rendezvous,
-  and the mismatched collective never runs.
+- [ ] The negative carries the four-invariant discipline of
+  `SingleRankRefineBad`: corruption isolated, not admitted, refusal not earlier
+  than the rendezvous, and the mismatched collective never runs.
 - [ ] Focused tests, full gate, and fresh independent review.
 
 ## Follow-on
@@ -69,12 +69,12 @@ space rather than arguing one case, and costs roughly `108 * (2K+1)^3`.
 
 ## Scoping note (2026-09-26): no exporter change is needed
 
-Measured against the checked-in `ScoutBFacts.tla`:
+Measured against the checked-in `DeviceMeshFacts.tla`:
 
 - `CollectiveWorkIds`, `CollectiveRank`, `CollectiveComm`, `CollectiveOperation`
   and `CollectiveIssueOrder` are all already exported. Per-rank issue sequences
   can therefore be derived inside the new module from existing facts, so this
-  ticket is a TLA+ module plus a runner -- no change to `scout_b.py`, and no
+  ticket is a TLA+ module plus a runner -- no change to `device_mesh.py`, and no
   digest movement.
 - 432 works, exactly 108 per rank.
 - `CollectiveIssueOrder` values are positions in each rank's own event stream:
@@ -87,7 +87,7 @@ Measured against the checked-in `ScoutBFacts.tla`:
   stream feasibility, not op agreement.
 
 Derive the sequences with the `CHOOSE`-based nth-by-order pattern already in
-`ScoutDistributed.tla` (`PerCommunicatorIssueOrderAgreement`); the community
+`MeshTopology.tla` (`PerCommunicatorIssueOrderAgreement`); the community
 `SequencesExt` module is not available in the hermetic toolchain. Define them at
 constant level so TLC evaluates them while computing initial states rather than
 per state -- the derivation is O(n^2) in a rank's 108 works.
@@ -97,7 +97,7 @@ property cannot distinguish a circular wait from a budget artifact.
 
 ## Inherited hazard to fix while you are in this module
 
-`ScoutBIssueOrderInvalid.tla` derives its mutation with
+`DeviceMeshIssueOrderInvalid.tla` derives its mutation with
 
 ```
 MutatedWork == CHOOSE work \in SequenceElements(CollectiveWorkIds) :
@@ -105,13 +105,13 @@ MutatedWork == CHOOSE work \in SequenceElements(CollectiveWorkIds) :
 ```
 
 which is the same unguarded `CHOOSE` that ticket 22 just fixed in
-`ScoutLifecycle.tla`: it aborts with exit 75 and
+`TraceLifecycle.tla`: it aborts with exit 75 and
 `Error: Attempted to compute the value of an expression of form CHOOSE ...`
 if rank 0 has no collective. That log also prints a state summary and
 `Finished in`, so before ticket 22 only the exit-status pin rejected it; the
 evaluation-error class now catches it, but the module should still name its
 missing target rather than crash. Use the sentinel-plus-named-invariant pattern
-`ScoutARefineBad` now uses (`ControlEventsArePresent`).
+`SingleRankRefineBad` now uses (`ControlEventsArePresent`).
 
 Two related notes from ticket 22's implementation:
 
@@ -125,42 +125,42 @@ Two related notes from ticket 22's implementation:
   the case that made the guard necessary, so honour the precondition rather than
   assuming a unique match.
 
-## Resolution (2026-09-26): implemented as ScoutBRefine
+## Resolution (2026-09-26): implemented as DeviceMeshRefine
 
-`experiments/qwen3_formal_verifier/formal/ScoutBRefine.tla` plus seven
-configurations and `run_tlc_scout_b_refine.sh`, wired into
-`scout_b_formal_tests` as `tlc_scout_b_refine_test`. No exporter change, no
-digest movement: the scoping note above held.
+`experiments/qwen3_formal_verifier/formal/DeviceMeshRefine.tla` plus seven
+configurations and `run_tlc_device_mesh_refine.sh`, wired into
+`device_mesh_formal_tests` as `tlc_device_mesh_refine_test`. No exporter change,
+no digest movement: the scoping note above held.
 
-Shape follows `ScoutARefine`. No cursor variable; `Len(issued[r])` is the
+Shape follows `SingleRankRefine`. No cursor variable; `Len(issued[r])` is the
 per-rank cursor; reachability is proved by refuting
 `ReplayedRunIsNotAdmitted` and the runner flips the polarity into a positive
 token. Measured results, one worker:
 
-- `SCOUT_B_REFINE_PARSE facts_bytes=1642832 parse_ms=881` -- parse plus
+- `DEVICE_MESH_REFINE_PARSE facts_bytes=1642832 parse_ms=881` -- parse plus
   semantic processing of the 1.6 MB facts module, charged before any state.
-- `SCOUT_B_REFINE_MAPPING result=success` -- the derived communicator mapping
-  is a bijection agreeing with `CommMembers` and `CommOps`; the mapping is
-  printed by the checker.
-- `SCOUT_B_REFINE result=admitted issues_per_rank=108 search_skew_bound=1
+- `DEVICE_MESH_REFINE_MAPPING result=success` -- the derived communicator
+  mapping is a bijection agreeing with `CommMembers` and `CommOps`; the mapping
+  is printed by the checker.
+- `DEVICE_MESH_REFINE result=admitted issues_per_rank=108 search_skew_bound=1
   distinct_states=5371 witness_depth=865` in about 25 s. The same witness is
   found at looser spreads and costs more: 9,199 states at 2, 11,629 at 3,
   13,261 at 4.
-- `SCOUT_B_REFINE_CONFLUENCE result=no_dead_end bound_issues_per_rank=54
+- `DEVICE_MESH_REFINE_CONFLUENCE result=no_dead_end bound_issues_per_rank=54
   bound_issue_skew=2 bound_outstanding_per_comm=1 distinct_states=53405` in
-  3 min 21 s, plus `SCOUT_B_REFINE_CONFLUENCE_OVERLAP` refuting
+  3 min 21 s, plus `DEVICE_MESH_REFINE_CONFLUENCE_OVERLAP` refuting
   `NoTwoCollectivesRunConcurrently` so the fragment is not a serialized space.
-- `SCOUT_B_REFINE_ORDER_UNIFORM permutation=reverse_every_rank result=admitted
-  distinct_states=5371 witness_depth=865` and
-  `SCOUT_B_REFINE_ORDER_SINGLE_RANK permutation=reverse_one_rank
+- `DEVICE_MESH_REFINE_ORDER_UNIFORM permutation=reverse_every_rank
+  result=admitted distinct_states=5371 witness_depth=865` and
+  `DEVICE_MESH_REFINE_ORDER_SINGLE_RANK permutation=reverse_one_rank
   result=refused distinct_states=18` -- the order-sensitivity pair; see below.
-- `SCOUT_B_REFINE_NEGATIVE result=rejected_at_rendezvous_guard
+- `DEVICE_MESH_REFINE_NEGATIVE result=rejected_at_rendezvous_guard
   distinct_states=2573 reach_distinct_states=2531` with
   `RejectionHappensBeforeTheRendezvous` refuted at depth 408, and
-  `SCOUT_B_REFINE_GUARD_ISOLATION relaxed=RequireMatchedIssueOrder
+  `DEVICE_MESH_REFINE_GUARD_ISOLATION relaxed=RequireMatchedIssueOrder
   result=admitted`. The state counts are now emitted by the runner rather than
   quoted from a scratch log.
-- `SCOUT_B_REFINE_NEGATIVE_GUARD_SET guards=positive
+- `DEVICE_MESH_REFINE_NEGATIVE_GUARD_SET guards=positive
   result=refused_at_spmd_guard witness=CorruptedColumnIsNeverFormed
   distinct_states=2555` -- the same corruption under the positive's guard set.
 
@@ -211,11 +211,11 @@ So the claim is now stated as: every one of the 108 cross-rank columns is
 model-typable and cross-rank consistent, and the collectives those columns
 induce drain to completion under the model's own guards. Absolute order is
 explicitly NOT constrained, and the reason is given. The limit is on the record
-as a checked pair rather than a caveat -- `ScoutBRefineUniformPermutation.cfg`
-(uniform permutation, expected ADMITTED) and
-`ScoutBRefineSingleRankPermutation.cfg` (one rank only, expected REFUSED) --
-and the refused half is the positive evidence that the bridge detects the
-agreement violation a real job hangs on.
+as a checked pair rather than a caveat --
+`DeviceMeshRefineUniformPermutation.cfg` (uniform permutation, expected
+ADMITTED) and `DeviceMeshRefineSingleRankPermutation.cfg` (one rank only,
+expected REFUSED) -- and the refused half is the positive evidence that the
+bridge detects the agreement violation a real job hangs on.
 
 ### Which guard refuses the corruption, and under which configuration
 
@@ -224,7 +224,7 @@ them runs under the positive's guard set. Under the positive's guard set the
 same corruption is refused too, and differently: `RequireUniformProgramOps`
 refuses every PEER's issue at the corrupted position, so the corrupted column
 never forms and the job cannot advance past position 51.
-`ScoutBRefineBadUniform.cfg` checks that -- `CorruptedColumnIsNeverFormed`
+`DeviceMeshRefineBadUniform.cfg` checks that -- `CorruptedColumnIsNeverFormed`
 holds, 2,555 distinct states, depth 414.
 
 The corrupted record itself IS issued even with that guard on, which was not the
@@ -259,47 +259,47 @@ vacuous variant against the corrupted order and shows it is reachable.
 
 ### Inherited hazards, both fixed
 
-`ScoutBIssueOrderInvalid.tla` now derives `MutatedWork` through
+`DeviceMeshIssueOrderInvalid.tla` now derives `MutatedWork` through
 `Rank0HasACollective` with an empty-string sentinel and names that invariant
 first in its cfg, so a trace where rank 0 issued no collective is reported
 rather than crashing with exit 75. The `NthByIssueOrder` call site in
-`ScoutBRefine` establishes its witness before the `CHOOSE`, with a sentinel
+`DeviceMeshRefine` establishes its witness before the `CHOOSE`, with a sentinel
 record and `ObservedIssueOrderIsDistinctWithinRank` as the named invariant, for
 the same reason `IndexOf` is now guarded at every call site: these are constant
 definitions, folded before any invariant could report the absence.
 
 ### Gate evidence
 
-Full nine-stage Scout B gate, all stages exit 0, sealed and verified.
+Full nine-stage Device-mesh gate, all stages exit 0, sealed and verified.
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:cfb17f931dbaa7d2c5c17b3b7671a0c519eb03842f2959aa8cfb2d3d15b04f10`
-- Scout B source ID:
+- Device-mesh source ID:
   `sha256:203bdd35c290e2f3d4acb01926840bd8d94a2d9be0f6c854d2426d19b422dafe`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:47b8943ebb394b0f2defa5574ce1925a9506be9625ddc9bba2ee473895dc6235`
-- `--suite scout-b`: 10 of 10 targets pass.
+- `--suite device-mesh`: 10 of 10 targets pass.
 
 The eleven tokens in the sealed log, with the pair that documents the limit
 sitting adjacent so a reader cannot miss it:
 
 ```
-SCOUT_B_REFINE           result=admitted distinct_states=5371 depth=865
-SCOUT_B_REFINE_ORDER_UNIFORM     permutation=reverse_every_rank
+DEVICE_MESH_REFINE           result=admitted distinct_states=5371 depth=865
+DEVICE_MESH_REFINE_ORDER_UNIFORM     permutation=reverse_every_rank
                          result=admitted distinct_states=5371 depth=865
-SCOUT_B_REFINE_ORDER_SINGLE_RANK permutation=reverse_one_rank
+DEVICE_MESH_REFINE_ORDER_SINGLE_RANK permutation=reverse_one_rank
                          result=refused distinct_states=18
-SCOUT_B_REFINE_CONFLUENCE  result=no_dead_end bound_issues_per_rank=54
+DEVICE_MESH_REFINE_CONFLUENCE  result=no_dead_end bound_issues_per_rank=54
                          bound_issue_skew=2 bound_outstanding_per_comm=1
                          distinct_states=53405 max_outdegree=7
-SCOUT_B_REFINE_CONFLUENCE_OVERLAP  NoTwoCollectivesRunConcurrently violated
-SCOUT_B_REFINE_NEGATIVE    result=rejected_at_rendezvous_guard
+DEVICE_MESH_REFINE_CONFLUENCE_OVERLAP  NoTwoCollectivesRunConcurrently violated
+DEVICE_MESH_REFINE_NEGATIVE    result=rejected_at_rendezvous_guard
                          distinct_states=2573 reach_distinct_states=2531
-SCOUT_B_REFINE_GUARD_ISOLATION relaxed=RequireMatchedIssueOrder result=admitted
-SCOUT_B_REFINE_NEGATIVE_GUARD_SET guards=positive
+DEVICE_MESH_REFINE_GUARD_ISOLATION relaxed=RequireMatchedIssueOrder result=admitted
+DEVICE_MESH_REFINE_NEGATIVE_GUARD_SET guards=positive
                          result=refused_at_spmd_guard
                          witness=CorruptedColumnIsNeverFormed
-SCOUT_B_REFINE_PARSE         facts_bytes=1642832 parse_ms=814
-SCOUT_B_REFINE_MAPPING       result=success
-SCOUT_B_REFINE_TOOLCHAIN     checker=tlc release=1.7.4 java_major=17
+DEVICE_MESH_REFINE_PARSE         facts_bytes=1642832 parse_ms=814
+DEVICE_MESH_REFINE_MAPPING       result=success
+DEVICE_MESH_REFINE_TOOLCHAIN     checker=tlc release=1.7.4 java_major=17
 ```

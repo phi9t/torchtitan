@@ -1,4 +1,4 @@
-# 21 — Make the cross-communicator hazard real in ScoutBModel
+# 21 — Make the cross-communicator hazard real in DeviceMeshModel
 
 **What to build:** A checked configuration in which order divergence across
 overlapping communicators can actually deadlock the model, so
@@ -11,8 +11,8 @@ overlapping communicators can actually deadlock the model, so
 
 ## What is wrong
 
-Three claims attached to `ScoutBModel` are false. All three were falsified by
-running TLC, and the first was reconfirmed independently:
+Three claims attached to `DeviceMeshModel` are false. All three were falsified
+by running TLC, and the first was reconfirmed independently:
 
 1. **Streams are inert.** Neutralising the stream-head conjunct in
    `MemberReady` gives a bit-identical state graph:
@@ -159,7 +159,7 @@ neutralised too, which is the tell.
 - [x] Say how many communicator instances there are consistently. The commit
   message says eight, the ticket says four, the cfgs bind four.
 - [x] Report the bound where the result is read: the evidence token
-  (`SCOUT_B_MODEL_SAFETY ... distinct_states=3671`) records no bound, and
+  (`DEVICE_MESH_MODEL_SAFETY ... distinct_states=3671`) records no bound, and
   the module header says "verified against the observed 2x2 execution". The
   `MaxIssues = 2` versus observed-108 composition currently appears only in the
   ticket and the commit message.
@@ -218,18 +218,18 @@ Every number below is TLC's own, from `--suite tier0` on the repaired module.
 ### Results
 
 ```text
-SCOUT_B_MODEL_SAFETY     result=success distinct_states=38321 max_outdegree=24
+DEVICE_MESH_MODEL_SAFETY     result=success distinct_states=38321 max_outdegree=24
                          bound_max_issues_per_rank=2 bound_ranks=4
                          bound_communicators=8 bound_issue_skew=unbounded
-SCOUT_B_MODEL_NONVACUOUS result=completion_reachable
-SCOUT_B_MODEL_DIVERGENT  invariant=DeadlockFreedom result=named_violation
-SCOUT_B_MODEL_WITNESS    invariant=NoCrossCommunicatorCycleWitness
+DEVICE_MESH_MODEL_NONVACUOUS result=completion_reachable
+DEVICE_MESH_MODEL_DIVERGENT  invariant=DeadlockFreedom result=named_violation
+DEVICE_MESH_MODEL_WITNESS    invariant=NoCrossCommunicatorCycleWitness
                          result=named_violation
-SCOUT_B_MODEL_OPMISMATCH invariant=NoOpMismatchHang result=named_violation
-SCOUT_B_MODEL_STREAM_EDGE invariant=StreamEdgeIsInert result=named_violation
-SCOUT_B_MODEL_STREAM_EDGE_MUTANT substitution=StreamOfIssue_is_comm
+DEVICE_MESH_MODEL_OPMISMATCH invariant=NoOpMismatchHang result=named_violation
+DEVICE_MESH_MODEL_STREAM_EDGE invariant=StreamEdgeIsInert result=named_violation
+DEVICE_MESH_MODEL_STREAM_EDGE_MUTANT substitution=StreamOfIssue_is_comm
                          invariant=StreamEdgeIsInert result=holds
-SCOUT_B_MODEL_UNGUARDED  invariant=RendezvousOpAgreement result=named_violation
+DEVICE_MESH_MODEL_UNGUARDED  invariant=RendezvousOpAgreement result=named_violation
 ```
 
 ### The stream claim, restated after review
@@ -246,9 +246,9 @@ balance conjunct changed nothing there, and `StuckImpliesAllDone` WAS violated
 under that cfg, so removing the edge removed the classification rather than the
 stuckness.
 
-`ScoutBModelStreams.cfg` and its stage are deleted. The lemma is stated in the
-module header instead, and what is checked is its hypothesis -- that the shipped
-stream map is not refined by communicator identity on this instance.
+`DeviceMeshModelStreams.cfg` and its stage are deleted. The lemma is stated in
+the module header instead, and what is checked is its hypothesis -- that the
+shipped stream map is not refined by communicator identity on this instance.
 `StreamEdgeIsInert` must be false here, and must hold once `StreamOfIssue(e)` is
 replaced by `e.comm`, which is what the original module effectively had. Both
 halves are TLC runs and both are instant, because the cfg is pinned to the
@@ -281,7 +281,7 @@ real deadlock as `StuckByBudget`. The header sentence claiming the conjunct is
 bought freedom from false positives with false negatives.
 
 The reviewer's witness, at the shipped `MaxIssues = 2` under the shipped
-`ScoutBModelDivergent.cfg`:
+`DeviceMeshModelDivergent.cfg`:
 
 ```text
 rank 0: tp01    all_reduce, tp01    all_reduce
@@ -375,37 +375,37 @@ satisfies a guard, and every negative cfg is required to name exactly one.
 
 ### Cost
 
-Tier 0 is minutes, not seconds: the Scout B model target is seven TLC searches
-over eight communicators. The stale "in seconds" text in `run_formal_tier0.sh`,
-`formal/BUILD.bazel`, `formal/README.md` and
+Tier 0 is minutes, not seconds: the Device-mesh model target is seven TLC
+searches over eight communicators. The stale "in seconds" text in
+`run_formal_tier0.sh`, `formal/BUILD.bazel`, `formal/README.md` and
 `experiments/qwen3_formal_verifier/README.md` is corrected, and the seven checks
 are listed where the tier-0 targets are.
 
 ### Gate evidence (shared with ticket 18)
 
-Full nine-stage Scout B gate, all stages exit 0, sealed and verified.
+Full nine-stage Device-mesh gate, all stages exit 0, sealed and verified.
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:b24ddf9593af32c96dcd8c8588f9845aaad37a9473e2e140fc74b63be98c986f`
-- Scout B source ID:
+- Device-mesh source ID:
   `sha256:e179d91bb4bdb62ae01cb56221289f19761a0ec8406312b054c99510afff7c12`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:439517d3a89579fe7dcd34b4c5e5d26d625bfd7812541403c3ea0c9aa2f244fc`
 - Source manifest: 26 verified paths, 7 process paths.
 
 Result tokens present in the sealed formal log:
 
 ```
-SCOUT_B_MODEL_SAFETY     distinct_states=38321 max_outdegree=24
+DEVICE_MESH_MODEL_SAFETY     distinct_states=38321 max_outdegree=24
                          bound_max_issues_per_rank=2 bound_ranks=4
                          bound_communicators=8 bound_issue_skew=unbounded
-SCOUT_B_MODEL_NONVACUOUS  completion_reachable
-SCOUT_B_MODEL_DIVERGENT   DeadlockFreedom                  named_violation
-SCOUT_B_MODEL_WITNESS     NoCrossCommunicatorCycleWitness  named_violation
-SCOUT_B_MODEL_OPMISMATCH  NoOpMismatchHang                 named_violation
-SCOUT_B_MODEL_UNGUARDED   RendezvousOpAgreement            named_violation
-SCOUT_B_MODEL_STREAM_EDGE        StreamEdgeIsInert  named_violation exit=151
-SCOUT_B_MODEL_STREAM_EDGE_MUTANT StreamOfIssue_is_comm    holds     exit=0
+DEVICE_MESH_MODEL_NONVACUOUS  completion_reachable
+DEVICE_MESH_MODEL_DIVERGENT   DeadlockFreedom                  named_violation
+DEVICE_MESH_MODEL_WITNESS     NoCrossCommunicatorCycleWitness  named_violation
+DEVICE_MESH_MODEL_OPMISMATCH  NoOpMismatchHang                 named_violation
+DEVICE_MESH_MODEL_UNGUARDED   RendezvousOpAgreement            named_violation
+DEVICE_MESH_MODEL_STREAM_EDGE        StreamEdgeIsInert  named_violation exit=151
+DEVICE_MESH_MODEL_STREAM_EDGE_MUTANT StreamOfIssue_is_comm    holds     exit=0
 ```
 
 This run needed two passes: the first, with `--update-artifacts`, regenerated

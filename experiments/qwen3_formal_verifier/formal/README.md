@@ -1,11 +1,16 @@
 # Qwen3 Step Formal Trace
 
-This directory contains generated formal artifacts for a TorchTitan-style Qwen3 dense DPxTP training step.
+This directory contains generated formal artifacts for a TorchTitan-style Qwen3
+dense DPxTP training step.
 
-- `Qwen3StepTrace.tla` captures the finite DPxTP mesh, process groups, work ids, work roles, and group membership used by the TLA+ transition model.
-- `Qwen3StepTrace.lean` captures the same finite trace facts in a Lean-friendly shape for trace-level invariant proofs.
+- `Qwen3StepTrace.tla` captures the finite DPxTP mesh, process groups, work ids,
+  work roles, and group membership used by the TLA+ transition model.
+- `Qwen3StepTrace.lean` captures the same finite trace facts in a Lean-friendly
+  shape for trace-level invariant proofs.
 
-The source of truth is the Python trace IR emitted by `build_torchtitan_qwen3_step_trace`; regenerate these files through `write_qwen3_step_formal_artifacts` after schema or role changes.
+The source of truth is the Python trace IR emitted by
+`build_torchtitan_qwen3_step_trace`; regenerate these files through
+`write_qwen3_step_formal_artifacts` after schema or role changes.
 
 ## Hermetic smoke toolchains
 
@@ -48,7 +53,7 @@ timeouts, or any other checker/infrastructure error fails the target.
 Most of the formal work does not depend on an observed run at all. The abstract
 models, their negatives and the non-vacuity refutations are properties of the
 specifications, so they can be checked on CPU without a trace, a GPU or a
-sealed bundle -- minutes rather than seconds, since the Scout B model target
+sealed bundle -- minutes rather than seconds, since the Device-mesh model target
 runs eleven checks over eight communicators, four of them liveness:
 
 ```bash
@@ -58,86 +63,88 @@ experiments/qwen3_formal_verifier/run_formal_tier0.sh --no-fetch
 ```
 
 The `tier0` suite is exactly the targets whose inputs are hand-written:
-`tlc_smoke_test`, `lean_smoke_test`, `tlc_scout_a_model_abstract_test`,
-`tlc_scout_b_model_test`, and `lean_scout_b_protocol_test`. The Scout A model
-checks are split by input set for this reason --
-`tlc_scout_a_model_abstract_test` reads only `ScoutAModel.tla`, its two
-configurations and `ScoutLifecycle.tla`, while
-`tlc_scout_a_model_refine_test` additionally reads the generated
-`ScoutAFacts.tla`. Both halves remain in `scout_a_formal_tests` and
-`scout_b_formal_tests`, so the sealed gate runs every check it ran before the
-split.
+`tlc_smoke_test`, `lean_smoke_test`, `tlc_single_rank_model_abstract_test`,
+`tlc_device_mesh_model_test`, and `lean_device_mesh_protocol_test`. The
+Single-rank model checks are split by input set for this reason --
+`tlc_single_rank_model_abstract_test` reads only `SingleRankModel.tla`, its two
+configurations and `TraceLifecycle.tla`, while
+`tlc_single_rank_model_refine_test` additionally reads the generated
+`SingleRankFacts.tla`. Both halves remain in `single_rank_formal_tests` and
+`device_mesh_formal_tests`, so the sealed gate runs every check it ran before
+the split.
 
-`tlc_scout_b_model_test` is eleven checks over the abstract DPxTP protocol,
-each with its own result token: `SCOUT_B_MODEL_SAFETY` (every safety invariant up
-to the bound the token reports), `SCOUT_B_MODEL_NONVACUOUS` (completion is
-reachable), `SCOUT_B_MODEL_DIVERGENT` (relaxing only communicator-site agreement
-makes `DeadlockFreedom` false), `SCOUT_B_MODEL_WITNESS` (and that deadlock is a
-balanced cross-communicator cycle at full budget, not any other stuck state),
-`SCOUT_B_MODEL_OPMISMATCH` (relaxing operation agreement instead hangs on an
-intra-communicator mismatch), `SCOUT_B_MODEL_STREAM_EDGE` plus
-`SCOUT_B_MODEL_STREAM_EDGE_MUTANT` (some rank holds two distinct communicators on
-one stream, and substituting `StreamOfIssue(e) == e.comm` makes that stop being
-true), and `SCOUT_B_MODEL_UNGUARDED` (dropping NCCL's matching guard corrupts the
+`tlc_device_mesh_model_test` is eleven checks over the abstract DPxTP protocol,
+each with its own result token: `DEVICE_MESH_MODEL_SAFETY` (every safety
+invariant up to the bound the token reports), `DEVICE_MESH_MODEL_NONVACUOUS`
+(completion is reachable), `DEVICE_MESH_MODEL_DIVERGENT` (relaxing only
+communicator-site agreement makes `DeadlockFreedom` false),
+`DEVICE_MESH_MODEL_WITNESS` (and that deadlock is a balanced cross-communicator
+cycle at full budget, not any other stuck state), `DEVICE_MESH_MODEL_OPMISMATCH`
+(relaxing operation agreement instead hangs on an intra-communicator mismatch),
+`DEVICE_MESH_MODEL_STREAM_EDGE` plus `DEVICE_MESH_MODEL_STREAM_EDGE_MUTANT`
+(some rank holds two distinct communicators on one stream, and substituting
+`StreamOfIssue(e) == e.comm` makes that stop being true), and
+`DEVICE_MESH_MODEL_UNGUARDED` (dropping NCCL's matching guard corrupts the
 rendezvous instead of hanging). Four more are liveness rather than safety,
 because no safety invariant can say that a step finishes.
-`SCOUT_B_MODEL_LIVENESS`: under weak fairness on `Start` and `Complete`, with
-`Issue` unfair by design, `EveryIssuedCollectiveCompletes` holds, exhaustively,
-at the bound the token reports. `SCOUT_B_MODEL_LIVENESS_UNFAIR`: rerunning that
-same configuration against the unfair `SPECIFICATION Spec` makes it fail, so the
-fairness is what the result rests on. `SCOUT_B_MODEL_LIVENESS_NEGATIVE`:
-relaxing only communicator-site agreement makes it false, and the counterexample
-is a lasso rather than a reachable bad state, which is why it has its own
-classifier. `SCOUT_B_MODEL_LIVENESS_UNCONDITIONAL`: the unconditional reading of
-the same sentence is false even with every guard on, because `Issue` is unfair
-and a rank may simply stop issuing -- which is what justifies conditioning the
-property instead of weakening it. `SCOUT_B_MODEL_CONFIG_COVERAGE` reconciles the
-configurations that ship with the configurations a stage actually ran. The claim
-inventory in the header of `ScoutBModel.tla` states exactly what each one
-establishes.
+`DEVICE_MESH_MODEL_LIVENESS`: under weak fairness on `Start` and `Complete`,
+with `Issue` unfair by design, `EveryIssuedCollectiveCompletes` holds,
+exhaustively, at the bound the token reports.
+`DEVICE_MESH_MODEL_LIVENESS_UNFAIR`: rerunning that same configuration against
+the unfair `SPECIFICATION Spec` makes it fail, so the fairness is what the
+result rests on. `DEVICE_MESH_MODEL_LIVENESS_NEGATIVE`: relaxing only
+communicator-site agreement makes it false, and the counterexample is a lasso
+rather than a reachable bad state, which is why it has its own classifier.
+`DEVICE_MESH_MODEL_LIVENESS_UNCONDITIONAL`: the unconditional reading of the
+same sentence is false even with every guard on, because `Issue` is unfair and a
+rank may simply stop issuing -- which is what justifies conditioning the
+property instead of weakening it. `DEVICE_MESH_MODEL_CONFIG_COVERAGE` reconciles
+the configurations that ship with the configurations a stage actually ran. The
+claim inventory in the header of `DeviceMeshModel.tla` states exactly what each
+one establishes.
 
 `run_formal_tier0.sh` adds changed-source lint and the focused
 `tests/unit_tests/test_formal_toolchain.py` contracts. It is an iteration aid
 and **not** a gate: it takes no `--output-root`, `--run-id` or `--attempt-id`,
 writes nothing under `outputs/`, and seals no evidence, so a tier-0 pass cannot
-be presented as a Scout A or Scout B gate pass. The trace-dependent checks --
-the refinement bridge, the fact modules, artifact synchronization and the real
-CUDA step -- run only in `run_scout_a.sh` and `run_scout_b.sh`.
+be presented as a Single-rank or Device-mesh gate pass. The trace-dependent
+checks -- the refinement bridge, the fact modules, artifact synchronization and
+the real CUDA step -- run only in `run_single_rank.sh` and `run_device_mesh.sh`.
 
-## Scout A lifecycle suite
+## Single-rank lifecycle suite
 
-The Scout A fact modules are generated from the normalized trace of a real
+The Single-rank fact modules are generated from the normalized trace of a real
 single-rank CUDA run:
 
-- `ScoutAFacts.tla` and `ScoutAFacts.lean` contain observed identities, event
-  values, causal predecessors, and raw-source links only.
-- `ScoutLifecycle.tla` and `ScoutLifecycle.lean` are independently maintained
+- `SingleRankFacts.tla` and `SingleRankFacts.lean` contain observed identities,
+  event values, causal predecessors, and raw-source links only.
+- `TraceLifecycle.tla` and `TraceLifecycle.lean` are independently maintained
   semantics for forward/backward order, gradient readiness before optimizer
   mutation, optimizer mutation before step completion, and causal order.
-- `ScoutAValid.*` applies those semantics to the observed facts.
-- `ScoutABadFacts.*` removes the gradient-ready fact for one controlled
-  negative; `ScoutAInvalid.*` must reject the named property.
+- `SingleRankValid.*` applies those semantics to the observed facts.
+- `SingleRankBadFacts.*` removes the gradient-ready fact for one controlled
+  negative; `SingleRankInvalid.*` must reject the named property.
 
 Run the complete suite through the same fresh-sandbox wrapper:
 
 ```bash
-scripts/run_formal_checks.sh --networked --suite scout-a
-scripts/run_formal_checks.sh --no-fetch --suite scout-a
+scripts/run_formal_checks.sh --networked --suite single-rank
+scripts/run_formal_checks.sh --no-fetch --suite single-rank
 ```
 
 TLC must accept all valid lifecycle invariants and report exactly
-`ScoutAGradientReadyBeforeOptimizer` for the controlled transition mutation.
-Lean must report that `Qwen3Formal.ScoutA.validLifecycle` has no axioms and
-reject `Qwen3Formal.ScoutA.ControlledInvalidProposition`. Each checker stages
-sources and writes state or `.olean` products only under Bazel's external test
-directory.
+`SingleRankGradientReadyBeforeOptimizer` for the controlled transition mutation.
+Lean must report that `Qwen3Formal.SingleRank.validLifecycle` has no axioms and
+reject `Qwen3Formal.SingleRank.ControlledInvalidProposition`. Each checker
+stages sources and writes state or `.olean` products only under Bazel's external
+test directory.
 
-## Scout B DPxTP suite
+## Device-mesh DPxTP suite
 
-Scout B's generated modules contain fact values only. The exporter maps the
+Device-mesh's generated modules contain fact values only. The exporter maps the
 complete normalized four-rank bundle to all 1,340 event rows, 432 observed
 rank-local collective work rows, and 222 synchronization edges.
-`ScoutDistributed.tla` and `ScoutDistributed.lean` independently define the
+`MeshTopology.tla` and `MeshTopology.lean` independently define the
 bounded 2x2 coordinate, TP-peer input identity, DP/TP placement, group coverage,
 exact enqueue/start/complete lifecycle, executor/stream, producer correlation,
 event provenance, local predecessors, and cross-rank synchronization
@@ -153,35 +160,35 @@ Lean event-kind schedule is profile-specific: ten trainer events, zero or more
 enqueue/start/complete triples, and one collection marker. It is not a general
 training-event grammar.
 
-`ScoutBEventRank*.lean`, `ScoutBSyncChunk*.lean`, and
-`ScoutBCollectiveEventRank*.lean` partition the same complete facts so Lean can
-kernel-reduce each bounded check. `ScoutBEventMutationChecks.lean` proves that
-paired String-row drift, a wrong kind, and a wrong order are each rejected.
-`ScoutBValid.lean` composes those axiom-free results.
+`DeviceMeshEventRank*.lean`, `DeviceMeshSyncChunk*.lean`, and
+`DeviceMeshCollectiveEventRank*.lean` partition the same complete facts so Lean
+can kernel-reduce each bounded check. `DeviceMeshEventMutationChecks.lean`
+proves that paired String-row drift, a wrong kind, and a wrong order are each
+rejected. `DeviceMeshValid.lean` composes those axiom-free results.
 
-The four generated `ScoutBFacts` and `ScoutBBadFacts` TLA+/Lean modules exceed
-the repository's general 500 KiB added-file limit because each carries the
-complete bounded graph. They have an exact-path exception in
+The four generated `DeviceMeshFacts` and `DeviceMeshBadFacts` TLA+/Lean modules
+exceed the repository's general 500 KiB added-file limit because each carries
+the complete bounded graph. They have an exact-path exception in
 `.pre-commit-config.yaml`: the supported checker runners consume these plain
 modules directly, and artifact synchronization compares their complete bytes.
 Compressing them would make them unusable as checker inputs, while splitting
 them would change the generated module and import contract rather than repair
 the lint gate. All other added files remain subject to the 500 KiB limit.
 
-`ScoutBBadFacts.*` changes one completion producer while preserving every other
-fact. TLC must report exactly the transition invariant
-`ScoutBCollectiveProducerCorrelation`. Lean must report that
-`Qwen3Formal.ScoutB.validDPxTP` has no axioms and must reject exactly
-`Qwen3Formal.ScoutB.ControlledInvalidProducerProposition`.
+`DeviceMeshBadFacts.*` changes one completion producer while preserving every
+other fact. TLC must report exactly the transition invariant
+`DeviceMeshCollectiveProducerCorrelation`. Lean must report that
+`Qwen3Formal.DeviceMesh.validDPxTP` has no axioms and must reject exactly
+`Qwen3Formal.DeviceMesh.ControlledInvalidProducerProposition`.
 
-`ScoutBIssueOrderInvalid.tla` is the second named TLA+ negative, for
+`DeviceMeshIssueOrderInvalid.tla` is the second named TLA+ negative, for
 per-communicator issue-order agreement -- the NCCL requirement whose violation
-hangs a job. It is an override of the real `ScoutBFacts` rather than a mutated
-1.6 MB copy, and its target (rank 0's first collective in issue order) is
-derived from the facts, so the control cannot drift away from the observed run.
-TLC must report exactly `ScoutBPerCommunicatorIssueOrder`, with
+hangs a job. It is an override of the real `DeviceMeshFacts` rather than a
+mutated 1.6 MB copy, and its target (rank 0's first collective in issue order)
+is derived from the facts, so the control cannot drift away from the observed
+run. TLC must report exactly `DeviceMeshPerCommunicatorIssueOrder`, with
 `MutationIsIsolated` proving the override changed one operation and nothing
-else. Its result token is `SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE`.
+else. Its result token is `DEVICE_MESH_TLA_ISSUE_ORDER_NEGATIVE`.
 
 ### Structural DTensor placements
 
@@ -200,8 +207,8 @@ underneath it.
 
 `PlacementValid` and `placementValid` are unchanged and still mean only "some
 parameter is DP-sharded and some parameter is TP-sharded somewhere".
-`ScoutBPlacementBooleansAgree` / `placementBooleansAgreeObserved` tie the two
-booleans they read to the per-parameter facts, so the weak check keeps its
+`DeviceMeshPlacementBooleansAgree` / `placementBooleansAgreeObserved` tie the
+two booleans they read to the per-parameter facts, so the weak check keeps its
 original content instead of quietly becoming a different, stronger claim under
 the same name. That is deliberately named for what it proves and no more: the
 placements are exported once for all ranks, so for ranks 1-3 it is agreement
@@ -209,11 +216,10 @@ with that one list rather than a per-rank derivation, and it is one bit per
 axis. The per-parameter content is carried by the well-formedness, divisibility
 and local-shape invariants, not by this one. The new content is in separate
 named invariants: schema agreement across ranks, mesh-axis degrees agreeing with
-the
-exported rank coordinates, per-parameter well-formedness, no `Partial` at the
-optimizer, divisibility of every sharded dim by its axis degree, local shapes
-agreeing with which dims are sharded, and `_StridedShard` appearing exactly
-where an inner axis shards the same tensor dim.
+the exported rank coordinates, per-parameter well-formedness, no `Partial` at
+the optimizer, divisibility of every sharded dim by its axis degree, local
+shapes agreeing with which dims are sharded, and `_StridedShard` appearing
+exactly where an inner axis shards the same tensor dim.
 
 `RankCoordinates`, which the mesh-degree check compares against, is synthesized
 by the exporter as `rank // 2` and `rank % 2` rather than read out of each
@@ -233,49 +239,49 @@ is observed at all. A `Partial` *gradient* is therefore not visible here; what
 is checkable is that no parameter the optimizer steps carries an unreduced
 placement.
 
-`ScoutBPlacementPartialInvalid.tla` is the third named TLA+ negative. Like the
-issue-order control it is an override of the real `ScoutBFacts` rather than a
-mutated 1.6 MB copy, and its target -- the first DP-shard placement in
+`DeviceMeshPlacementPartialInvalid.tla` is the third named TLA+ negative. Like
+the issue-order control it is an override of the real `DeviceMeshFacts` rather
+than a mutated 1.6 MB copy, and its target -- the first DP-shard placement in
 `PlacementIds` order, on the outer FSDP axis whose reduce-scatter produces the
 gradient the optimizer consumes -- is derived from the facts. TLC must report
-exactly `ScoutBNoPartialAtOptimizer`. `MutationIsIsolated` proves the override
-changed one kind, and dropped that placement from the shard-dim domain as a
-Partial must, and nothing else; `StructureSurvivesTheMutation` and
+exactly `DeviceMeshNoPartialAtOptimizer`. `MutationIsIsolated` proves the
+override changed one kind, and dropped that placement from the shard-dim domain
+as a Partial must, and nothing else; `StructureSurvivesTheMutation` and
 `OtherPlacementChecksSurviveTheMutation` are asserted over the mutated facts, so
 no other invariant caught it. Local-shape agreement is deliberately left out of
 that survivor set: the mutated parameter's local shape is half its global shape
 because the DP-shard axis shards it, so an override that stops that axis from
 sharding contradicts that check too, and claiming otherwise would overstate the
-control. Its result token is
-`SCOUT_B_TLA_PARTIAL_PLACEMENT_NEGATIVE`. `ScoutBPlacementChecks.lean` is the
-Lean counterpart, with `injectedPartialIsIsolated`, `rejectsInjectedPartial` and
-`injectedPartialStaysWellFormed` under `SCOUT_B_LEAN_PLACEMENT_MUTATION`; the
-positive results carry `SCOUT_B_LEAN_PLACEMENT`.
+control. Its result token is `DEVICE_MESH_TLA_PARTIAL_PLACEMENT_NEGATIVE`.
+`DeviceMeshPlacementChecks.lean` is the Lean counterpart, with
+`injectedPartialIsIsolated`, `rejectsInjectedPartial` and
+`injectedPartialStaysWellFormed` under `DEVICE_MESH_LEAN_PLACEMENT_MUTATION`;
+the positive results carry `DEVICE_MESH_LEAN_PLACEMENT`.
 
-Parse cost is reported rather than assumed. `SCOUT_B_TLA_PLACEMENT_FACTS` gives
-the placement share of `ScoutBFacts.tla`, and `SCOUT_B_REFINE_PARSE` now carries
-`placement_bytes=` beside `facts_bytes=` and `parse_ms=`, so a growing placement
-export shows up against the parse time it is charged to. Adding the structural
-facts moved `ScoutBFacts.tla` from 1,642,832 to 1,689,740 bytes (+2.9%, 46,908
-of them the delimited placement block). An interleaved A/B of the SANY parse of
-`ScoutBRefine`, against the same facts module with the placement block stripped,
-puts the cost at a real and reproducible +35 to +50 ms, about 4-5% -- small, and
-measurable only with the interleaved shape.
-`SCOUT_B_REFINE_PARSE`'s `parse_ms` is kept, with this caveat attached rather
-than dropped, because it is still the only in-gate record that the parse
-completed at all and roughly how long the fixed cost was. It is NOT a
-measurement of parse cost: the refine target parses while other TLC actions run,
-and 32 concurrent SANY parsers reproduce `parse_ms=1671` on the UNCHANGED
-fixture while 96 bracket 2008, so a rise in that number is evidence about
-machine load first and about the facts only after the load is ruled out. Use an
-interleaved A/B like the one above for a cost claim. `placement_bytes=` beside
-it is the number that tracks the export's growth, and it is exact.
+Parse cost is reported rather than assumed. `DEVICE_MESH_TLA_PLACEMENT_FACTS`
+gives the placement share of `DeviceMeshFacts.tla`, and
+`DEVICE_MESH_REFINE_PARSE` now carries `placement_bytes=` beside `facts_bytes=`
+and `parse_ms=`, so a growing placement export shows up against the parse time
+it is charged to. Adding the structural facts moved `DeviceMeshFacts.tla` from
+1,642,832 to 1,689,740 bytes (+2.9%, 46,908 of them the delimited placement
+block). An interleaved A/B of the SANY parse of `DeviceMeshRefine`, against the
+same facts module with the placement block stripped, puts the cost at a real and
+reproducible +35 to +50 ms, about 4-5% -- small, and measurable only with the
+interleaved shape. `DEVICE_MESH_REFINE_PARSE`'s `parse_ms` is kept, with this
+caveat attached rather than dropped, because it is still the only in-gate record
+that the parse completed at all and roughly how long the fixed cost was. It is
+NOT a measurement of parse cost: the refine target parses while other TLC
+actions run, and 32 concurrent SANY parsers reproduce `parse_ms=1671` on the
+UNCHANGED fixture while 96 bracket 2008, so a rise in that number is evidence
+about machine load first and about the facts only after the load is ruled out.
+Use an interleaved A/B like the one above for a cost claim. `placement_bytes=`
+beside it is the number that tracks the export's growth, and it is exact.
 
 ### Collective payload identity
 
 Matching operation order on a communicator is necessary but does not make a
-collective well formed. Its members must also agree on dtype and on volume, and a
-mismatch there is a different failure from a hang: NCCL errors or corrupts
+collective well formed. Its members must also agree on dtype and on volume, and
+a mismatch there is a different failure from a hang: NCCL errors or corrupts
 instead of deadlocking, so the ordering predicates cannot express it at all.
 
 The facts carry, per collective work, `input_sizes`, `output_sizes`,
@@ -285,95 +291,96 @@ which are attributed by a positional zip -- and the sealed bundle says so in the
 provenance contract's `observed_payload` block. They are also PLURAL and per
 tensor: one shape and one dtype name per tensor the collective was given, the
 lists running in parallel, so a single-dtype model would be wrong for a
-collective over several tensors. An empty shape is a 0-dim tensor: no dimensions,
-one element, which is why the product of no sizes is 1 and not 0.
+collective over several tensors. An empty shape is a 0-dim tensor: no
+dimensions, one element, which is why the product of no sizes is 1 and not 0.
 
 Element counts are DERIVED by the exporter, because the relation an operation
 implies is between volumes rather than shapes -- an all-gather may concatenate
-along any dimension. Both checkers recompute them from the exported shapes rather
-than trusting the derivation, the same way the placement schema digest is
+along any dimension. Both checkers recompute them from the exported shapes
+rather than trusting the derivation, the same way the placement schema digest is
 recomputed rather than compared.
 
-Four invariants, taking `ScoutBValid` from 19 to 23:
+Four invariants, taking `DeviceMeshValid` from 19 to 23:
 
-- `ScoutBCollectivePayloadWellFormed` -- domains, the per-tensor pairing of
+- `DeviceMeshCollectivePayloadWellFormed` -- domains, the per-tensor pairing of
   shapes with dtype names, positive dimensions, and the recomputed element
   counts.
-- `ScoutBPayloadCommKey` -- the payload is keyed on `process_group.canonical_id`,
-  the same key as `CollectiveComm`, and NEVER on `runtime_pg_id`. The equality
-  with `CollectiveComm` is a tripwire against the two exports drifting; the
-  load-bearing half is that works sharing a payload key share a member set, which
-  a per-rank local numbering cannot satisfy. That is the eight-versus-four
-  communicator confusion, refuted rather than commented on.
-- `ScoutBCollectivePayloadAgreement` -- THE property: the members of one
+- `DeviceMeshPayloadCommKey` -- the payload is keyed on
+  `process_group.canonical_id`, the same key as `CollectiveComm`, and NEVER on
+  `runtime_pg_id`. The equality with `CollectiveComm` is a tripwire against the
+  two exports drifting; the load-bearing half is that works sharing a payload
+  key share a member set, which a per-rank local numbering cannot satisfy. That
+  is the eight-versus-four communicator confusion, refuted rather than commented
+  on.
+- `DeviceMeshCollectivePayloadAgreement` -- THE property: the members of one
   collective agree on dtype and on volume, and a collective uses one dtype for
   both buffers, as NCCL requires.
-- `ScoutBCollectivePayloadSizeRelation` -- THE second property: an all-gather's
-  output volume is its member count times its input, a reduce-scatter's the
-  inverse, an all-reduce's the same, with the exported relation label checked
-  against the operation so the two cannot disagree silently. An operation the
-  table does not know maps to a label outside the relation set and fails rather
-  than passing vacuously.
+- `DeviceMeshCollectivePayloadSizeRelation` -- THE second property: an
+  all-gather's output volume is its member count times its input, a
+  reduce-scatter's the inverse, an all-reduce's the same, with the exported
+  relation label checked against the operation so the two cannot disagree
+  silently. An operation the table does not know maps to a label outside the
+  relation set and fails rather than passing vacuously.
 
 Two named negatives, because the observed run satisfies both properties and a
 positive result alone says nothing about what either would catch. Both are
-overrides of the real `ScoutBFacts` rather than mutated multi-megabyte copies,
-and both derive their target from the facts.
+overrides of the real `DeviceMeshFacts` rather than mutated multi-megabyte
+copies, and both derive their target from the facts.
 
-`ScoutBPayloadSizeInvalid.tla` doubles the first dimension of every shape of ONE
-member of one collective, recomputing that member's element counts from the
+`DeviceMeshPayloadSizeInvalid.tla` doubles the first dimension of every shape of
+ONE member of one collective, recomputing that member's element counts from the
 mutated shapes. Doubling both sides keeps the operation's implied relation
-intact, so the only thing it breaks is agreement between members. TLC must report
-exactly `ScoutBCollectivePayloadAgreement`. Token:
-`SCOUT_B_TLA_PAYLOAD_SIZE_NEGATIVE`.
+intact, so the only thing it breaks is agreement between members. TLC must
+report exactly `DeviceMeshCollectivePayloadAgreement`. Token:
+`DEVICE_MESH_TLA_PAYLOAD_SIZE_NEGATIVE`.
 
-`ScoutBPayloadOperationInvalid.tla` relabels one collective's operation on EVERY
-member work, with the relation label moved to the one the wrong operation
+`DeviceMeshPayloadOperationInvalid.tla` relabels one collective's operation on
+EVERY member work, with the relation label moved to the one the wrong operation
 implies -- what the exporter would have written had it read the operation
-wrongly. TLC must report exactly `ScoutBCollectivePayloadSizeRelation`. Token:
-`SCOUT_B_TLA_PAYLOAD_OPERATION_NEGATIVE`.
+wrongly. TLC must report exactly `DeviceMeshCollectivePayloadSizeRelation`.
+Token: `DEVICE_MESH_TLA_PAYLOAD_OPERATION_NEGATIVE`.
 
 `PerCommunicatorIssueOrderAgreement` is in BOTH survivor sets, and that is the
 whole argument for having these properties rather than treating ordering
 agreement as sufficient. A volume mismatch leaves every communicator's operation
 order exactly as observed. A symmetric mislabelling leaves it too, because all
-four ranks then agree on the wrong label. Each control asserts that survival over
-the mutated facts rather than claiming it in prose, and each cfg pins its
-invariant order -- sentinel first, property under test last -- with the reason in
-the file, because TLC reports only the first failing invariant and an unpinned
-order silently decides which one a reader sees.
+four ranks then agree on the wrong label. Each control asserts that survival
+over the mutated facts rather than claiming it in prose, and each cfg pins its
+invariant order -- sentinel first, property under test last -- with the reason
+in the file, because TLC reports only the first failing invariant and an
+unpinned order silently decides which one a reader sees.
 
-`ScoutBPayloadChecks.lean` and `ScoutBPayloadMutationChecks.lean` are the Lean
-counterparts, under `SCOUT_B_LEAN_PAYLOAD` and `SCOUT_B_LEAN_PAYLOAD_MUTATION`.
-Their facts are shaped differently from the TLA ones on purpose, and the reason
-is measured. TLC evaluates an all-pairs agreement predicate over 432 works
-without trouble; the Lean kernel does not -- a `rfl` over that form had not
-finished after four minutes, against a 120s per-module budget. So the Lean facts
-add one row per collective, reached from each work by a `Nat` index, plus one row
-per distinct communicator key, and the predicates join through those instead.
-At the observed scale that is about 26s for agreement and 13s for
-well-formedness per evaluation, which is also why the positives and the mutations
-are separate modules with a 300s budget: `rfl` caches nothing between theorems.
-Two things that form leaves elsewhere, stated rather than hidden. The exporter
-takes each row's values from ONE member and does NOT check that the others agree,
-because an exporter that refused a mismatch would decide the property before any
-checker saw it. And the prefix relation between the communicator key and the
-collective id -- the one check no integer key could satisfy -- is asserted at the
-exporter seam by
-`test_collective_payload_is_keyed_on_the_canonical_communicator_id`, because every
-Lean route to a string prefix goes through `String.toList`, which is not
+`DeviceMeshPayloadChecks.lean` and `DeviceMeshPayloadMutationChecks.lean` are
+the Lean counterparts, under `DEVICE_MESH_LEAN_PAYLOAD` and
+`DEVICE_MESH_LEAN_PAYLOAD_MUTATION`. Their facts are shaped differently from the
+TLA ones on purpose, and the reason is measured. TLC evaluates an all-pairs
+agreement predicate over 432 works without trouble; the Lean kernel does not --
+a `rfl` over that form had not finished after four minutes, against a 120s
+per-module budget. So the Lean facts add one row per collective, reached from
+each work by a `Nat` index, plus one row per distinct communicator key, and the
+predicates join through those instead. At the observed scale that is about 26s
+for agreement and 13s for well-formedness per evaluation, which is also why the
+positives and the mutations are separate modules with a 300s budget: `rfl`
+caches nothing between theorems. Two things that form leaves elsewhere, stated
+rather than hidden. The exporter takes each row's values from ONE member and
+does NOT check that the others agree, because an exporter that refused a
+mismatch would decide the property before any checker saw it. And the prefix
+relation between the communicator key and the collective id -- the one check no
+integer key could satisfy -- is asserted at the exporter seam by
+`test_collective_payload_is_keyed_on_the_canonical_communicator_id`, because
+every Lean route to a string prefix goes through `String.toList`, which is not
 axiom-free under `rfl`.
 
-`SCOUT_B_TLA_PAYLOAD_FACTS` reports the payload share of `ScoutBFacts.tla`
-beside the whole-file size, for the same reason the placement block is
-delimited. Read it with the same caveat: `payload_bytes=` is exact, `parse_ms=`
-measures machine load first.
+`DEVICE_MESH_TLA_PAYLOAD_FACTS` reports the payload share of
+`DeviceMeshFacts.tla` beside the whole-file size, for the same reason the
+placement block is delimited. Read it with the same caveat: `payload_bytes=` is
+exact, `parse_ms=` measures machine load first.
 
-The Scout B suite includes all smoke and Scout A targets:
+The Device-mesh suite includes all smoke and Single-rank targets:
 
 ```bash
-scripts/run_formal_checks.sh --networked --suite scout-b
-scripts/run_formal_checks.sh --no-fetch --suite scout-b
+scripts/run_formal_checks.sh --networked --suite device-mesh
+scripts/run_formal_checks.sh --no-fetch --suite device-mesh
 ```
 
 ## Evaluations of the observed trace versus theorems about the protocol
@@ -382,24 +389,24 @@ These are two different kinds of result and the sealed log labels them
 differently, because a reader meets the result there rather than in a source
 comment.
 
-The `SCOUT_B_MODEL_SAFETY` token additionally carries `invariants=`, the list
-TLC was actually given, parsed out of the cfg by `formal_cfg_invariants`.
+The `DEVICE_MESH_MODEL_SAFETY` token additionally carries `invariants=`, the
+list TLC was actually given, parsed out of the cfg by `formal_cfg_invariants`.
 Without it the only invariant a log reader ever met by name was whichever one a
 failure reported, and `StuckImpliesAllDone` was named nowhere at all.
 
-Everything described above under Scout A and Scout B is an EVALUATION of the
-observed trace: a `Bool`-valued predicate applied to literal fact data and
+Everything described above under Single-rank and Device-mesh is an EVALUATION of
+the observed trace: a `Bool`-valued predicate applied to literal fact data and
 closed by `rfl` or `decide`. That is a kernel-checked, axiom-free statement
-about THIS run, and nothing more. Its tokens -- `SCOUT_A_LEAN_VALID`,
-`SCOUT_A_LEAN_NEGATIVE`, `SCOUT_B_LEAN_VALID`, `SCOUT_B_LEAN_MUTATION`,
-`SCOUT_B_LEAN_NEGATIVE`, `SCOUT_B_LEAN_PLACEMENT`,
-`SCOUT_B_LEAN_PLACEMENT_MUTATION`, `SCOUT_B_LEAN_PAYLOAD`,
-`SCOUT_B_LEAN_PAYLOAD_MUTATION` -- carry
+about THIS run, and nothing more. Its tokens -- `SINGLE_RANK_LEAN_VALID`,
+`SINGLE_RANK_LEAN_NEGATIVE`, `DEVICE_MESH_LEAN_VALID`,
+`DEVICE_MESH_LEAN_MUTATION`, `DEVICE_MESH_LEAN_NEGATIVE`,
+`DEVICE_MESH_LEAN_PLACEMENT`, `DEVICE_MESH_LEAN_PLACEMENT_MUTATION`,
+`DEVICE_MESH_LEAN_PAYLOAD`, `DEVICE_MESH_LEAN_PAYLOAD_MUTATION` -- carry
 `kind=evaluation scope=observed-trace`.
 
-`lean_scout_b_protocol_test` is the other kind. It reads no facts module. Its
-three Lean modules encode the `ScoutBModel.tla` protocol and prove theorems
-quantified over topologies, states and schedule lengths. It emits three
+`lean_device_mesh_protocol_test` is the other kind. It reads no facts module.
+Its three Lean modules encode the `DeviceMeshModel.tla` protocol and prove
+theorems quantified over topologies, states and schedule lengths. It emits three
 vocabularies, not one, because labelling all of its results as general theorems
 would repeat the same category error one layer up:
 
@@ -423,22 +430,22 @@ acyclic" are different claims and the second must not read as the first.
 
 The modules:
 
-- `ScoutBProtocol.lean` -- the encoding. Its header holds the
-  definition-by-definition correspondence to `ScoutBModel.tla` and ten named
+- `DeviceMeshProtocol.lean` -- the encoding. Its header holds the
+  definition-by-definition correspondence to `DeviceMeshModel.tla` and ten named
   divergences, each with the direction it moves the claim. That correspondence
   is a SECOND reviewable claim: there is no mechanical link between the Lean
   file and the TLA+ module, so a reviewer has to check it by inspection. Three
   of the divergences are discharged as Lean lemmas
   (`idxOfOn_spec`, `idxOfOn_isSome_of_le`, `opAtOn_append_of_le`) rather than
   left to inspection, and those have their own tokens.
-- `ScoutBInductiveInvariant.lean` -- `initiation`, `consecution` and
+- `DeviceMeshInductiveInvariant.lean` -- `initiation`, `consecution` and
   `sufficiency`, each a separate theorem with a separate token because a
   missing obligation silently weakens the claim, plus `safetyOfReachable`,
   whose statement does not mention `maxIssues`. This is what lifts the
   `MaxIssues = 2` bound off `RendezvousOpAgreement`,
   `RendezvousMembership` and `CommFifo`. `commFifoAloneIsNotInductive` shows
   the conjunction is the strengthening rather than decoration.
-- `ScoutBWaitGraph.lean` -- the general protocol theorem
+- `DeviceMeshWaitGraph.lean` -- the general protocol theorem
   (`orderAgreementAndAcyclicWaitGraphExcludeBothHazards`): order agreement plus
   an acyclic communicator wait-for graph gives neither a rendezvous mismatch
   nor a stream-ordered circular wait. Its first component is the whole of
@@ -446,7 +453,7 @@ The modules:
   `Option`s and holds vacuously where a running communicator is short of a
   member's issue, and `RendezvousMembership` -- which travels inside `Safety` --
   is what forces both sides to `some`. It pairs with
-  `ScoutBModelDivergent.cfg`, which refutes the converse reading in TLC.
+  `DeviceMeshModelDivergent.cfg`, which refutes the converse reading in TLC.
   `acyclicityIsLoadBearing` refutes the statement with the acyclicity
   hypothesis dropped, and `waitGraphWitnessIsNotVacuous` shows the witness's
   guards are satisfiable rather than false by construction.
@@ -454,13 +461,13 @@ The modules:
 `DeadlockFreedom` is proved only CONDITIONALLY, under the acyclicity
 hypothesis. `StuckImpliesAllDone` has no bound-free version at all, since
 `AllDone` is defined by `Len(issued[r]) = MaxIssues`. Both are stated in
-`ScoutBInductiveInvariant.lean`'s header. The unbounded, unconditional
+`DeviceMeshInductiveInvariant.lean`'s header. The unbounded, unconditional
 deadlock-freedom claim remains open.
 
-`ScoutBProtocolInvalid.lean` is the controlled negative Lean must reject,
-matching the shape of `ScoutAInvalid` and `ScoutBInvalid`: it asserts the
-wait-graph witness is not stuck, `decide` proves that false, and
-`SCOUT_B_PROTOCOL_LEAN_NEGATIVE` records the rejection.
+`DeviceMeshProtocolInvalid.lean` is the controlled negative Lean must reject,
+matching the shape of `SingleRankInvalid` and `DeviceMeshInvalid`: it asserts
+the wait-graph witness is not stuck, `decide` proves that false, and
+`DEVICE_MESH_PROTOCOL_LEAN_NEGATIVE` records the rejection.
 
 No new toolchain was pinned for any of this and no Mathlib was added. The
 proofs use core Lean 4.34.0 only, which is what keeps `#print axioms` empty:
@@ -468,20 +475,21 @@ proofs use core Lean 4.34.0 only, which is what keeps `#print axioms` empty:
 `List` lemmas on `propext`, and anything classical on `Classical.choice`, so
 none of them appears in these modules.
 
-## Scout A abstract model and the refinement bridge
+## Single-rank abstract model and the refinement bridge
 
-`ScoutAValid` and `ScoutBValid` check the observed trace. They walk a cursor
-along a constant sequence of generated facts and evaluate predicates over it.
-That is a real check, and the negative controls show the predicates can fail,
-but it is worth being precise about its reach: TLC explores one path, so those
-modules say nothing about any execution that was not observed. Scout B's spec
-in particular has a two-state stutter whose `cursor` no invariant mentions.
+`SingleRankValid` and `DeviceMeshValid` check the observed trace. They walk a
+cursor along a constant sequence of generated facts and evaluate predicates over
+it. That is a real check, and the negative controls show the predicates can
+fail, but it is worth being precise about its reach: TLC explores one path, so
+those modules say nothing about any execution that was not observed.
+Device-mesh's spec in particular has a two-state stutter whose `cursor` no
+invariant mentions.
 
-`ScoutAModel` is a different kind of artifact. It is a transition system for one
-single-rank training step, with guarded actions and no dependence on the
+`SingleRankModel` is a different kind of artifact. It is a transition system for
+one single-rank training step, with guarded actions and no dependence on the
 generated facts. Two sources of nondeterminism are modelled. Both are
 possibilities the protocol has to be safe under, not orders the instrumentation
-has recorded -- the Scout A tracer treats each of them as an error:
+has recorded -- the Single-rank tracer treats each of them as an error:
 
 - gradient readiness races backward completion, so `gradient.ready` may land
   before or after `backward.completed`. The tracer raises `model backward
@@ -515,8 +523,8 @@ constant in a generated fact module.
 
 ### Refinement
 
-`ScoutARefine` restricts the model's transitions so the emitted sequence must
-stay a prefix of the observed one, and asks whether the complete observed
+`SingleRankRefine` restricts the model's transitions so the emitted sequence
+must stay a prefix of the observed one, and asks whether the complete observed
 sequence is reachable. It is. Without this check the model and the trace would
 be unrelated artifacts.
 
@@ -524,16 +532,16 @@ Two things about it are easy to overstate, so state them flatly.
 
 TLC does **not** print the alignment of model actions to observed events. Every
 step of the witness trace is labelled `<ConstrainedNext line ..., col ... of
-module ScoutARefine>`, because `ConstrainedNext` is `RSpec`'s only action.
+module SingleRankRefine>`, because `ConstrainedNext` is `RSpec`'s only action.
 Which model action produced each event is inferable from the state variables in
 the printed states; the checker does not say it.
 
 And the bridge is an agreement between two artifacts, not a per-run check.
-`scout_a.py` requires the normalized event kinds to equal one 10-element
+`single_rank.py` requires the normalized event kinds to equal one 10-element
 literal, so `EventKinds` is that same constant on every run and a deviating run
 is refused by the Python validator before any facts are exported. What
-`ScoutARefine` establishes is therefore that *that constant sequence* lies in
-the abstract model's language -- that the independently written model and the
+`SingleRankRefine` establishes is therefore that *that constant sequence* lies
+in the abstract model's language -- that the independently written model and the
 independently written validator agree on what a legal step looks like. Catching
 a lifecycle deviation is the validator's job, not this check's.
 
@@ -544,7 +552,7 @@ it mentions no variables TLC refutes a false one as a constant expression with
 its own status and message, which is what lets the runner report the vacuous
 case as vacuous instead of as a refusal.
 
-`ScoutARefineBad` is the control, and it must be refused **for the right
+`SingleRankRefineBad` is the control, and it must be refused **for the right
 reason**. An earlier version moved `optimizer.mutated` ahead of
 `gradient.ready`; the model refused it, but because the lifecycle was out of
 order -- the optimizer had not started -- which exercises a different guard than
@@ -553,13 +561,13 @@ the one under test. The control now substitutes `gradient.missing` for
 admissible, the optimizer legitimately starts, and the trace dies exactly at
 `OptimizerMutate`.
 
-Three checks pin that down. `ScoutARefineBad.cfg` shows the trace is not
-admitted; `ScoutARefineBadReach.cfg` shows it *was* admitted up to the mutation,
-so a control refused too early fails the gate rather than counting as a success;
-and `ScoutARefineBadRelaxed.cfg` reruns the same corrupted trace with
-`RequireReadyGradients = FALSE` and requires `ObservedTraceIsNotAdmitted` to be
-violated. The third is the decisive one: it attributes the refusal to that one
-constant directly, where the first two only triangulate where the refusal
+Three checks pin that down. `SingleRankRefineBad.cfg` shows the trace is not
+admitted; `SingleRankRefineBadReach.cfg` shows it *was* admitted up to the
+mutation, so a control refused too early fails the gate rather than counting as
+a success; and `SingleRankRefineBadRelaxed.cfg` reruns the same corrupted trace
+with `RequireReadyGradients = FALSE` and requires `ObservedTraceIsNotAdmitted`
+to be violated. The third is the decisive one: it attributes the refusal to that
+one constant directly, where the first two only triangulate where the refusal
 landed. `CorruptionIsIsolated` additionally proves the trace differs from the
 observed one at exactly one position, and `ControlEventsArePresent` refuses the
 degenerate case in which the events the corruption targets are absent and the
@@ -568,48 +576,48 @@ index sentinels make the "corruption" a no-op.
 One polarity note, stated loudly because it reads backwards. TLC proves
 reachability by refutation, so the witness that the observed trace is admitted
 is a *violation* of `ObservedTraceIsNotAdmitted`. The runner translates that
-into `SCOUT_A_REFINEMENT result=admitted`. All four refinement configurations
-set `CHECK_DEADLOCK FALSE` so that a refused trace completes cleanly (exit 0, no
-witness) instead of surfacing as TLC exit 11, which is indistinguishable from a
-genuine specification defect.
+into `SINGLE_RANK_REFINEMENT result=admitted`. All four refinement
+configurations set `CHECK_DEADLOCK FALSE` so that a refused trace completes
+cleanly (exit 0, no witness) instead of surfacing as TLC exit 11, which is
+indistinguishable from a genuine specification defect.
 
 ### What this does and does not establish
 
-This section is about Scout A. It establishes safety properties of a bounded
+This section is about Single-rank. It establishes safety properties of a bounded
 abstract model of one single-rank step, and that the one exported event-kind
 sequence lies inside that model.
 
-The abstract DPxTP protocol is a separate model, `ScoutBModel`, with its own
-eleven checks and its own claim inventory; see "Tier 0: the trace-free
-suite" above for what each of its result tokens establishes, and the header of
-`ScoutBModel.tla` for the exact claims. Its refinement bridge to the observed
-four-rank trace is `ScoutBRefine`, described in "DPxTP refinement bridge" below;
-`ScoutBValid` and `ScoutBIssueOrderInvalid` remain cursor walks over the
-generated facts, not refinement.
+The abstract DPxTP protocol is a separate model, `DeviceMeshModel`, with its own
+eleven checks and its own claim inventory; see "Tier 0: the trace-free suite"
+above for what each of its result tokens establishes, and the header of
+`DeviceMeshModel.tla` for the exact claims. Its refinement bridge to the
+observed four-rank trace is `DeviceMeshRefine`, described in "DPxTP refinement
+bridge" below; `DeviceMeshValid` and `DeviceMeshIssueOrderInvalid` remain cursor
+walks over the generated facts, not refinement.
 
-The bridge is over event **kinds** only. `ScoutARefine` projects the observed
-trace to its `EventKinds` sequence, so the refinement argument covers the order
-and presence of lifecycle events and nothing else. Event identities, phases,
-predecessor sets, raw-source provenance and projection digests are checked by
-Python and by the `ScoutAValid`/Lean fact modules, but they are not part of what
-the model admits. A trace could therefore be admitted here while carrying
-corrupt provenance; that is the other checkers' job, and this one does not
-subsume them.
+The bridge is over event **kinds** only. `SingleRankRefine` projects the
+observed trace to its `EventKinds` sequence, so the refinement argument covers
+the order and presence of lifecycle events and nothing else. Event identities,
+phases, predecessor sets, raw-source provenance and projection digests are
+checked by Python and by the `SingleRankValid`/Lean fact modules, but they are
+not part of what the model admits. A trace could therefore be admitted here
+while carrying corrupt provenance; that is the other checkers' job, and this one
+does not subsume them.
 
-`ScoutAModel` itself does not model the 2x2 DPxTP topology, collectives,
+`SingleRankModel` itself does not model the 2x2 DPxTP topology, collectives,
 multi-step training, convergence, or performance. It is not claimed to be a
-faithful model of TorchTitan -- only of the step lifecycle contract stated in its
-own actions, and its value depends on that contract being the right one, which no
-checker decides. The same caveat applies to `ScoutBModel` for the collective
-protocol.
+faithful model of TorchTitan -- only of the step lifecycle contract stated in
+its own actions, and its value depends on that contract being the right one,
+which no checker decides. The same caveat applies to `DeviceMeshModel` for the
+collective protocol.
 
 ## DPxTP refinement bridge
 
-`ScoutBRefine` asks whether the observed four-rank run is an admitted behaviour
-of `ScoutBModel`. Its target is `tlc_scout_b_refine_test`, which runs in the
-sealed Scout B suite and not in tier 0, because it reads the generated
-`ScoutBFacts`. Seven checks; the module header carries the same list as its
-claim inventory and the two must agree.
+`DeviceMeshRefine` asks whether the observed four-rank run is an admitted
+behaviour of `DeviceMeshModel`. Its target is `tlc_device_mesh_refine_test`,
+which runs in the sealed Device-mesh suite and not in tier 0, because it reads
+the generated `DeviceMeshFacts`. Seven checks; the module header carries the
+same list as its claim inventory and the two must agree.
 
 **Only the issue order is replayed.** The observer appends each collective's
 enqueued/started/completed triple contiguously, post hoc, from the Flight
@@ -645,13 +653,14 @@ admitted. Measured: reversing every rank's sequence is admitted with the same
 observed order leaves those numbers unchanged.
 
 So the limit is a checked pair rather than a caveat.
-`ScoutBRefineUniformPermutation.cfg` reverses every rank's sequence and the run
-is **admitted**; `ScoutBRefineSingleRankPermutation.cfg` reverses one rank's
-sequence, which breaks the columns, and the run is **refused** at depth 6. The
-second half is the evidence that the bridge detects agreement violations -- the
-property NCCL imposes and the one a real job hangs on. Both halves assert,
-through the model's own `UniformProgram*OK` predicates, that their input really
-does preserve or break agreement, so neither can pass for an unrelated reason.
+`DeviceMeshRefineUniformPermutation.cfg` reverses every rank's sequence and the
+run is **admitted**; `DeviceMeshRefineSingleRankPermutation.cfg` reverses one
+rank's sequence, which breaks the columns, and the run is **refused** at depth
+6. The second half is the evidence that the bridge detects agreement violations
+-- the property NCCL imposes and the one a real job hangs on. Both halves
+assert, through the model's own `UniformProgram*OK` predicates, that their input
+really does preserve or break agreement, so neither can pass for an unrelated
+reason.
 
 **Admission is completion, not length.** `Issue`'s guard never reads `doneOn`,
 so "every rank reached its observed issue count" is satisfied by issuing
@@ -696,26 +705,26 @@ refused; overlapping schedules are covered by the confluence configuration
 below.
 
 **Confluence is machine-checked over a declared fragment.**
-`ScoutBRefineSkew.cfg` drops the greedy policy and explores every schedule whose
-per-rank issue counts stay within `MaxReplaySkew` of one another and which keeps
-at most `MaxOutstanding` issues in flight per rank and communicator, over the
-first `MaxIssues` issues of each rank. `CHECK_DEADLOCK` is on and this is the
-only refinement configuration where it is: `Terminated` self-loops on `AllDone`
-alone, so "no dead end anywhere" gives "every schedule in the fragment reaches
-completion" **provided the graph is otherwise acyclic**. That proviso is an
-unchecked lemma, stated as prose in the module header and argued from a
+`DeviceMeshRefineSkew.cfg` drops the greedy policy and explores every schedule
+whose per-rank issue counts stay within `MaxReplaySkew` of one another and which
+keeps at most `MaxOutstanding` issues in flight per rank and communicator, over
+the first `MaxIssues` issues of each rank. `CHECK_DEADLOCK` is on and this is
+the only refinement configuration where it is: `Terminated` self-loops on
+`AllDone` alone, so "no dead end anywhere" gives "every schedule in the fragment
+reaches completion" **provided the graph is otherwise acyclic**. That proviso is
+an unchecked lemma, stated as prose in the module header and argued from a
 lexicographic measure; a finite state graph may perfectly well contain cycles,
 so the inference is only as good as that argument. TLC checks the absence of
-dead ends, not the acyclicity. A pass also
-certifies that the two cost-control bounds are not themselves obstructive.
-`ScoutBRefineOverlap.cfg` then refutes `NoTwoCollectivesRunConcurrently` over
-the same constants, which is what keeps the result from being a statement about
-serialized schedules only. The bound of 54 is chosen, not convenient: rank 0's
-first `reduce_scatter` is at position 52 and the pair the negative control
-transposes is 52/53, so a shorter prefix contains no `reduce_scatter` at all and
-the `rs` stream -- and with it the alternation between FSDP2's two dedicated
-streams on one communicator -- never appears. `all_gather` is in play from
-position 2, so the `ag` stream is not what this bound buys.
+dead ends, not the acyclicity. A pass also certifies that the two cost-control
+bounds are not themselves obstructive. `DeviceMeshRefineOverlap.cfg` then
+refutes `NoTwoCollectivesRunConcurrently` over the same constants, which is what
+keeps the result from being a statement about serialized schedules only. The
+bound of 54 is chosen, not convenient: rank 0's first `reduce_scatter` is at
+position 52 and the pair the negative control transposes is 52/53, so a shorter
+prefix contains no `reduce_scatter` at all and the `rs` stream -- and with it
+the alternation between FSDP2's two dedicated streams on one communicator --
+never appears. `all_gather` is in play from position 2, so the `ag` stream is
+not what this bound buys.
 
 The fragment is a fragment: it says nothing about
 positions beyond its bound or about wider skew, and the runner reports every
@@ -734,7 +743,7 @@ two places, so which guard refuses it depends on the configuration. Under the
 **positive's** guard set the operations disagree at that position with every
 other rank, so `RequireUniformProgramOps` refuses every *peer's* issue at that
 position and the corrupted column never forms: that is
-`ScoutBRefineBadUniform.cfg`, where `CorruptedColumnIsNeverFormed` holds --
+`DeviceMeshRefineBadUniform.cfg`, where `CorruptedColumnIsNeverFormed` holds --
 2,555 distinct states, depth 414. The corrupted record itself is still issued,
 because `UniformProgramOpsOK` compares positions only up to the shorter of two
 sequences and the frontier position is not yet compared with anything. That is
@@ -743,18 +752,18 @@ follow, the job stops. The refusal is correct, but it is not the guard the
 control exists to exercise.
 
 So the three configurations that isolate the rendezvous guard --
-`ScoutBRefineBad`, `...BadReach` and `...BadRelaxed` -- all set
+`DeviceMeshRefineBad`, `...BadReach` and `...BadRelaxed` -- all set
 `RequireUniformProgramOps = FALSE`. That is necessary for `...BadRelaxed`: with
 the SPMD guard on, flipping `RequireMatchedIssueOrder` does not admit the
 corruption and the attribution to that one constant collapses. It is **not**
 necessary for `...BadReach` -- measured, that witness appears at the same depth
 with the guard either way -- and is set there only to keep the three on one
 constant set, so the only differences among them are the ones the runner's cfg
-diff checks. `ScoutBRefineBadRelaxed.cfg` then flips `RequireMatchedIssueOrder`
-alone and the same corruption completes, which attributes that refusal to NCCL's
-matching requirement directly.
+diff checks. `DeviceMeshRefineBadRelaxed.cfg` then flips
+`RequireMatchedIssueOrder` alone and the same corruption completes, which
+attributes that refusal to NCCL's matching requirement directly.
 
-**Why `-Xss` is raised.** `ScoutBModel`'s SPMD-program guards contain
+**Why `-Xss` is raised.** `DeviceMeshModel`'s SPMD-program guards contain
 `\A r1 \in Ranks : \A r2 \in Ranks : \A k \in 1..MinOf(len1, len2)` inside
 `IssueAllowed`, which is evaluated in action position, where TLC recurses once
 per bound element. At `MaxIssues = 2`, where every other configuration of that

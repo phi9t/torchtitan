@@ -12,7 +12,7 @@ or TLAPS; 13 records that decision and its reasons.
 
 ## What the Lean layer proved before this ticket
 
-`ScoutDistributed.lean` and `ScoutLifecycle.lean` define `Bool`-valued
+`MeshTopology.lean` and `TraceLifecycle.lean` define `Bool`-valued
 predicates and close them with `rfl` or `by decide` against literal trace data.
 That is a kernel-checked *evaluation*: it proves the checked-in trace satisfies
 the predicate. It is genuine -- the axiom-free check is real and the negatives
@@ -20,9 +20,9 @@ fail as they should -- but it is decidable arithmetic on constants, so it says
 nothing about any other trace, and a reader who sees "Lean 4 proof" will assume
 more.
 
-(This ticket originally named the second file `ScoutALifecycle.lean`. There is
-no such file and never was; the module is `ScoutLifecycle.lean`, shared by the
-Scout A and Scout B suites. Corrected here.)
+(This ticket originally named the second file `SingleRankLifecycle.lean`. There
+is no such file and never was; the module is `TraceLifecycle.lean`, shared by
+the Single-rank and Device-mesh suites. Corrected here.)
 
 Ticket 12's P0 removed the worst instance, a predicate asserting a phase
 serialization that does not occur. What remained was honest but narrow.
@@ -31,20 +31,20 @@ serialization that does not occur. What remained was honest but narrow.
 
 Three new Lean modules, carrying no trace data at all:
 
-- `ScoutBProtocol.lean` — an encoding of `ScoutBModel.tla`: `Topology`,
+- `DeviceMeshProtocol.lean` — an encoding of `DeviceMeshModel.tla`: `Topology`,
   `State`, the guards as computable `Bool`s, `Init`, `Step` (one constructor per
   `Next` disjunct), `Reachable`, and the safety invariants as `Prop`s. Its
   header carries the definition-by-definition correspondence to the TLA+ module
   and ten named divergences, each with the direction it moves the claim.
-- `ScoutBInductiveInvariant.lean` — the three inductive obligations, the
+- `DeviceMeshInductiveInvariant.lean` — the three inductive obligations, the
   composition to every reachable state, and a negative showing the conjunction
   is required.
-- `ScoutBWaitGraph.lean` — the general protocol theorem and the
+- `DeviceMeshWaitGraph.lean` — the general protocol theorem and the
   load-bearing-hypothesis negative.
 
-Plus `ScoutBProtocolInvalid.lean` (a controlled negative Lean must reject),
-`run_lean_scout_b_protocol.sh`, and the `lean_scout_b_protocol_test` target in
-both `tier0_formal_tests` and `scout_b_formal_tests`.
+Plus `DeviceMeshProtocolInvalid.lean` (a controlled negative Lean must reject),
+`run_lean_device_mesh_protocol.sh`, and the `lean_device_mesh_protocol_test`
+target in both `tier0_formal_tests` and `device_mesh_formal_tests`.
 
 ### The inductive invariant, and which safety property it covers
 
@@ -61,18 +61,17 @@ its statement, so `MaxIssues` is out of the safety claim.
 
 `consecution` takes one guard hypothesis, `requireMatchedIssueOrder = true`.
 That is NCCL's own matching requirement, and it is what makes a started
-rendezvous agree on the operation; `ScoutBModelUnguarded.cfg` is the TLC
+rendezvous agree on the operation; `DeviceMeshModelUnguarded.cfg` is the TLC
 negative for the same fact. The other three `require*` flags are not needed,
 which is a stronger statement than the configuration TLC checks.
 
 What was NOT made unconditional, and why:
 
-- `StuckImpliesAllDone` cannot be made bound-free for a syntactic reason
-  rather than a limitation of the proof: `AllDone` is defined by
-  `Len(issued[r]) = MaxIssues`, so the bound is in the property's own
-  statement. It holds in `ScoutBModel.cfg` at `MaxIssues = 2`, which is a real
-  result about that configuration; there is no unbounded version of it to
-  prove.
+- `StuckImpliesAllDone` cannot be made bound-free for a syntactic reason rather
+  than a limitation of the proof: `AllDone` is defined by `Len(issued[r]) =
+  MaxIssues`, so the bound is in the property's own statement. It holds in
+  `DeviceMeshModel.cfg` at `MaxIssues = 2`, which is a real result about that
+  configuration; there is no unbounded version of it to prove.
 - `DeadlockFreedom == ~StuckByCircularWait` is proved only CONDITIONALLY, under
   an acyclicity hypothesis on the wait-for graph. Whether that graph is acyclic
   is an instance-and-guards question, which is what TLC answers. The
@@ -89,7 +88,7 @@ states and schedule lengths, if per-communicator issue order agreement is
 required and the communicator wait-for graph is acyclic, then the state has no
 rendezvous mismatch and no stream-ordered circular wait.
 
-It pairs with `ScoutBModelDivergent.cfg`, which refutes the other direction:
+It pairs with `DeviceMeshModelDivergent.cfg`, which refutes the other direction:
 with operations still agreeing at every position, relaxing only
 communicator-site agreement makes `DeadlockFreedom` false. Proving one
 direction in Lean and refuting the other in TLC is a stronger pair than either
@@ -108,8 +107,8 @@ alone.
 - `commFifoAloneIsNotInductive` — one `Complete` step preserves `CommFifo` in
   the pre-state and breaks it in the post-state, so the conjunction in `Inv` is
   the strengthening rather than decoration.
-- `ScoutBProtocolInvalid.lean` — the uncompilable form of negative, matching
-  the shape of `ScoutAInvalid` and `ScoutBInvalid`.
+- `DeviceMeshProtocolInvalid.lean` — the uncompilable form of negative, matching
+  the shape of `SingleRankInvalid` and `DeviceMeshInvalid`.
 
 ## Acceptance criteria
 
@@ -119,8 +118,8 @@ This ticket's own:
       over literals. Twenty of them, over `Topology`, `State` and `Step`.
 - [x] The existing evaluation certificates stay, and are relabelled as
       *evaluation of the observed trace* in the RESULT TOKENS as well as in
-      comments: `SCOUT_A_LEAN_VALID`, `SCOUT_A_LEAN_NEGATIVE`,
-      `SCOUT_B_LEAN_VALID`, `SCOUT_B_LEAN_MUTATION` and `SCOUT_B_LEAN_NEGATIVE`
+      comments: `SINGLE_RANK_LEAN_VALID`, `SINGLE_RANK_LEAN_NEGATIVE`,
+      `DEVICE_MESH_LEAN_VALID`, `DEVICE_MESH_LEAN_MUTATION` and `DEVICE_MESH_LEAN_NEGATIVE`
       now carry `kind=evaluation scope=observed-trace`, while every new token
       carries `kind=theorem scope=all-topologies-all-schedules bound=none`.
       The distinction is visible in the sealed log.
@@ -128,7 +127,7 @@ This ticket's own:
       axioms; `formal_classify_lean_valid` was not widened. This forced the
       proofs away from `omega` (propext, Quot.sound), `simp` (propext), most
       core `List` lemmas (propext) and anything classical (Classical.choice);
-      the discipline is recorded in `ScoutBProtocol.lean`'s header.
+      the discipline is recorded in `DeviceMeshProtocol.lean`'s header.
 - [x] A negative whose hypotheses are shown to be load-bearing: see above.
 - [x] Lean 4 stays on its pinned toolchain; no Mathlib.
 
@@ -146,15 +145,15 @@ Folded in from ticket 13:
 
 ## Fidelity review outcome
 
-An independent review found the encoding SOUND WITH CAVEATS: all twenty
-theorems axiom-free on the reviewer's own Lean run, `safetyOfReachable`'s type
-free of `maxIssues` with the `#print allDoneB` control confirming that is a
-property of the statement rather than the printer, all divergences faithful,
-`Step` exactly one constructor per `Next` disjunct, `blockerOfStuckPending`'s
-case analysis exhaustive against `StartAllowed`'s three conjuncts, all three
-negatives proving genuine negations, and the comment-stripped `ScoutBModel.tla`
-diff empty, so no TLC regression is possible from this change. Four things were
-fixed afterwards:
+An independent review found the encoding SOUND WITH CAVEATS: all twenty theorems
+axiom-free on the reviewer's own Lean run, `safetyOfReachable`'s type free of
+`maxIssues` with the `#print allDoneB` control confirming that is a property of
+the statement rather than the printer, all divergences faithful, `Step` exactly
+one constructor per `Next` disjunct, `blockerOfStuckPending`'s case analysis
+exhaustive against `StartAllowed`'s three conjuncts, all three negatives proving
+genuine negations, and the comment-stripped `DeviceMeshModel.tla` diff empty, so
+no TLC regression is possible from this change. Four things were fixed
+afterwards:
 
 - **The flagship theorem returned a vacuous-capable component.**
   `RendezvousOpAgreement` compares two `Option O`, so it holds vacuously on a
@@ -186,7 +185,7 @@ fixed afterwards:
   do not; `TypeOK` simply drops that conjunct.
 
 Also from the review: `StuckImpliesAllDone` was named by no token at all, so
-`SCOUT_B_MODEL_SAFETY` now carries `invariants=`, derived from the cfg by
+`DEVICE_MESH_MODEL_SAFETY` now carries `invariants=`, derived from the cfg by
 `formal_cfg_invariants`. The review also strengthened divergence 4 -- `CommPos`
 strictly increases along a communicator's positions, so the CHOOSE predicate has
 a UNIQUE solution and TLA's CHOOSE is FORCED to `idxOfOn`'s answer rather than
@@ -194,25 +193,25 @@ merely compatible with it -- which is now recorded there.
 
 ## The remaining reviewable claim
 
-The encoding fidelity of `ScoutBProtocol.lean` against `ScoutBModel.tla` is a
-SECOND claim, and there is no mechanical link between the two files. A Lean
+The encoding fidelity of `DeviceMeshProtocol.lean` against `DeviceMeshModel.tla`
+is a SECOND claim, and there is no mechanical link between the two files. A Lean
 proof about a different model than the one TLC checks is worth nothing. The
 correspondence is therefore written out definition by definition in that file's
-header, with ten named divergences; three of them (that the encoded index
-reads the right issue, that the index exists whenever its guard holds, and that
+header, with ten named divergences; three of them (that the encoded index reads
+the right issue, that the index exists whenever its guard holds, and that
 appending an issue leaves earlier reads alone) are discharged as Lean lemmas
 with their own result tokens. The rest must be checked by inspection.
 
 ### Gate evidence
 
-Full nine-stage Scout B gate, all stages exit 0, sealed and verified, after the
-four fidelity-review findings were fixed.
+Full nine-stage Device-mesh gate, all stages exit 0, sealed and verified, after
+the four fidelity-review findings were fixed.
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:c370f7163b86b8d90916d37f93fb12b15517d5d859a1fbd3c7cc41d414bbca0f`
-- Scout B source ID:
+- Device-mesh source ID:
   `sha256:2e84b97e26aace9081ff25d2c8d550f0964467a488c95c098bd8287359c66e08`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:c331886cd5d27f4aa6904740e7efdfd95d1cd45ebf363319ec6fc7ffa554eea4`
 
 The vocabulary split is visible in the sealed log, which was the point of the

@@ -7,16 +7,16 @@ about gradients.
 **Blocked by:** none. Needs one fresh 4-GPU run, so it pairs with ticket 15.
 
 **Status:** resolved -- the optimizer-boundary placement observation and
-`ScoutBPlacementPartialInvalid.tla` landed in `19a485a7d`. This line read
+`DeviceMeshPlacementPartialInvalid.tla` landed in `19a485a7d`. This line read
 `ready-for-agent` until a status audit corrected it; the work had been
 committed for some time and the ledger was advertising it as available.
 
 ## Why ticket 17 could not finish this
 
 Ticket 17 added a structural placement export and a
-`ScoutBNoPartialAtOptimizer` invariant. Measured while building it:
+`DeviceMeshNoPartialAtOptimizer` invariant. Measured while building it:
 
-- `tensor_placements` is a **single snapshot**, taken in `run_scout_b` after
+- `tensor_placements` is a **single snapshot**, taken in `run_device_mesh` after
   `config.build()` and before `trainer.train()`. It is not observed at the
   optimizer boundary.
 - **No gradient placement is observed anywhere.** The one `gradient.ready` event
@@ -42,10 +42,10 @@ and should not be quietly upgraded later; close the gap instead.
   construction.
 - [ ] Capture gradient placements, not only gradient digests. Without them the
   central check cannot be stated.
-- [ ] Restate `ScoutBNoPartialAtOptimizer` over gradients, keeping the parameter
-  version as a separate, separately-named invariant. Do not widen the existing
-  name to cover the new evidence -- a reader who saw the old claim must not be
-  told the new one silently.
+- [ ] Restate `DeviceMeshNoPartialAtOptimizer` over gradients, keeping the
+  parameter version as a separate, separately-named invariant. Do not widen the
+  existing name to cover the new evidence -- a reader who saw the old claim must
+  not be told the new one silently.
 - [ ] A negative that injects a `Partial` gradient, derived from the facts.
 - [ ] This changes the raw schema, so every digest moves and it needs the
   two-run gate sequence recorded in ticket 18. It also affects ticket 08's

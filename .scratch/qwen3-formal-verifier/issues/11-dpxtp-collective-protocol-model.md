@@ -4,7 +4,8 @@
 DP-shard x TP mesh, checking the property whose violation hangs real jobs, plus
 the same property checked against the observed run.
 
-**Blocked by:** 03 — Scout B: 2x2 DPxTP tracer bullet (for the observed facts).
+**Blocked by:** 03 — Device-mesh: 2x2 DPxTP tracer bullet (for the observed
+facts).
 
 **Status:** resolved -- reviewed (FAIL), repaired under ticket 21, gated in
 `4f252960d`
@@ -32,15 +33,15 @@ densely, so ranks 0 and 2 sit on a genuine four-cycle wait-for graph.
   appended post hoc and is never used as ordering evidence.
 - [x] `PerCommunicatorIssueOrderAgreement` holds on the real 108-collective run,
   and flipping exactly one operation makes it false.
-- [x] `ScoutBModel` is a transition system with concurrent per-rank issue, not a
-  replay: 38,321 distinct states at maximum outdegree 24. (Superseded numbers:
-  the first version reported 3,671 at outdegree 12 on a four-communicator
-  instance that could not express the hazard. See ticket 21.)
+- [x] `DeviceMeshModel` is a transition system with concurrent per-rank issue,
+  not a replay: 38,321 distinct states at maximum outdegree 24. (Superseded
+  numbers: the first version reported 3,671 at outdegree 12 on a
+  four-communicator instance that could not express the hazard. See ticket 21.)
 - [x] Streams are modelled, and that they are load-bearing is now a CHECKED
   claim rather than an assertion -- but not by rerunning with the edge deleted,
   which cannot fail (`StuckByCircularWait` is then unsatisfiable by
   construction). What is checked is the lemma's hypothesis:
-  `ScoutBModelStreamShape.cfg` requires some rank to hold two distinct
+  `DeviceMeshModelStreamShape.cfg` requires some rank to hold two distinct
   communicators on one stream, and the runner requires that check to stop
   failing once `StreamOfIssue(e) == e.comm`, which is the design the first
   version effectively had and under which neutralising the conjunct left the
@@ -69,8 +70,8 @@ densely, so ranks 0 and 2 sit on a genuine four-cycle wait-for graph.
   mismatched rendezvous -- showing order agreement is necessary, not sufficient.
 - [ ] Refinement bridge replaying the observed issue order through the model's
   guards (planned P4), and its negative (P5).
-- [ ] Full Scout B gate from the final state, then separate Standards and Spec
-  reviews by a fresh clean-context reviewer.
+- [ ] Full Device-mesh gate from the final state, then separate Standards and
+  Spec reviews by a fresh clean-context reviewer.
 
 ## A modelling error worth recording
 
@@ -103,27 +104,27 @@ looking green for one commit.
 
 ## Gate evidence
 
-Complete Scout B gate, all nine stages exit 0:
+Complete Device-mesh gate, all nine stages exit 0:
 
 ```text
-SCOUT_B_MODEL_SAFETY      result=success distinct_states=3671 max_outdegree=12
-SCOUT_B_MODEL_NONVACUOUS  result=completion_reachable
-SCOUT_B_MODEL_DIVERGENT   invariant=DeadlockFreedom result=named_violation
-SCOUT_B_MODEL_UNGUARDED   invariant=RendezvousOpAgreement result=named_violation
-SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE invariant=ScoutBPerCommunicatorIssueOrder
+DEVICE_MESH_MODEL_SAFETY      result=success distinct_states=3671 max_outdegree=12
+DEVICE_MESH_MODEL_NONVACUOUS  result=completion_reachable
+DEVICE_MESH_MODEL_DIVERGENT   invariant=DeadlockFreedom result=named_violation
+DEVICE_MESH_MODEL_UNGUARDED   invariant=RendezvousOpAgreement result=named_violation
+DEVICE_MESH_TLA_ISSUE_ORDER_NEGATIVE invariant=DeviceMeshPerCommunicatorIssueOrder
 ```
 
-Those `SCOUT_B_MODEL_*` lines are **superseded**. They were produced by the
+Those `DEVICE_MESH_MODEL_*` lines are **superseded**. They were produced by the
 four-communicator instance that could not express the hazard, and
-`SCOUT_B_MODEL_DIVERGENT` there was refuted by an operation mismatch rather than
-a wait cycle. Ticket 21 records the replacement results, which carry the bound
-in the token and add `SCOUT_B_MODEL_STREAMS` and `SCOUT_B_MODEL_OPMISMATCH`.
-`SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE` is unaffected: it reads the observed facts,
-not this model.
+`DEVICE_MESH_MODEL_DIVERGENT` there was refuted by an operation mismatch rather
+than a wait cycle. Ticket 21 records the replacement results, which carry the
+bound in the token and add `DEVICE_MESH_MODEL_STREAMS` and
+`DEVICE_MESH_MODEL_OPMISMATCH`. `DEVICE_MESH_TLA_ISSUE_ORDER_NEGATIVE` is
+unaffected: it reads the observed facts, not this model.
 
-- Scout B
+- Device-mesh
   `sha256:084426e69dff3ede0194d3e4e78465158bc7ae04eca9f4635144a51e936368f1`
-- Scout A
+- Single-rank
   `sha256:c4222e595de7dd2a002c46356be8a29813538da4837a7ef0f956578fcbc74a2d`
 - source
   `sha256:d2786828e12f6906718f8dea004ff3a96a1ac29e7cfc0b917ae670bf154f5b06`
@@ -211,7 +212,7 @@ right invariant for the right reason; `RuntimePgIdAgreesWithinRank` is not
 circular; and the model does branch, with `max_outdegree 12` being TLC's own
 number.
 
-One correction to the record: the criteria span two commits. `ScoutDistributed`
-(both `.tla` and `.lean`), `scout_b.py` and `checker_contract.sh` are in
-`25315472c`; `fee966fea` holds `ScoutBModel*`, `ScoutBIssueOrderInvalid*` and
-the runner, BUILD and test changes.
+One correction to the record: the criteria span two commits. `MeshTopology`
+(both `.tla` and `.lean`), `device_mesh.py` and `checker_contract.sh` are in
+`25315472c`; `fee966fea` holds `DeviceMeshModel*`,
+`DeviceMeshIssueOrderInvalid*` and the runner, BUILD and test changes.

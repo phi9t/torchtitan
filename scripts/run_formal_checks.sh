@@ -87,11 +87,11 @@ ensure_cache_dir() {
 usage() {
   cat <<'EOF'
 Usage: scripts/run_formal_checks.sh --networked|--no-fetch
-                                   [--suite smoke|tier0|scout-a|scout-b]
+                                   [--suite smoke|tier0|single-rank|device-mesh]
 
   --networked  Materialize integrity-pinned formal dependencies, then test.
   --no-fetch   Disable network in Insula and Bazel; reuse materialized caches.
-  --suite      Select the smoke, tier 0, Scout A, or Scout B suite. tier0 is
+  --suite      Select the smoke, tier 0, Single-rank, or Device-mesh suite. tier0 is
                the trace-free CPU subset; it is an iteration aid and is not a
                gate, because it checks no generated facts module.
 
@@ -111,7 +111,7 @@ reentry_args=("${mode_arg}")
 if [[ $# -eq 3 ]]; then
   if [[ "$2" != "--suite" ]] \
     || [[ "$3" != "smoke" && "$3" != "tier0" \
-      && "$3" != "scout-a" && "$3" != "scout-b" ]]; then
+      && "$3" != "single-rank" && "$3" != "device-mesh" ]]; then
     usage >&2
     exit 2
   fi
@@ -214,8 +214,8 @@ formal_package="//experiments/qwen3_formal_verifier/formal"
 formal_target="${formal_package}:formal_smoke_tests"
 case "${suite}" in
   tier0) formal_target="${formal_package}:tier0_formal_tests" ;;
-  scout-a) formal_target="${formal_package}:scout_a_formal_tests" ;;
-  scout-b) formal_target="${formal_package}:scout_b_formal_tests" ;;
+  single-rank) formal_target="${formal_package}:single_rank_formal_tests" ;;
+  device-mesh) formal_target="${formal_package}:device_mesh_formal_tests" ;;
 esac
 common_flags=(
   --repository_cache="${repository_cache}"

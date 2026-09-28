@@ -11,14 +11,14 @@ semantics.
 
 ## Status note (2026-09-26): single-rank half delivered by ticket 10
 
-Ticket 10 delivered the 1x1 bridge: `ScoutARefine.tla` plus
-`ScoutARefineBad.tla`, the latter refused for the right reason under four
+Ticket 10 delivered the 1x1 bridge: `SingleRankRefine.tla` plus
+`SingleRankRefineBad.tla`, the latter refused for the right reason under four
 invariants (corruption isolated, not admitted, refusal not later than the
 mutation, mutation never emitted).
 
-The 2x2 bridge is delivered by ticket 12 as `ScoutBRefine.tla`: the observed
+The 2x2 bridge is delivered by ticket 12 as `DeviceMeshRefine.tla`: the observed
 per-rank issue order of all four ranks, all 108 issues each, runs to completion
-under every guard of `ScoutBModel`, with a same-communicator transposition
+under every guard of `DeviceMeshModel`, with a same-communicator transposition
 refused at the rendezvous guard and a bounded-skew fragment establishing
 confluence by exhaustive search. It is tracked separately because the
 distributed case
@@ -53,7 +53,7 @@ and would pass, since a serialized schedule satisfies every guard. Only the
   final snapshot.
 - [ ] Replay from the immutable attempt bundle reproduces deterministic facts
   and equivalent checker classifications.
-- [ ] From the final state, the supported Scout A and Scout B commands
+- [ ] From the final state, the supported Single-rank and Device-mesh commands
   re-execute the real 1x1 and 2x2 Trainer paths and both formal backends;
   checked-in or replayed fixtures alone do not satisfy this regression gate.
 - [ ] Focused/broader tests, artifact sync, lint, and separate Standards and

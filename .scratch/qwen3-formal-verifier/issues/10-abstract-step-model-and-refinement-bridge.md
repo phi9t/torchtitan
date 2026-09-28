@@ -2,7 +2,7 @@
 
 **What to build:** A TLA+ transition system for one single-rank training step
 whose invariants hold over every admitted interleaving, plus a refinement check
-proving the observed Scout A trace is a behaviour of that model.
+proving the observed Single-rank trace is a behaviour of that model.
 
 **Blocked by:** None for the single-rank scope delivered here. Extending the
 same shape to the 2x2 DPxTP topology is blocked by 03.
@@ -12,21 +12,22 @@ same shape to the 2x2 DPxTP topology is blocked by 03.
 ## Why this exists outside the planned sequence
 
 The spec routes model deepening through Phase 2 (tickets 05, 06, 07), which
-cannot begin until Scout B passes its full gate and a human approves the Phase 2
-design checkpoint required by ticket 04. This work was directed explicitly by
-the user ahead of that gate, after an assessment of what the formal layer
-actually proved. It is recorded here rather than folded into ticket 03 so the
-deviation is visible, and it does **not** close 05, 06, or 07, whose scope is
-broader.
+cannot begin until Device-mesh passes its full gate and a human approves the
+Phase 2 design checkpoint required by ticket 04. This work was directed
+explicitly by the user ahead of that gate, after an assessment of what the
+formal layer actually proved. It is recorded here rather than folded into ticket
+03 so the deviation is visible, and it does **not** close 05, 06, or 07, whose
+scope is broader.
 
 ## The assessment that prompted it
 
 The pre-existing formal layer checks the observed trace and nothing else:
 
-- `ScoutAValid` walks a cursor along a constant sequence of generated facts;
+- `SingleRankValid` walks a cursor along a constant sequence of generated facts;
   TLC explores one path, 12 states, one per observed event.
-- `ScoutBValid` is a two-state stutter whose `cursor` variable appears in none
-  of its invariants; every Scout B invariant is a predicate over constants.
+- `DeviceMeshValid` is a two-state stutter whose `cursor` variable appears in
+  none of its invariants; every Device-mesh invariant is a predicate over
+  constants.
 - All 19 Lean theorems have the shape
   `someDecidableBool <literal data> = true`, closed by `rfl` (18) or `decide`
   (1). They are kernel-checked evaluation certificates over specific data, not
@@ -53,8 +54,8 @@ mean.
 - [x] The one load-bearing guard is a TLA+ constant, so the negative model
   relaxes exactly it. TLC discovers the counterexample
   `gradient.missing -> optimizer.started -> optimizer.mutated` by exploration.
-- [x] The observed Scout A trace is proved to be an admitted behaviour of the
-  model, with TLC exhibiting the action-to-event alignment.
+- [x] The observed Single-rank trace is proved to be an admitted behaviour of
+  the model, with TLC exhibiting the action-to-event alignment.
 - [x] A controlled corruption of that trace is refused, and refused for the
   right reason. The corruption substitutes `gradient.missing` for
   `gradient.ready` and changes nothing else, so every earlier event stays
@@ -65,35 +66,35 @@ mean.
   the one under test. Independent review caught that; it looked correct.
 - [x] Refinement polarity is unambiguous: rejection completes cleanly rather
   than surfacing as a deadlock that reads like a specification defect.
-- [x] Wired into both the Scout A and Scout B Bazel formal suites, so the
-  bridge is gate evidence rather than a side experiment.
+- [x] Wired into both the Single-rank and Device-mesh Bazel formal suites, so
+  the bridge is gate evidence rather than a side experiment.
 - [x] Focused tests cover the model's shape, the guard isolation, the
   refinement configuration, the degenerate-state-space refusal, and the runner
   errexit regression.
-- [x] Full Scout B gate from the final state: all nine stages exit 0, with the
-  four model checks reported from inside the gate's own formal stages.
+- [x] Full Device-mesh gate from the final state: all nine stages exit 0, with
+  the four model checks reported from inside the gate's own formal stages.
 - [ ] Separate Standards and Spec reviews by a fresh clean-context reviewer.
 
 ## Evidence
 
-Formal suite, `--networked --suite scout-a`, 5 of 5 targets pass:
+Formal suite, `--networked --suite single-rank`, 5 of 5 targets pass:
 
 ```text
-SCOUT_A_MODEL_TOOLCHAIN checker=tlc release=1.7.4 java_major=17
-SCOUT_A_MODEL_SAFETY result=success distinct_states=25 max_outdegree=3 exit=0
-SCOUT_A_MODEL_NEGATIVE invariant=MutationRequiresReadyGradients result=named_violation exit=12
-SCOUT_A_REFINEMENT result=admitted witness=ObservedTraceIsNotAdmitted exit=12
-SCOUT_A_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard reject_exit=0 reach_exit=12
+SINGLE_RANK_MODEL_TOOLCHAIN checker=tlc release=1.7.4 java_major=17
+SINGLE_RANK_MODEL_SAFETY result=success distinct_states=25 max_outdegree=3 exit=0
+SINGLE_RANK_MODEL_NEGATIVE invariant=MutationRequiresReadyGradients result=named_violation exit=12
+SINGLE_RANK_REFINEMENT result=admitted witness=ObservedTraceIsNotAdmitted exit=12
+SINGLE_RANK_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard reject_exit=0 reach_exit=12
 ```
 
 ## Gate evidence
 
-Complete Scout B gate at HEAD `366737c37478d2253491742a74179febcf4ea54f`, all
-nine stages exit 0:
+Complete Device-mesh gate at HEAD `366737c37478d2253491742a74179febcf4ea54f`,
+all nine stages exit 0:
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:b95e3f3e74e6874eeeef47aaa70005b26328eacc5f5762b68ea096c7d05fa266`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:afa04eb38c64d7218abadd5dc32ff43171aae8981a0934f06d4de783823b50c4`
 - Shared source ID:
   `sha256:63b39450b548fb39b13bafb062e2214350d3abb21f56926476da31bebdf8dab1`
@@ -119,10 +120,10 @@ still verifying afterwards.
 This establishes safety properties of a bounded abstract model of one
 single-rank step, and that one observed run lies inside that model.
 
-The bridge is over event **kinds** only: `ScoutARefine` projects the observed
-trace to `EventKinds`, so identities, phases, predecessors, provenance and
-projection digests are outside what the model admits. Those remain the job of
-the Python validators and the fact-module checkers, and this bridge does not
+The bridge is over event **kinds** only: `SingleRankRefine` projects the
+observed trace to `EventKinds`, so identities, phases, predecessors, provenance
+and projection digests are outside what the model admits. Those remain the job
+of the Python validators and the fact-module checkers, and this bridge does not
 subsume them. It does not model the 2x2 DPxTP topology, collectives, multi-step
 training, convergence, or performance. The abstract model is not claimed to be a
 faithful model of TorchTitan; it is a model of the step lifecycle contract
@@ -183,7 +184,7 @@ deferred to the end of the formalization sequence.
 ### 2026-09-27: the final-state criterion is unsatisfiable, not merely unmet
 
 The final re-seal was attempted from the clean committed tree at `d8b1016d5`,
-after every other phase closed. It **fails**, in the nested Scout A gate's
+after every other phase closed. It **fails**, in the nested Single-rank gate's
 `lint` stage, whose log is ten lines with no hook run.
 
 The manifest from a clean tree has zero verified and zero process entries, so
@@ -208,11 +209,11 @@ clean committed tree at `47ebae4d94e3e4aa4826eb6834d962eada6b0227` -- the first
 committed-state gate this project has produced. All nine stages exit 0, sealed
 and verified, at both levels:
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:ab0524d820a50c7485046183a863a11d8349a5b171d2d2e9b85bfc96e8478d32`
-- Scout B source ID:
+- Device-mesh source ID:
   `sha256:46840ed779b00d9cf463217f518e51ab53f904172cf783a0d6eeb08d551adbed`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:19572fec2c3ab426a0c95a691d0f6ff19ba0da840c6396455f5c480e6bea49d7`
 - `lint_coverage.case = head_commit_paths`, 10 paths, at both levels.
 - `entries` is 0, correctly: a clean tree has no uncommitted bytes to pin, and
@@ -220,10 +221,10 @@ and verified, at both levels:
   its case rather than leaving a reader to infer it from the empty list, which
   is what ticket 25 added.
 
-The 10 linted paths span Python, shell and tests -- `scout_a.py`, `scout_b.py`,
-`run_scout_a.sh`, `run_scout_b.sh`, `scout_a_runner_lib.sh`, three test files,
-a README and a tracker -- so the fallback exercised `pre-commit`, `pyrefly` and
-`bash -n`, not only the markdown hooks.
+The 10 linted paths span Python, shell and tests -- `single_rank.py`,
+`device_mesh.py`, `run_single_rank.sh`, `run_device_mesh.sh`, `runner_lib.sh`,
+three test files, a README and a tracker -- so the fallback exercised
+`pre-commit`, `pyrefly` and `bash -n`, not only the markdown hooks.
 
 **This criterion is now satisfied**, and the earlier note that it was
 unsatisfiable stands as the record of why it took until now.

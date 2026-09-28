@@ -9,19 +9,19 @@
 #
 # This is NOT a gate. It deliberately has no --output-root, --run-id or
 # --attempt-id, writes nothing under outputs/, and seals no evidence, so a
-# tier-0 pass cannot be presented as a Scout A or Scout B gate pass. The
+# tier-0 pass cannot be presented as a Single-rank or Device-mesh gate pass. The
 # trace-dependent checks -- the refinement bridge, the fact modules, artifact
-# sync, and the real CUDA step -- live only in run_scout_a.sh and
-# run_scout_b.sh.
+# sync, and the real CUDA step -- live only in run_single_rank.sh and
+# run_device_mesh.sh.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-ROOTFS_ENTRYPOINT="${TORCHTITAN_SCOUT_ROOTFS_ENTRYPOINT:-${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh}"
-ROOTFS="${TORCHTITAN_SCOUT_ROOTFS:-${REPO_ROOT}/scripts/rootfs/rootfs}"
+ROOTFS_ENTRYPOINT="${TORCHTITAN_QFV_ROOTFS_ENTRYPOINT:-${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh}"
+ROOTFS="${TORCHTITAN_QFV_ROOTFS:-${REPO_ROOT}/scripts/rootfs/rootfs}"
 FORMAL_CACHE="${TORCHTITAN_FORMAL_CACHE_HOST:-${HOME:?HOME is required}/.cache/torchtitan/formal}"
 FORMAL_CHECKS="${TORCHTITAN_TIER0_FORMAL_CHECKS:-${REPO_ROOT}/scripts/run_formal_checks.sh}"
-GIT_BIN="${TORCHTITAN_SCOUT_GIT:-git}"
+GIT_BIN="${TORCHTITAN_QFV_GIT:-git}"
 FETCH_MODE="--networked"
 RUN_LINT=1
 RUN_PYTEST=1
@@ -33,10 +33,10 @@ usage() {
 Usage: experiments/qwen3_formal_verifier/run_formal_tier0.sh [options]
 
 Run the trace-free tier 0 checks on CPU. It is minutes, not seconds: the
-Scout B model target alone runs eleven checks over eight communicators.
+Device-mesh model target alone runs eleven checks over eight communicators.
 Still no GPU, no observed trace and no sealed bundle.
-  1. the tier0 Bazel formal suite (TLC and Lean smoke, the abstract Scout A
-     model plus its relaxed-guard negative, and the abstract Scout B DPxTP
+  1. the tier0 Bazel formal suite (TLC and Lean smoke, the abstract Single-rank
+     model plus its relaxed-guard negative, and the abstract Device-mesh DPxTP
      model with all ten of its companion checks: non-vacuity, the
      order-divergence deadlock, that deadlock's witness shape, the
      operation-mismatch hang, the stream-edge shape plus its
@@ -66,11 +66,11 @@ Options:
   -h, --help       Show this help.
 
 Environment:
-  TORCHTITAN_SCOUT_ROOTFS       Explicit bwrap rootfs directory.
+  TORCHTITAN_QFV_ROOTFS       Explicit bwrap rootfs directory.
   TORCHTITAN_FORMAL_CACHE_HOST  Persistent formal cache outside the checkout.
 
 Tier 0 is an iteration aid, not a gate. It writes no evidence bundle; run
-experiments/qwen3_formal_verifier/run_scout_a.sh or run_scout_b.sh for that.
+experiments/qwen3_formal_verifier/run_single_rank.sh or run_device_mesh.sh for that.
 EOF
 }
 
@@ -192,6 +192,16 @@ if ((RUN_LINT)); then
         declare -a shell_files=()
         for source_file in "${source_files[@]}"; do
           case "${source_file}" in
+            # The pyrefly section of pyproject.toml sets project-excludes to
+            # include **/tests/**, but passing explicit paths bypasses that
+            # exclude. Honour it here rather than type-checking files the project
+            # says to skip: test modules are mock-heavy and carry hundreds of
+            # pre-existing pyrefly errors (test_checkpoint.py alone has 172 at
+            # HEAD), so without this, changing any test file fails the stage on
+            # errors it did not introduce. Tests still get flake8, ufmt,
+            # pydoclint, codespell and the rest; only pyrefly is skipped, and
+            # only for .py, so shell files under tests/ still reach bash -n.
+            tests/*.py|*/tests/*.py) : ;;
             *.py) python_files+=("${source_file}") ;;
             *.sh) shell_files+=("${source_file}") ;;
           esac
@@ -312,7 +322,7 @@ if ((RUN_MUTATIONS)); then
 fi
 
 if ((RUN_FIDELITY)); then
-  # The TLA+/Lean fidelity differential. ScoutBModel.tla and ScoutBProtocol.lean
+  # The TLA+/Lean fidelity differential. DeviceMeshModel.tla and DeviceMeshProtocol.lean
   # are two hand-written models of one protocol, and if they drift the unbounded
   # Lean proof describes a different system from the one TLC checks. This stage
   # compares their nine shared predicates on generated instances.

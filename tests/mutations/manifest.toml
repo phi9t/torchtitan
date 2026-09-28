@@ -54,8 +54,8 @@ the test as it stands now. The test pins each case's diagnostic instead.
 """
 
 [[mutation]]
-id = "scout-a-model-branching-floor"
-target = "experiments/qwen3_formal_verifier/formal/run_tlc_scout_a_model.sh"
+id = "single-rank-model-branching-floor"
+target = "experiments/qwen3_formal_verifier/formal/run_tlc_single_rank_model.sh"
 test = "tests/unit_tests/test_formal_toolchain.py::test_model_runner_refuses_a_non_branching_specification"
 find = '''  [[ "${safety_outdegree:-0}" -ge 2 ]] || {'''
 replace = '''  [[ "${safety_outdegree:-0}" -ge 1 ]] || {'''
@@ -65,13 +65,13 @@ sequence -- the replay design the abstract model exists to replace. The
 original test asserted that the runner's TEXT contained "-ge 2", which would
 have kept passing if the comparison were applied to a variable no TLC output
 ever populated. The test now runs the real checker over a substituted
-non-branching ScoutAModel.
+non-branching SingleRankModel.
 """
 
 [[mutation]]
 id = "skip-guard-ansi-strip"
-target = "experiments/qwen3_formal_verifier/scout_a_runner_lib.sh"
-test = "tests/unit_tests/test_qwen3_formal_scout_a.py::test_runner_library_skip_guard_refuses_only_undeclared_real_pytest_skips"
+target = "experiments/qwen3_formal_verifier/runner_lib.sh"
+test = "tests/unit_tests/test_qwen3_formal_single_rank.py::test_runner_library_skip_guard_refuses_only_undeclared_real_pytest_skips"
 find = '''skip_lines="$(sed -e 's/\x1b\[[0-9;]*m//g' "${captured}" \
   | grep -E '^SKIPPED' || true)"'''
 replace = '''skip_lines="$(cat "${captured}" \
@@ -85,8 +85,8 @@ guard with output from a real pytest run that forces colour back on.
 """
 
 [[mutation]]
-id = "scout-b-model-coverage-ledger-by-name"
-target = "experiments/qwen3_formal_verifier/formal/run_tlc_scout_b_model.sh"
+id = "device-mesh-model-coverage-ledger-by-name"
+target = "experiments/qwen3_formal_verifier/formal/run_tlc_device_mesh_model.sh"
 test = "tests/unit_tests/test_formal_toolchain.py::test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs"
 find = '''  if cmp --silent \
        "${work_dir}/${name}/${config}.cfg" "${fixture_dir}/${config}.cfg" \
@@ -104,7 +104,7 @@ test extracts the runner's own run_tlc and executes it with a stub checker.
 
 [[mutation]]
 id = "protocol-witness-claims-bound-none"
-target = "experiments/qwen3_formal_verifier/formal/run_lean_scout_b_protocol.sh"
+target = "experiments/qwen3_formal_verifier/formal/run_lean_device_mesh_protocol.sh"
 test = "tests/unit_tests/test_formal_toolchain.py::test_protocol_runner_reports_each_obligation_as_its_own_theorem_token"
 find = '''  "cyclicWitnessIsStuck|${WITNESS2_LABEL}|witness-is-stuck"'''
 replace = '''  "cyclicWitnessIsStuck|${THEOREM_LABEL}|witness-is-stuck"'''
@@ -123,7 +123,7 @@ outside the general set.
 
 [[mutation]]
 id = "placement-partial-choose-sentinel"
-target = "experiments/qwen3_formal_verifier/formal/ScoutBPlacementPartialInvalid.tla"
+target = "experiments/qwen3_formal_verifier/formal/DeviceMeshPlacementPartialInvalid.tla"
 test = "tests/unit_tests/test_formal_toolchain.py::test_the_derived_mutation_guard_is_load_bearing[partial_placement]"
 find = '''MutatedPlacement ==
   IF ThereIsADpShardPlacement
@@ -146,7 +146,7 @@ reports the constant-FALSE sentinel before forcing the CHOOSE.
 
 [[mutation]]
 id = "bridge-length-only-admission"
-target = "experiments/qwen3_formal_verifier/formal/ScoutBRefine.tla"
+target = "experiments/qwen3_formal_verifier/formal/DeviceMeshRefine.tla"
 test = "tests/unit_tests/test_formal_toolchain.py::test_dpxtp_bridge_admission_is_stronger_than_the_issue_counts"
 find = '''ReplayedRunIsNotAdmitted == ~AllDone'''
 replace = '''ReplayedRunIsNotAdmitted ==
@@ -163,7 +163,7 @@ predicate and the length-only one to disagree on a reachable state.
 
 [[mutation]]
 id = "stream-of-issue-keyed-on-communicator"
-target = "experiments/qwen3_formal_verifier/formal/ScoutBModel.tla"
+target = "experiments/qwen3_formal_verifier/formal/DeviceMeshModel.tla"
 test = "tests/unit_tests/test_formal_toolchain.py::test_dpxtp_instance_puts_distinct_communicators_on_one_rank_stream"
 find = '''StreamOfIssue(e) ==
   CASE e.op = "all_gather"     -> "ag"
@@ -180,16 +180,16 @@ this mutation.
 """
 
 [[mutation]]
-id = "scout-b-valid-invariant-unbound"
-target = "experiments/qwen3_formal_verifier/formal/ScoutBValid.cfg"
-test = "tests/unit_tests/test_formal_toolchain.py::test_every_scout_b_valid_definition_is_bound_as_an_invariant"
+id = "device-mesh-valid-invariant-unbound"
+target = "experiments/qwen3_formal_verifier/formal/DeviceMeshValid.cfg"
+test = "tests/unit_tests/test_formal_toolchain.py::test_every_device_mesh_valid_definition_is_bound_as_an_invariant"
 find = '''
-  ScoutBNoPartialAtOptimizer
+  DeviceMeshNoPartialAtOptimizer
 '''
 replace = "\n"
 why = """
 Drops one invariant from the positive configuration, leaving it defined in
-ScoutBValid.tla and checked by nothing. The placement work added eight named
+DeviceMeshValid.tla and checked by nothing. The placement work added eight named
 invariants at once, which is exactly where one silently fails to reach the
 cfg; the named test derives both sides rather than searching for known names.
 """
@@ -352,11 +352,11 @@ error.
 """
 
 [[mutation]]
-id = "scout-source-drift-not-reported"
-target = "experiments/qwen3_formal_verifier/scout_a_runner_lib.sh"
-test = "tests/unit_tests/test_qwen3_formal_scout_a.py::test_source_recheck_names_the_paths_that_moved"
+id = "source-drift-not-reported"
+target = "experiments/qwen3_formal_verifier/runner_lib.sh"
+test = "tests/unit_tests/test_qwen3_formal_single_rank.py::test_source_recheck_names_the_paths_that_moved"
 find = '''
-    scout_report_status_drift "${baseline_status}" "${current_status}"
+    qfv_report_status_drift "${baseline_status}" "${current_status}"
 '''
 replace = ""
 why = """
@@ -392,8 +392,8 @@ lets most prose through. Also caught by the maintained-corpus test.
 
 [[mutation]]
 id = "artifact-sync-identity-not-named"
-target = "torchtitan/experiments/qwen3_formal_verifier/scout_b.py"
-test = "tests/unit_tests/test_qwen3_formal_scout_b.py::test_stale_artifact_diagnosis_names_an_identity_mismatch"
+target = "torchtitan/experiments/qwen3_formal_verifier/device_mesh.py"
+test = "tests/unit_tests/test_qwen3_formal_device_mesh.py::test_stale_artifact_diagnosis_names_an_identity_mismatch"
 find = "    if checked_in is not None and checked_in != observed:"
 replace = "    if False:"
 why = """
@@ -405,8 +405,8 @@ canonical trace. Cost a twenty-minute gate run to work out by hand.
 
 [[mutation]]
 id = "artifact-sync-identity-always-claimed"
-target = "torchtitan/experiments/qwen3_formal_verifier/scout_b.py"
-test = "tests/unit_tests/test_qwen3_formal_scout_b.py::test_stale_artifact_diagnosis_stays_quiet_when_the_identity_matches"
+target = "torchtitan/experiments/qwen3_formal_verifier/device_mesh.py"
+test = "tests/unit_tests/test_qwen3_formal_device_mesh.py::test_stale_artifact_diagnosis_stays_quiet_when_the_identity_matches"
 find = "    if checked_in is not None and checked_in != observed:"
 replace = "    if checked_in is not None:"
 why = """
@@ -517,4 +517,20 @@ which means no evidence row could be written in any live GPU job. Invisible for
 a long time because the CPU path returns None early and every test used a CPU
 device. Found only by wiring a detector into the live trainer and making it
 actually fire.
+"""
+
+[[mutation]]
+id = "lint-stage-pyrefly-not-scoped-to-non-tests"
+target = "experiments/qwen3_formal_verifier/runner_lib.sh"
+test = "tests/unit_tests/test_qwen3_formal_single_rank.py::test_lint_stage_skips_pyrefly_for_test_modules_only"
+find = "    tests/*.py|*/tests/*.py) : ;;\n"
+replace = ""
+why = """
+Removes the scoping that keeps pyrefly off test modules, which the pyrefly
+section of pyproject.toml already excludes via **/tests/**. Passing explicit
+paths bypasses that exclude, so without this the stage type-checks files the
+project says to skip: test_checkpoint.py alone carries 172 pre-existing errors
+at HEAD, so changing any test file failed the stage on errors it did not
+introduce. The test asserts both halves, since a skip that was too wide would
+be the worse bug.
 """

@@ -35,7 +35,7 @@ promotion.
   warmup or samples, fewer than ten measured steps, missing metrics, non-finite
   values, and summaries that cannot be reproduced from the referenced attempt
   artifacts.
-- [ ] From the final state, the supported Scout A and Scout B commands
+- [ ] From the final state, the supported Single-rank and Device-mesh commands
   re-execute the real 1x1 and 2x2 Trainer paths and both formal backends;
   checked-in or replayed fixtures alone do not satisfy this regression gate.
 - [ ] Focused/broader tests, performance-evidence validation, lint, and

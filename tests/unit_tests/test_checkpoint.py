@@ -82,12 +82,36 @@ def write_dcp_manifest(checkpoint_id: str, *, shard_name: str = "__0_0.distcp") 
     Path(checkpoint_id, DCP_MANIFEST_NAME).write_bytes(pickle.dumps(manifest))
 
 
+@contextmanager
+def cpu_only_dcp():
+    """Make DCP take its CPU path for the duration of the block.
+
+    Manifest integrity is pure filesystem work -- reading .metadata and stat-ing
+    shards -- with no accelerator dependency at all. But DCP reaches for the
+    device whenever torch reports one available, so these tests inherited a GPU
+    requirement they never needed: with a device visible but unusable they fail
+    with "CUDA error: CUDA-capable device(s) is/are busy or unavailable", and a
+    test that fails when somebody else is using a GPU gets marked flaky and then
+    skipped. A skipped guard checks nothing.
+
+    Measured: 57 passed with the device hidden, 10 failed with it visible.
+
+    CUDA cannot be hidden from torch after import, so this reports it as
+    unavailable for the block rather than unsetting CUDA_VISIBLE_DEVICES. The
+    four-rank distributed test takes the other route, pinning its child
+    processes at spawn, because there the setting is in place before torch loads.
+    """
+    with mock.patch.object(torch.cuda, "is_available", lambda: False):
+        yield
+
+
 def build_real_dcp_checkpoint(checkpoint_id: str) -> str:
     """Write a genuine single-process DCP checkpoint and return its shard path."""
-    dcp.save(
-        {"weight": torch.arange(64, dtype=torch.float32), "bias": torch.ones(8)},
-        checkpoint_id=checkpoint_id,
-    )
+    with cpu_only_dcp():
+        dcp.save(
+            {"weight": torch.arange(64, dtype=torch.float32), "bias": torch.ones(8)},
+            checkpoint_id=checkpoint_id,
+        )
     shards = [name for name in os.listdir(checkpoint_id) if name.endswith(".distcp")]
     assert len(shards) == 1, shards
     return os.path.join(checkpoint_id, shards[0])
@@ -1535,12 +1559,17 @@ class TestCheckpointManager(unittest.TestCase):
         )
 
         weight_before = self.model_part.weight.clone()
-        self.assertTrue(manager.save(curr_step=3))
+        # A real save and a real load, neither mocked -- that is what makes this
+        # a no-false-positive test. Both take DCP's CPU path for the reason in
+        # cpu_only_dcp: manifest integrity has no accelerator dependency.
+        with cpu_only_dcp():
+            self.assertTrue(manager.save(curr_step=3))
         with torch.no_grad():
             self.model_part.weight.zero_()
 
         with checkpoint_evidence(self.test_folder, self._testMethodName) as evidence:
-            self.assertTrue(manager.load(step=3))
+            with cpu_only_dcp():
+                self.assertTrue(manager.load(step=3))
             self.assertEqual(incident_rows(evidence), [])
 
         self.assertTrue(torch.equal(self.model_part.weight, weight_before))

@@ -344,12 +344,12 @@ zero, and `nvidia-smi` reports the device idle at ~130 MiB, so nothing in the
 usual places shows it.
 
 That blocks the nine-stage gate, because the device list is a pinned contract in
-three places -- `run_scout_b.sh:102`, `run_scout_a.sh:96` and `scout_b.py:3553`
--- and the Scout A regression stage requires `CUDA_VISIBLE_DEVICES=0`
-specifically. With devices overridden to 2,4,5,6 the gate reaches five stages,
-passing `source_manifest`, `focused_pytest`, `cuda_pytest` (a real four-rank
-Qwen3 step), `owning_pytest` and `artifact_sync`, then stops at
-`scout_a_regression` on the device assertion.
+three places -- `run_device_mesh.sh:102`, `run_single_rank.sh:96` and
+`device_mesh.py:3553` -- and the Single-rank regression stage requires
+`CUDA_VISIBLE_DEVICES=0` specifically. With devices overridden to 2,4,5,6 the
+gate reaches five stages, passing `source_manifest`, `focused_pytest`,
+`cuda_pytest` (a real four-rank Qwen3 step), `owning_pytest` and
+`artifact_sync`, then stops at `single_rank_regression` on the device assertion.
 
 **The assertion should not be relaxed to get a green gate.** Device identity is
 part of the evidence identity chain, and weakening a pinned contract to make a

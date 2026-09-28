@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Differential-test ScoutBModel.tla against ScoutBProtocol.lean.
+# Differential-test DeviceMeshModel.tla against DeviceMeshProtocol.lean.
 #
 # The two files are hand-written models of one protocol, joined only by the
-# prose correspondence table in ScoutBProtocol.lean's header. This runner
+# prose correspondence table in DeviceMeshProtocol.lean's header. This runner
 # generates instances from a fixed seed, evaluates the nine shared predicates
 # with BOTH checkers at the same pinned state, and compares them. See
 # .scratch/qwen3-formal-verifier/issues/27-tla-lean-fidelity-differential.md.
@@ -24,8 +24,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-ROOTFS_ENTRYPOINT="${TORCHTITAN_SCOUT_ROOTFS_ENTRYPOINT:-${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh}"
-ROOTFS="${TORCHTITAN_SCOUT_ROOTFS:-${REPO_ROOT}/scripts/rootfs/rootfs}"
+ROOTFS_ENTRYPOINT="${TORCHTITAN_QFV_ROOTFS_ENTRYPOINT:-${REPO_ROOT}/scripts/rootfs/enter_rootfs.sh}"
+ROOTFS="${TORCHTITAN_QFV_ROOTFS:-${REPO_ROOT}/scripts/rootfs/rootfs}"
 FORMAL_CACHE="${TORCHTITAN_FORMAL_CACHE_HOST:-${HOME:?HOME is required}/.cache/torchtitan/formal}"
 MODULE="torchtitan.experiments.qwen3_formal_verifier.fidelity_diff"
 
@@ -63,7 +63,7 @@ Options:
   -h, --help          Show this help.
 
 Environment:
-  TORCHTITAN_SCOUT_ROOTFS       Explicit bwrap rootfs directory.
+  TORCHTITAN_QFV_ROOTFS       Explicit bwrap rootfs directory.
   TORCHTITAN_FORMAL_CACHE_HOST  Persistent formal toolchain cache.
 EOF
 }

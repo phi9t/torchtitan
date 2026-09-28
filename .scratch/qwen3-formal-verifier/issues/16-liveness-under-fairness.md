@@ -1,11 +1,11 @@
 # 16 — Liveness under fairness
 
-**What to build:** A temporal liveness property for `ScoutBModel`: every
+**What to build:** A temporal liveness property for `DeviceMeshModel`: every
 issued collective eventually completes, under weak fairness.
 
 **Blocked by:** 11 — DPxTP collective protocol model.
 
-**Status:** resolved -- the liveness property in `ScoutBModel.tla` landed in
+**Status:** resolved -- the liveness property in `DeviceMeshModel.tla` landed in
 `87d341c89`. This line read `ready-for-agent` until a status audit corrected it;
 the work had been committed for some time and the ledger was advertising it as
 available.
@@ -54,9 +54,9 @@ property would be about an artifact of the fairness assumption.
 
 ## Outcome
 
-**Status:** done at `ScoutBModelLive.cfg`, `ScoutBModelLiveDivergent.cfg` and
-`ScoutBModelLiveUnconditional.cfg`, checked by
-`run_tlc_scout_b_model.sh` stages 8-10.
+**Status:** done at `DeviceMeshModelLive.cfg`,
+`DeviceMeshModelLiveDivergent.cfg` and `DeviceMeshModelLiveUnconditional.cfg`,
+checked by `run_tlc_device_mesh_model.sh` stages 8-10.
 
 ### Two corrections to this ticket
 
@@ -69,7 +69,7 @@ is the successor of the constant this ticket meant: it is the relaxation that
 leaves operations agreeing and NCCL's own guard on, so the counterexample is a
 stream-ordered wait cycle rather than an operation mismatch. Relaxing
 `RequireUniformProgramOps` instead would also refute liveness, but for the
-op-mismatch reason that `SCOUT_B_MODEL_OPMISMATCH` already owns.
+op-mismatch reason that `DEVICE_MESH_MODEL_OPMISMATCH` already owns.
 
 **The property as written in this ticket is false**, and not because of a hang.
 `Issue` is unfair by design, so a behaviour may simply stop issuing. A
@@ -78,9 +78,9 @@ collective one rank has issued and its peers have not never becomes
 promises nothing and the issue never completes. Measured, with every guard on:
 TLC refutes the unconditional reading in a four-state prefix -- ranks 0 and 1
 issue, ranks 2 and 3 never do, and the lasso closes by stuttering -- at exit 13
-in 4s. That refutation is kept as `ScoutBModelLiveUnconditional.cfg` and
-`SCOUT_B_MODEL_LIVENESS_UNCONDITIONAL`, so the narrowing below is a measurement
-rather than a convenience.
+in 4s. That refutation is kept as `DeviceMeshModelLiveUnconditional.cfg` and
+`DEVICE_MESH_MODEL_LIVENESS_UNCONDITIONAL`, so the narrowing below is a
+measurement rather than a convenience.
 
 ### The property that shipped
 
@@ -141,10 +141,10 @@ either `State N: Stuttering` or `Back to state N`. The `Back to state` shape
 comes from a real TLC run on a throwaway flip-flop, because this model's
 variables only grow and so cannot produce a cyclic lasso; it was not authored.
 
-TLC's liveness diagnostic names no property, so the classifier cannot check
-one. `formal_cfg_declares_one_property` pins each stage to its cfg instead, and
-`SCOUT_B_MODEL_CONFIG_COVERAGE` reconciles shipped configurations against the
-ones a stage actually ran.
+TLC's liveness diagnostic names no property, so the classifier cannot check one.
+`formal_cfg_declares_one_property` pins each stage to its cfg instead, and
+`DEVICE_MESH_MODEL_CONFIG_COVERAGE` reconciles shipped configurations against
+the ones a stage actually ran.
 
 ### The bound, and the cost
 
@@ -155,13 +155,13 @@ one would not have worked for the negative anyway -- a cross-communicator cycle
 needs two issues per rank.
 
 The negative is a partial search by construction: TLC reports from a periodic
-liveness check, so it stops with states on the queue (measured 397195 and
-401719 distinct states on two runs, 78116 and 79813 left on queue, about 2min
-05s each). Its state count is not reproducible run to run, because the periodic
+liveness check, so it stops with states on the queue (measured 397195 and 401719
+distinct states on two runs, 78116 and 79813 left on queue, about 2min 05s
+each). Its state count is not reproducible run to run, because the periodic
 check's timing moves with TLC's fingerprint seed; nothing asserts the number.
 The unconditional refutation costs 4s. The liveness stages run under a 420s
-timeout rather than the safety stages' 120s, and the whole Scout B model target
-went from about 2min to 4min 31s.
+timeout rather than the safety stages' 120s, and the whole Device-mesh model
+target went from about 2min to 4min 31s.
 
 No CONSTRAINT in the liveness configurations: TLC warns that a state constraint
 under liveness checking is unsound, because a pruned state becomes a terminal
@@ -186,13 +186,13 @@ here, since `IssueAllowed` already enforces the bound, so it buys nothing.
 ### One check beyond the ticket: the fairness is load-bearing
 
 A liveness positive that would also pass without fairness would prove nothing
-about `WF`. So the runner reruns the *same* `ScoutBModelLive.cfg` with
+about `WF`. So the runner reruns the *same* `DeviceMeshModelLive.cfg` with
 `SPECIFICATION LiveSpec` substituted to `SPECIFICATION Spec` -- the same pattern
-as the `StreamOfIssue(e) == e.comm` mutant -- and requires it to FAIL.
-Measured: exit 13, exhaustive over the same 38321 states, 0 left on queue, 13s,
-lasso closed by stuttering at state 17. Reported as
-`SCOUT_B_MODEL_LIVENESS_UNFAIR`. The substitution is asserted to have applied,
-so the control cannot silently rerun the fair specification.
+as the `StreamOfIssue(e) == e.comm` mutant -- and requires it to FAIL. Measured:
+exit 13, exhaustive over the same 38321 states, 0 left on queue, 13s, lasso
+closed by stuttering at state 17. Reported as
+`DEVICE_MESH_MODEL_LIVENESS_UNFAIR`. The substitution is asserted to have
+applied, so the control cannot silently rerun the fair specification.
 
 ## Review round 2026-09-26 (independent, clean context): SOUND WITH CAVEATS
 
@@ -273,32 +273,32 @@ header said so without saying that. It now says both.
 
 ### Gate evidence
 
-Full nine-stage Scout B gate, all stages exit 0, sealed and verified, after the
-four review findings were fixed.
+Full nine-stage Device-mesh gate, all stages exit 0, sealed and verified, after
+the four review findings were fixed.
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:7d19a183856c4e6b137a8ee8bbf0ed088638310971044d83a603b288bb8158f5`
-- Scout B source ID:
+- Device-mesh source ID:
   `sha256:a6bc93e38480580ae69e6e5843bd02850f6aaf577904f537b47b6578d93e199b`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:99617d7f27add67d41b666c9b9e43b0948a733d401a715843ed00354bdd15d1d`
 
 Tokens in the sealed log:
 
 ```
-SCOUT_B_MODEL_LIVENESS        result=holds
+DEVICE_MESH_MODEL_LIVENESS        result=holds
                               fairness=start_complete_per_communicator
                               issue_fairness=none distinct_states=38321
                               states_left_on_queue=0
                               bound_max_issues_per_rank=2
-SCOUT_B_MODEL_LIVENESS_NEGATIVE  result=lasso_counterexample search=partial
+DEVICE_MESH_MODEL_LIVENESS_NEGATIVE  result=lasso_counterexample search=partial
                               distinct_states=409298
                               states_left_on_queue=74455
-SCOUT_B_MODEL_LIVENESS_UNFAIR substitution=LiveSpec_is_Spec
+DEVICE_MESH_MODEL_LIVENESS_UNFAIR substitution=LiveSpec_is_Spec
                               result=lasso_counterexample
-SCOUT_B_MODEL_LIVENESS_UNCONDITIONAL cause=unfair_issue
+DEVICE_MESH_MODEL_LIVENESS_UNCONDITIONAL cause=unfair_issue
                               result=lasso_counterexample
-SCOUT_B_MODEL_CONFIG_COVERAGE shipped=10 checked=10 unchecked=0
+DEVICE_MESH_MODEL_CONFIG_COVERAGE shipped=10 checked=10 unchecked=0
                               mutated_runs=2
 ```
 
@@ -307,7 +307,7 @@ the negative reports `search=partial` with its queue depth exposed rather than
 presenting a periodic liveness check as a complete search.
 
 The coverage fix was verified against the mutation it exists to catch: with only
-the mutated run recorded, `ScoutBModelLive.cfg` reads UNCHECKED and the
+the mutated run recorded, `DeviceMeshModelLive.cfg` reads UNCHECKED and the
 reconciliation exits 1. Before the fix that case reported
 `shipped=10 checked=10 unchecked=0`. The check was widened past what the review
 reported, because one mutant stage rewrites the cfg and the other rewrites the

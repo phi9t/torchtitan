@@ -15,99 +15,99 @@ filegroup(
 )
 
 filegroup(
-    name = "tlc_scout_a_models",
+    name = "tlc_single_rank_models",
     srcs = [
-        "ScoutABadFacts.tla",
-        "ScoutAFacts.tla",
-        "ScoutAInvalid.cfg",
-        "ScoutAInvalid.tla",
-        "ScoutAValid.cfg",
-        "ScoutAValid.tla",
-        "ScoutLifecycle.tla",
+        "SingleRankBadFacts.tla",
+        "SingleRankFacts.tla",
+        "SingleRankInvalid.cfg",
+        "SingleRankInvalid.tla",
+        "SingleRankValid.cfg",
+        "SingleRankValid.tla",
+        "TraceLifecycle.tla",
     ],
 )
 
 filegroup(
-    name = "tlc_scout_a_model_abstract",
+    name = "tlc_single_rank_model_abstract",
     srcs = [
-        "ScoutAModel.cfg",
-        "ScoutAModel.tla",
-        "ScoutAModelUnsafe.cfg",
-        "ScoutLifecycle.tla",
+        "SingleRankModel.cfg",
+        "SingleRankModel.tla",
+        "SingleRankModelUnsafe.cfg",
+        "TraceLifecycle.tla",
     ],
 )
 
 filegroup(
-    name = "tlc_scout_a_model_refine",
+    name = "tlc_single_rank_model_refine",
     srcs = [
-        "ScoutAFacts.tla",
-        "ScoutAModel.cfg",
-        "ScoutAModel.tla",
-        "ScoutARefine.cfg",
-        "ScoutARefine.tla",
-        "ScoutARefineBad.cfg",
-        "ScoutARefineBad.tla",
-        "ScoutARefineBadReach.cfg",
-        "ScoutARefineBadRelaxed.cfg",
-        "ScoutLifecycle.tla",
+        "SingleRankFacts.tla",
+        "SingleRankModel.cfg",
+        "SingleRankModel.tla",
+        "SingleRankRefine.cfg",
+        "SingleRankRefine.tla",
+        "SingleRankRefineBad.cfg",
+        "SingleRankRefineBad.tla",
+        "SingleRankRefineBadReach.cfg",
+        "SingleRankRefineBadRelaxed.cfg",
+        "TraceLifecycle.tla",
     ],
 )
 
 filegroup(
-    name = "tlc_scout_b_model",
+    name = "tlc_device_mesh_model",
     srcs = [
-        "ScoutBModel.cfg",
-        "ScoutBModel.tla",
-        "ScoutBModelDivergent.cfg",
-        "ScoutBModelLive.cfg",
-        "ScoutBModelLiveDivergent.cfg",
-        "ScoutBModelLiveUnconditional.cfg",
-        "ScoutBModelOpMismatch.cfg",
-        "ScoutBModelReach.cfg",
-        "ScoutBModelStreamShape.cfg",
-        "ScoutBModelUnguarded.cfg",
-        "ScoutBModelWitness.cfg",
+        "DeviceMeshModel.cfg",
+        "DeviceMeshModel.tla",
+        "DeviceMeshModelDivergent.cfg",
+        "DeviceMeshModelLive.cfg",
+        "DeviceMeshModelLiveDivergent.cfg",
+        "DeviceMeshModelLiveUnconditional.cfg",
+        "DeviceMeshModelOpMismatch.cfg",
+        "DeviceMeshModelReach.cfg",
+        "DeviceMeshModelStreamShape.cfg",
+        "DeviceMeshModelUnguarded.cfg",
+        "DeviceMeshModelWitness.cfg",
     ],
 )
 
 filegroup(
-    name = "tlc_scout_b_refine",
+    name = "tlc_device_mesh_refine",
     srcs = [
-        "ScoutBFacts.tla",
-        "ScoutBModel.tla",
-        "ScoutBRefine.cfg",
-        "ScoutBRefine.tla",
-        "ScoutBRefineBad.cfg",
-        "ScoutBRefineBadReach.cfg",
-        "ScoutBRefineBadRelaxed.cfg",
-        "ScoutBRefineBadUniform.cfg",
-        "ScoutBRefineMapping.cfg",
-        "ScoutBRefineOverlap.cfg",
-        "ScoutBRefineSingleRankPermutation.cfg",
-        "ScoutBRefineSkew.cfg",
-        "ScoutBRefineUniformPermutation.cfg",
-        "ScoutDistributed.tla",
+        "DeviceMeshFacts.tla",
+        "DeviceMeshModel.tla",
+        "DeviceMeshRefine.cfg",
+        "DeviceMeshRefine.tla",
+        "DeviceMeshRefineBad.cfg",
+        "DeviceMeshRefineBadReach.cfg",
+        "DeviceMeshRefineBadRelaxed.cfg",
+        "DeviceMeshRefineBadUniform.cfg",
+        "DeviceMeshRefineMapping.cfg",
+        "DeviceMeshRefineOverlap.cfg",
+        "DeviceMeshRefineSingleRankPermutation.cfg",
+        "DeviceMeshRefineSkew.cfg",
+        "DeviceMeshRefineUniformPermutation.cfg",
+        "MeshTopology.tla",
     ],
 )
 
 filegroup(
-    name = "tlc_scout_b_models",
+    name = "tlc_device_mesh_models",
     srcs = [
-        "ScoutBBadFacts.tla",
-        "ScoutBFacts.tla",
-        "ScoutBInvalid.cfg",
-        "ScoutBInvalid.tla",
-        "ScoutBIssueOrderInvalid.cfg",
-        "ScoutBIssueOrderInvalid.tla",
-        "ScoutBPayloadOperationInvalid.cfg",
-        "ScoutBPayloadOperationInvalid.tla",
-        "ScoutBPayloadSizeInvalid.cfg",
-        "ScoutBPayloadSizeInvalid.tla",
-        "ScoutBPlacementPartialInvalid.cfg",
-        "ScoutBPlacementPartialInvalid.tla",
-        "ScoutBValid.cfg",
-        "ScoutBValid.tla",
-        "ScoutDistributed.tla",
+        "DeviceMeshBadFacts.tla",
+        "DeviceMeshFacts.tla",
+        "DeviceMeshInvalid.cfg",
+        "DeviceMeshInvalid.tla",
+        "DeviceMeshIssueOrderInvalid.cfg",
+        "DeviceMeshIssueOrderInvalid.tla",
+        "DeviceMeshPayloadOperationInvalid.cfg",
+        "DeviceMeshPayloadOperationInvalid.tla",
+        "DeviceMeshPayloadSizeInvalid.cfg",
+        "DeviceMeshPayloadSizeInvalid.tla",
+        "DeviceMeshPlacementPartialInvalid.cfg",
+        "DeviceMeshPlacementPartialInvalid.tla",
+        "DeviceMeshValid.cfg",
+        "DeviceMeshValid.tla",
+        "MeshTopology.tla",
     ],
 )
 
@@ -149,15 +149,15 @@ sh_test(
 )
 
 sh_test(
-    name = "tlc_scout_a_test",
-    srcs = ["run_tlc_scout_a.sh"],
+    name = "tlc_single_rank_test",
+    srcs = ["run_tlc_single_rank.sh"],
     args = [
         "$(JAVA)",
         "$(location @tla2tools_1_7_4//file)",
     ],
     data = [
         ":checker_contract.sh",
-        ":tlc_scout_a_models",
+        ":tlc_single_rank_models",
         "@bazel_tools//tools/jdk:current_java_runtime",
         "@tla2tools_1_7_4//file",
     ],
@@ -169,15 +169,15 @@ sh_test(
 )
 
 sh_test(
-    name = "lean_scout_a_test",
-    srcs = ["run_lean_scout_a.sh"],
+    name = "lean_single_rank_test",
+    srcs = ["run_lean_single_rank.sh"],
     args = ["$(location @lean_4_34_0//:lean)"],
     data = [
-        ":ScoutABadFacts.lean",
-        ":ScoutAFacts.lean",
-        ":ScoutAInvalid.lean",
-        ":ScoutAValid.lean",
-        ":ScoutLifecycle.lean",
+        ":SingleRankBadFacts.lean",
+        ":SingleRankFacts.lean",
+        ":SingleRankInvalid.lean",
+        ":SingleRankValid.lean",
+        ":TraceLifecycle.lean",
         ":checker_contract.sh",
         "@lean_4_34_0//:lean",
         "@lean_4_34_0//:lean_runtime",
@@ -189,8 +189,8 @@ sh_test(
 )
 
 sh_test(
-    name = "tlc_scout_a_model_abstract_test",
-    srcs = ["run_tlc_scout_a_model.sh"],
+    name = "tlc_single_rank_model_abstract_test",
+    srcs = ["run_tlc_single_rank_model.sh"],
     args = [
         "$(JAVA)",
         "$(location @tla2tools_1_7_4//file)",
@@ -198,7 +198,7 @@ sh_test(
     ],
     data = [
         ":checker_contract.sh",
-        ":tlc_scout_a_model_abstract",
+        ":tlc_single_rank_model_abstract",
         "@bazel_tools//tools/jdk:current_java_runtime",
         "@tla2tools_1_7_4//file",
     ],
@@ -210,8 +210,8 @@ sh_test(
 )
 
 sh_test(
-    name = "tlc_scout_a_model_refine_test",
-    srcs = ["run_tlc_scout_a_model.sh"],
+    name = "tlc_single_rank_model_refine_test",
+    srcs = ["run_tlc_single_rank_model.sh"],
     args = [
         "$(JAVA)",
         "$(location @tla2tools_1_7_4//file)",
@@ -219,7 +219,7 @@ sh_test(
     ],
     data = [
         ":checker_contract.sh",
-        ":tlc_scout_a_model_refine",
+        ":tlc_single_rank_model_refine",
         "@bazel_tools//tools/jdk:current_java_runtime",
         "@tla2tools_1_7_4//file",
     ],
@@ -231,15 +231,15 @@ sh_test(
 )
 
 sh_test(
-    name = "tlc_scout_b_model_test",
-    srcs = ["run_tlc_scout_b_model.sh"],
+    name = "tlc_device_mesh_model_test",
+    srcs = ["run_tlc_device_mesh_model.sh"],
     args = [
         "$(JAVA)",
         "$(location @tla2tools_1_7_4//file)",
     ],
     data = [
         ":checker_contract.sh",
-        ":tlc_scout_b_model",
+        ":tlc_device_mesh_model",
         "@bazel_tools//tools/jdk:current_java_runtime",
         "@tla2tools_1_7_4//file",
     ],
@@ -255,15 +255,15 @@ sh_test(
 )
 
 sh_test(
-    name = "tlc_scout_b_refine_test",
-    srcs = ["run_tlc_scout_b_refine.sh"],
+    name = "tlc_device_mesh_refine_test",
+    srcs = ["run_tlc_device_mesh_refine.sh"],
     args = [
         "$(JAVA)",
         "$(location @tla2tools_1_7_4//file)",
     ],
     data = [
         ":checker_contract.sh",
-        ":tlc_scout_b_refine",
+        ":tlc_device_mesh_refine",
         "@bazel_tools//tools/jdk:current_java_runtime",
         "@tla2tools_1_7_4//file",
     ],
@@ -279,15 +279,15 @@ sh_test(
 )
 
 sh_test(
-    name = "tlc_scout_b_test",
-    srcs = ["run_tlc_scout_b.sh"],
+    name = "tlc_device_mesh_test",
+    srcs = ["run_tlc_device_mesh.sh"],
     args = [
         "$(JAVA)",
         "$(location @tla2tools_1_7_4//file)",
     ],
     data = [
         ":checker_contract.sh",
-        ":tlc_scout_b_models",
+        ":tlc_device_mesh_models",
         "@bazel_tools//tools/jdk:current_java_runtime",
         "@tla2tools_1_7_4//file",
     ],
@@ -299,33 +299,33 @@ sh_test(
 )
 
 sh_test(
-    name = "lean_scout_b_test",
-    srcs = ["run_lean_scout_b.sh"],
+    name = "lean_device_mesh_test",
+    srcs = ["run_lean_device_mesh.sh"],
     args = ["$(location @lean_4_34_0//:lean)"],
     data = [
-        ":ScoutBBaseChecks.lean",
-        ":ScoutBBadFacts.lean",
-        ":ScoutBCollectiveEventRank0.lean",
-        ":ScoutBCollectiveEventRank1.lean",
-        ":ScoutBCollectiveEventRank2.lean",
-        ":ScoutBCollectiveEventRank3.lean",
-        ":ScoutBEventMutationChecks.lean",
-        ":ScoutBEventRank0.lean",
-        ":ScoutBEventRank1.lean",
-        ":ScoutBEventRank2.lean",
-        ":ScoutBEventRank3.lean",
-        ":ScoutBFacts.lean",
-        ":ScoutBInvalid.lean",
-        ":ScoutBPayloadChecks.lean",
-        ":ScoutBPayloadMutationChecks.lean",
-        ":ScoutBPlacementChecks.lean",
-        ":ScoutBProducerCheck.lean",
-        ":ScoutBSyncChunk0.lean",
-        ":ScoutBSyncChunk1.lean",
-        ":ScoutBSyncChunk2.lean",
-        ":ScoutBSyncChunk3.lean",
-        ":ScoutBValid.lean",
-        ":ScoutDistributed.lean",
+        ":DeviceMeshBaseChecks.lean",
+        ":DeviceMeshBadFacts.lean",
+        ":DeviceMeshCollectiveEventRank0.lean",
+        ":DeviceMeshCollectiveEventRank1.lean",
+        ":DeviceMeshCollectiveEventRank2.lean",
+        ":DeviceMeshCollectiveEventRank3.lean",
+        ":DeviceMeshEventMutationChecks.lean",
+        ":DeviceMeshEventRank0.lean",
+        ":DeviceMeshEventRank1.lean",
+        ":DeviceMeshEventRank2.lean",
+        ":DeviceMeshEventRank3.lean",
+        ":DeviceMeshFacts.lean",
+        ":DeviceMeshInvalid.lean",
+        ":DeviceMeshPayloadChecks.lean",
+        ":DeviceMeshPayloadMutationChecks.lean",
+        ":DeviceMeshPlacementChecks.lean",
+        ":DeviceMeshProducerCheck.lean",
+        ":DeviceMeshSyncChunk0.lean",
+        ":DeviceMeshSyncChunk1.lean",
+        ":DeviceMeshSyncChunk2.lean",
+        ":DeviceMeshSyncChunk3.lean",
+        ":DeviceMeshValid.lean",
+        ":MeshTopology.lean",
         ":checker_contract.sh",
         "@lean_4_34_0//:lean",
         "@lean_4_34_0//:lean_runtime",
@@ -338,14 +338,14 @@ sh_test(
 )
 
 sh_test(
-    name = "lean_scout_b_protocol_test",
-    srcs = ["run_lean_scout_b_protocol.sh"],
+    name = "lean_device_mesh_protocol_test",
+    srcs = ["run_lean_device_mesh_protocol.sh"],
     args = ["$(location @lean_4_34_0//:lean)"],
     data = [
-        ":ScoutBInductiveInvariant.lean",
-        ":ScoutBProtocol.lean",
-        ":ScoutBProtocolInvalid.lean",
-        ":ScoutBWaitGraph.lean",
+        ":DeviceMeshInductiveInvariant.lean",
+        ":DeviceMeshProtocol.lean",
+        ":DeviceMeshProtocolInvalid.lean",
+        ":DeviceMeshWaitGraph.lean",
         ":checker_contract.sh",
         "@lean_4_34_0//:lean",
         "@lean_4_34_0//:lean_runtime",
@@ -354,7 +354,7 @@ sh_test(
         "formal",
         "manual",
     ],
-    # Separate from lean_scout_b_test on purpose: that target is already the
+    # Separate from lean_device_mesh_test on purpose: that target is already the
     # slowest in the suite at roughly 92s, and these modules read no trace data
     # so they have no reason to share its runfiles or its wall time.
     timeout = "long",
@@ -370,47 +370,47 @@ test_suite(
 
 # Tier 0: the trace-free checks. Every target here reads only hand-written
 # sources, so it runs on CPU without a generated facts module, a GPU or an
-# attempt bundle. Minutes rather than seconds: tlc_scout_b_model_test runs
-# eleven checks over eight communicators, and lean_scout_b_protocol_test carries
+# attempt bundle. Minutes rather than seconds: tlc_device_mesh_model_test runs
+# eleven checks over eight communicators, and lean_device_mesh_protocol_test carries
 # the quantified protocol theorems, which mention no trace and no bound. This
 # suite is for iteration and is not a gate: no attempt bundle is sealed from
 # it.
 test_suite(
     name = "tier0_formal_tests",
     tests = [
-        ":lean_scout_b_protocol_test",
+        ":lean_device_mesh_protocol_test",
         ":lean_smoke_test",
-        ":tlc_scout_a_model_abstract_test",
-        ":tlc_scout_b_model_test",
+        ":tlc_single_rank_model_abstract_test",
+        ":tlc_device_mesh_model_test",
         ":tlc_smoke_test",
     ],
 )
 
 test_suite(
-    name = "scout_a_formal_tests",
+    name = "single_rank_formal_tests",
     tests = [
-        ":lean_scout_a_test",
+        ":lean_single_rank_test",
         ":lean_smoke_test",
-        ":tlc_scout_a_model_abstract_test",
-        ":tlc_scout_a_model_refine_test",
-        ":tlc_scout_a_test",
+        ":tlc_single_rank_model_abstract_test",
+        ":tlc_single_rank_model_refine_test",
+        ":tlc_single_rank_test",
         ":tlc_smoke_test",
     ],
 )
 
 test_suite(
-    name = "scout_b_formal_tests",
+    name = "device_mesh_formal_tests",
     tests = [
-        ":lean_scout_a_test",
-        ":lean_scout_b_protocol_test",
-        ":lean_scout_b_test",
+        ":lean_single_rank_test",
+        ":lean_device_mesh_protocol_test",
+        ":lean_device_mesh_test",
         ":lean_smoke_test",
-        ":tlc_scout_a_model_abstract_test",
-        ":tlc_scout_a_model_refine_test",
-        ":tlc_scout_a_test",
-        ":tlc_scout_b_model_test",
-        ":tlc_scout_b_refine_test",
-        ":tlc_scout_b_test",
+        ":tlc_single_rank_model_abstract_test",
+        ":tlc_single_rank_model_refine_test",
+        ":tlc_single_rank_test",
+        ":tlc_device_mesh_model_test",
+        ":tlc_device_mesh_refine_test",
+        ":tlc_device_mesh_test",
         ":tlc_smoke_test",
     ],
 )

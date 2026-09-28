@@ -43,15 +43,15 @@ no GPU, no observed trace and no sealed bundle, so iterating on a model costs
 minutes instead of a full nine-stage gate:
 
 ```bash
-TORCHTITAN_SCOUT_ROOTFS=/path/to/rootfs \
+TORCHTITAN_QFV_ROOTFS=/path/to/rootfs \
 TORCHTITAN_FORMAL_CACHE_HOST="$HOME/.cache/torchtitan/formal" \
 experiments/qwen3_formal_verifier/run_formal_tier0.sh --no-fetch
 ```
 
 Tier 0 is an iteration aid, not a gate. It writes no evidence bundle, and the
 trace-dependent checks -- the refinement bridge, the generated fact modules,
-artifact synchronization and the real CUDA step -- run only in the Scout gates
-below. See `formal/README.md` for the exact target list.
+artifact synchronization and the real CUDA step -- run only in the verifier
+gates below. See `formal/README.md` for the exact target list.
 
 ### The mutation manifest
 
@@ -108,9 +108,9 @@ TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST="$HOME/.cache/torchtitan/formal" \
   bash -lc 'cd /workspace/torchtitan && python -m tests.mutations.runner'
 ```
 
-## Scout A: observed single-rank step
+## Single-rank: observed single-rank step
 
-`run_scout_a.sh` is the supported tracer-bullet command for one real Qwen3
+`run_single_rank.sh` is the supported tracer-bullet command for one real Qwen3
 optimizer step. It selects `qwen3_debugmodel` through `ConfigManager` and runs
 the unchanged core `Trainer` on one visible CUDA device. The experiment-owned
 adapter observes the first batch, root-module forward and backward boundaries,
@@ -122,60 +122,60 @@ to accept the observed normalized fixture; ordinary verification uses the
 default read-only artifact check:
 
 ```bash
-TORCHTITAN_SCOUT_ROOTFS=/path/to/rootfs \
+TORCHTITAN_QFV_ROOTFS=/path/to/rootfs \
 TORCHTITAN_FORMAL_CACHE_HOST="$HOME/.cache/torchtitan/formal" \
-experiments/qwen3_formal_verifier/run_scout_a.sh --update-artifacts
+experiments/qwen3_formal_verifier/run_single_rank.sh --update-artifacts
 ```
 
 The command confines CUDA to GPU 0, runs focused pytest contracts, executes the
 real Trainer step, checks generated-artifact synchronization, runs the full
-Scout A Bazel suite once with network access and once in a fresh no-fetch
+Single-rank Bazel suite once with network access and once in a fresh no-fetch
 sandbox, then seals the evidence manifest. Raw evidence, checker logs, and
 large products live under ignored `outputs/qwen3_formal_verifier/`; the compact
 normalized fixture and fact modules are checked in.
 
-Scout A proves the recorded single-rank lifecycle and causal ordering for this
-debug-model step. It does not prove model mathematics, multi-rank collective
-behavior, convergence, or performance. The older `qwen3_step.py` path is a
-deterministic synthetic DPxTP trace builder and is not runtime success evidence
-for Scout A.
+Single-rank proves the recorded single-rank lifecycle and causal ordering for
+this debug-model step. It does not prove model mathematics, multi-rank
+collective behavior, convergence, or performance. The older `qwen3_step.py` path
+is a deterministic synthetic DPxTP trace builder and is not runtime success
+evidence for Single-rank.
 
-## Scout B: observed 2x2 DPxTP step
+## Device-mesh: observed 2x2 DPxTP step
 
-`run_scout_b.sh` widens the same unchanged `Trainer` path to exactly four local
-CUDA ranks on GPUs 0-3. Its fixed mesh is DP replicate 1, DP shard 2, TP 2, and
-all other degrees 1. Local batch 1 and sequence length 128 give global batch 2
-and 256 tokens per optimizer step. Sequence parallelism and checkpoint load and
-save remain disabled.
+`run_device_mesh.sh` widens the same unchanged `Trainer` path to exactly four
+local CUDA ranks on GPUs 0-3. Its fixed mesh is DP replicate 1, DP shard 2, TP
+2, and all other degrees 1. Local batch 1 and sequence length 128 give global
+batch 2 and 256 tokens per optimizer step. Sequence parallelism and checkpoint
+load and save remain disabled.
 
 The experiment records each rank's runtime mesh coordinate, actual NCCL process
 groups, all model-parameter DTensor placements, and NCCL Flight Recorder
-enqueue/start/complete records with each collective's per-tensor input and output
-sizes and dtypes. Kineto supplies the executing CUDA stream and
-producer launch correlation. Four `all_gather_object` rank traces are rejected
-before export if identity, topology, TP-peer input, placement, group, lifecycle,
-or producer evidence is incomplete or conflicting, or if a collective's payload
-sizes and dtype names do not pair up per tensor. Normalization keeps a
-separate source clock per rank and introduces only unordered synchronization
-edges across ranks.
+enqueue/start/complete records with each collective's per-tensor input and
+output sizes and dtypes. Kineto supplies the executing CUDA stream and producer
+launch correlation. Four `all_gather_object` rank traces are rejected before
+export if identity, topology, TP-peer input, placement, group, lifecycle, or
+producer evidence is incomplete or conflicting, or if a collective's payload
+sizes and dtype names do not pair up per tensor. Normalization keeps a separate
+source clock per rank and introduces only unordered synchronization edges across
+ranks.
 
 Run the complete source-bound gate from outside Insula:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 \
-TORCHTITAN_SCOUT_ROOTFS=/path/to/rootfs \
+TORCHTITAN_QFV_ROOTFS=/path/to/rootfs \
 TORCHTITAN_FORMAL_CACHE_HOST="$HOME/.cache/torchtitan/formal" \
-experiments/qwen3_formal_verifier/run_scout_b.sh
+experiments/qwen3_formal_verifier/run_device_mesh.sh
 ```
 
-The gate also re-executes and seals Scout A, then runs the combined Scout B
-formal suite in networked and no-fetch sandboxes. Raw rank traces and the full
-normalized bundle remain immutable run evidence. The runtime manifest binds
-the complete raw bytes, including volatile timestamps and correlation IDs. A
-separate deterministic projection excludes only the documented timestamp,
-collection-bundle digest, executor-thread, and producer-correlation fields;
-every normalized event records the projection schema, raw event ID, and
-projection digest.
+The gate also re-executes and seals Single-rank, then runs the combined
+Device-mesh formal suite in networked and no-fetch sandboxes. Raw rank traces
+and the full normalized bundle remain immutable run evidence. The runtime
+manifest binds the complete raw bytes, including volatile timestamps and
+correlation IDs. A separate deterministic projection excludes only the
+documented timestamp, collection-bundle digest, executor-thread, and
+producer-correlation fields; every normalized event records the projection
+schema, raw event ID, and projection digest.
 
 Checked-in facts contain the complete bounded graph: all 1,340 normalized
 events, 432 observed rank-local collective works, their lifecycle producer
@@ -185,11 +185,11 @@ TLA+ checks exact String membership. Lean preserves the actual String IDs in
 paired rank-local rows and independently checks a collision-free bounded
 rank/order/kind identity, row order/count/uniqueness, provenance, predecessor,
 and synchronization constraints. Lean's maintained event schedule is specific
-to this one-step Scout B profile: ten trainer events, collective lifecycle
+to this one-step Device-mesh profile: ten trainer events, collective lifecycle
 triples, then the collection marker. A different profile requires a different
 maintained schedule.
 
-Scout B establishes the stated predicates for one bounded 2x2 execution. It
+Device-mesh establishes the stated predicates for one bounded 2x2 execution. It
 does not prove arbitrary mesh sizes, complete distributed-training correctness,
 convergence, recovery, or performance.
 
@@ -241,8 +241,8 @@ Three consequences are worth stating plainly rather than discovering later:
   `evidence.files` and re-checked on verify. Do not "fix" this by folding the
   section back into `source_id`.
 - Lint still covers both sets. The runners build their lint file list through
-  `scout_a lint-paths` / `scout_b lint-paths`, which returns the union and
-  raises on a manifest that is the wrong schema or is missing the process or
+  `single_rank lint-paths` / `device_mesh lint-paths`, which returns the union
+  and raises on a manifest that is the wrong schema or is missing the process or
   lint-coverage section. Reading only `entries` would silently shrink lint
   coverage while the lint log still reported success. When the tree is clean
   there is no union to return; see "Lint coverage on a clean tree" below.
@@ -285,7 +285,7 @@ zero verified entries and zero process entries. That is not a weaker gate, it
 was a broken one: the lint path list came out empty and the stage aborted on its
 own non-empty assertion, so the committed -- and therefore clean -- state could
 not be gated at all. Measured from `d8b1016d5`: `FINAL_GATE_EXIT=1` inside the
-nested Scout A `lint` stage, whose log was ten lines of `git init` hints and
+nested Single-rank `lint` stage, whose log was ten lines of `git init` hints and
 nothing else.
 
 The runners therefore take a second host capture beside the status bytes,
@@ -314,14 +314,13 @@ stay outside `source_id`: they decide what lint covers when there are no dirty
 bytes to pin, and are not an identity claim about the tree. They are still
 recomputed and compared against the sealed section on every verify, exactly like
 the process roster, so a bundle cannot claim a coverage case its lint stage
-never had. `runtime_manifest.source.lint_coverage_case` repeats the case beside `head`
-and `source_id`, and the lint stage log carries
-`SCOUT_LINT_PATHS case=... num_paths=...` and
-`SCOUT_LINT_STAGE result=success num_paths=...`.
+never had. `runtime_manifest.source.lint_coverage_case` repeats the case beside
+`head` and `source_id`, and the lint stage log carries `QFV_LINT_PATHS case=...
+num_paths=...` and `QFV_LINT_STAGE result=success num_paths=...`.
 
-The stage body itself lives in one place, `scout_lint_stage_program` in
-`scout_a_runner_lib.sh`, so both runners execute the same program and
-`tests/unit_tests/test_qwen3_formal_scout_a.py` can **run** it against a real
-clean one-commit repository with `pre-commit` and `pyrefly` stubbed. A test that
-greps a runner for a string is how the clean-tree defect survived; these tests
-execute the stage.
+The stage body itself lives in one place, `qfv_lint_stage_program` in
+`runner_lib.sh`, so both runners execute the same program and
+`tests/unit_tests/test_qwen3_formal_single_rank.py` can **run** it against a
+real clean one-commit repository with `pre-commit` and `pyrefly` stubbed. A test
+that greps a runner for a string is how the clean-tree defect survived; these
+tests execute the stage.

@@ -7,8 +7,8 @@
 """Contracts for the TLA+/Lean fidelity differential harness (ticket 27).
 
 The toolchain-backed tests here EXECUTE both checkers on generated modules.
-They are the only evidence that the correspondence between ScoutBModel.tla and
-ScoutBProtocol.lean is checked rather than asserted, so they are not allowed
+They are the only evidence that the correspondence between DeviceMeshModel.tla and
+DeviceMeshProtocol.lean is checked rather than asserted, so they are not allowed
 to degrade into greps over the generated text. Where the vendored Lean and
 tla2tools are not present the toolchain tests skip and the pure-Python
 contracts still run; a skip is visible in the pytest summary and is not a pass.
@@ -63,7 +63,7 @@ def _toolchain_or_skip() -> ToolchainPaths:
 
 @pytest.fixture(scope="module")
 def staged_work_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """One staged work dir per module, so ScoutBProtocol is compiled once."""
+    """One staged work dir per module, so DeviceMeshProtocol is compiled once."""
     toolchain = _toolchain_or_skip()
     work_dir, _ = prepare_work_dir(
         tmp_path_factory.mktemp("fidelity-diff-shared"), toolchain
@@ -165,7 +165,7 @@ def test_rendered_modules_are_ascii_and_self_consistent() -> None:
         cfg_text.encode("ascii")
         assert f"MODULE {name}" in module_text
         # Both definition overrides are load-bearing: Ops and StreamOfIssue are
-        # ordinary definitions in ScoutBModel, so without them the generator
+        # ordinary definitions in DeviceMeshModel, so without them the generator
         # could not vary the operation alphabet or the stream map.
         assert "CONSTANT Ops <- ProbeOps" in cfg_text
         assert "CONSTANT StreamOfIssue <- ProbeStreamOfIssue" in cfg_text

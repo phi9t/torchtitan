@@ -7,7 +7,7 @@ cover.
 **Blocked by:** 11 — DPxTP collective protocol model.
 
 **Status:** resolved -- the `_collective_payload` exporter, the payload facts
-and `ScoutBPayloadChecks.lean` landed in `d8b1016d5`. This line read
+and `DeviceMeshPayloadChecks.lean` landed in `d8b1016d5`. This line read
 `ready-for-agent` until a status audit corrected it; the work had been committed
 for some time and the ledger was advertising it as available.
 
@@ -89,7 +89,7 @@ changes land together.
 
 ### What changed
 
-Collector, `torchtitan/experiments/qwen3_formal_verifier/scout_b.py`:
+Collector, `torchtitan/experiments/qwen3_formal_verifier/device_mesh.py`:
 
 - `_flight_payload` reads `input_sizes`, `output_sizes`, `input_dtypes` and
   `output_dtypes` off each Flight Recorder entry and carries them into the raw
@@ -116,8 +116,8 @@ equality, so without it every previously sealed trace fails on a missing-field
 message a third party cannot tell from tampering.
 
 Keyed off `RAW_SCHEMA`: only `raw_trace()`, `_validate_raw_rank_trace` and the
-unit-test bundle. `scout_a.py` has its own constant of the same value, left
-alone -- a single-rank trace observes no collective. `SCOUT_SCHEMA` and
+unit-test bundle. `single_rank.py` has its own constant of the same value, left
+alone -- a single-rank trace observes no collective. `QFV_SCHEMA` and
 `RAW_EVENT_PROJECTION_SCHEMA` are NOT bumped: the projection rule (same
 exclusions, same digest) is unchanged, and a stale normalized bundle now fails
 on the contract version, which is the designed path.
@@ -128,7 +128,7 @@ Per collective work, keyed by work id, with the communicator key being
 `process_group.canonical_id` -- never `runtime_pg_id`. TLA+ gains
 `CollectivePayloadComm`, `...SizeRelation`, `...InputSizes`, `...OutputSizes`,
 `...InputDtypes`, `...OutputDtypes`, `...InputElements`, `...OutputElements`, in
-a delimited block so `SCOUT_B_TLA_PAYLOAD_FACTS` can report its byte share.
+a delimited block so `DEVICE_MESH_TLA_PAYLOAD_FACTS` can report its byte share.
 
 Lean's shape differs, and the reason is measured rather than assumed: TLC
 handles an all-pairs agreement predicate over 432 works, the Lean kernel does
@@ -139,10 +139,10 @@ distinct communicator key), and the predicates join through those.
 
 ### The checks
 
-Four invariants, `ScoutBValid` 19 -> 23: well-formedness with the element counts
-RECOMPUTED from the shapes, the communicator-key property, member agreement on
-dtype and volume, and the operation's implied volume relation with its exported
-label checked against the operation.
+Four invariants, `DeviceMeshValid` 19 -> 23: well-formedness with the element
+counts RECOMPUTED from the shapes, the communicator-key property, member
+agreement on dtype and volume, and the operation's implied volume relation with
+its exported label checked against the operation.
 
 The keying check has two halves and only one is load-bearing. Equality with
 `CollectiveComm` is a drift tripwire. The refutation of a `runtime_pg_id` keying
@@ -151,19 +151,19 @@ eight-versus-four confusion, refuted rather than commented on.
 
 ### The negatives, and their survivor sets
 
-`ScoutBPayloadSizeInvalid` doubles the first dimension of every shape of ONE
+`DeviceMeshPayloadSizeInvalid` doubles the first dimension of every shape of ONE
 member and recomputes that member's element counts. Doubling both sides
 preserves the operation's relation, so the only thing it breaks is agreement.
-TLC reports `ScoutBCollectivePayloadAgreement` at exit 12. Survivors, all
+TLC reports `DeviceMeshCollectivePayloadAgreement` at exit 12. Survivors, all
 asserted over the mutated facts: `ThereIsASizedWorkWithAPeer`,
 `MutationIsIsolated`, `StructureSurvivesTheMutation`,
 `OtherCollectiveChecksSurviveTheMutation` -- which includes
 `PerCommunicatorIssueOrderAgreement`.
 
-`ScoutBPayloadOperationInvalid` relabels one collective's operation on EVERY
+`DeviceMeshPayloadOperationInvalid` relabels one collective's operation on EVERY
 member, with the relation label moved to match, which is what an exporter bug
-does. TLC reports `ScoutBCollectivePayloadSizeRelation` at exit 12. Survivors:
-`ThereIsAVolumeChangingCollective`, `MutationIsIsolated`,
+does. TLC reports `DeviceMeshCollectivePayloadSizeRelation` at exit 12.
+Survivors: `ThereIsAVolumeChangingCollective`, `MutationIsIsolated`,
 `StructureSurvivesTheMutation`, `IssueOrderAgreementSurvivesTheMislabelling`.
 
 That last survivor is the argument for the whole ticket: a symmetric
@@ -202,7 +202,7 @@ their facts are shaped differently.
   collective ids pairwise distinct with `eraseDups` costs about 53s, worse than
   the per-row count it would have replaced.
 
-Byte cost is reported in-gate by `SCOUT_B_TLA_PAYLOAD_FACTS` rather than
+Byte cost is reported in-gate by `DEVICE_MESH_TLA_PAYLOAD_FACTS` rather than
 estimated here, for the reason ticket 17 records: `payload_bytes=` is exact and
 `parse_ms=` measures machine load first.
 
@@ -212,12 +212,12 @@ estimated here, for the reason ticket 17 records: `payload_bytes=` is exact and
   present, per-tensor, element counts equal to the products, keyed on the
   canonical id and never on `runtime_pg_id`, with the fixture's shared runtime
   id across two member sets making that claim non-vacuous.
-- `run_tlc_scout_b.sh` run end to end against exporter-generated facts: all 23
-  invariants clean, and both new negatives reporting exactly their invariant at
-  exit 12 with their survivor sets in the token.
+- `run_tlc_device_mesh.sh` run end to end against exporter-generated facts: all
+  23 invariants clean, and both new negatives reporting exactly their invariant
+  at exit 12 with their survivor sets in the token.
 - Both Lean payload modules compiled against exporter-generated facts: 11
   results, every one axiom-free.
-- Real TLC over the shipped `ScoutDistributed` predicates and hand-written
+- Real TLC over the shipped `MeshTopology` predicates and hand-written
   payload facts: one good input accepted and ten bad ones refused -- unpaired
   dtype list, zero dimension, an element count the shapes do not support, member
   volume mismatch, member dtype mismatch, mixed input/output dtype, symmetric
@@ -235,58 +235,59 @@ estimated here, for the reason ticket 17 records: `payload_bytes=` is exact and
   requires it, and FSDP2 collectives move one flat buffer, so it should hold,
   but a collective recorded over tensors of mixed dtypes would refute it and the
   invariant would then have to weaken to per-buffer uniformity.
-- The checked-in `ScoutBFacts.tla`, `ScoutBBadFacts.tla`, `ScoutBFacts.lean` and
-  `ScoutBBadFacts.lean` are STALE until an `--update-artifacts` run regenerates
-  them. Until then the `scout-b` suite fails at parse time on the missing
-  `CollectivePayload*` operators and at `rfl` on the missing
-  `collectivePayloads`, which is the correct report, not a regression.
+- The checked-in `DeviceMeshFacts.tla`, `DeviceMeshBadFacts.tla`,
+  `DeviceMeshFacts.lean` and `DeviceMeshBadFacts.lean` are STALE until an
+  `--update-artifacts` run regenerates them. Until then the `device-mesh` suite
+  fails at parse time on the missing `CollectivePayload*` operators and at `rfl`
+  on the missing `collectivePayloads`, which is the correct report, not a
+  regression.
 - The real byte and parse cost of the payload block, and the real Lean kernel
-  time for `ScoutBPayloadChecks` and `ScoutBPayloadMutationChecks` at 432 works.
-  The measured 26s/13s per evaluation is why those two modules get 300s rather
-  than the shared 120s, and why the positives and mutations are separate
-  modules.
-- `run_lean_scout_b.sh`'s payload token emission. The runner cannot be exercised
-  end to end on the unit-test bundle, because that bundle's event schedule does
-  not satisfy the maintained Lean event-kind grammar -- a pre-existing property
-  of the fixture, unrelated to payloads.
+  time for `DeviceMeshPayloadChecks` and `DeviceMeshPayloadMutationChecks` at
+  432 works. The measured 26s/13s per evaluation is why those two modules get
+  300s rather than the shared 120s, and why the positives and mutations are
+  separate modules.
+- `run_lean_device_mesh.sh`'s payload token emission. The runner cannot be
+  exercised end to end on the unit-test bundle, because that bundle's event
+  schedule does not satisfy the maintained Lean event-kind grammar -- a
+  pre-existing property of the fixture, unrelated to payloads.
 
 ### Suite results at this commit
 
 - `--suite tier0` (`run_formal_tier0.sh --no-fetch`): 5/5 Bazel targets pass,
   lint success over 19 changed files with pyrefly clean, 122 focused pytest
   contracts pass.
-- `--suite scout-a`: 6/6 pass.
-- `--suite scout-b`: 9/11 pass. The two failures are
-  `tlc_scout_b_test` -- "Unknown operator: `CollectivePayloadComm'" and its
-  siblings -- and `lean_scout_b_test` -- "Unknown identifier
-  `ScoutBFacts.collectivePayloads`". Both are the stale checked-in facts modules
-  and nothing else; they clear when an `--update-artifacts` run regenerates them
-  from a fresh four-rank trace.
-- `tests/unit_tests/test_qwen3_formal_scout_b.py` and
+- `--suite single-rank`: 6/6 pass.
+- `--suite device-mesh`: 9/11 pass. The two failures are `tlc_device_mesh_test`
+  -- "Unknown operator: `CollectivePayloadComm'" and its siblings -- and
+  `lean_device_mesh_test` -- "Unknown identifier
+  `DeviceMeshFacts.collectivePayloads`". Both are the stale checked-in facts
+  modules and nothing else; they clear when an `--update-artifacts` run
+  regenerates them from a fresh four-rank trace.
+- `tests/unit_tests/test_qwen3_formal_device_mesh.py` and
   `tests/unit_tests/test_formal_toolchain.py`: 187 pass, up from 167.
 
 ### Fixture finding, out of scope here
 
-The unit-test four-rank bundle is not a trace `ScoutBValid` accepts: it shards
-both `tok_embeddings.weight` axes on tensor dim 0 with no strided flag and a
-local shape of half each dim, which contradicts `LocalShapeReflectsSharding` and
-`StridedShardIsAnOuterComposedShard` both. Only its projection was ever
-unit-tested. Moving the tp shard to dim 1 makes it consistent and would let the
-whole runner be exercised on it; worth a follow-up.
+The unit-test four-rank bundle is not a trace `DeviceMeshValid` accepts: it
+shards both `tok_embeddings.weight` axes on tensor dim 0 with no strided flag
+and a local shape of half each dim, which contradicts
+`LocalShapeReflectsSharding` and `StridedShardIsAnOuterComposedShard` both. Only
+its projection was ever unit-tested. Moving the tp shard to dim 1 makes it
+consistent and would let the whole runner be exercised on it; worth a follow-up.
 
 ### Gate evidence
 
 Two gate runs, as the digest-moving sequence requires. Pass 1 with
 `--update-artifacts` produced the new v1 trace, wrote the fixtures, and then
-failed at `lint` with `dirty source identity changed during Scout B gate` --
+failed at `lint` with `dirty source identity changed during Device-mesh gate` --
 correct behaviour, because the fixtures genuinely changed mid-run. Pass 2 is the
 citable one: all nine stages exit 0 with `artifact_sync` in check mode.
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:0abb94c875d45ee32f27359e267c6f4d736f77dcbcdd370b4de7506dac4108c0`
-- Scout B source ID:
+- Device-mesh source ID:
   `sha256:fadac9baa8247371d5af3ada01bc894e136374cbb786d2f71989dccafadeb7f5`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:d83635dd08514f25be20d5ac6af3b93b0de5023cc437c5bd1c4137603be8269b`
 - Raw schema `qwen3.formal.raw.v1`; provenance contract
   `qwen3.formal.scout.provenance-contract.v2` carrying the `observed_payload`
@@ -294,8 +295,9 @@ citable one: all nine stages exit 0 with `artifact_sync` in check mode.
   producer/stream attribution.
 
 The four payload invariants are named in the sealed log alongside the other 19:
-`ScoutBCollectivePayloadWellFormed`, `ScoutBPayloadCommKey`,
-`ScoutBCollectivePayloadAgreement`, `ScoutBCollectivePayloadSizeRelation`.
+`DeviceMeshCollectivePayloadWellFormed`, `DeviceMeshPayloadCommKey`,
+`DeviceMeshCollectivePayloadAgreement`,
+`DeviceMeshCollectivePayloadSizeRelation`.
 
 ### What the real trace settled
 

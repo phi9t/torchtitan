@@ -111,7 +111,7 @@ Ticket 28 holds the detail. Ordered by value:
 
 - **Replace the hand-written `Ranks2x2` quadruple with generated definitions**
   (S). Safe now: the derived instance provably explores the same state graph,
-  38321 distinct. This also retires `run_tlc_scout_b_model.sh:189-200`'s awk
+  38321 distinct. This also retires `run_tlc_device_mesh_model.sh:189-200`'s awk
   scrape of those four names, which silently reports the wrong bound if they are
   renamed.
 - **Make the exporter record `batch` and `loss`** (M). `_runtime_topology`
@@ -119,7 +119,7 @@ Ticket 28 holds the detail. Ordered by value:
   and `tp`, via a hardcoded two-tuple and a hardcoded six-element coordinate.
   This one moves the canonical trace: `--update-artifacts`, a `RAW_SCHEMA`
   decision, and two gate runs.
-- **`ScoutDistributed.tla`** hardcodes 2x2 independently (L, or drop it).
+- **`MeshTopology.tla`** hardcodes 2x2 independently (L, or drop it).
 - **A third non-trivial axis** stays out until the `dp_replicate` mesh-name
   convention is *observed*. Inventing one is the unmeasured assumption this work
   exists to remove.
@@ -130,18 +130,18 @@ Restated against what now exists, since the originals predate the protocol
 model, the Lean proof and the bridge:
 
 - **04** promote the versioned trace contract. Still needed, and its premise
-  widened: `scout_a.py:37` pins `raw.v0` while `scout_b.py` pins `raw.v1`, an
-  un-contracted fork.
+  widened: `single_rank.py:37` pins `raw.v0` while `device_mesh.py` pins
+  `raw.v1`, an un-contracted fork.
 - **05, 06, 07** largely subsumed by the bridge and the fidelity differential.
   Residues only: single-rank Lean independence, and Lean-side transition
   establishment.
 - **08** wholly outstanding, and it owns the detection-latency criterion that
   the fault work should now be able to satisfy.
 - **09** is the genuine missing half. The positional zip still ships and is
-  cited in the code as awaiting it (`scout_b.py:152`). A joined key removes the
-  last place where correspondence is assumed from ordering.
-- **24** the four-rank unit fixture is still not a trace `ScoutBValid` accepts,
-  which is why end-to-end checker runs against it are not repeatable.
+  cited in the code as awaiting it (`device_mesh.py:152`). A joined key removes
+  the last place where correspondence is assumed from ordering.
+- **24** the four-rank unit fixture is still not a trace `DeviceMeshValid`
+  accepts, which is why end-to-end checker runs against it are not repeatable.
 
 ## 8. Verification debt -- S, blocked
 

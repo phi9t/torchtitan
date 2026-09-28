@@ -16,10 +16,11 @@ and the suite at `tests/unit_tests/test_qwen3_formal_fidelity_diff.py`. See
 
 ## What is wrong
 
-`ScoutBModel.tla` and `ScoutBProtocol.lean` are two hand-written models of one
-protocol, joined by a prose correspondence table with ten named divergences,
-checked once by a reviewer reading both. If they drift, the unbounded Lean proof
-describes a different system from the one TLC checks, and nothing says so.
+`DeviceMeshModel.tla` and `DeviceMeshProtocol.lean` are two hand-written models
+of one protocol, joined by a prose correspondence table with ten named
+divergences, checked once by a reviewer reading both. If they drift, the
+unbounded Lean proof describes a different system from the one TLC checks, and
+nothing says so.
 
 The Lean side already asserts the correspondence in its own docstrings --
 `opsAgreeAtFrontB` is documented as "TLA's `OpsAgreeAtFront(c)`",
@@ -49,14 +50,14 @@ Two facts the harness depends on, both established by that spike:
 - Using `Fin n` for the rank, communicator, op and stream types makes
   `Topology`'s three proof obligations -- `membersInRanks`, `admissibleInOps`,
   `commsComplete` -- decidable, so each is discharged by `by decide`. The
-  existing `cyclicTopology` in `ScoutBWaitGraph.lean` uses `Bool`/`Unit` with
-  hand-written `cases` proofs, which does not generalise to generated
+  existing `cyclicTopology` in `DeviceMeshWaitGraph.lean` uses `Bool`/`Unit`
+  with hand-written `cases` proofs, which does not generalise to generated
   instances; `Fin` does.
-- `ScoutBProtocol.lean` compiles standalone, so the harness needs no other
-  module: `lean -o ScoutBProtocol.olean ScoutBProtocol.lean` then `lean` the
-  generated file with `LEAN_PATH` set. The toolchain is vendored at
-  `/project/formal-cache/bazel/vendor/+http_archive+lean_4_34_0/bin/lean`
-  inside the rootfs.
+- `DeviceMeshProtocol.lean` compiles standalone, so the harness needs no other
+  module: `lean -o DeviceMeshProtocol.olean DeviceMeshProtocol.lean` then `lean`
+  the generated file with `LEAN_PATH` set. The toolchain is vendored at
+  `/project/formal-cache/bazel/vendor/+http_archive+lean_4_34_0/bin/lean` inside
+  the rootfs.
 
 ### The TLA+ half, also proven
 
@@ -64,7 +65,7 @@ The second abandon criterion was: stop if TLC cannot evaluate a predicate at an
 externally supplied state without a hand-written translation per instance. It
 also is **not** triggered.
 
-A module that `EXTENDS ScoutBModel, TLC` inherits the model's variables and
+A module that `EXTENDS DeviceMeshModel, TLC` inherits the model's variables and
 operators, so it can pin the state and print the predicates directly:
 
 ```tla
@@ -83,8 +84,8 @@ invariant at the single initial state and prints each pair. Nothing is
 hand-written per instance: the probe module and its cfg are both generated from
 the same instance data as the Lean module.
 
-`ScoutBModel.tla` extends only `Naturals`, `Sequences` and `FiniteSets`, so the
-probe needs no other module. TLC runs under the Bazel-vendored JDK at
+`DeviceMeshModel.tla` extends only `Naturals`, `Sequences` and `FiniteSets`, so
+the probe needs no other module. TLC runs under the Bazel-vendored JDK at
 `/project/formal-cache/bazel/vendor/rules_java++toolchains+remotejdk17_linux/bin/java`
 -- `java` is not on the rootfs PATH -- with
 `/project/formal-cache/bazel/vendor/+http_file+tla2tools_1_7_4/file/tla2tools.jar`.
@@ -190,7 +191,7 @@ the instance count:
 
 The TLA+ cfg binds `Ops` and `StreamOfIssue` by definition override, not only
 the seven declared constants. Both are ordinary definitions in
-`ScoutBModel.tla`; without overriding them the generator would inherit the
+`DeviceMeshModel.tla`; without overriding them the generator would inherit the
 module's single hard-wired 2x2 instance and could vary neither the operation
 alphabet nor the operation-to-stream map. Every cfg also asserts TLA's FULL
 `TypeOK`, including the two conjuncts divergence 7 drops from the Lean
@@ -222,7 +223,7 @@ agreement from a lucky draw.
 Cost is dominated by JVM startup: one TLC probe is about 0.8 s serially, so
 192 probes are run 16-way concurrently for 9.9 s wall. Lean is batched 24
 instances per generated file, about 4.6 s wall for all 192 plus a one-time
-0.7 s compile of `ScoutBProtocol.olean`.
+0.7 s compile of `DeviceMeshProtocol.olean`.
 
 Concurrent TLC probes need a private `java.io.tmpdir` and a private
 `-metadir`. tla2tools extracts `Naturals`, `Sequences` and `TLC` into
@@ -244,10 +245,10 @@ skip. The remaining seven predicates are compared with no carve-out at all.
   `completedB` is `true`, and the comparator asserts exactly that. 1054
   records, 1054 obligations checked.
 - **E2, `ops_agree_at_front_not_fully_pending`.** TLA's `OpsAgreeAtFront(c)`
-  reads `OpAt(r, c, Front(c))`, whose `IdxOf` is a `CHOOSE` with no witness
-  when `CommCount(r, c) < Front(c)`. Measured: TLC reports `Attempted to
-  compute the value of an expression of form CHOOSE x \in S: P, but no element
-  of S satisfied P` at `ScoutBModel.tla`'s `IdxOf`. The predicate is compared
+  reads `OpAt(r, c, Front(c))`, whose `IdxOf` is a `CHOOSE` with no witness when
+  `CommCount(r, c) < Front(c)`. Measured: TLC reports `Attempted to compute the
+  value of an expression of form CHOOSE x \in S: P, but no element of S
+  satisfied P` at `DeviceMeshModel.tla`'s `IdxOf`. The predicate is compared
   wherever `FullyPending(c)` holds -- the guard is evaluated by TLC from the
   model's own definition, not recomputed by the harness. Where every member is
   short of the front, both of Lean's `opAtOn` reads are `none` and the

@@ -7,10 +7,10 @@ complete directly. The implementation audit found that its TLA+ was not
 TLC-executable, its Lean output was not compiled and contained a placeholder
 well-formedness proposition, and its trace was synthetic.
 
-The user then selected a two-phase program: sequential Scout A and Scout B
-tracer bullets followed by progressive design and refinement. The durable spec
-replaces the initial completion ticket. No implementation edits were retained
-from the interrupted direct-completion attempt.
+The user then selected a two-phase program: sequential Single-rank and
+Device-mesh tracer bullets followed by progressive design and refinement. The
+durable spec replaces the initial completion ticket. No implementation edits
+were retained from the interrupted direct-completion attempt.
 
 Reference decisions retained by the spec:
 

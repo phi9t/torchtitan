@@ -79,11 +79,11 @@ is weakest exactly when the tree is clean -- the state a reviewer sees.
 
 ```
 "${GIT_BIN}" -C "${REPO_ROOT}" diff --check
-printf 'SCOUT_B_SOURCE_RECHECK result=success head=%s\n' "${HEAD_ID}"
+printf 'DEVICE_MESH_SOURCE_RECHECK result=success head=%s\n' "${HEAD_ID}"
 ```
 
 Every other step in that function uses an explicit `|| return 1`. This one does
-not, and errexit cannot cover it either: `scout_run_logged` does `set +e` before
+not, and errexit cannot cover it either: `qfv_run_logged` does `set +e` before
 invoking the function, and errexit is not function-local in bash, so the body
 runs with errexit off. `result=success` therefore prints unconditionally and is
 not evidence that the recheck's last step passed.
@@ -115,10 +115,10 @@ at finalize. So at lint time the path list is shape-validated only.
 Findings from the ticket-03 review that are documentation-only but mislead a
 reader:
 
-- [x] Ticket 03's producer-correlation scope note cites `scout_b.py:2439-2455`,
-  which is `_operation_family`/`_flight_snapshot`. The positional zip is at
-  `scout_b.py:2548` (kernel sort), `:2556-2559` (entry sort), `:2566`
-  (`zip(entries, kernels, strict=True)`).
+- [x] Ticket 03's producer-correlation scope note cites
+  `device_mesh.py:2439-2455`, which is `_operation_family`/`_flight_snapshot`.
+  The positional zip is at `device_mesh.py:2548` (kernel sort), `:2556-2559`
+  (entry sort), `:2566` (`zip(entries, kernels, strict=True)`).
 - [x] Ticket 03 reports "180 owning tests (1 declared skip)"; the sealed log
   says `182 passed, 1 skipped`.
 - [x] Ticket 03 reports Pyrefly with zero errors without noting the sealed log
@@ -127,7 +127,7 @@ reader:
 - [x] Ticket 03 cites an `outputs/...` bundle path as its evidence location
   without stating that `outputs` is gitignored, so a reviewer cloning the branch
   does not have it. Distinguish this sense of "checked-in" from the tracked
-  `formal/ScoutB*Facts.*` fixtures.
+  `formal/DeviceMesh*Facts.*` fixtures.
 
 ## 9. The skip guard catches less than its name suggests
 
@@ -139,15 +139,15 @@ colour bytes -- that part of the contract holds. But it matches `SKIPPED` only.
   collected-test count, or state the limit.
 - [x] `cuda_pytest` is gated by a module-level `pytest.mark.skipif` and exits 0
   when skipped; it is currently caught only by accident, because a skipped run
-  leaves `normalized/scout_b.json` absent and `artifact_sync` then fails.
+  leaves `normalized/device_mesh.json` absent and `artifact_sync` then fails.
   `focused_pytest` is likewise covered only because `owning_pytest` happens to
   list the same file. Make both couplings explicit.
 
 ## Resolution 2026-09-26
 
-**Status:** gated in `e68b0b367`. Owning surface: the two host
-runners, the shared runner library, `scout_a.py`/`scout_b.py`, and the two
-focused unit suites. Nothing under `formal/` was touched.
+**Status:** gated in `e68b0b367`. Owning surface: the two host runners, the
+shared runner library, `single_rank.py`/`device_mesh.py`, and the two focused
+unit suites. Nothing under `formal/` was touched.
 
 ### 1. Inferred attribution presented as observation -- DONE, digest-moving
 
@@ -155,14 +155,14 @@ The disclaimer now travels *inside* the artifact instead of living only in
 source comments, which is why `grep -ril infer` over the sealed bundle returned
 nothing before:
 
-- `PROVENANCE_CONTRACT` gained an `inferred_attribution` block --
-  `inferred: true`, `observed: false`, `method:
+- `PROVENANCE_CONTRACT` gained an `inferred_attribution` block -- `inferred:
+  true`, `observed: false`, `method:
   positional_zip_flight_entries_to_kineto_kernels`, `join_key: null`,
   `entry_order: flight_recorder_record_id`, `kernel_order:
   kineto_kernel_start_ns`, the exact list of inferred fields, and
   `resource_id_meaning: "opaque Kineto resource label, not a verified CUDA
-  stream identity"`. It is deep-copied into `normalized/scout_b.json`, so it is
-  in the sealed bundle and in the trace ID content.
+  stream identity"`. It is deep-copied into `normalized/device_mesh.json`, so it
+  is in the sealed bundle and in the trace ID content.
 - The exported TLA module emits a `\*` header block and `\*` comments directly
   above `CollectiveStream` and `CollectiveProducers`.
 - The exported Lean module emits a `--` header block and a `--` comment above
@@ -172,12 +172,12 @@ Fields were **not** renamed: `CollectiveProducers`, `CollectiveStream` and
 `producer.correlation_id` are consumed by specs under `formal/`, which this
 ticket does not own. Ticket 09 remains the real fix via a joined key.
 
-Because `provenance_contract` feeds `trace_id`, this changes every Scout B
+Because `provenance_contract` feeds `trace_id`, this changes every Device-mesh
 digest and requires one intentional `--update-artifacts` gate run.
 
 ### 2. Skip guard covers only the owning stage -- DONE
 
-Lifted into `scout_a_runner_lib.sh` as `scout_pytest_guard_program`, which emits
+Lifted into `runner_lib.sh` as `qfv_pytest_guard_program`, which emits
 the bash program each pytest stage runs, and applied to `focused_pytest`,
 `cuda_pytest` and `owning_pytest` in both runners. The program refuses to run a
 command that does not carry both `-rs` and `--color=no`, and it still strips
@@ -188,7 +188,7 @@ in the function's comment, next to the limits in item 9.
 
 ### 3. Empty-log guard not at the sealing boundary -- DONE
 
-`_require_non_empty_stage_log` in `scout_a.py`, called from
+`_require_non_empty_stage_log` in `single_rank.py`, called from
 `_read_stage_journal` in **both** modules, so a zero-byte declared stage log
 fails the seal and also fails `verify`. The bash `-s` guard stays as defence in
 depth; its comment now says why it is kept (it names the stage and fires before
@@ -222,9 +222,9 @@ item still open.
 
 ### 5. Unchecked `git diff --check` -- DONE
 
-The whole recheck sequence moved into `scout_verify_source_identity` in the
+The whole recheck sequence moved into `qfv_verify_source_identity` in the
 runner library, shared by both runners, with every step explicitly checked and
-the reason in the comment: `scout_run_logged` does `set +e` before invoking a
+the reason in the comment: `qfv_run_logged` does `set +e` before invoking a
 stage function and errexit is not function-local, so the body runs with errexit
 off and an unguarded command prints `result=success` after a failure. Audit of
 the rest of the function found no other unguarded command; the remaining bare
@@ -253,16 +253,15 @@ checkout (absolute, `..`) or be read as an option by `git add` /
 
 Ticket 03 corrected in place, each correction marked as coming from here: the
 producer-correlation citation now names `_collective_observations` and its three
-steps instead of `scout_b.py:2439-2455`; the owning-suite result is quoted from
-the sealed log as `182 passed, 1 skipped`; Pyrefly is quoted as
-`0 errors (1 suppressed)` together with its `Invalid search-path:
-/workspace/pytorch does not exist` warning; and the `outputs/...` bundle paths
-are marked gitignored and distinguished from the tracked `formal/ScoutB*Facts.*`
-fixtures.
+steps instead of `device_mesh.py:2439-2455`; the owning-suite result is quoted
+from the sealed log as `182 passed, 1 skipped`; Pyrefly is quoted as `0 errors
+(1 suppressed)` together with its `Invalid search-path: /workspace/pytorch does
+not exist` warning; and the `outputs/...` bundle paths are marked gitignored and
+distinguished from the tracked `formal/DeviceMesh*Facts.*` fixtures.
 
 ### 9. Skip guard catches less than its name suggests -- DONE
 
-- **The limit is stated, not asserted.** `scout_pytest_guard_program`'s comment
+- **The limit is stated, not asserted.** `qfv_pytest_guard_program`'s comment
   says the guard matches `SKIPPED` only and that an `xfail`, a collection-time
   `importorskip`, a deleted test, and a renamed file dropping out of an explicit
   file list are all invisible to it: it proves no undeclared skip, not that any
@@ -281,8 +280,8 @@ fixtures.
 ### Evidence
 
 Focused suites inside the rootfs: `pytest -q
-tests/unit_tests/test_qwen3_formal_scout_a.py
-tests/unit_tests/test_qwen3_formal_scout_b.py` -> `130 passed`. Owning suite
+tests/unit_tests/test_qwen3_formal_single_rank.py
+tests/unit_tests/test_qwen3_formal_device_mesh.py` -> `130 passed`. Owning suite
 minus `test_formal_toolchain.py` (owned by a parallel agent) ->
 `169 passed, 1 skipped`, the one skip being the declared
 `test_rootfs_bwrap_plan.py:500` entry. `run_formal_tier0.sh --no-fetch
@@ -291,8 +290,9 @@ minus `test_formal_toolchain.py` (owned by a parallel agent) ->
 Three fail-closed experiments, each driving the real mechanism:
 
 1. `test_sealing_refuses_a_zero_byte_stage_log` drives the real sealer with a
-   zero-byte log, parametrized over all 8 Scout A and all 9 Scout B required
-   stages. All 17 now raise `stage <name> log is empty and proves nothing`.
+   zero-byte log, parametrized over all 8 Single-rank and all 9 Device-mesh
+   required stages. All 17 now raise `stage <name> log is empty and proves
+   nothing`.
 2. `test_runner_library_skip_guard_refuses_only_undeclared_real_pytest_skips`
    runs the shared guard over output from a real `pytest` run, in both
    directions, and repeats both with `--color=yes` appended after `--color=no`
@@ -300,25 +300,25 @@ Three fail-closed experiments, each driving the real mechanism:
    with `undeclared skip in a pytest stage`; declared skip -> exit 0, silent.
    Raw bytes confirmed as `^[[33mSKIPPED^[[0m [1] ...`.
 3. `test_source_recheck_fails_when_git_diff_check_fails` runs
-   `scout_verify_source_identity` with errexit off, as the real stage does, and
+   `qfv_verify_source_identity` with errexit off, as the real stage does, and
    a fake `git` whose `diff --check` exits 1: exit non-zero, and
-   `SCOUT_A_SOURCE_RECHECK result=success` absent. The positive control with
+   `SINGLE_RANK_SOURCE_RECHECK result=success` absent. The positive control with
    `diff --check` exiting 0 prints the marker.
 
-Not run here, and required before this ticket closes: the Scout A and Scout B
-gates. Item 1 moves every Scout B digest, so it needs its own commit and an
-intentional `--update-artifacts` run.
+Not run here, and required before this ticket closes: the Single-rank and
+Device-mesh gates. Item 1 moves every Device-mesh digest, so it needs its own
+commit and an intentional `--update-artifacts` run.
 
 ## Review round 2026-09-26 (independent, clean context): PASS WITH FINDINGS
 
 All seven claims were confirmed against the real mechanism rather than by
-reading tests: the sealer refuses a zero-byte log for all 9 Scout B stages, the
-skip guard fires and stays silent correctly against real coloured pytest output,
-the source recheck is fully guarded on re-audit, `verify_evidence_bundle` runs
-against a bundle copy with every file `0444` and every directory `0555`, the
-`lint-paths` arguments are genuinely required, and the digest movement is
-exactly two normalized-JSON differences -- the added `inferred_attribution`
-block and the resulting `trace_id` change.
+reading tests: the sealer refuses a zero-byte log for all 9 Device-mesh stages,
+the skip guard fires and stays silent correctly against real coloured pytest
+output, the source recheck is fully guarded on re-audit,
+`verify_evidence_bundle` runs against a bundle copy with every file `0444` and
+every directory `0555`, the `lint-paths` arguments are genuinely required, and
+the digest movement is exactly two normalized-JSON differences -- the added
+`inferred_attribution` block and the resulting `trace_id` change.
 
 The review also **retired the unverified-syntax caveat** without touching
 `formal/`: it rendered the facts modules from the exporter into a scratch
@@ -349,7 +349,7 @@ Both clean. So the generated `\*` and `--` comment blocks are known to parse.
   absence was the original defect. The export test now asserts the disclaimer
   reaches all four generated modules, verified by mutation: renaming the header
   string fails the test.
-- **The contract changed shape while `SCOUT_SCHEMA` stayed `v0`**, so every
+- **The contract changed shape while `QFV_SCHEMA` stayed `v0`**, so every
   older sealed bundle failed with a message indistinguishable from tampering.
   The contract now carries `PROVENANCE_CONTRACT_VERSION`, and the two cases
   report differently: an unversioned contract says "missing, unversioned, or
@@ -390,14 +390,15 @@ by defect. The run reached `lint` with all 13 pre-commit hooks and Pyrefly
 green, then the source-identity recheck refused it:
 
 ```
-error: dirty source identity changed during Scout B gate
+error: dirty source identity changed during Device-mesh gate
 ```
 
-`--update-artifacts` rewrites the tracked `formal/ScoutB{,Bad}Facts.{tla,lean}`
-partway through the run. Those files are part of `git status`, which is what
-`status_sha256` pins, so the identity captured at the start cannot still match
-at the end whenever the artifacts genuinely change. The recheck is right to
-refuse: a gate whose own source moved mid-run has not gated a single state.
+`--update-artifacts` rewrites the tracked
+`formal/DeviceMesh{,Bad}Facts.{tla,lean}` partway through the run. Those files
+are part of `git status`, which is what `status_sha256` pins, so the identity
+captured at the start cannot still match at the end whenever the artifacts
+genuinely change. The recheck is right to refuse: a gate whose own source moved
+mid-run has not gated a single state.
 
 The supported sequence is therefore two runs, and it should be documented as
 such rather than discovered again:
@@ -410,8 +411,8 @@ such rather than discovered again:
    resulting bundle is the citable one.
 
 - [ ] Say this in `experiments/qwen3_formal_verifier/README.md` next to the
-  flag's description, and in `run_scout_b.sh --help`, so the first failure is
-  expected rather than alarming.
+  flag's description, and in `run_device_mesh.sh --help`, so the first failure
+  is expected rather than alarming.
 - [ ] Consider making the failure explicit instead of incidental: with
   `--update-artifacts`, the runner could stop after the sync stage with a
   message saying the fixtures were updated and a plain re-run is required. As it
@@ -420,29 +421,29 @@ such rather than discovered again:
 
 ### Gate evidence (shared with ticket 18)
 
-Full nine-stage Scout B gate, all stages exit 0, sealed and verified.
+Full nine-stage Device-mesh gate, all stages exit 0, sealed and verified.
 
-- Scout B evidence ID:
+- Device-mesh evidence ID:
   `sha256:b24ddf9593af32c96dcd8c8588f9845aaad37a9473e2e140fc74b63be98c986f`
-- Scout B source ID:
+- Device-mesh source ID:
   `sha256:e179d91bb4bdb62ae01cb56221289f19761a0ec8406312b054c99510afff7c12`
-- Nested Scout A evidence ID:
+- Nested Single-rank evidence ID:
   `sha256:439517d3a89579fe7dcd34b4c5e5d26d625bfd7812541403c3ea0c9aa2f244fc`
 - Source manifest: 26 verified paths, 7 process paths.
 
 Result tokens present in the sealed formal log:
 
 ```
-SCOUT_B_MODEL_SAFETY     distinct_states=38321 max_outdegree=24
+DEVICE_MESH_MODEL_SAFETY     distinct_states=38321 max_outdegree=24
                          bound_max_issues_per_rank=2 bound_ranks=4
                          bound_communicators=8 bound_issue_skew=unbounded
-SCOUT_B_MODEL_NONVACUOUS  completion_reachable
-SCOUT_B_MODEL_DIVERGENT   DeadlockFreedom                  named_violation
-SCOUT_B_MODEL_WITNESS     NoCrossCommunicatorCycleWitness  named_violation
-SCOUT_B_MODEL_OPMISMATCH  NoOpMismatchHang                 named_violation
-SCOUT_B_MODEL_UNGUARDED   RendezvousOpAgreement            named_violation
-SCOUT_B_MODEL_STREAM_EDGE        StreamEdgeIsInert  named_violation exit=151
-SCOUT_B_MODEL_STREAM_EDGE_MUTANT StreamOfIssue_is_comm    holds     exit=0
+DEVICE_MESH_MODEL_NONVACUOUS  completion_reachable
+DEVICE_MESH_MODEL_DIVERGENT   DeadlockFreedom                  named_violation
+DEVICE_MESH_MODEL_WITNESS     NoCrossCommunicatorCycleWitness  named_violation
+DEVICE_MESH_MODEL_OPMISMATCH  NoOpMismatchHang                 named_violation
+DEVICE_MESH_MODEL_UNGUARDED   RendezvousOpAgreement            named_violation
+DEVICE_MESH_MODEL_STREAM_EDGE        StreamEdgeIsInert  named_violation exit=151
+DEVICE_MESH_MODEL_STREAM_EDGE_MUTANT StreamOfIssue_is_comm    holds     exit=0
 ```
 
 This run needed two passes: the first, with `--update-artifacts`, regenerated

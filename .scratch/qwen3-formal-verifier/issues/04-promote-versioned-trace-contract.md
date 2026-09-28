@@ -5,7 +5,7 @@ provisional trace with a stable versioned contract that preserves raw evidence,
 normalization provenance, distributed completeness, and compatibility rules
 through both formal backends.
 
-**Blocked by:** 03 — Scout B: 2x2 DPxTP Qwen3 tracer bullet.
+**Blocked by:** 03 — Device-mesh: 2x2 DPxTP Qwen3 tracer bullet.
 
 **Status:** ready-for-agent
 
@@ -30,7 +30,7 @@ through both formal backends.
   Bazel, TLC, Lean, or experiment packages.
 - [ ] Tests cover round-trip determinism, migration, compatibility rejection,
   provenance, partial bundles, and unsupported ordering through public APIs.
-- [ ] From the final state, the supported Scout A and Scout B commands
+- [ ] From the final state, the supported Single-rank and Device-mesh commands
   re-execute the real 1x1 and 2x2 Trainer paths and both formal backends;
   checked-in or replayed fixtures alone do not satisfy this regression gate.
 - [ ] Focused/broader tests, artifact sync, lint, and separate Standards and

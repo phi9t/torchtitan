@@ -39,11 +39,11 @@ Develop the vehicle in two phases.
 
 ### Phase 1: end-to-end scout
 
-Build the path as two sequential scout steps. Scout A establishes the smallest
-honest end-to-end path; Scout B widens the same path to the distributed topology
-that the existing experiment intends to formalize.
+Build the path as two sequential scout steps. Single-rank establishes the
+smallest honest end-to-end path; Device-mesh widens the same path to the
+distributed topology that the existing experiment intends to formalize.
 
-Scout A:
+Single-rank:
 
 1. Enter through an Insula-aware repository command.
 2. Use a minimal repository-level Bazel module and formal configuration.
@@ -61,10 +61,10 @@ Scout A:
 8. Run Python contract and artifact-synchronization tests with pytest, then run
    both formal checks with Bazel. The Insula wrapper orchestrates both without
    making Bazel the owner of TorchTitan's Python suite.
-9. Submit Scout A to a fresh clean-context Codex reviewer for separate
+9. Submit Single-rank to a fresh clean-context Codex reviewer for separate
    Standards and Spec verdicts.
 
-Scout B, blocked by Scout A:
+Device-mesh, blocked by Single-rank:
 
 1. Run the same one-step core `Trainer` path on four CUDA ranks with a 2x2
    DPxTP mesh: data-parallel replicate degree 1, data-parallel shard degree 2,
@@ -78,7 +78,7 @@ Scout B, blocked by Scout A:
 3. Check separately maintained TLA+ and Lean DPxTP invariants against the
    observed trace, including one named negative mutation per checker.
 4. Repeat synchronization, cache, focused/broader tests, lint, and a fresh
-   clean-context Codex review gate from the final Scout B state.
+   clean-context Codex review gate from the final Device-mesh state.
 
 The scout phase proves plumbing, single-rank step-lifecycle capture, and one
 bounded 2x2 DPxTP execution only. It does not claim a complete model of
@@ -104,9 +104,9 @@ Use the working scout to refine one contract at a time:
 - promote only interfaces that satisfy the repository's observability evidence
   contract and preserve existing training behavior.
 
-Each refinement must remain executable end to end. Scout B cannot begin until
-Scout A passes its full gate, and Phase 2 cannot begin until Scout B passes its
-full gate.
+Each refinement must remain executable end to end. Device-mesh cannot begin
+until Single-rank passes its full gate, and Phase 2 cannot begin until
+Device-mesh passes its full gate.
 
 ## User Stories
 
@@ -172,34 +172,34 @@ full gate.
     that correct-looking formal output does not mask repository violations or
     scope creep.
 24. As the branch owner, I want fresh clean-context Codex review, so that an
-    independent reviewer gates Scout A, Scout B, and each later refinement.
+    independent reviewer gates Single-rank, Device-mesh, and each later refinement.
 
 ## Implementation Decisions
 
 - The Phase 1 public test seam is one Insula-aware repository command that
   drives the complete Bazel formal suite. Direct Bazel targets remain available
   for focused diagnosis, but the wrapper is the supported user entrypoint.
-- Scout A runs exactly one deterministic optimizer step through the core
+- Single-rank runs exactly one deterministic optimizer step through the core
   `Trainer`, not an experiment-owned reconstruction of trainer orchestration.
   Its fixed profile is one CUDA device and rank, DP=1, TP=1, bfloat16, AdamW,
   local batch 1, global batch 1, sequence length 128, 128 tokens per optimizer
   step, one gradient-accumulation step, seed 42, and deterministic mode.
-- Scout B runs the same one-step `Trainer` path on four CUDA ranks with
+- Device-mesh runs the same one-step `Trainer` path on four CUDA ranks with
   data-parallel replicate degree 1, data-parallel shard degree 2, and
   tensor-parallel degree 2. It retains local batch 1 and sequence length 128,
   giving global batch 2, 256 tokens per optimizer step, and one
   gradient-accumulation step. If runtime validation disproves a required
-  divisibility assumption, Scout B returns to design review rather than
+  divisibility assumption, Device-mesh returns to design review rather than
   silently changing this comparison profile.
-- Both scouts select `qwen3_debugmodel` through `ConfigManager` and apply their
-  overrides through the normal CLI precedence. They use the repository-local
-  `c4_test` data and test tokenizer, record the exact first-batch identity,
-  start from seed-42 model initialization with checkpoint loading and saving
-  disabled, and create no experiment-owned configuration path. Scout A
-  explicitly sets every mesh degree to 1. Scout B explicitly sets data-parallel
-  replicate degree 1, data-parallel shard degree 2, tensor-parallel degree 2,
-  and every other mesh degree 1; `DP=2` never leaves the replicate-versus-shard
-  choice to inference.
+- Both verifiers select `qwen3_debugmodel` through `ConfigManager` and apply
+  their overrides through the normal CLI precedence. They use the
+  repository-local `c4_test` data and test tokenizer, record the exact
+  first-batch identity, start from seed-42 model initialization with checkpoint
+  loading and saving disabled, and create no experiment-owned configuration
+  path. Single-rank explicitly sets every mesh degree to 1. Device-mesh
+  explicitly sets data-parallel replicate degree 1, data-parallel shard degree
+  2, tensor-parallel degree 2, and every other mesh degree 1; `DP=2` never
+  leaves the replicate-versus-shard choice to inference.
 - The runtime adapter stays experiment-owned during Phase 1 and observes the
   unchanged `Trainer` through PyTorch contexts and hooks. Core never imports the
   tracer or formal packages. If required evidence cannot be observed without a
@@ -225,22 +225,22 @@ full gate.
   attempt's path set is part of its identity. The captured path set must not
   change while a gate runs, lint covers both partitions, and a process path may
   not carry executable or formal source.
-- Scout B normalization preserves each rank's observed source order and creates
-  cross-rank order only from explicit synchronization or causal evidence. A
-  four-rank bundle is incomplete, and cannot reach either formal checker, when
-  any rank is missing or duplicated or when run, attempt, topology, model, or
-  configuration identity disagrees across ranks. Input identity is validated
-  at the correct mesh scope: TP peers with the same DP coordinate must report
-  the same local first-batch identity, while the attempt records an ordered
-  global input-bundle identity keyed by DP coordinate. Different DP coordinates
-  are not required to consume the same local batch.
+- Device-mesh normalization preserves each rank's observed source order and
+  creates cross-rank order only from explicit synchronization or causal
+  evidence. A four-rank bundle is incomplete, and cannot reach either formal
+  checker, when any rank is missing or duplicated or when run, attempt,
+  topology, model, or configuration identity disagrees across ranks. Input
+  identity is validated at the correct mesh scope: TP peers with the same DP
+  coordinate must report the same local first-batch identity, while the attempt
+  records an ordered global input-bundle identity keyed by DP coordinate.
+  Different DP coordinates are not required to consume the same local batch.
 - TLA+ and Lean exporters consume the same normalized trace and generate facts
   only. Separately maintained TLA+ semantics and Lean definitions state the
   invariants, so a generator cannot emit both the input and the proposition
   that approves it.
-- Scout A's TLA+ model is a finite bounded single-rank step transition system;
-  Scout B adds the bounded 2x2 mesh and collective lifecycle. Both have an
-  initial state, next-state relation, named invariants, and a
+- Single-rank's TLA+ model is a finite bounded single-rank step transition
+  system; Device-mesh adds the bounded 2x2 mesh and collective lifecycle. Both
+  have an initial state, next-state relation, named invariants, and a
   stuttering-complete specification accepted by TLC.
 - The negative TLC model changes one controlled fact or action and must produce
   the expected named invariant violation. A checker error is not an acceptable
@@ -278,10 +278,10 @@ full gate.
 - Formal targets are opt-in and tagged so ordinary TorchTitan unit tests do not
   download large toolchains. The supported formal wrapper requests them
   explicitly and never converts an unavailable dependency into PASS.
-- Scout A and Scout B each end only when their observed trace, deterministic
-  exports, TLC positive/negative checks, Lean compilation/proofs, Python tests,
-  lint, no-fetch cache rerun, and fresh clean-context Codex review pass from the
-  same final worktree state.
+- Single-rank and Device-mesh each end only when their observed trace,
+  deterministic exports, TLC positive/negative checks, Lean compilation/proofs,
+  Python tests, lint, no-fetch cache rerun, and fresh clean-context Codex review
+  pass from the same final worktree state.
 - Phase 2 begins with a human-approved design checkpoint over both immutable
   scout attempt bundles. It defines the stable schema before compatibility
   promises are made. Every deeper invariant states which runtime events support
@@ -303,16 +303,16 @@ full gate.
 - Tests observe public behavior: the supported Insula command, core `Trainer`
   execution, declared Bazel targets, raw-to-normalized provenance, emitted trace
   contract, checker classification, and deterministic generated artifacts.
-- Scout A starts red at the highest seam: the supported end-to-end command or
-  formal Bazel target does not exist. It turns green only when the real 1x1
-  Qwen3 step reaches both formal checkers. Scout B then starts red on the absent
-  observed 2x2 path and turns green only on a four-rank execution.
+- Single-rank starts red at the highest seam: the supported end-to-end command
+  or formal Bazel target does not exist. It turns green only when the real 1x1
+  Qwen3 step reaches both formal checkers. Device-mesh then starts red on the
+  absent observed 2x2 path and turns green only on a four-rank execution.
 - The real-step tests assert observed forward, backward, gradient readiness,
-  optimizer mutation, and step completion. Scout B additionally asserts
+  optimizer mutation, and step completion. Device-mesh additionally asserts
   observed rank/mesh, process-group, placement, collective work lifecycle,
   executor, and producer-correlation evidence. Tests do not infer those events
   solely from configured intent.
-- Scout B merge tests reject a missing rank, duplicate rank, inconsistent
+- Device-mesh merge tests reject a missing rank, duplicate rank, inconsistent
   run/attempt or topology identity, inconsistent local input identity among TP
   peers at the same DP coordinate, and unsupported cross-rank total ordering;
   no partial bundle may be exported to TLC or Lean.
@@ -323,9 +323,10 @@ full gate.
 - Lean tests distinguish successful kernel checking, compiler failure, missing
   toolchain, `sorryAx` or project-axiom dependence, and one deliberately false
   named proposition per scout.
-- Negative trace tests mutate one dimension at a time. Scout A covers phase and
-  causal order, gradient readiness, and optimizer completion. Scout B adds mesh
-  membership, tensor placement, producer correlation, and collective lifecycle.
+- Negative trace tests mutate one dimension at a time. Single-rank covers phase
+  and causal order, gradient readiness, and optimizer completion. Device-mesh
+  adds mesh membership, tensor placement, producer correlation, and collective
+  lifecycle.
 - Cache and wrapper tests verify that formal dependencies and outputs stay
   outside the checkout and that an explicitly offline/no-fetch second run can
   reuse Bazel-managed state.
@@ -335,10 +336,10 @@ full gate.
   prior art for keeping large Lean artifacts outside the source tree.
 - Phase 2 adds a regression test before each semantic refinement and preserves
   both real Phase 1 end-to-end scout gates throughout. From every refinement's
-  final state, the supported Scout A and Scout B commands must re-execute the
-  real 1x1 and 2x2 Trainer paths and both formal backends; checked-in or
-  replayed fixtures alone do not satisfy this regression gate. Every refinement
-  receives its own fresh clean-context Codex review gate.
+  final state, the supported Single-rank and Device-mesh commands must
+  re-execute the real 1x1 and 2x2 Trainer paths and both formal backends;
+  checked-in or replayed fixtures alone do not satisfy this regression gate.
+  Every refinement receives its own fresh clean-context Codex review gate.
 - GPU or distributed claims require the repository's integration runner and
   matched topology evidence. CPU, fake-backend, or local-tensor runs are labeled
   as plumbing or simulation evidence only.
@@ -376,10 +377,10 @@ full gate.
 
 - Existing branch base: `843948e9f9df21984f026b1abf8f7da8617c0851`;
   existing implementation commit: `366737c37478d2253491742a74179febcf4ea54f`.
-- Scout audit finding: the current generated TLA+ redeclares names as both
+- Audit finding: the current generated TLA+ redeclares names as both
   constants and definitions, lacks a TLC-executable specification/configuration,
   and therefore has not established TLC acceptance.
-- Scout audit finding: the current Lean artifact is not compiled, and its main
+- Audit finding: the current Lean artifact is not compiled, and its main
   mesh well-formedness definition is a placeholder truth rather than a useful
   proposition.
 - Ferric reference: the `formal-tla-hermetic` worktree at commit `8c44b3d`

@@ -742,7 +742,7 @@ def test_formal_wrapper_rejects_managed_cache_symlinks(
 
 
 FORMAL_DIR = REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "formal"
-MODEL_RUNNER = FORMAL_DIR / "run_tlc_scout_a_model.sh"
+MODEL_RUNNER = FORMAL_DIR / "run_tlc_single_rank_model.sh"
 BUILD_FILE = FORMAL_DIR / "BUILD.bazel"
 
 
@@ -772,7 +772,7 @@ def _run_model_runner(
     half: str,
     overrides: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run run_tlc_scout_a_model.sh over a copy of the fixtures.
+    """Run run_tlc_single_rank_model.sh over a copy of the fixtures.
 
     `overrides` replaces the text of named fixture files, which is how a
     deliberately degenerate input is fed to the real checker. Each override
@@ -820,7 +820,7 @@ def _run_tlc(
     """Run real TLC over a staged directory; return (status, output).
 
     `fixtures` names shipped modules to stage as-is, so a probe can EXTEND the
-    real ScoutLifecycle or ScoutARefineBad rather than a copy that could drift.
+    real TraceLifecycle or SingleRankRefineBad rather than a copy that could drift.
     `files` writes or replaces module text on top of them. `module` names the
     root module, whose .cfg is written from `cfg_text`.
     """
@@ -839,7 +839,7 @@ def _run_tlc(
             java,
             "-XX:+UseParallelGC",
             # Same thread stack the DPxTP refinement runner uses, and for the
-            # same reason: ScoutBModel's SPMD-program guards contain a \A over
+            # same reason: DeviceMeshModel's SPMD-program guards contain a \A over
             # 1..issue-count inside an action, where TLC recurses once per
             # bound element, so a probe that replays tens of issues per rank
             # overflows the default 1 MB stack. Raising it here cannot weaken
@@ -865,12 +865,12 @@ def _run_tlc(
     return result.returncode, result.stdout
 
 
-# A probe over ScoutLifecycle's own definitions. `Absent` applies the partial
+# A probe over TraceLifecycle's own definitions. `Absent` applies the partial
 # IndexOf outside its domain on purpose; `Guarded` and `FirstOccurrence` go
 # through the guarded call sites and must not crash.
 _LIFECYCLE_PROBE = """\
 ------------------------------ MODULE LifecycleProbe ------------------------------
-EXTENDS Naturals, Sequences, ScoutLifecycle
+EXTENDS Naturals, Sequences, TraceLifecycle
 
 VARIABLE cursor
 vars == <<cursor>>
@@ -895,10 +895,10 @@ FirstOccurrence ==
 """
 
 
-# A stand-in ScoutAFacts whose lifecycle never reaches gradient readiness. This
-# is the input on which ScoutARefineBad's IndexOf lookups have no witness.
+# A stand-in SingleRankFacts whose lifecycle never reaches gradient readiness. This
+# is the input on which SingleRankRefineBad's IndexOf lookups have no witness.
 _FACTS_WITHOUT_GRADIENT_READY = """\
------------------------------- MODULE ScoutAFacts ------------------------------
+------------------------------ MODULE SingleRankFacts ------------------------------
 EXTENDS Naturals, Sequences, FiniteSets, TLC
 
 EventKinds ==
@@ -918,12 +918,12 @@ def _substitute(text: str, old: str, new: str) -> str:
 
 
 # A cursor walking one recorded sequence: outdegree 1 everywhere, while every
-# safety invariant in ScoutAModel.cfg still holds. This is precisely the shape
+# safety invariant in SingleRankModel.cfg still holds. This is precisely the shape
 # the outdegree floor exists to refuse and the shape a state-count threshold
 # would accept, so it is the right degenerate input for that floor.
 _NON_BRANCHING_MODEL = """\
--------------------------------- MODULE ScoutAModel --------------------------------
-EXTENDS Naturals, Sequences, ScoutLifecycle
+-------------------------------- MODULE SingleRankModel --------------------------------
+EXTENDS Naturals, Sequences, TraceLifecycle
 
 CONSTANT RequireReadyGradients
 
@@ -995,7 +995,7 @@ def test_tlc_evaluation_error_is_classified_as_an_infrastructure_error(
         tmp_path,
         "LifecycleProbe",
         "SPECIFICATION Spec\nINVARIANTS\n  Absent\n",
-        fixtures=("ScoutLifecycle.tla",),
+        fixtures=("TraceLifecycle.tla",),
         files={"LifecycleProbe.tla": _LIFECYCLE_PROBE},
     )
 
@@ -1032,14 +1032,14 @@ def test_guarded_index_call_sites_survive_an_absent_and_repeated_value(
     deterministic but unspecified in TLA+, so before the `\\A earlier` conjunct
     the agreement between this module and Lean's left-to-right
     `occursBeforeIfPresent` rested on which witness TLC happens to return. The
-    single-rank kind sequence has no repeats only because scout_a.py pins it to
+    single-rank kind sequence has no repeats only because single_rank.py pins it to
     one literal; the DPxTP port repeats collective kinds once per rank.
 
     What this test cannot distinguish: the disjunctive form this replaced also
     evaluated safely under TLC 1.7.4, which short-circuits left to right. The
     guard makes the totality part of the semantics rather than of the
     evaluator. Where the guard is load-bearing on real input is
-    ScoutARefineBad, covered by the next test.
+    SingleRankRefineBad, covered by the next test.
     """
 
     for invariant in ("Guarded", "FirstOccurrence"):
@@ -1047,7 +1047,7 @@ def test_guarded_index_call_sites_survive_an_absent_and_repeated_value(
             tmp_path / invariant,
             "LifecycleProbe",
             f"SPECIFICATION Spec\nINVARIANTS\n  {invariant}\n",
-            fixtures=("ScoutLifecycle.tla",),
+            fixtures=("TraceLifecycle.tla",),
             files={"LifecycleProbe.tla": _LIFECYCLE_PROBE},
         )
         assert status == 0, output
@@ -1070,7 +1070,7 @@ def test_index_of_pins_the_first_occurrence_in_the_specification() -> None:
     independent implementations. Ticket 12's DPxTP port makes the repeats real.
     """
 
-    lifecycle = (FORMAL_DIR / "ScoutLifecycle.tla").read_text()
+    lifecycle = (FORMAL_DIR / "TraceLifecycle.tla").read_text()
     body = lifecycle.split("IndexOf(sequence, value) ==", 1)[1].split("\n\n", 1)[0]
 
     assert "sequence[index] = value" in body, body
@@ -1082,7 +1082,7 @@ def test_refinement_control_names_its_missing_target_instead_of_crashing(
 ) -> None:
     """The load-bearing case for the IndexOf guard, on a real module.
 
-    ScoutARefineBad reads `IndexOf(EventKinds, "gradient.ready")` while it is
+    SingleRankRefineBad reads `IndexOf(EventKinds, "gradient.ready")` while it is
     constructing `Observed`, before any invariant can be evaluated, so an
     unguarded lookup over a trace without that event made TLC abandon the
     search with an evaluation error -- which the classifiers then read as a
@@ -1095,14 +1095,14 @@ def test_refinement_control_names_its_missing_target_instead_of_crashing(
 
     status, output = _run_tlc(
         tmp_path,
-        "ScoutARefineBad",
-        (FORMAL_DIR / "ScoutARefineBad.cfg").read_text(),
+        "SingleRankRefineBad",
+        (FORMAL_DIR / "SingleRankRefineBad.cfg").read_text(),
         fixtures=(
-            "ScoutLifecycle.tla",
-            "ScoutAModel.tla",
-            "ScoutARefineBad.tla",
+            "TraceLifecycle.tla",
+            "SingleRankModel.tla",
+            "SingleRankRefineBad.tla",
         ),
-        files={"ScoutAFacts.tla": _FACTS_WITHOUT_GRADIENT_READY},
+        files={"SingleRankFacts.tla": _FACTS_WITHOUT_GRADIENT_READY},
     )
 
     assert "Attempted to compute the value" not in output, output
@@ -1122,14 +1122,14 @@ def test_refinement_control_names_its_missing_target_instead_of_crashing(
 def test_abstract_model_is_a_transition_system_not_a_cursor_walk() -> None:
     """The model must constrain behaviour, not replay one recorded sequence.
 
-    ScoutAValid walks a cursor along a constant and evaluates predicates over
-    it, so it explores one path. The point of ScoutAModel is that several
+    SingleRankValid walks a cursor along a constant and evaluates predicates over
+    it, so it explores one path. The point of SingleRankModel is that several
     actions are concurrently enabled and TLC explores every admitted
     interleaving, so an invariant that holds there holds for executions nobody
     observed.
     """
 
-    model = (FORMAL_DIR / "ScoutAModel.tla").read_text()
+    model = (FORMAL_DIR / "SingleRankModel.tla").read_text()
 
     # Guarded actions over real state, not an index into a generated sequence.
     assert "VARIABLES" in model
@@ -1144,13 +1144,13 @@ def test_abstract_model_is_a_transition_system_not_a_cursor_walk() -> None:
         assert f"{action} ==" in model, action
     # The model must not depend on the generated facts; that would make it a
     # replay of the observed trace again.
-    assert "ScoutAFacts" not in model
+    assert "SingleRankFacts" not in model
 
 
 def test_gradient_readiness_and_backward_completion_may_interleave() -> None:
     """Both orders are real executions, so the model must admit both."""
 
-    model = (FORMAL_DIR / "ScoutAModel.tla").read_text()
+    model = (FORMAL_DIR / "SingleRankModel.tla").read_text()
     gradient_ready = model.split("GradientReady ==")[1].split("\n\n")[0]
 
     # Enabled while backward is started OR already completed -- that disjunction
@@ -1161,12 +1161,12 @@ def test_gradient_readiness_and_backward_completion_may_interleave() -> None:
 def test_load_bearing_guard_is_isolated_as_a_constant() -> None:
     """The negative model must relax exactly one guard and nothing else."""
 
-    model = (FORMAL_DIR / "ScoutAModel.tla").read_text()
+    model = (FORMAL_DIR / "SingleRankModel.tla").read_text()
     assert "CONSTANT RequireReadyGradients" in model
     assert '(RequireReadyGradients => grad = "ready")' in model
 
-    valid = (FORMAL_DIR / "ScoutAModel.cfg").read_text().splitlines()
-    unsafe = (FORMAL_DIR / "ScoutAModelUnsafe.cfg").read_text().splitlines()
+    valid = (FORMAL_DIR / "SingleRankModel.cfg").read_text().splitlines()
+    unsafe = (FORMAL_DIR / "SingleRankModelUnsafe.cfg").read_text().splitlines()
 
     # Computed, not asserted: the two configurations must differ in exactly one
     # line, and that line must be the constant. If the negative also dropped
@@ -1185,9 +1185,9 @@ def test_load_bearing_guard_is_isolated_as_a_constant() -> None:
 
 
 def test_refinement_bridge_constrains_the_model_to_the_observed_trace() -> None:
-    refine = (FORMAL_DIR / "ScoutARefine.tla").read_text()
+    refine = (FORMAL_DIR / "SingleRankRefine.tla").read_text()
 
-    assert "EXTENDS Naturals, Sequences, ScoutAModel, ScoutAFacts" in refine
+    assert "EXTENDS Naturals, Sequences, SingleRankModel, SingleRankFacts" in refine
     assert "Observed == EventKinds" in refine
     assert "IsPrefixOfObserved" in refine
     assert "ConstrainedNext ==" in refine
@@ -1207,12 +1207,12 @@ def test_refinement_half_admits_the_observed_trace_and_isolates_the_guard(
     result = _run_model_runner(tmp_path, "refine")
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "SCOUT_A_REFINEMENT result=admitted" in result.stdout
-    assert "SCOUT_A_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard" in (
+    assert "SINGLE_RANK_REFINEMENT result=admitted" in result.stdout
+    assert "SINGLE_RANK_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard" in (
         result.stdout
     )
     assert (
-        "SCOUT_A_REFINEMENT_GUARD_ISOLATION relaxed=RequireReadyGradients"
+        "SINGLE_RANK_REFINEMENT_GUARD_ISOLATION relaxed=RequireReadyGradients"
         " result=admitted" in result.stdout
     ), result.stdout
 
@@ -1236,10 +1236,10 @@ def test_refinement_negative_is_rejected_for_the_right_reason(
     admitted, so the first stage passes. Only the reach stage can catch it.
     """
 
-    bad = (FORMAL_DIR / "ScoutARefineBad.tla").read_text()
+    bad = (FORMAL_DIR / "SingleRankRefineBad.tla").read_text()
 
     # Derived from the same facts the positive bridge uses, not hand-written.
-    assert "ScoutAFacts" in bad
+    assert "SingleRankFacts" in bad
     assert "IndexOf(EventKinds" in bad
     assert '"step.started"' not in bad
 
@@ -1247,7 +1247,7 @@ def test_refinement_negative_is_rejected_for_the_right_reason(
         tmp_path,
         "refine",
         {
-            "ScoutARefineBad.tla": _substitute(
+            "SingleRankRefineBad.tla": _substitute(
                 bad,
                 'IF i = ReadyIndex THEN "gradient.missing"',
                 'IF i = ReadyIndex THEN "forward.started"',
@@ -1261,8 +1261,8 @@ def test_refinement_negative_is_rejected_for_the_right_reason(
     # The weaker stages must have accepted it, or this proves nothing about the
     # reach stage.
     assert "corrupted trace was not refused" not in result.stderr
-    assert "SCOUT_A_REFINEMENT result=admitted" in result.stdout
-    assert "SCOUT_A_REFINEMENT_NEGATIVE" not in result.stdout
+    assert "SINGLE_RANK_REFINEMENT result=admitted" in result.stdout
+    assert "SINGLE_RANK_REFINEMENT_NEGATIVE" not in result.stdout
 
 
 def test_relaxing_the_guard_must_admit_the_corrupted_trace(tmp_path: Path) -> None:
@@ -1273,18 +1273,18 @@ def test_relaxing_the_guard_must_admit_the_corrupted_trace(tmp_path: Path) -> No
     to become admitted, which is what makes the refusal that guard's doing.
 
     The degenerate input is the mistake that would hollow the stage out: a
-    ScoutARefineBadRelaxed.cfg that forgot to relax the constant. The corrupted
+    SingleRankRefineBadRelaxed.cfg that forgot to relax the constant. The corrupted
     trace is then still refused, no violation is reported, and the stage must
     refuse to print its token.
     """
 
-    relaxed = (FORMAL_DIR / "ScoutARefineBadRelaxed.cfg").read_text()
+    relaxed = (FORMAL_DIR / "SingleRankRefineBadRelaxed.cfg").read_text()
 
     result = _run_model_runner(
         tmp_path,
         "refine",
         {
-            "ScoutARefineBadRelaxed.cfg": _substitute(
+            "SingleRankRefineBadRelaxed.cfg": _substitute(
                 relaxed,
                 "CONSTANT RequireReadyGradients = FALSE",
                 "CONSTANT RequireReadyGradients = TRUE",
@@ -1295,10 +1295,10 @@ def test_relaxing_the_guard_must_admit_the_corrupted_trace(tmp_path: Path) -> No
     assert result.returncode != 0, result.stdout
     assert "not attributable to that guard" in result.stderr, result.stderr
     # Everything before it still passed, so the failure is stage 5's alone.
-    assert "SCOUT_A_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard" in (
+    assert "SINGLE_RANK_REFINEMENT_NEGATIVE result=rejected_at_mutation_guard" in (
         result.stdout
     )
-    assert "SCOUT_A_REFINEMENT_GUARD_ISOLATION" not in result.stdout
+    assert "SINGLE_RANK_REFINEMENT_GUARD_ISOLATION" not in result.stdout
 
 
 def test_refinement_reports_an_empty_observed_trace_as_vacuous(
@@ -1314,13 +1314,13 @@ def test_refinement_reports_an_empty_observed_trace_as_vacuous(
     151 and its own message, giving the runner an outcome it can name.
     """
 
-    refine = (FORMAL_DIR / "ScoutARefine.tla").read_text()
+    refine = (FORMAL_DIR / "SingleRankRefine.tla").read_text()
 
     result = _run_model_runner(
         tmp_path,
         "refine",
         {
-            "ScoutARefine.tla": _substitute(
+            "SingleRankRefine.tla": _substitute(
                 refine, "Observed == EventKinds", "Observed == <<>>"
             )
         },
@@ -1341,9 +1341,11 @@ def test_refinement_negative_configurations_check_both_halves() -> None:
     a control that stopped being a control from passing.
     """
 
-    reject = _cfg_invariants((FORMAL_DIR / "ScoutARefineBad.cfg").read_text())
-    reach = _cfg_invariants((FORMAL_DIR / "ScoutARefineBadReach.cfg").read_text())
-    relaxed = _cfg_invariants((FORMAL_DIR / "ScoutARefineBadRelaxed.cfg").read_text())
+    reject = _cfg_invariants((FORMAL_DIR / "SingleRankRefineBad.cfg").read_text())
+    reach = _cfg_invariants((FORMAL_DIR / "SingleRankRefineBadReach.cfg").read_text())
+    relaxed = _cfg_invariants(
+        (FORMAL_DIR / "SingleRankRefineBadRelaxed.cfg").read_text()
+    )
 
     assert reject == [
         "ControlEventsArePresent",
@@ -1370,7 +1372,7 @@ def test_refinement_configs_disable_deadlock_so_polarity_is_unambiguous() -> Non
     indistinguishable from a genuine specification defect.
     """
 
-    for name in ("ScoutARefine.cfg", "ScoutARefineBad.cfg"):
+    for name in ("SingleRankRefine.cfg", "SingleRankRefineBad.cfg"):
         assert "CHECK_DEADLOCK FALSE" in (FORMAL_DIR / name).read_text(), name
 
 
@@ -1384,10 +1386,10 @@ def test_model_runner_accepts_the_shipped_abstract_model(tmp_path: Path) -> None
     result = _run_model_runner(tmp_path, "abstract")
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "SCOUT_A_MODEL_SAFETY result=success" in result.stdout
+    assert "SINGLE_RANK_MODEL_SAFETY result=success" in result.stdout
     assert "max_outdegree=3" in result.stdout, result.stdout
     assert (
-        "SCOUT_A_MODEL_NEGATIVE invariant=MutationRequiresReadyGradients"
+        "SINGLE_RANK_MODEL_NEGATIVE invariant=MutationRequiresReadyGradients"
         " result=named_violation" in result.stdout
     )
 
@@ -1397,17 +1399,17 @@ def test_model_runner_refuses_a_non_branching_specification(tmp_path: Path) -> N
 
     A cursor walking a recorded sequence has outdegree 1 everywhere however
     long the sequence is, so a threshold on state count would accept the very
-    design this module replaces -- ScoutAValid reaches 12 states.
+    design this module replaces -- SingleRankValid reaches 12 states.
 
-    This runs the real checker over a substituted ScoutAModel that is exactly
-    such a cursor walk and still satisfies every invariant in ScoutAModel.cfg.
+    This runs the real checker over a substituted SingleRankModel that is exactly
+    such a cursor walk and still satisfies every invariant in SingleRankModel.cfg.
     Asserting the runner's text instead would keep passing if `-ge 2` were
     applied to a variable no TLC output ever populated, which is the shape
     that has burned this project twice.
     """
 
     result = _run_model_runner(
-        tmp_path, "abstract", {"ScoutAModel.tla": _NON_BRANCHING_MODEL}
+        tmp_path, "abstract", {"SingleRankModel.tla": _NON_BRANCHING_MODEL}
     )
 
     assert result.returncode != 0, result.stdout
@@ -1418,7 +1420,7 @@ def test_model_runner_refuses_a_non_branching_specification(tmp_path: Path) -> N
     # about the floor.
     assert "abstract model safety check was not a clean success" not in result.stderr
     # And the check that follows must not have run.
-    assert "SCOUT_A_MODEL_NEGATIVE" not in result.stdout
+    assert "SINGLE_RANK_MODEL_NEGATIVE" not in result.stdout
 
 
 def test_model_runner_does_not_clobber_errexit_around_expected_failures() -> None:
@@ -1446,10 +1448,13 @@ def test_both_model_halves_are_wired_into_both_formal_suites() -> None:
     build = BUILD_FILE.read_text()
     _, sh_tests, suites = _parse_build_targets(build)
 
-    halves = ("tlc_scout_a_model_abstract_test", "tlc_scout_a_model_refine_test")
+    halves = (
+        "tlc_single_rank_model_abstract_test",
+        "tlc_single_rank_model_refine_test",
+    )
     for half in halves:
         assert half in sh_tests, half
-    for suite in ("scout_a_formal_tests", "scout_b_formal_tests"):
+    for suite in ("single_rank_formal_tests", "device_mesh_formal_tests"):
         members = {label.lstrip(":") for label in suites[suite]}
         for half in halves:
             assert half in members, (suite, half)
@@ -1490,7 +1495,7 @@ def test_every_suite_maps_to_a_declared_bazel_suite() -> None:
     """The wrapper's suite switch is the only thing selecting the gate's checks.
 
     Nothing validates the sealed transcript's result tokens, so if this switch
-    resolved --suite scout-b to the trace-free tier-0 suite the gate would stop
+    resolved --suite device-mesh to the trace-free tier-0 suite the gate would stop
     checking the facts and the refinement bridge without failing. Tier 0 exists
     to be weaker, which is exactly why the mapping needs pinning.
     """
@@ -1514,8 +1519,8 @@ def test_every_suite_maps_to_a_declared_bazel_suite() -> None:
     assert mapping == {
         "smoke": "formal_smoke_tests",
         "tier0": "tier0_formal_tests",
-        "scout-a": "scout_a_formal_tests",
-        "scout-b": "scout_b_formal_tests",
+        "single-rank": "single_rank_formal_tests",
+        "device-mesh": "device_mesh_formal_tests",
     }, mapping
     for suite in mapping.values():
         assert suite in suites, suite
@@ -1533,7 +1538,7 @@ def test_each_model_half_is_told_to_run_its_own_half() -> None:
     args = _parse_sh_test_args(BUILD_FILE.read_text())
 
     for half in ("abstract", "refine"):
-        target = f"tlc_scout_a_model_{half}_test"
+        target = f"tlc_single_rank_model_{half}_test"
         assert target in args, target
         assert args[target][-1] == half, (target, args[target])
 
@@ -1550,7 +1555,7 @@ def test_generated_checker_products_are_refused_from_source_identity(
     pollution persist invisibly.
     """
 
-    from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
+    from torchtitan.experiments.qwen3_formal_verifier.single_rank import (
         build_source_manifest,
     )
 
@@ -1571,7 +1576,7 @@ def test_generated_checker_products_are_refused_from_source_identity(
         pytest.param("src/states/model.py", id="dir_named_states_outside_formal"),
         pytest.param("docs/MC_notes.md", id="mc_prefix_outside_formal"),
         pytest.param(
-            "experiments/qwen3_formal_verifier/formal/ScoutAModel.tla",
+            "experiments/qwen3_formal_verifier/formal/SingleRankModel.tla",
             id="real_formal_source",
         ),
     ],
@@ -1587,7 +1592,7 @@ def test_generated_checker_product_guard_is_not_overbroad(
     matches artifact shapes rather than bare directory names.
     """
 
-    from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
+    from torchtitan.experiments.qwen3_formal_verifier.single_rank import (
         build_source_manifest,
     )
 
@@ -1623,7 +1628,7 @@ def test_generated_checker_products_are_refused(
     tmp_path: Path,
     path_text: str,
 ) -> None:
-    from torchtitan.experiments.qwen3_formal_verifier.scout_a import (
+    from torchtitan.experiments.qwen3_formal_verifier.single_rank import (
         build_source_manifest,
     )
 
@@ -1689,7 +1694,7 @@ def test_runners_reject_an_empty_stage_log() -> None:
     this an empty sink would satisfy the bundle while proving no check ran.
     """
 
-    for name in ("run_scout_a.sh", "run_scout_b.sh"):
+    for name in ("run_single_rank.sh", "run_device_mesh.sh"):
         runner = (
             REPO_ROOT / "experiments" / "qwen3_formal_verifier" / name
         ).read_text()
@@ -1702,15 +1707,13 @@ def _lint_stage_program() -> str:
 
     The stage body used to be pasted into each runner, so these contracts read
     the runner text. It now lives in one emitter in the runner library, which is
-    also what the executing clean-tree test in test_qwen3_formal_scout_a.py
+    also what the executing clean-tree test in test_qwen3_formal_single_rank.py
     runs, so the text is read from there instead.
     """
 
-    library = (
-        REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "scout_a_runner_lib.sh"
-    )
+    library = REPO_ROOT / "experiments" / "qwen3_formal_verifier" / "runner_lib.sh"
     result = subprocess.run(
-        ["bash", "-c", f"source {library}; scout_lint_stage_program"],
+        ["bash", "-c", f"source {library}; qfv_lint_stage_program"],
         capture_output=True,
         check=True,
     )
@@ -1720,11 +1723,11 @@ def _lint_stage_program() -> str:
 def test_both_runners_use_the_shared_lint_stage_program() -> None:
     """Neither runner may keep a private copy of the lint stage body."""
 
-    for name in ("run_scout_a.sh", "run_scout_b.sh"):
+    for name in ("run_single_rank.sh", "run_device_mesh.sh"):
         runner = (
             REPO_ROOT / "experiments" / "qwen3_formal_verifier" / name
         ).read_text()
-        assert 'bash -lc "$(scout_lint_stage_program)"' in runner, name
+        assert 'bash -lc "$(qfv_lint_stage_program)"' in runner, name
         assert "git init --bare" not in runner, name
 
 
@@ -1755,8 +1758,8 @@ def test_runners_syntax_check_every_shell_file_not_just_the_first() -> None:
     assert 'bash -n "${shell_files[@]}"' not in program
 
 
-B_MODEL = FORMAL_DIR / "ScoutBModel.tla"
-B_MODEL_RUNNER = FORMAL_DIR / "run_tlc_scout_b_model.sh"
+B_MODEL = FORMAL_DIR / "DeviceMeshModel.tla"
+B_MODEL_RUNNER = FORMAL_DIR / "run_tlc_device_mesh_model.sh"
 
 
 def _tla_definition(module: str, name: str) -> str:
@@ -1836,16 +1839,16 @@ def _cfg_invariants(cfg: str) -> list[str]:
 
 
 B_MODEL_CFGS = (
-    "ScoutBModel.cfg",
-    "ScoutBModelReach.cfg",
-    "ScoutBModelDivergent.cfg",
-    "ScoutBModelWitness.cfg",
-    "ScoutBModelLive.cfg",
-    "ScoutBModelLiveDivergent.cfg",
-    "ScoutBModelLiveUnconditional.cfg",
-    "ScoutBModelOpMismatch.cfg",
-    "ScoutBModelStreamShape.cfg",
-    "ScoutBModelUnguarded.cfg",
+    "DeviceMeshModel.cfg",
+    "DeviceMeshModelReach.cfg",
+    "DeviceMeshModelDivergent.cfg",
+    "DeviceMeshModelWitness.cfg",
+    "DeviceMeshModelLive.cfg",
+    "DeviceMeshModelLiveDivergent.cfg",
+    "DeviceMeshModelLiveUnconditional.cfg",
+    "DeviceMeshModelOpMismatch.cfg",
+    "DeviceMeshModelStreamShape.cfg",
+    "DeviceMeshModelUnguarded.cfg",
 )
 
 
@@ -2033,15 +2036,15 @@ def test_dpxtp_stream_edge_check_replaces_a_tautological_run() -> None:
     What is contingent is the lemma's hypothesis, so that is what is checked:
     StreamEdgeIsInert must be violated on the shipped map, and must hold once
     StreamOfIssue is substituted with e.comm. Both halves are TLC runs in
-    run_tlc_scout_b_model.sh, and both are instant because the cfg is pinned to
+    run_tlc_device_mesh_model.sh, and both are instant because the cfg is pinned to
     the initial state.
     """
 
     assert not (
-        FORMAL_DIR / "ScoutBModelStreams.cfg"
+        FORMAL_DIR / "DeviceMeshModelStreams.cfg"
     ).exists(), "the tautological stream cfg must not come back"
 
-    shape = (FORMAL_DIR / "ScoutBModelStreamShape.cfg").read_text()
+    shape = (FORMAL_DIR / "DeviceMeshModelStreamShape.cfg").read_text()
     assert _cfg_invariants(shape) == ["StreamEdgeIsInert"], shape
     # Pinned to the initial state: StreamEdgeIsInert reads only the constants.
     assert "CONSTRAINT AtInitialState" in shape
@@ -2061,8 +2064,8 @@ def test_dpxtp_stream_edge_check_replaces_a_tautological_run() -> None:
     assert "formal_classify_tlc_valid" in stage
     # Fail closed if the substitution silently stops applying.
     assert "the StreamOfIssue mutation did not apply" in stage
-    assert "SCOUT_B_MODEL_STREAM_EDGE" in stage
-    assert "SCOUT_B_MODEL_STREAM_EDGE_MUTANT" in stage
+    assert "DEVICE_MESH_MODEL_STREAM_EDGE" in stage
+    assert "DEVICE_MESH_MODEL_STREAM_EDGE_MUTANT" in stage
 
 
 def test_dpxtp_witness_shape_is_checked_not_described() -> None:
@@ -2085,12 +2088,12 @@ def test_dpxtp_witness_shape_is_checked_not_described() -> None:
     assert "Cardinality(BlockingClosure(c)) >= 2" in shape, "cross-communicator"
     assert "ChainIssuanceBalanced(BlockingClosure(c))" in shape
 
-    witness = (FORMAL_DIR / "ScoutBModelWitness.cfg").read_text()
+    witness = (FORMAL_DIR / "DeviceMeshModelWitness.cfg").read_text()
     assert _cfg_invariants(witness) == ["NoCrossCommunicatorCycleWitness"], witness
 
     # Same constants as the divergent cfg, or the shape is a statement about a
     # different model. The runner repeats this at run time.
-    divergent = _cfg_settings((FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text())
+    divergent = _cfg_settings((FORMAL_DIR / "DeviceMeshModelDivergent.cfg").read_text())
     differing = {
         key
         for key in set(divergent) | set(_cfg_settings(witness))
@@ -2099,7 +2102,7 @@ def test_dpxtp_witness_shape_is_checked_not_described() -> None:
     assert differing == set(), differing
 
     runner = B_MODEL_RUNNER.read_text()
-    assert "SCOUT_B_MODEL_WITNESS" in runner
+    assert "DEVICE_MESH_MODEL_WITNESS" in runner
     assert "expected_witness_diff" in runner
 
 
@@ -2108,7 +2111,7 @@ def test_dpxtp_model_runner_requires_non_vacuity_and_branching() -> None:
 
     runner = B_MODEL_RUNNER.read_text()
 
-    assert "SCOUT_B_MODEL_NONVACUOUS" in runner
+    assert "DEVICE_MESH_MODEL_NONVACUOUS" in runner
     assert "ModelNeverCompletes" in runner
     assert "vacuous" in runner
     assert "max_outdegree" in runner
@@ -2121,7 +2124,7 @@ def test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs(
 ) -> None:
     """Execute the runner's own recording step over pristine and mutated input.
 
-    The ledger reconciles every shipped ScoutBModel*.cfg against the ones a
+    The ledger reconciles every shipped DeviceMeshModel*.cfg against the ones a
     stage actually checked. Keyed on the cfg NAME, the two stages that
     deliberately run mutated copies satisfied coverage for the cfg they
     mutate, so deleting the honest run still read shipped=10 checked=10
@@ -2154,7 +2157,7 @@ def test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs(
         directory.mkdir(parents=True)
     shipped = {
         name: (FORMAL_DIR / name).read_bytes()
-        for name in ("ScoutBModel.tla", "ScoutBModel.cfg")
+        for name in ("DeviceMeshModel.tla", "DeviceMeshModel.cfg")
     }
     for name, payload in shipped.items():
         (fixture_dir / name).write_bytes(payload)
@@ -2162,17 +2165,21 @@ def test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs(
     # The mutant stage's shape: the module is staged as it ships and the cfg
     # is rewritten, which is what live_unfair does. A comparison of the module
     # alone would call this run pristine.
-    (work_dir / "mutant" / "ScoutBModel.tla").write_bytes(shipped["ScoutBModel.tla"])
-    (work_dir / "mutant" / "ScoutBModel.cfg").write_bytes(
-        shipped["ScoutBModel.cfg"] + b"\n\\* rewritten by the mutant stage\n"
+    (work_dir / "mutant" / "DeviceMeshModel.tla").write_bytes(
+        shipped["DeviceMeshModel.tla"]
+    )
+    (work_dir / "mutant" / "DeviceMeshModel.cfg").write_bytes(
+        shipped["DeviceMeshModel.cfg"] + b"\n\\* rewritten by the mutant stage\n"
     )
     harness = (
         "set -euo pipefail\n"
         'work_dir="$1"\n'
         'fixture_dir="$2"\n'
         'java_bin="$3"\n'
-        "tla_jar=unused\n" + program + "run_tlc pristine ScoutBModel ScoutBModel\n"
-        "run_tlc mutant ScoutBModel ScoutBModel\n"
+        "tla_jar=unused\n"
+        + program
+        + "run_tlc pristine DeviceMeshModel DeviceMeshModel\n"
+        "run_tlc mutant DeviceMeshModel DeviceMeshModel\n"
     )
 
     result = subprocess.run(
@@ -2194,12 +2201,12 @@ def test_dpxtp_model_coverage_ledger_records_only_byte_identical_inputs(
     assert result.returncode == 0, result.stdout
     # Exactly one coverage record, from the run whose cfg AND module were
     # byte-identical to what ships.
-    assert (work_dir / "checked_configs").read_text().split() == ["ScoutBModel.cfg"]
+    assert (work_dir / "checked_configs").read_text().split() == ["DeviceMeshModel.cfg"]
     # And the mutant is counted separately, under the stage name, so it can
     # never satisfy coverage for the cfg it rewrote.
     assert (work_dir / "mutated_runs").read_text().split() == [
         "mutant",
-        "ScoutBModel.cfg",
+        "DeviceMeshModel.cfg",
     ]
 
 
@@ -2221,7 +2228,7 @@ def test_dpxtp_safety_token_reports_the_bound_it_was_checked_at() -> None:
     assert "bound_ranks=%s" in runner
     assert "bound_communicators=%s" in runner
     assert "bound_issue_skew=unbounded" in runner
-    assert "cfg_scalar ScoutBModel.cfg MaxIssues" in runner
+    assert "cfg_scalar DeviceMeshModel.cfg MaxIssues" in runner
     assert "set_size Ranks2x2" in runner
     assert "set_size CommIds2x2" in runner
 
@@ -2296,7 +2303,7 @@ def test_dpxtp_hazard_classes_partition_the_stuck_states() -> None:
     # CommIds. The global form was the defect: a circular wait is local to its
     # chain, so any unrelated imbalance elsewhere in the state reclassified a
     # real deadlock as StuckByBudget. The review demonstrated it at MaxIssues=2
-    # under ScoutBModelDivergent.cfg -- ranks 1 and 3 in a two-cycle over
+    # under DeviceMeshModelDivergent.cfg -- ranks 1 and 3 in a two-cycle over
     # fsdp13 and batch13, hung at any budget, discarded because rank 0 had
     # issued tp01 twice and rank 1 not at all.
     local = _tla_definition(model, "CircularWaitAt(c)")
@@ -2325,7 +2332,9 @@ def test_dpxtp_hazard_classes_partition_the_stuck_states() -> None:
     # rather than being deleted along with its name. Checked by parsing the
     # INVARIANTS block: a mention in a comment must not satisfy this.
     assert "StuckImpliesAllDone == Stuck => AllDone" in model
-    safety_invariants = _cfg_invariants((FORMAL_DIR / "ScoutBModel.cfg").read_text())
+    safety_invariants = _cfg_invariants(
+        (FORMAL_DIR / "DeviceMeshModel.cfg").read_text()
+    )
     assert "StuckImpliesAllDone" in safety_invariants, safety_invariants
     assert "DeadlockFreedom" in safety_invariants, safety_invariants
     assert "NoOpMismatchHang" not in safety_invariants, (
@@ -2347,21 +2356,21 @@ def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
 
     runner = B_MODEL_RUNNER.read_text()
     for token in (
-        "SCOUT_B_MODEL_DIVERGENT",
-        "SCOUT_B_MODEL_WITNESS",
-        "SCOUT_B_MODEL_OPMISMATCH",
-        "SCOUT_B_MODEL_STREAM_EDGE",
-        "SCOUT_B_MODEL_UNGUARDED",
+        "DEVICE_MESH_MODEL_DIVERGENT",
+        "DEVICE_MESH_MODEL_WITNESS",
+        "DEVICE_MESH_MODEL_OPMISMATCH",
+        "DEVICE_MESH_MODEL_STREAM_EDGE",
+        "DEVICE_MESH_MODEL_UNGUARDED",
     ):
         assert token in runner, token
 
     expected_invariant = {
-        "ScoutBModelReach.cfg": "ModelNeverCompletes",
-        "ScoutBModelDivergent.cfg": "DeadlockFreedom",
-        "ScoutBModelWitness.cfg": "NoCrossCommunicatorCycleWitness",
-        "ScoutBModelOpMismatch.cfg": "NoOpMismatchHang",
-        "ScoutBModelStreamShape.cfg": "StreamEdgeIsInert",
-        "ScoutBModelUnguarded.cfg": "RendezvousOpAgreement",
+        "DeviceMeshModelReach.cfg": "ModelNeverCompletes",
+        "DeviceMeshModelDivergent.cfg": "DeadlockFreedom",
+        "DeviceMeshModelWitness.cfg": "NoCrossCommunicatorCycleWitness",
+        "DeviceMeshModelOpMismatch.cfg": "NoOpMismatchHang",
+        "DeviceMeshModelStreamShape.cfg": "StreamEdgeIsInert",
+        "DeviceMeshModelUnguarded.cfg": "RendezvousOpAgreement",
     }
     for name, invariant in expected_invariant.items():
         # Each negative config checks exactly one invariant: the shared
@@ -2370,9 +2379,11 @@ def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
         # the block, so a comment naming an invariant proves nothing.
         assert _cfg_invariants((FORMAL_DIR / name).read_text()) == [invariant], name
 
-    divergent = _cfg_settings((FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text())
-    opmismatch = _cfg_settings((FORMAL_DIR / "ScoutBModelOpMismatch.cfg").read_text())
-    unguarded = _cfg_settings((FORMAL_DIR / "ScoutBModelUnguarded.cfg").read_text())
+    divergent = _cfg_settings((FORMAL_DIR / "DeviceMeshModelDivergent.cfg").read_text())
+    opmismatch = _cfg_settings(
+        (FORMAL_DIR / "DeviceMeshModelOpMismatch.cfg").read_text()
+    )
+    unguarded = _cfg_settings((FORMAL_DIR / "DeviceMeshModelUnguarded.cfg").read_text())
 
     # The ordering negative keeps operation agreement, which is what makes its
     # witness an ordering hazard; the mismatch negative is its mirror image.
@@ -2386,7 +2397,7 @@ def test_dpxtp_negatives_are_distinct_results_not_one() -> None:
     assert unguarded["RequireMatchedIssueOrder"] == "FALSE"
 
 
-# Copied from a real run of ScoutBModelLiveDivergent.cfg (exit 13, 1599947
+# Copied from a real run of DeviceMeshModelLiveDivergent.cfg (exit 13, 1599947
 # states generated, 401719 distinct, 78116 left on queue, 02min 05s). The trace
 # body is elided; the shape -- two Error lines, no invariant line, a lasso
 # closed by stuttering, a search summary and an orderly finish -- is verbatim.
@@ -2443,7 +2454,7 @@ def test_tlc_liveness_negative_classifier_matches_the_real_checker_output() -> N
     invariant violation. TLC exits 13, prints TWO Error lines, prints no
     "Invariant X is violated" line at all, and closes the behaviour with either
     a Stuttering line or a "Back to state" line. Both shapes below come from
-    real runs -- the first from ScoutBModelLiveDivergent.cfg, the second from a
+    real runs -- the first from DeviceMeshModelLiveDivergent.cfg, the second from a
     throwaway flip-flop, because this model's state cannot cycle -- and the
     existing classifiers must reject both, or a liveness stage could be wired to
     one of them and pass on the wrong evidence.
@@ -2542,10 +2553,10 @@ def test_liveness_stage_is_pinned_to_its_property_by_its_configuration(
     """
 
     for name, prop in (
-        ("ScoutBModelLive.cfg", "EveryIssuedCollectiveCompletes"),
-        ("ScoutBModelLiveDivergent.cfg", "EveryIssuedCollectiveCompletes"),
+        ("DeviceMeshModelLive.cfg", "EveryIssuedCollectiveCompletes"),
+        ("DeviceMeshModelLiveDivergent.cfg", "EveryIssuedCollectiveCompletes"),
         (
-            "ScoutBModelLiveUnconditional.cfg",
+            "DeviceMeshModelLiveUnconditional.cfg",
             "EveryIssuedCollectiveCompletesUnconditionally",
         ),
     ):
@@ -2558,7 +2569,7 @@ def test_liveness_stage_is_pinned_to_its_property_by_its_configuration(
     # A safety cfg declares no temporal property at all, so a liveness stage
     # pointed at one must be refused rather than silently checking nothing.
     safety = _run_cfg_property_check(
-        FORMAL_DIR / "ScoutBModel.cfg", "EveryIssuedCollectiveCompletes"
+        FORMAL_DIR / "DeviceMeshModel.cfg", "EveryIssuedCollectiveCompletes"
     )
     assert safety.returncode != 0
 
@@ -2653,13 +2664,15 @@ def test_liveness_configurations_isolate_the_one_thing_each_changes() -> None:
     unconditional reading. Both are parsed from the cfgs rather than described.
     """
 
-    positive = _cfg_settings((FORMAL_DIR / "ScoutBModelLive.cfg").read_text())
-    negative = _cfg_settings((FORMAL_DIR / "ScoutBModelLiveDivergent.cfg").read_text())
-    unconditional = _cfg_settings(
-        (FORMAL_DIR / "ScoutBModelLiveUnconditional.cfg").read_text()
+    positive = _cfg_settings((FORMAL_DIR / "DeviceMeshModelLive.cfg").read_text())
+    negative = _cfg_settings(
+        (FORMAL_DIR / "DeviceMeshModelLiveDivergent.cfg").read_text()
     )
-    safety = _cfg_settings((FORMAL_DIR / "ScoutBModel.cfg").read_text())
-    divergent = _cfg_settings((FORMAL_DIR / "ScoutBModelDivergent.cfg").read_text())
+    unconditional = _cfg_settings(
+        (FORMAL_DIR / "DeviceMeshModelLiveUnconditional.cfg").read_text()
+    )
+    safety = _cfg_settings((FORMAL_DIR / "DeviceMeshModel.cfg").read_text())
+    divergent = _cfg_settings((FORMAL_DIR / "DeviceMeshModelDivergent.cfg").read_text())
 
     differing = {
         key
@@ -2688,9 +2701,9 @@ def test_liveness_configurations_isolate_the_one_thing_each_changes() -> None:
     # this. ModelBounded would prune nothing here, so it buys nothing and is
     # left out rather than relied on.
     for name in (
-        "ScoutBModelLive.cfg",
-        "ScoutBModelLiveDivergent.cfg",
-        "ScoutBModelLiveUnconditional.cfg",
+        "DeviceMeshModelLive.cfg",
+        "DeviceMeshModelLiveDivergent.cfg",
+        "DeviceMeshModelLiveUnconditional.cfg",
     ):
         text = (FORMAL_DIR / name).read_text()
         declared = [
@@ -2702,7 +2715,7 @@ def test_liveness_configurations_isolate_the_one_thing_each_changes() -> None:
 
     # The positive run is what shows the second antecedent conjunct costs
     # nothing at full budget in the good configuration, so it must check it.
-    assert _cfg_invariants((FORMAL_DIR / "ScoutBModelLive.cfg").read_text()) == [
+    assert _cfg_invariants((FORMAL_DIR / "DeviceMeshModelLive.cfg").read_text()) == [
         "FullBudgetRendezvousPopulated"
     ]
 
@@ -2753,19 +2766,19 @@ def test_liveness_property_is_conditioned_and_the_literal_one_is_refuted() -> No
     assert "CommCount(r, c) >= Front(c)" in populated
 
 
-B_REFINE = FORMAL_DIR / "ScoutBRefine.tla"
-B_REFINE_RUNNER = FORMAL_DIR / "run_tlc_scout_b_refine.sh"
+B_REFINE = FORMAL_DIR / "DeviceMeshRefine.tla"
+B_REFINE_RUNNER = FORMAL_DIR / "run_tlc_device_mesh_refine.sh"
 B_REFINE_CFGS = (
-    "ScoutBRefineMapping.cfg",
-    "ScoutBRefine.cfg",
-    "ScoutBRefineUniformPermutation.cfg",
-    "ScoutBRefineSingleRankPermutation.cfg",
-    "ScoutBRefineSkew.cfg",
-    "ScoutBRefineOverlap.cfg",
-    "ScoutBRefineBad.cfg",
-    "ScoutBRefineBadReach.cfg",
-    "ScoutBRefineBadRelaxed.cfg",
-    "ScoutBRefineBadUniform.cfg",
+    "DeviceMeshRefineMapping.cfg",
+    "DeviceMeshRefine.cfg",
+    "DeviceMeshRefineUniformPermutation.cfg",
+    "DeviceMeshRefineSingleRankPermutation.cfg",
+    "DeviceMeshRefineSkew.cfg",
+    "DeviceMeshRefineOverlap.cfg",
+    "DeviceMeshRefineBad.cfg",
+    "DeviceMeshRefineBadReach.cfg",
+    "DeviceMeshRefineBadRelaxed.cfg",
+    "DeviceMeshRefineBadUniform.cfg",
 )
 
 # The facts the refinement bridge must NOT read. Each of these carries the
@@ -2788,15 +2801,15 @@ _EVENT_ORDER_FACTS = (
 
 def _refine_fixtures() -> tuple[str, ...]:
     return (
-        "ScoutBModel.tla",
-        "ScoutBFacts.tla",
-        "ScoutDistributed.tla",
-        "ScoutBRefine.tla",
+        "DeviceMeshModel.tla",
+        "DeviceMeshFacts.tla",
+        "MeshTopology.tla",
+        "DeviceMeshRefine.tla",
     )
 
 
 def _refine_constants(**overrides: str) -> str:
-    """Render a constant block for a ScoutBRefine probe cfg."""
+    """Render a constant block for a DeviceMeshRefine probe cfg."""
 
     settings = {
         "MaxIssues": "108",
@@ -2834,7 +2847,7 @@ def test_dpxtp_bridge_replays_the_issue_order_and_not_the_event_order() -> None:
     """
 
     bridge = B_REFINE.read_text()
-    facts = (FORMAL_DIR / "ScoutBFacts.tla").read_text()
+    facts = (FORMAL_DIR / "DeviceMeshFacts.tla").read_text()
 
     assert "CollectiveIssueOrder" in bridge
     for name in _EVENT_ORDER_FACTS:
@@ -2846,7 +2859,7 @@ def test_dpxtp_bridge_replays_the_issue_order_and_not_the_event_order() -> None:
 def test_dpxtp_bridge_configs_bind_every_constant_they_inherit() -> None:
     """A cfg that forgets a constant does not fail; TLC refuses to run.
 
-    The bridge extends ScoutBModel, so each of its configurations has to bind
+    The bridge extends DeviceMeshModel, so each of its configurations has to bind
     that model's constants as well as its own. Derived from both CONSTANTS
     blocks rather than from a list kept in step by hand.
     """
@@ -2874,7 +2887,7 @@ def test_dpxtp_bridge_configurations_check_the_halves_they_are_for() -> None:
         name: _cfg_invariants((FORMAL_DIR / name).read_text()) for name in B_REFINE_CFGS
     }
 
-    assert invariants["ScoutBRefineMapping.cfg"] == [
+    assert invariants["DeviceMeshRefineMapping.cfg"] == [
         "ModelInstanceIsNonEmpty",
         "ObservedRanksMatchTheModel",
         "ObservedIssueOrderIsDistinctWithinRank",
@@ -2883,47 +2896,49 @@ def test_dpxtp_bridge_configurations_check_the_halves_they_are_for() -> None:
         "ReplayBoundIsWithinTheObservedTrace",
         "TransposableIssuePairExists",
     ]
-    assert invariants["ScoutBRefine.cfg"] == [
+    assert invariants["DeviceMeshRefine.cfg"] == [
         "IssuedIsAReplayPrefix",
         "ReplaySkewIsWithinBound",
         "ReplayedRunIsNotAdmitted",
     ]
-    assert invariants["ScoutBRefineSkew.cfg"] == [
+    assert invariants["DeviceMeshRefineSkew.cfg"] == [
         "IssuedIsAReplayPrefix",
         "ReplaySkewIsWithinBound",
         "ReplayOutstandingIsWithinBound",
         "TypeOK",
     ]
-    assert invariants["ScoutBRefineOverlap.cfg"] == ["NoTwoCollectivesRunConcurrently"]
-    assert invariants["ScoutBRefineBad.cfg"] == [
+    assert invariants["DeviceMeshRefineOverlap.cfg"] == [
+        "NoTwoCollectivesRunConcurrently"
+    ]
+    assert invariants["DeviceMeshRefineBad.cfg"] == [
         "TransposableIssuePairExists",
         "MutationIsIsolated",
         "ReplayedRunIsNotAdmitted",
         "MismatchedCollectiveNeverRuns",
     ]
-    assert invariants["ScoutBRefineBadReach.cfg"] == [
+    assert invariants["DeviceMeshRefineBadReach.cfg"] == [
         "TransposableIssuePairExists",
         "MutationIsIsolated",
         "RejectionHappensBeforeTheRendezvous",
     ]
-    assert invariants["ScoutBRefineBadRelaxed.cfg"] == [
+    assert invariants["DeviceMeshRefineBadRelaxed.cfg"] == [
         "TransposableIssuePairExists",
         "MutationIsIsolated",
         "ReplayedRunIsNotAdmitted",
     ]
-    assert invariants["ScoutBRefineBadUniform.cfg"] == [
+    assert invariants["DeviceMeshRefineBadUniform.cfg"] == [
         "TransposableIssuePairExists",
         "MutationIsIsolated",
         "ReplayedRunIsNotAdmitted",
         "CorruptedColumnIsNeverFormed",
     ]
-    assert invariants["ScoutBRefineUniformPermutation.cfg"] == [
+    assert invariants["DeviceMeshRefineUniformPermutation.cfg"] == [
         "UniformPermutationIsNotTheObservedOrder",
         "UniformPermutationPreservesAgreement",
         "IssuedIsAReplayPrefix",
         "ReplayedRunIsNotAdmitted",
     ]
-    assert invariants["ScoutBRefineSingleRankPermutation.cfg"] == [
+    assert invariants["DeviceMeshRefineSingleRankPermutation.cfg"] == [
         "SingleRankPermutationIsNotTheObservedOrder",
         "SingleRankPermutationBreaksAgreement",
         "IssuedIsAReplayPrefix",
@@ -2934,7 +2949,7 @@ def test_dpxtp_bridge_configurations_check_the_halves_they_are_for() -> None:
     # only there is a dead end the result rather than the expectation.
     for name in B_REFINE_CFGS:
         text = (FORMAL_DIR / name).read_text()
-        expected = "TRUE" if name == "ScoutBRefineSkew.cfg" else "FALSE"
+        expected = "TRUE" if name == "DeviceMeshRefineSkew.cfg" else "FALSE"
         assert f"CHECK_DEADLOCK {expected}" in text, name
 
 
@@ -2961,13 +2976,13 @@ def test_dpxtp_bridge_configs_pin_the_guard_values_not_just_the_names() -> None:
     # Every guard on: the positive, its inputs, the confluence fragment, the
     # order-sensitivity pair, and the corruption run under the positive's set.
     for name in (
-        "ScoutBRefineMapping.cfg",
-        "ScoutBRefine.cfg",
-        "ScoutBRefineUniformPermutation.cfg",
-        "ScoutBRefineSingleRankPermutation.cfg",
-        "ScoutBRefineSkew.cfg",
-        "ScoutBRefineOverlap.cfg",
-        "ScoutBRefineBadUniform.cfg",
+        "DeviceMeshRefineMapping.cfg",
+        "DeviceMeshRefine.cfg",
+        "DeviceMeshRefineUniformPermutation.cfg",
+        "DeviceMeshRefineSingleRankPermutation.cfg",
+        "DeviceMeshRefineSkew.cfg",
+        "DeviceMeshRefineOverlap.cfg",
+        "DeviceMeshRefineBadUniform.cfg",
     ):
         for guard in guards:
             assert settings[name][guard] == "TRUE", (name, guard)
@@ -2975,30 +2990,35 @@ def test_dpxtp_bridge_configs_pin_the_guard_values_not_just_the_names() -> None:
     # The three that isolate the rendezvous guard relax the SPMD operation
     # guard, and only the relaxed one also flips NCCL's own guard.
     for name in (
-        "ScoutBRefineBad.cfg",
-        "ScoutBRefineBadReach.cfg",
-        "ScoutBRefineBadRelaxed.cfg",
+        "DeviceMeshRefineBad.cfg",
+        "DeviceMeshRefineBadReach.cfg",
+        "DeviceMeshRefineBadRelaxed.cfg",
     ):
         assert settings[name]["RequireUniformProgramOps"] == "FALSE", name
         assert settings[name]["RequireUniformProgramComms"] == "TRUE", name
         assert settings[name]["RequireStreamOrder"] == "TRUE", name
-    assert settings["ScoutBRefineBad.cfg"]["RequireMatchedIssueOrder"] == "TRUE"
-    assert settings["ScoutBRefineBadReach.cfg"]["RequireMatchedIssueOrder"] == "TRUE"
-    assert settings["ScoutBRefineBadRelaxed.cfg"]["RequireMatchedIssueOrder"] == "FALSE"
+    assert settings["DeviceMeshRefineBad.cfg"]["RequireMatchedIssueOrder"] == "TRUE"
+    assert (
+        settings["DeviceMeshRefineBadReach.cfg"]["RequireMatchedIssueOrder"] == "TRUE"
+    )
+    assert (
+        settings["DeviceMeshRefineBadRelaxed.cfg"]["RequireMatchedIssueOrder"]
+        == "FALSE"
+    )
 
     # And which order each configuration replays, for the same reason.
     corrupted = {
-        "ScoutBRefineBad.cfg",
-        "ScoutBRefineBadReach.cfg",
-        "ScoutBRefineBadRelaxed.cfg",
-        "ScoutBRefineBadUniform.cfg",
+        "DeviceMeshRefineBad.cfg",
+        "DeviceMeshRefineBadReach.cfg",
+        "DeviceMeshRefineBadRelaxed.cfg",
+        "DeviceMeshRefineBadUniform.cfg",
     }
     for name in B_REFINE_CFGS:
         expected = "TRUE" if name in corrupted else "FALSE"
         assert settings[name]["TransposeMutation"] == expected, name
     permutations = {
-        "ScoutBRefineUniformPermutation.cfg": '"uniform"',
-        "ScoutBRefineSingleRankPermutation.cfg": '"single_rank"',
+        "DeviceMeshRefineUniformPermutation.cfg": '"uniform"',
+        "DeviceMeshRefineSingleRankPermutation.cfg": '"single_rank"',
     }
     for name in B_REFINE_CFGS:
         expected = permutations.get(name, '"observed"')
@@ -3009,7 +3029,7 @@ def test_dpxtp_bridge_configs_pin_the_guard_values_not_just_the_names() -> None:
 # off the checker rather than off the module text.
 _MUTATION_PROBE = """\
 --------------------------- MODULE MutationProbe ---------------------------
-EXTENDS ScoutBRefine
+EXTENDS DeviceMeshRefine
 
 MutationSiteReport ==
   PrintT(<<"PROBE_MUTATION",
@@ -3068,12 +3088,12 @@ def test_dpxtp_bridge_mutation_is_an_adjacent_same_communicator_transposition(
     assert 'op |-> "all_gather"' in swapped, swapped
 
 
-# The filtered form of the replay constraint, the way ScoutARefine writes it.
+# The filtered form of the replay constraint, the way SingleRankRefine writes it.
 # Nothing else changes, so a state-count difference against ConstrainedNext
 # would mean the forward form admits a different set of behaviours.
 _FILTER_PROBE = """\
 ---------------------------- MODULE FilterProbe ----------------------------
-EXTENDS ScoutBRefine
+EXTENDS DeviceMeshRefine
 
 FilterNext ==
   /\\ Next
@@ -3090,7 +3110,7 @@ def test_dpxtp_bridge_forward_replay_equals_the_filtered_form(
 ) -> None:
     """The bridge computes the next issue instead of filtering successors.
 
-    ScoutARefine writes `Next /\\ IsPrefixOfObserved(emitted')`. Here that form
+    SingleRankRefine writes `Next /\\ IsPrefixOfObserved(emitted')`. Here that form
     evaluates the SPMD-program guards, which are linear in the issue count, for
     every rank/communicator/operation triple and discards almost all of them.
     The forward form is equivalent -- Issue appends exactly one record, so a
@@ -3137,7 +3157,7 @@ def test_dpxtp_bridge_forward_replay_equals_the_filtered_form(
 # a length-only admission test would accept.
 _ISSUE_ONLY_PROBE = """\
 -------------------------- MODULE IssueOnlyProbe --------------------------
-EXTENDS ScoutBRefine
+EXTENDS DeviceMeshRefine
 
 IssueOnlyNext ==
   \\E rank \\in Ranks :
@@ -3165,7 +3185,7 @@ def test_dpxtp_bridge_length_only_admission_would_accept_the_corruption(
     as much as for the real one. That bridge would be vacuous and its negative
     control would pass. This runs the corrupted order under an issue-only spec
     and shows the length-only predicate is reachable; the shipped
-    ScoutBRefineBad.cfg shows AllDone is not.
+    DeviceMeshRefineBad.cfg shows AllDone is not.
     """
 
     cfg = (
@@ -3201,7 +3221,7 @@ def test_dpxtp_bridge_length_only_admission_would_accept_the_corruption(
 # ships rather than of a copy of it.
 _ADMISSION_PROBE = """\
 -------------------------- MODULE AdmissionProbe --------------------------
-EXTENDS ScoutBRefine
+EXTENDS DeviceMeshRefine
 
 AdmissionIssueOnlyNext ==
   \\E rank \\in Ranks :
@@ -3266,11 +3286,11 @@ def test_dpxtp_bridge_admission_is_stronger_than_the_issue_counts(
     ), output
 
 
-# A stand-in ScoutBFacts whose only collective belongs to rank 1. This is the
-# input on which ScoutBIssueOrderInvalid's derived mutation target has no
+# A stand-in DeviceMeshFacts whose only collective belongs to rank 1. This is the
+# input on which DeviceMeshIssueOrderInvalid's derived mutation target has no
 # witness.
 _B_FACTS_WITHOUT_RANK_ZERO = """\
------------------------------- MODULE ScoutBFacts ------------------------------
+------------------------------ MODULE DeviceMeshFacts ------------------------------
 EXTENDS Naturals, Sequences, FiniteSets, TLC
 
 CollectiveWorkIds == <<"work:r1:only">>
@@ -3299,10 +3319,10 @@ def test_issue_order_control_names_its_missing_target_instead_of_crashing(
 
     status, output = _run_tlc(
         tmp_path,
-        "ScoutBIssueOrderInvalid",
-        (FORMAL_DIR / "ScoutBIssueOrderInvalid.cfg").read_text(),
-        fixtures=("ScoutDistributed.tla", "ScoutBIssueOrderInvalid.tla"),
-        files={"ScoutBFacts.tla": _B_FACTS_WITHOUT_RANK_ZERO},
+        "DeviceMeshIssueOrderInvalid",
+        (FORMAL_DIR / "DeviceMeshIssueOrderInvalid.cfg").read_text(),
+        fixtures=("MeshTopology.tla", "DeviceMeshIssueOrderInvalid.tla"),
+        files={"DeviceMeshFacts.tla": _B_FACTS_WITHOUT_RANK_ZERO},
     )
 
     assert "Attempted to compute the value of an expression of form" not in output
@@ -3317,7 +3337,7 @@ def test_issue_order_control_names_its_missing_target_instead_of_crashing(
     ), (status, output)
 
 
-def test_dpxtp_bridge_is_wired_into_the_sealed_scout_b_suite() -> None:
+def test_dpxtp_bridge_is_wired_into_the_sealed_device_mesh_suite() -> None:
     """The bridge reads generated facts, so it belongs to the sealed suite only.
 
     Tier 0 is the trace-free subset and must not grow a dependency on an
@@ -3327,16 +3347,16 @@ def test_dpxtp_bridge_is_wired_into_the_sealed_scout_b_suite() -> None:
     build = BUILD_FILE.read_text()
     _, sh_tests, suites = _parse_build_targets(build)
 
-    assert "tlc_scout_b_refine_test" in sh_tests
-    sealed = {label.lstrip(":") for label in suites["scout_b_formal_tests"]}
+    assert "tlc_device_mesh_refine_test" in sh_tests
+    sealed = {label.lstrip(":") for label in suites["device_mesh_formal_tests"]}
     tier0 = {label.lstrip(":") for label in suites["tier0_formal_tests"]}
-    assert "tlc_scout_b_refine_test" in sealed
-    assert "tlc_scout_b_refine_test" not in tier0
+    assert "tlc_device_mesh_refine_test" in sealed
+    assert "tlc_device_mesh_refine_test" not in tier0
 
-    bridge_sources = _formal_sources("ScoutBRefine*")
+    bridge_sources = _formal_sources("DeviceMeshRefine*")
     assert len(bridge_sources) == 1 + len(B_REFINE_CFGS), sorted(bridge_sources)
     assert len(B_REFINE_CFGS) == 10, B_REFINE_CFGS
-    covered = _suite_input_files(build, "scout_b_formal_tests")
+    covered = _suite_input_files(build, "device_mesh_formal_tests")
     assert bridge_sources <= covered, sorted(bridge_sources - covered)
 
 
@@ -3467,7 +3487,7 @@ def test_tier0_formal_suite_reads_no_generated_facts_module() -> None:
     assert list(FORMAL_DIR.glob("*Facts.lean"))
 
 
-def test_tier0_targets_are_a_subset_of_the_sealed_scout_b_suite() -> None:
+def test_tier0_targets_are_a_subset_of_the_sealed_device_mesh_suite() -> None:
     """Tier 0 may only run checks the gate also runs.
 
     Otherwise a check could pass in iteration and never be sealed, which is the
@@ -3477,7 +3497,7 @@ def test_tier0_targets_are_a_subset_of_the_sealed_scout_b_suite() -> None:
     build = BUILD_FILE.read_text()
     _, _, suites = _parse_build_targets(build)
     tier0 = {label.lstrip(":") for label in suites["tier0_formal_tests"]}
-    sealed = {label.lstrip(":") for label in suites["scout_b_formal_tests"]}
+    sealed = {label.lstrip(":") for label in suites["device_mesh_formal_tests"]}
 
     assert tier0, "the tier 0 suite declares no members"
     assert tier0 <= sealed, tier0 - sealed
@@ -3504,26 +3524,26 @@ def test_sealed_suites_still_cover_every_checked_formal_source() -> None:
     over inputs, not target names: every formal source a checker is supposed to
     read must still be reachable from the sealed suite that owns it. A split
     that quietly left the refinement bridge out of the gate would surface here
-    as an uncovered ScoutARefine module.
+    as an uncovered SingleRankRefine module.
     """
 
     build = BUILD_FILE.read_text()
 
-    sealed = _suite_input_files(build, "scout_b_formal_tests")
+    sealed = _suite_input_files(build, "device_mesh_formal_tests")
     every_source = _formal_sources("*")
     assert UNCHECKED_FORMAL_SOURCES < every_source, "stale exception list"
     uncovered = every_source - UNCHECKED_FORMAL_SOURCES - sealed
     assert uncovered == set(), sorted(uncovered)
 
-    scout_a = _suite_input_files(build, "scout_a_formal_tests")
-    scout_a_sources = _formal_sources(
-        "ScoutA*", "ScoutLifecycle*", "TlcSmoke*", "LeanSmoke*"
+    single_rank = _suite_input_files(build, "single_rank_formal_tests")
+    single_rank_sources = _formal_sources(
+        "SingleRank*", "TraceLifecycle*", "TlcSmoke*", "LeanSmoke*"
     )
-    assert scout_a_sources
-    assert scout_a_sources <= scout_a, sorted(scout_a_sources - scout_a)
+    assert single_rank_sources
+    assert single_rank_sources <= single_rank, sorted(single_rank_sources - single_rank)
 
 
-def test_every_scout_a_model_source_stays_in_both_sealed_suites() -> None:
+def test_every_single_rank_model_source_stays_in_both_sealed_suites() -> None:
     """Durable form of the no-regression property, independent of git history.
 
     Globbed from the package, so a new model or refinement configuration that
@@ -3532,11 +3552,11 @@ def test_every_scout_a_model_source_stays_in_both_sealed_suites() -> None:
 
     build = BUILD_FILE.read_text()
     model_sources = _formal_sources(
-        "ScoutAModel*", "ScoutARefine*", "ScoutLifecycle.tla"
+        "SingleRankModel*", "SingleRankRefine*", "TraceLifecycle.tla"
     )
     assert model_sources
 
-    for suite in ("scout_a_formal_tests", "scout_b_formal_tests"):
+    for suite in ("single_rank_formal_tests", "device_mesh_formal_tests"):
         covered = _suite_input_files(build, suite)
         assert model_sources <= covered, (suite, sorted(model_sources - covered))
 
@@ -3588,9 +3608,9 @@ def _tier0_environment(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
             "TIER0_ENTRY_LOG": str(entrypoint_log),
             "TORCHTITAN_FORMAL_CACHE_HOST": str(tmp_path / "formal-cache"),
             "TORCHTITAN_TIER0_FORMAL_CHECKS": str(formal_checks),
-            "TORCHTITAN_SCOUT_ROOTFS_ENTRYPOINT": str(entrypoint),
-            "TORCHTITAN_SCOUT_ROOTFS": str(rootfs),
-            "TORCHTITAN_SCOUT_GIT": str(git_stub),
+            "TORCHTITAN_QFV_ROOTFS_ENTRYPOINT": str(entrypoint),
+            "TORCHTITAN_QFV_ROOTFS": str(rootfs),
+            "TORCHTITAN_QFV_GIT": str(git_stub),
         }
     )
     env.pop("TORCHTITAN_IN_ROOTFS", None)
@@ -3677,9 +3697,7 @@ def test_tier0_runner_defaults_to_networked_and_honours_skips(
     assert not entrypoint_log.exists()
     # The start token has to say which stages were skipped, or a reader meets
     # a bare result=success for a run that checked one of the five things.
-    assert (
-        "lint=0 pytest=0 mutations=0 fidelity=0" in result.stdout
-    ), result.stdout
+    assert "lint=0 pytest=0 mutations=0 fidelity=0" in result.stdout, result.stdout
 
 
 _MUTATION_SUMMARY_FIELDS = (
@@ -3825,7 +3843,7 @@ def test_tier0_mutations_stage_fails_closed_on_a_surviving_mutation(
             ["--update-artifacts"], "is a gate argument", id="update_artifacts"
         ),
         pytest.param(
-            ["--suite", "scout-b"], "unknown argument", id="unknown_suite_argument"
+            ["--suite", "device-mesh"], "unknown argument", id="unknown_suite_argument"
         ),
         pytest.param(
             ["--networked", "extra"], "unknown argument", id="stray_positional"
@@ -3878,8 +3896,8 @@ def test_tier0_runner_help_states_it_is_not_a_gate(tmp_path: Path) -> None:
 # docstring says why running is not the stronger option for that one.
 # ---------------------------------------------------------------------------
 
-PROTOCOL_RUNNER = FORMAL_DIR / "run_lean_scout_b_protocol.sh"
-SCOUT_A_LEAN_RUNNER = FORMAL_DIR / "run_lean_scout_a.sh"
+PROTOCOL_RUNNER = FORMAL_DIR / "run_lean_device_mesh_protocol.sh"
+SINGLE_RANK_LEAN_RUNNER = FORMAL_DIR / "run_lean_single_rank.sh"
 
 # The obligations that must each be reported separately. A missing one silently
 # weakens the inductive-invariant claim, which is the whole reason the runner
@@ -3958,13 +3976,13 @@ def test_protocol_runner_reports_each_obligation_as_its_own_theorem_token(
     result = _run_lean_runner(tmp_path, PROTOCOL_RUNNER)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "SCOUT_B_PROTOCOL_LEAN_TOOLCHAIN checker=lean version=4.34.0" in (
+    assert "DEVICE_MESH_PROTOCOL_LEAN_TOOLCHAIN checker=lean version=4.34.0" in (
         result.stdout
     )
     for index, obligation in enumerate(PROTOCOL_OBLIGATIONS, start=1):
         expected = (
-            "SCOUT_B_PROTOCOL_LEAN_THEOREM"
-            f" theorem=Qwen3Formal.ScoutBProtocol.{obligation}"
+            "DEVICE_MESH_PROTOCOL_LEAN_THEOREM"
+            f" theorem=Qwen3Formal.DeviceMeshProtocol.{obligation}"
             " kind=theorem scope=all-topologies-all-schedules bound=none"
             f" role=obligation-{index}-{obligation} axioms=[] exit=0"
         )
@@ -3973,12 +3991,15 @@ def test_protocol_runner_reports_each_obligation_as_its_own_theorem_token(
     # The general protocol theorem and the negative that shows its acyclicity
     # hypothesis is load-bearing.
     assert (
-        "theorem=Qwen3Formal.ScoutBProtocol."
+        "theorem=Qwen3Formal.DeviceMeshProtocol."
         "orderAgreementAndAcyclicWaitGraphExcludeBothHazards" in result.stdout
     )
-    assert "theorem=Qwen3Formal.ScoutBProtocol.acyclicityIsLoadBearing" in result.stdout
     assert (
-        "SCOUT_B_PROTOCOL_LEAN_NEGATIVE proposition=Qwen3Formal.ScoutBProtocol."
+        "theorem=Qwen3Formal.DeviceMeshProtocol.acyclicityIsLoadBearing"
+        in result.stdout
+    )
+    assert (
+        "DEVICE_MESH_PROTOCOL_LEAN_NEGATIVE proposition=Qwen3Formal.DeviceMeshProtocol."
         "ControlledInvalidWaitGraphProposition kind=theorem-negative"
         " scope=fixed-instance bound=2 result=rejected exit=1" in result.stdout
     )
@@ -3993,11 +4014,11 @@ def test_protocol_runner_reports_each_obligation_as_its_own_theorem_token(
     theorem_lines = [
         line
         for line in result.stdout.splitlines()
-        if line.startswith("SCOUT_B_PROTOCOL_LEAN_THEOREM")
+        if line.startswith("DEVICE_MESH_PROTOCOL_LEAN_THEOREM")
     ]
     assert len(theorem_lines) >= 20, theorem_lines
     labels = {
-        line.split("theorem=Qwen3Formal.ScoutBProtocol.")[1].split(" ")[0]: line
+        line.split("theorem=Qwen3Formal.DeviceMeshProtocol.")[1].split(" ")[0]: line
         for line in theorem_lines
     }
     general = (
@@ -4067,13 +4088,13 @@ def test_protocol_runner_refuses_a_missing_obligation(tmp_path: Path) -> None:
     exactly the silent weakening the per-obligation tokens exist to prevent.
     """
 
-    source = (FORMAL_DIR / "ScoutBInductiveInvariant.lean").read_text()
+    source = (FORMAL_DIR / "DeviceMeshInductiveInvariant.lean").read_text()
     assert "#print axioms consecution" in source
     result = _run_lean_runner(
         tmp_path,
         PROTOCOL_RUNNER,
         {
-            "ScoutBInductiveInvariant.lean": source.replace(
+            "DeviceMeshInductiveInvariant.lean": source.replace(
                 "#print axioms consecution\n", ""
             )
         },
@@ -4098,13 +4119,13 @@ def test_protocol_runner_refuses_a_sorry_in_a_protocol_theorem(
     necessary to widen `formal_classify_lean_valid` to get there.
     """
 
-    source = (FORMAL_DIR / "ScoutBInductiveInvariant.lean").read_text()
+    source = (FORMAL_DIR / "DeviceMeshInductiveInvariant.lean").read_text()
     needle = "  ⟨h.2.2.1, h.1, h.2.1, h.2.2.2⟩"
     assert needle in source
     result = _run_lean_runner(
         tmp_path,
         PROTOCOL_RUNNER,
-        {"ScoutBInductiveInvariant.lean": source.replace(needle, "  sorry")},
+        {"DeviceMeshInductiveInvariant.lean": source.replace(needle, "  sorry")},
     )
 
     assert result.returncode != 0, result.stdout
@@ -4116,19 +4137,19 @@ def test_protocol_negative_must_be_refuted_not_compiled(tmp_path: Path) -> None:
     """A negative that compiles is a failure of the suite, not a success.
 
     Flipping the controlled proposition to the TRUE reading -- the witness IS
-    stuck -- makes ScoutBProtocolInvalid.lean compile. The runner must then
+    stuck -- makes DeviceMeshProtocolInvalid.lean compile. The runner must then
     refuse, because `formal_classify_lean_negative` requires the `decide`
     diagnostic rather than merely a non-zero exit somewhere.
     """
 
-    source = (FORMAL_DIR / "ScoutBProtocolInvalid.lean").read_text()
+    source = (FORMAL_DIR / "DeviceMeshProtocolInvalid.lean").read_text()
     needle = "stuckB cyclicTopology cyclicState = false"
     assert needle in source
     result = _run_lean_runner(
         tmp_path,
         PROTOCOL_RUNNER,
         {
-            "ScoutBProtocolInvalid.lean": source.replace(
+            "DeviceMeshProtocolInvalid.lean": source.replace(
                 needle, "stuckB cyclicTopology cyclicState = true"
             )
         },
@@ -4136,7 +4157,7 @@ def test_protocol_negative_must_be_refuted_not_compiled(tmp_path: Path) -> None:
 
     assert result.returncode != 0, result.stdout
     assert "did not reject the named proposition" in result.stderr, result.stderr
-    assert "SCOUT_B_PROTOCOL_LEAN_NEGATIVE" not in result.stdout, result.stdout
+    assert "DEVICE_MESH_PROTOCOL_LEAN_NEGATIVE" not in result.stdout, result.stdout
 
 
 def test_safety_theorem_statement_does_not_mention_the_bound(
@@ -4156,14 +4177,14 @@ def test_safety_theorem_statement_does_not_mention_the_bound(
     work = tmp_path / "statement"
     work.mkdir(parents=True, exist_ok=True)
     for name in (
-        "ScoutBProtocol.lean",
-        "ScoutBInductiveInvariant.lean",
-        "ScoutBWaitGraph.lean",
+        "DeviceMeshProtocol.lean",
+        "DeviceMeshInductiveInvariant.lean",
+        "DeviceMeshWaitGraph.lean",
     ):
         (work / name).write_text((FORMAL_DIR / name).read_text())
     (work / "Statement.lean").write_text(
-        "import ScoutBWaitGraph\n"
-        "open Qwen3Formal.ScoutBProtocol\n"
+        "import DeviceMeshWaitGraph\n"
+        "open Qwen3Formal.DeviceMeshProtocol\n"
         "set_option pp.fullNames true\n"
         "#check @safetyOfReachable\n"
         "#print allDoneB\n"
@@ -4171,9 +4192,9 @@ def test_safety_theorem_statement_does_not_mention_the_bound(
     )
     env = {**os.environ, "LEAN_PATH": "."}
     for name in (
-        "ScoutBProtocol",
-        "ScoutBInductiveInvariant",
-        "ScoutBWaitGraph",
+        "DeviceMeshProtocol",
+        "DeviceMeshInductiveInvariant",
+        "DeviceMeshWaitGraph",
     ):
         built = subprocess.run(
             [lean, "-o", f"{name}.olean", f"{name}.lean"],
@@ -4228,20 +4249,20 @@ def test_observed_trace_lean_tokens_are_labelled_as_evaluations(
 ) -> None:
     """The relabelling must reach the sealed log, by running a real runner.
 
-    Scout A's Lean runner is the cheap end-to-end witness for the evaluation
+    Single-rank's Lean runner is the cheap end-to-end witness for the evaluation
     label: its modules are small, so this asserts the emitted token text rather
     than the printf that produces it.
     """
 
-    result = _run_lean_runner(tmp_path, SCOUT_A_LEAN_RUNNER)
+    result = _run_lean_runner(tmp_path, SINGLE_RANK_LEAN_RUNNER)
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert (
-        "SCOUT_A_LEAN_VALID theorem=Qwen3Formal.ScoutA.validLifecycle"
+        "SINGLE_RANK_LEAN_VALID theorem=Qwen3Formal.SingleRank.validLifecycle"
         " kind=evaluation scope=observed-trace axioms=[] exit=0" in result.stdout
     )
     assert (
-        "SCOUT_A_LEAN_NEGATIVE proposition=Qwen3Formal.ScoutA."
+        "SINGLE_RANK_LEAN_NEGATIVE proposition=Qwen3Formal.SingleRank."
         "ControlledInvalidProposition kind=evaluation scope=observed-trace"
         " result=rejected exit=1" in result.stdout
     )
@@ -4254,7 +4275,7 @@ def test_every_lean_token_declares_evaluation_or_theorem_exactly_once() -> None:
     The two behavioural tests above are what establish that each label reaches
     the sealed log; this one guards against a SIXTH token appearing later with
     no label at all, which no single run would reveal. Running every Lean runner
-    to check that would cost the 92s Scout B trace check and prove nothing more
+    to check that would cost the 92s Device-mesh trace check and prove nothing more
     about the label, so this one reads the printf lines.
     """
 
@@ -4282,7 +4303,11 @@ def test_every_lean_token_declares_evaluation_or_theorem_exactly_once() -> None:
         "kind=smoke scope=toolchain",
     )
     token_name = re.compile(
-        r"""['"]((?:SCOUT_[A-Z0-9_]*|LEAN)_"""
+        # The wildcard absorbs the middle segment, which is LEAN for most
+        # tokens and PROTOCOL_LEAN for the inductive suite. Dropping it during
+        # the Scout rename made this match nothing and the test fail loudly,
+        # which is the behaviour a vacuity guard should have.
+        r"""['"]((?:(?:SINGLE_RANK|DEVICE_MESH)_[A-Z0-9_]*|LEAN)_"""
         r"""(?:VALID|NEGATIVE|MUTATION|THEOREM|TOOLCHAIN))\b"""
     )
     runners = sorted(FORMAL_DIR.glob("run_lean_*.sh"))
@@ -4318,9 +4343,9 @@ def test_every_lean_token_declares_evaluation_or_theorem_exactly_once() -> None:
     assert labelled >= 6, labelled
     assert interpolated >= 1, interpolated
     assert {
-        "SCOUT_A_LEAN_VALID",
-        "SCOUT_B_LEAN_VALID",
-        "SCOUT_B_PROTOCOL_LEAN_THEOREM",
+        "SINGLE_RANK_LEAN_VALID",
+        "DEVICE_MESH_LEAN_VALID",
+        "DEVICE_MESH_PROTOCOL_LEAN_THEOREM",
         "LEAN_VALID",
     } <= seen_names, sorted(seen_names)
 
@@ -4335,17 +4360,17 @@ def test_protocol_target_is_wired_into_tier0_and_the_sealed_suite() -> None:
     build = BUILD_FILE.read_text()
     _, sh_tests, suites = _parse_build_targets(build)
 
-    assert "lean_scout_b_protocol_test" in sh_tests
-    for suite in ("tier0_formal_tests", "scout_b_formal_tests"):
+    assert "lean_device_mesh_protocol_test" in sh_tests
+    for suite in ("tier0_formal_tests", "device_mesh_formal_tests"):
         members = {label.lstrip(":") for label in suites[suite]}
-        assert "lean_scout_b_protocol_test" in members, (suite, members)
+        assert "lean_device_mesh_protocol_test" in members, (suite, members)
 
-    inputs = sh_tests["lean_scout_b_protocol_test"]
+    inputs = sh_tests["lean_device_mesh_protocol_test"]
     assert {
-        "ScoutBProtocol.lean",
-        "ScoutBInductiveInvariant.lean",
-        "ScoutBWaitGraph.lean",
-        "ScoutBProtocolInvalid.lean",
+        "DeviceMeshProtocol.lean",
+        "DeviceMeshInductiveInvariant.lean",
+        "DeviceMeshWaitGraph.lean",
+        "DeviceMeshProtocolInvalid.lean",
     } <= {label.lstrip(":") for label in inputs}, inputs
     # It must not read a generated facts module: the theorems are about the
     # protocol, so a trace dependency here would be a category error as well as
@@ -4375,10 +4400,10 @@ def test_protocol_modules_avoid_the_tactics_that_introduce_axioms() -> None:
     )
     checked = 0
     for name in (
-        "ScoutBProtocol.lean",
-        "ScoutBInductiveInvariant.lean",
-        "ScoutBWaitGraph.lean",
-        "ScoutBProtocolInvalid.lean",
+        "DeviceMeshProtocol.lean",
+        "DeviceMeshInductiveInvariant.lean",
+        "DeviceMeshWaitGraph.lean",
+        "DeviceMeshProtocolInvalid.lean",
     ):
         text = re.sub(r"/-.*?-/", "", (FORMAL_DIR / name).read_text(), flags=re.S)
         for line in text.splitlines():
@@ -4395,8 +4420,8 @@ def test_protocol_modules_avoid_the_tactics_that_introduce_axioms() -> None:
     assert not banned.search("  exact ifPos rfl")
 
 
-_TOPOLOGY_WITHOUT_COMMS_COMPLETE = """import ScoutBProtocol
-open Qwen3Formal.ScoutBProtocol
+_TOPOLOGY_WITHOUT_COMMS_COMPLETE = """import DeviceMeshProtocol
+open Qwen3Formal.DeviceMeshProtocol
 
 def incompleteComms : Topology Unit Unit Unit Unit where
   ranks := [()]
@@ -4435,12 +4460,12 @@ def test_topology_forces_the_comms_completeness_obligation(tmp_path: Path) -> No
     lean = _lean_toolchain()
     work = tmp_path / "obligation"
     work.mkdir(parents=True, exist_ok=True)
-    (work / "ScoutBProtocol.lean").write_text(
-        (FORMAL_DIR / "ScoutBProtocol.lean").read_text()
+    (work / "DeviceMeshProtocol.lean").write_text(
+        (FORMAL_DIR / "DeviceMeshProtocol.lean").read_text()
     )
     env = {**os.environ, "LEAN_PATH": "."}
     built = subprocess.run(
-        [lean, "-o", "ScoutBProtocol.olean", "ScoutBProtocol.lean"],
+        [lean, "-o", "DeviceMeshProtocol.olean", "DeviceMeshProtocol.lean"],
         cwd=work,
         env=env,
         text=True,
@@ -4481,13 +4506,13 @@ def test_dpxtp_safety_token_names_every_invariant_it_checked() -> None:
     the liveness contracts.
 
     The wiring of that value into the SAFETY token is asserted on the runner's
-    source rather than by running it: the Scout B model runner takes about 290s
+    source rather than by running it: the Device-mesh model runner takes about 290s
     for its eleven TLC checks, and both `tier0_formal_tests` and
-    `scout_b_formal_tests` already execute it, so a unit test that repeated it
+    `device_mesh_formal_tests` already execute it, so a unit test that repeated it
     would buy a fourth execution of the same code rather than new evidence.
     """
 
-    cfg = FORMAL_DIR / "ScoutBModel.cfg"
+    cfg = FORMAL_DIR / "DeviceMeshModel.cfg"
     parsed = subprocess.run(
         [
             "bash",
@@ -4519,7 +4544,7 @@ def test_dpxtp_safety_token_names_every_invariant_it_checked() -> None:
             'source "$1"; formal_cfg_invariants "$2"',
             "invariants-test",
             str(CHECKER_CONTRACT),
-            str(FORMAL_DIR / "ScoutBModelStreamShape.cfg"),
+            str(FORMAL_DIR / "DeviceMeshModelStreamShape.cfg"),
         ],
         cwd=REPO_ROOT,
         text=True,
@@ -4529,8 +4554,8 @@ def test_dpxtp_safety_token_names_every_invariant_it_checked() -> None:
     assert empty.returncode == 0, empty.stdout
     assert empty.stdout.strip() != parsed.stdout.strip(), empty.stdout
 
-    runner = (FORMAL_DIR / "run_tlc_scout_b_model.sh").read_text()
-    assert 'formal_cfg_invariants "${fixture_dir}/ScoutBModel.cfg"' in runner
+    runner = (FORMAL_DIR / "run_tlc_device_mesh_model.sh").read_text()
+    assert 'formal_cfg_invariants "${fixture_dir}/DeviceMeshModel.cfg"' in runner
     assert "invariants=%s" in runner
     assert "${safety_invariants}" in runner
 
@@ -4541,7 +4566,7 @@ def test_dpxtp_safety_token_names_every_invariant_it_checked() -> None:
 # run proves several rejections instead of stopping at the first.
 _PLACEMENT_PROBE = """\
 ------------------------------ MODULE PlacementProbe ------------------------------
-EXTENDS Naturals, Sequences, FiniteSets, TLC, ScoutDistributed
+EXTENDS Naturals, Sequences, FiniteSets, TLC, MeshTopology
 
 VARIABLE cursor
 vars == <<cursor>>
@@ -4639,7 +4664,7 @@ def test_placement_predicates_reject_the_layouts_they_are_for(
     """Run the real predicates over inputs they must refuse.
 
     The observed run satisfies all of them, which on its own says nothing about
-    what they would catch. This applies the shipped ScoutDistributed
+    what they would catch. This applies the shipped MeshTopology
     definitions -- not a copy -- to tiny hand-written facts and asserts the
     NEGATION of each predicate on a bad layout, plus acceptance of a good one so
     the rejections are not vacuous.
@@ -4649,7 +4674,7 @@ def test_placement_predicates_reject_the_layouts_they_are_for(
         tmp_path,
         "PlacementProbe",
         _PLACEMENT_PROBE_CFG,
-        fixtures=("ScoutDistributed.tla",),
+        fixtures=("MeshTopology.tla",),
         files={"PlacementProbe.tla": _PLACEMENT_PROBE},
     )
 
@@ -4671,12 +4696,12 @@ def test_partial_placement_negative_is_rejected_for_the_right_reason(
 
     status, output = _run_tlc(
         tmp_path,
-        "ScoutBPlacementPartialInvalid",
-        (FORMAL_DIR / "ScoutBPlacementPartialInvalid.cfg").read_text(),
+        "DeviceMeshPlacementPartialInvalid",
+        (FORMAL_DIR / "DeviceMeshPlacementPartialInvalid.cfg").read_text(),
         fixtures=(
-            "ScoutDistributed.tla",
-            "ScoutBFacts.tla",
-            "ScoutBPlacementPartialInvalid.tla",
+            "MeshTopology.tla",
+            "DeviceMeshFacts.tla",
+            "DeviceMeshPlacementPartialInvalid.tla",
         ),
     )
 
@@ -4685,14 +4710,14 @@ def test_partial_placement_negative_is_rejected_for_the_right_reason(
             "formal_classify_tlc_transition_negative",
             status,
             output,
-            "ScoutBNoPartialAtOptimizer",
+            "DeviceMeshNoPartialAtOptimizer",
         ).returncode
         == 0
     ), (status, output)
 
 
 _B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT = """\
------------------------------- MODULE ScoutBFacts ------------------------------
+------------------------------ MODULE DeviceMeshFacts ------------------------------
 EXTENDS Naturals, Sequences, FiniteSets, TLC
 
 RankSet == {0, 1, 2, 3}
@@ -4764,10 +4789,10 @@ def test_partial_placement_control_names_its_missing_target_instead_of_crashing(
 
     status, output = _run_tlc(
         tmp_path,
-        "ScoutBPlacementPartialInvalid",
-        (FORMAL_DIR / "ScoutBPlacementPartialInvalid.cfg").read_text(),
-        fixtures=("ScoutDistributed.tla", "ScoutBPlacementPartialInvalid.tla"),
-        files={"ScoutBFacts.tla": _B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT},
+        "DeviceMeshPlacementPartialInvalid",
+        (FORMAL_DIR / "DeviceMeshPlacementPartialInvalid.cfg").read_text(),
+        fixtures=("MeshTopology.tla", "DeviceMeshPlacementPartialInvalid.tla"),
+        files={"DeviceMeshFacts.tla": _B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT},
     )
 
     assert "Attempted to compute the value of an expression of form" not in output
@@ -4815,7 +4840,7 @@ MutatedWork ==
     ("module", "facts", "guard", "unguarded", "sentinel", "named"),
     [
         (
-            "ScoutBPlacementPartialInvalid",
+            "DeviceMeshPlacementPartialInvalid",
             "_B_FACTS_WITHOUT_A_DP_SHARD_PLACEMENT",
             _PARTIAL_GUARD,
             _PARTIAL_UNGUARDED,
@@ -4823,7 +4848,7 @@ MutatedWork ==
             "MutationIsIsolated",
         ),
         (
-            "ScoutBIssueOrderInvalid",
+            "DeviceMeshIssueOrderInvalid",
             "_B_FACTS_WITHOUT_RANK_ZERO",
             _ISSUE_ORDER_GUARD,
             _ISSUE_ORDER_UNGUARDED,
@@ -4831,7 +4856,7 @@ MutatedWork ==
             "MutationIsIsolated",
         ),
         (
-            "ScoutBPayloadSizeInvalid",
+            "DeviceMeshPayloadSizeInvalid",
             "_B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD",
             _PAYLOAD_SIZE_GUARD,
             _PAYLOAD_SIZE_UNGUARDED,
@@ -4839,7 +4864,7 @@ MutatedWork ==
             "MutationIsIsolated",
         ),
         (
-            "ScoutBPayloadOperationInvalid",
+            "DeviceMeshPayloadOperationInvalid",
             "_B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD",
             _PAYLOAD_OPERATION_GUARD,
             _PAYLOAD_OPERATION_UNGUARDED,
@@ -4892,8 +4917,8 @@ def test_the_derived_mutation_guard_is_load_bearing(
         tmp_path / "guarded",
         module,
         without_sentinel,
-        fixtures=("ScoutDistributed.tla", f"{module}.tla"),
-        files={"ScoutBFacts.tla": facts_text},
+        fixtures=("MeshTopology.tla", f"{module}.tla"),
+        files={"DeviceMeshFacts.tla": facts_text},
     )
     assert (
         _run_classifier(
@@ -4909,9 +4934,9 @@ def test_the_derived_mutation_guard_is_load_bearing(
         tmp_path / "unguarded",
         module,
         without_sentinel,
-        fixtures=("ScoutDistributed.tla",),
+        fixtures=("MeshTopology.tla",),
         files={
-            "ScoutBFacts.tla": facts_text,
+            "DeviceMeshFacts.tla": facts_text,
             f"{module}.tla": source.replace(guard, unguarded),
         },
     )
@@ -4933,24 +4958,24 @@ def test_the_derived_mutation_guard_is_load_bearing(
     ("module", "first", "last"),
     [
         (
-            "ScoutBPlacementPartialInvalid",
+            "DeviceMeshPlacementPartialInvalid",
             "ThereIsADpShardPlacement",
-            "ScoutBNoPartialAtOptimizer",
+            "DeviceMeshNoPartialAtOptimizer",
         ),
         (
-            "ScoutBIssueOrderInvalid",
+            "DeviceMeshIssueOrderInvalid",
             "Rank0HasACollective",
-            "ScoutBPerCommunicatorIssueOrder",
+            "DeviceMeshPerCommunicatorIssueOrder",
         ),
         (
-            "ScoutBPayloadSizeInvalid",
+            "DeviceMeshPayloadSizeInvalid",
             "ThereIsASizedWorkWithAPeer",
-            "ScoutBCollectivePayloadAgreement",
+            "DeviceMeshCollectivePayloadAgreement",
         ),
         (
-            "ScoutBPayloadOperationInvalid",
+            "DeviceMeshPayloadOperationInvalid",
             "ThereIsAVolumeChangingCollective",
-            "ScoutBCollectivePayloadSizeRelation",
+            "DeviceMeshCollectivePayloadSizeRelation",
         ),
     ],
     ids=[
@@ -4994,7 +5019,7 @@ def test_placement_negative_configurations_pin_their_invariant_order(
     assert len(listed) >= 3, listed
 
 
-def test_scout_b_tokens_name_the_invariants_they_checked() -> None:
+def test_device_mesh_tokens_name_the_invariants_they_checked() -> None:
     """A count is not a name; 19 invariants reached the log as none.
 
     The DPxTP model runner already derives its list with the shared
@@ -5007,12 +5032,12 @@ def test_scout_b_tokens_name_the_invariants_they_checked() -> None:
     rather than new evidence.
     """
 
-    runner = (FORMAL_DIR / "run_tlc_scout_b.sh").read_text()
+    runner = (FORMAL_DIR / "run_tlc_device_mesh.sh").read_text()
 
     for cfg in (
-        "ScoutBValid.cfg",
-        "ScoutBIssueOrderInvalid.cfg",
-        "ScoutBPlacementPartialInvalid.cfg",
+        "DeviceMeshValid.cfg",
+        "DeviceMeshIssueOrderInvalid.cfg",
+        "DeviceMeshPlacementPartialInvalid.cfg",
     ):
         assert f'formal_cfg_invariants "${{fixture_dir}}/{cfg}"' in runner, cfg
     # The two payload negatives share one loop, so their cfg name is a variable.
@@ -5021,13 +5046,13 @@ def test_scout_b_tokens_name_the_invariants_they_checked() -> None:
     assert (
         'formal_cfg_invariants "${fixture_dir}/${payload_module}.cfg"' in runner
     ), runner
-    for module in ("ScoutBPayloadSizeInvalid", "ScoutBPayloadOperationInvalid"):
+    for module in ("DeviceMeshPayloadSizeInvalid", "DeviceMeshPayloadOperationInvalid"):
         assert module in runner, module
     for token in (
-        "SCOUT_B_TLA_VALID",
-        "SCOUT_B_TLA_ISSUE_ORDER_NEGATIVE",
-        "SCOUT_B_TLA_PARTIAL_PLACEMENT_NEGATIVE",
-        "SCOUT_B_TLA_%s_NEGATIVE",
+        "DEVICE_MESH_TLA_VALID",
+        "DEVICE_MESH_TLA_ISSUE_ORDER_NEGATIVE",
+        "DEVICE_MESH_TLA_PARTIAL_PLACEMENT_NEGATIVE",
+        "DEVICE_MESH_TLA_%s_NEGATIVE",
     ):
         # Stripped, because the payload token is emitted inside a loop and is
         # therefore indented.
@@ -5043,7 +5068,7 @@ def test_scout_b_tokens_name_the_invariants_they_checked() -> None:
     assert runner.count("could not read the invariant list out of") == 4, runner
 
 
-def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
+def test_every_device_mesh_valid_definition_is_bound_as_an_invariant() -> None:
     """An invariant defined but never listed checks nothing.
 
     The placement work adds eight named invariants at once, which is exactly the
@@ -5052,12 +5077,12 @@ def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
     covered too.
     """
 
-    module = (FORMAL_DIR / "ScoutBValid.tla").read_text()
+    module = (FORMAL_DIR / "DeviceMeshValid.tla").read_text()
 
     defined = {
         line.split(" ==")[0]
         for line in module.splitlines()
-        if line.startswith("ScoutB") and " ==" in line
+        if line.startswith("DeviceMesh") and " ==" in line
     }
     # The real derivation from checker_contract.sh over the real cfg, so this
     # agrees with what the runners report rather than with a second parser.
@@ -5068,7 +5093,7 @@ def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
             'source "$1"; formal_cfg_invariants "$2"',
             "invariants-test",
             str(CHECKER_CONTRACT),
-            str(FORMAL_DIR / "ScoutBValid.cfg"),
+            str(FORMAL_DIR / "DeviceMeshValid.cfg"),
         ],
         cwd=REPO_ROOT,
         text=True,
@@ -5081,19 +5106,19 @@ def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
     assert len(defined) == 23, sorted(defined)
     assert defined == listed, sorted(defined ^ listed)
     for invariant in (
-        "ScoutBPlacementValid",
-        "ScoutBPlacementSchemaAgrees",
-        "ScoutBMeshAxisDegree",
-        "ScoutBParameterPlacementWellFormed",
-        "ScoutBPlacementBooleansAgree",
-        "ScoutBNoPartialAtOptimizer",
-        "ScoutBShardedDimDividesAxisDegree",
-        "ScoutBLocalShapeReflectsSharding",
-        "ScoutBStridedShardComposition",
-        "ScoutBCollectivePayloadWellFormed",
-        "ScoutBPayloadCommKey",
-        "ScoutBCollectivePayloadAgreement",
-        "ScoutBCollectivePayloadSizeRelation",
+        "DeviceMeshPlacementValid",
+        "DeviceMeshPlacementSchemaAgrees",
+        "DeviceMeshMeshAxisDegree",
+        "DeviceMeshParameterPlacementWellFormed",
+        "DeviceMeshPlacementBooleansAgree",
+        "DeviceMeshNoPartialAtOptimizer",
+        "DeviceMeshShardedDimDividesAxisDegree",
+        "DeviceMeshLocalShapeReflectsSharding",
+        "DeviceMeshStridedShardComposition",
+        "DeviceMeshCollectivePayloadWellFormed",
+        "DeviceMeshPayloadCommKey",
+        "DeviceMeshCollectivePayloadAgreement",
+        "DeviceMeshCollectivePayloadSizeRelation",
     ):
         assert invariant in listed, invariant
 
@@ -5106,7 +5131,7 @@ def test_every_scout_b_valid_definition_is_bound_as_an_invariant() -> None:
 # run proves several rejections instead of stopping at the first.
 _PAYLOAD_PROBE = """\
 ------------------------------ MODULE PayloadProbe ------------------------------
-EXTENDS Naturals, Sequences, FiniteSets, TLC, ScoutDistributed
+EXTENDS Naturals, Sequences, FiniteSets, TLC, MeshTopology
 
 VARIABLE cursor
 vars == <<cursor>>
@@ -5261,7 +5286,7 @@ def test_payload_predicates_reject_the_payloads_they_are_for(
     The observed run satisfies all of them, which on its own says nothing about
     what they would catch -- and the checked-in facts module cannot carry payload
     facts until a fresh four-rank run regenerates it. This applies the shipped
-    ScoutDistributed definitions, not a copy, to tiny hand-written facts, and
+    MeshTopology definitions, not a copy, to tiny hand-written facts, and
     asserts the NEGATION of each predicate on a bad input plus acceptance of a
     good one so the rejections are not vacuous.
     """
@@ -5270,7 +5295,7 @@ def test_payload_predicates_reject_the_payloads_they_are_for(
         tmp_path,
         "PayloadProbe",
         _PAYLOAD_PROBE_CFG,
-        fixtures=("ScoutDistributed.tla",),
+        fixtures=("MeshTopology.tla",),
         files={"PayloadProbe.tla": _PAYLOAD_PROBE},
     )
 
@@ -5279,12 +5304,12 @@ def test_payload_predicates_reject_the_payloads_they_are_for(
     ), (status, output)
 
 
-# A stand-in ScoutBFacts with one single-member collective over a 0-dim tensor.
+# A stand-in DeviceMeshFacts with one single-member collective over a 0-dim tensor.
 # This is the input on which both payload controls' derived mutation targets have
 # no witness: no work has a peer, no shape can be scaled, and no operation
 # changes volume.
 _B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD = """\
------------------------------- MODULE ScoutBFacts ------------------------------
+------------------------------ MODULE DeviceMeshFacts ------------------------------
 EXTENDS Naturals, Sequences, FiniteSets, TLC
 
 CollectiveWorkIds == <<"work:r0:only">>
@@ -5310,8 +5335,8 @@ CollectivePayloadOutputElements == ("work:r0:only" :> 1)
 @pytest.mark.parametrize(
     ("module", "sentinel"),
     [
-        ("ScoutBPayloadSizeInvalid", "ThereIsASizedWorkWithAPeer"),
-        ("ScoutBPayloadOperationInvalid", "ThereIsAVolumeChangingCollective"),
+        ("DeviceMeshPayloadSizeInvalid", "ThereIsASizedWorkWithAPeer"),
+        ("DeviceMeshPayloadOperationInvalid", "ThereIsAVolumeChangingCollective"),
     ],
     ids=["payload_size", "payload_operation"],
 )
@@ -5332,8 +5357,8 @@ def test_payload_controls_name_their_missing_target_instead_of_crashing(
         tmp_path,
         module,
         (FORMAL_DIR / f"{module}.cfg").read_text(),
-        fixtures=("ScoutDistributed.tla", f"{module}.tla"),
-        files={"ScoutBFacts.tla": _B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD},
+        fixtures=("MeshTopology.tla", f"{module}.tla"),
+        files={"DeviceMeshFacts.tla": _B_FACTS_WITHOUT_AN_ELIGIBLE_PAYLOAD},
     )
 
     assert "Attempted to compute the value of an expression of form" not in output

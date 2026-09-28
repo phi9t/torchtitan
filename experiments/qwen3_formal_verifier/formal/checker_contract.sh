@@ -101,8 +101,8 @@ formal_classify_tlc_transition_negative() {
 
 # A refuted TEMPORAL property is a different outcome again, and neither of the
 # state-predicate classifiers above matches it. Shapes below are copied from
-# real runs of ScoutBModelLiveDivergent.cfg and
-# ScoutBModelLiveUnconditional.cfg, not authored:
+# real runs of DeviceMeshModelLiveDivergent.cfg and
+# DeviceMeshModelLiveUnconditional.cfg, not authored:
 #
 #   exit 13, not 12 or 151;
 #   TWO '^Error:' lines -- 'Temporal properties were violated.' and 'The
