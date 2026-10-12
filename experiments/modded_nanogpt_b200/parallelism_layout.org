@@ -1,0 +1,1393 @@
+#+TITLE: TorchTitan Parallelism Layout And Ordering
+#+AUTHOR: TorchTitan experiments
+#+STARTUP: showall
+#+PROPERTY: header-args:jupyter-python :session /jpy:127.0.0.1#8899:torchtitan-parallelism-layout :kernel torchtitan-rootfs :results replace output :exports both
+
+* What This File Proves
+
+This is a source-grounded, executable note for
+[[https://github.com/pytorch/torchtitan/issues/1554][TorchTitan issue 1554]]. The issue asks why the visible transformation order is
+=PP -> TP -> AC -> Compile -> FSDP/DDP=, and whether that order can be changed.
+
+The short answer is that TorchTitan has two related ordering layers:
+
+- Transformation order. Pipeline parallelism splits the model first. Inside
+  each resulting model part, Llama3 then applies SPMD/TP work, async TP
+  enablement, activation checkpointing, compile, and finally FSDP/HSDP.
+- Rank and mesh layout. =ParallelDims= builds named mesh views from a global
+  world mesh. In the full-DTensor dense view, the axes are
+  =(pp, dp_replicate, dp_shard, cp, tp)=, so =pp= is the outer view axis and
+  =tp= is the inner dense axis.
+
+The executable blocks use the =torchtitan-rootfs= Jupyter kernel. They record
+the live rootfs environment, the =ParallelDims= object, the custom Torch library
+paths, the =llama3/parallelize.py= call order, and a post-config Llama3 model
+plus device-mesh rendering.
+
+All =jupyter-python= blocks share one kernel session. Earlier blocks create
+objects such as =pd=, and later blocks inspect those same objects, so the file
+acts like a recorded REPL session rather than a pile of disconnected snippets.
+The shared session is declared once in the file-level header args above:
+=:session /jpy:127.0.0.1#8899:torchtitan-parallelism-layout=. Individual
+blocks stay small and rely on that session state.
+
+* How To Verify
+
+Run:
+
+#+begin_src bash
+JUPYTER_VERIFY_REQUIRED_RESULTS="$(
+  tr '\n' ';' <<'EOF' | sed 's/;$//'
+rootfs-context=TORCHTITAN_IN_ROOTFS=True
+rootfs-context=python=/workspace/torchtitan/.venv-rootfs/bin/python
+parallel-dims-setup=parallel dims setup: pd world_size=8
+torchtitan-layout=ParallelDims repr:
+torchtitan-layout=world_size product: 2 * 2 * 1 * 2 * 1 = 8
+torchtitan-layout=active flags: dp=True dp_shard=True cp=False tp=True pp=False ep=False
+kernel-state=shared state visible: True
+kernel-state=torch cuda tensor:
+kernel-state=parallel dims source: /workspace/torchtitan/torchtitan/distributed/parallel_dims.py
+llama3-source-setup=parallelize.py source loaded:
+llama3-parallelize-deconstruction=preamble imports:
+llama3-parallelize-context=shared source state visible: True
+llama3-parallelize-context=parallelize_llama starts at line
+llama3-step-setup=step setup: full_dtensor fixture world_size=1
+llama3-step-setup=real DTensor: placements=(Replicate(),)
+llama3-real-model-tensor=real CUDA Llama3 probe:
+llama3-real-model-tensor=qkv weight: shape=(768, 256) device=
+llama3-step-validate=after validate_config: ok
+llama3-step-model-parallelize=after model.parallelize:
+llama3-step-model-parallelize=tok_embeddings.weight type: Parameter -> DTensor
+llama3-step-async-tp=after maybe_enable_async_tp: enabled=False
+llama3-step-ac=after activation checkpointing:
+llama3-step-ac=Llama3TransformerBlock -> CheckpointWrapper
+llama3-step-compile=after apply_compile:
+llama3-step-compile=compiled call installed: False -> True
+llama3-step-resolve-fsdp=after resolve_fsdp_mesh:
+llama3-step-fsdp=after apply_fsdp_to_decoder:
+llama3-step-fsdp=Llama3Model -> FSDPLlama3Model
+llama3-step-ledger=full_dtensor micro-trace ledger:
+llama3-model-setup=llama3 model setup: shared pd world_size=8
+llama3-post-config=llama3 post-config model:
+llama3-mesh-render=DeviceMesh((pp=1, dp_replicate=2, dp_shard=2, cp=1, tp=2)
+llama3-mesh-render=logical dense mesh:
+llama3-sharding-render=first block shard intents:
+llama3-sharding-render=tok_embeddings: state[weight:(dp, cp, tp)]
+EOF
+)"
+
+JUPYTER_VERIFY_TIMEOUT=180 \
+JUPYTER_VERIFY_ORG_BLOCK_TIMEOUT=120 \
+JUPYTER_VERIFY_REQUIRED_RESULTS="${JUPYTER_VERIFY_REQUIRED_RESULTS}" \
+  experiments/jupyter_rootfs/verify_org_babel.sh \
+  experiments/modded_nanogpt_b200/parallelism_layout.org
+#+end_src
+
+The verifier executes every =jupyter-python= block through one rootfs-backed
+kernel and checks only the claim-bearing result needles. The expected output is
+=VERIFY-OK org babel assertions passed=.
+
+The result needles intentionally stay short. They assert that each section
+produced the important evidence without freezing incidental formatting such as
+the full model =repr=.
+
+* Reading Path
+
+- Start with [[*Issue 1554 Question][Issue 1554 Question]] for the upstream question.
+- Read [[*TorchTitan Source Map][TorchTitan Source Map]] for the static source anchors.
+- Read [[*Llama3 Parallelize File Deconstruction][Llama3 Parallelize File Deconstruction]] for the straight-line version of
+  =llama3/parallelize.py=.
+- Read [[*Executable Evidence][Executable Evidence]] for the live rootfs, Torch,
+  =ParallelDims=, model, and mesh state.
+
+* Issue 1554 Question
+
+The issue body says:
+
+#+begin_quote
+Based on the code, the ordering of parallelization and optimization appears to
+be: PP -> TP -> AC -> Compile -> FSDP/DDP.
+Is it possible to modify this ordering? If not, could you explain the rationale
+for this specific sequence?
+#+end_quote
+
+The issue discussion gives the informal maintainer rationale:
+
+- =PP -> SPMD=: splitting pipeline stages first gives "clean SPMD regions".
+  A later comment sharpens this: if a model is constructed stage-locally, the
+  non-local layers do not exist, so PP has to happen before per-stage SPMD work.
+- =TP -> FSDP=: the transformation order is natural because training iteration
+  semantics run in the reverse direction.
+- =TP -> AC=: reversing AC and TP has hit mixed =torch.Tensor= and =DTensor=
+  failures after backward, so the current order is a working composition
+  constraint, though the comment does not present it as fundamental.
+- =AC -> torch.compile=: compile wrapping AC lets the compiler see the AC region
+  when partitioning. AC wrapping compile risks repeated recomputation.
+- =torch.compile -> FSDP=: compile can graph-break on FSDP2-wrapped modules.
+
+The same thread says the ordering is still partly informal because MoE/EP and
+PyTorch-side work such as =FSDP(AC)= and =SAC(compile)= are still changing the
+supported composition space.
+
+* TorchTitan Source Map
+
+** Transformation Order
+
+The source-backed control flow is:
+
+- [[file:../../torchtitan/trainer.py::if parallel_dims.pp_enabled][trainer.py]] branches on pipeline parallelism first.
+  - With PP enabled, it calls the model spec's =pipelining_fn= and passes
+    =parallelize_fn= into that pipeline builder.
+  - With PP disabled, it calls =parallelize_fn= directly.
+- [[file:../../torchtitan/distributed/pipeline_parallel.py::def pipeline_llm][pipeline_llm]]
+  obtains =pp_mesh=, splits the model into stages, then applies the model
+  specific =parallelize_fn= to each stage-model chunk.
+- [[file:../../torchtitan/models/llama3/parallelize.py::def parallelize_llama][parallelize_llama]]
+  applies the non-pipeline SPMD work, then async TP enablement, activation
+  checkpointing, compile, and finally FSDP/HSDP.
+- [[file:../../torchtitan/models/qwen3/parallelize.py::def parallelize_qwen3][parallelize_qwen3]]
+  follows the same shape, with an additional =skip_dp= path for inference.
+- [[file:../../torchtitan/distributed/context_parallel.py::Must be called **before** ``Module.parallelize()``][context_parallel.py]]
+  documents the legacy CP constraint: CP wrapping must happen before
+  =Module.parallelize()= so CP logic runs inside the =local_map= boundary.
+- [[file:../../torchtitan/distributed/fsdp.py::def apply_fsdp_to_decoder][apply_fsdp_to_decoder]]
+  is the final data-parallel wrapper. It applies =fully_shard= to embeddings,
+  transformer blocks, and finally the decoder root.
+
+** Mesh Layout
+
+=ParallelDims= owns the dimensional vocabulary and the mesh-view construction:
+
+- [[file:../../torchtitan/distributed/parallel_dims.py::class ParallelDims][ParallelDims]]
+  names =dp_replicate=, =dp_shard=, =cp=, =tp=, =pp=, =ep=, and =world_size=.
+- [[file:../../torchtitan/distributed/parallel_dims.py::assert dp_replicate * dp_shard * cp * tp * pp == self.world_size][ParallelDims._validate]]
+  checks =world_size = dp_replicate * dp_shard * cp * tp * pp=.
+- [[file:../../torchtitan/config/configs.py::Expert parallelism degree][ParallelismConfig.expert_parallel_degree]]
+  explains why =ep= is not multiplied directly into that dense formula:
+  dense and sparse regions cover the same ranks, with
+  =dp_shard * cp * tp == efsdp * ep= and
+  =efsdp = dp_shard * cp * tp / ep=.
+- [[file:../../torchtitan/distributed/parallel_dims.py::This API performs the following unflatten operations][ParallelDims.build_mesh]]
+  derives several named views from the one-dimensional =("world",)= mesh.
+
+The named views this checkout builds are:
+
+- dataloading: =("pp", "batch", "cp", "tp")=
+- full-DTensor dense storage: =("pp", "dp_replicate", "dp_shard", "cp", "tp")=
+- legacy dense storage: =("pp", "dp_replicate", "fsdp", "tp")=
+- SPMD-type forward/backward dense view: =("pp", "dp", "cp", "tp")=
+- sparse MoE storage: =("pp", "dp_replicate", "efsdp", "ep")=
+
+[[file:../../torchtitan/distributed/full_dtensor.py::_DENSE_STORAGE_AXES][full_dtensor.py]]
+then names the SPMD storage-axis subsets as =["dp_replicate", "dp_shard", "cp", "tp"]=
+for dense parameters and =["dp_replicate", "efsdp", "ep"]= for sparse MoE
+parameters. [[file:../../torchtitan/models/README.md::canonical outer-to-inner SPMD order][models/README.md]]
+calls those the canonical outer-to-inner SPMD orders for model authors.
+
+** Megatron-Core Contrast
+
+Megatron-Core answers a different but related question: how global ranks are
+generated for process groups. A local first-party checkout at
+=/data02/home/philip.yang/workspace/megatronlm= shows:
+
+- =megatron.core.parallel_state.generate_masked_orthogonal_rank_groups=
+  defines the rank mapping math. Its docstring gives
+  =global_rank = tp_rank + dp_rank * tp_size + pp_rank * tp_size * dp_size=
+  for a =tp-dp-pp= order, and the implementation generalizes that through
+  prefix products.
+- =RankGenerator= accepts =tp=, =ep=, =dp=, =pp=, =cp=, and =order=. Its default
+  initialization path uses =order="tp-cp-ep-dp-pp"=.
+- The default dense decoder rank generator uses =ep=1= and
+  =cp=context_parallel_size=. The expert rank generator uses =cp=1= and
+  =ep=expert_model_parallel_size=. =RankGenerator= asserts that CP and EP are
+  not both greater than one in the same generator.
+- The training config has an explicit switch, =use_tp_pp_dp_mapping=, that
+  changes order from =tp-cp-ep-dp-pp= to =tp-cp-ep-pp-dp=.
+
+The comparison point is that Megatron exposes a rank-order string to its rank
+generator, while TorchTitan's primary source of truth is a set of named
+=DeviceMesh= views plus a transformation order in trainer/model code.
+
+** Correction To The Pasted Summary
+
+For Megatron-Core, the common intuition that =tp= is fastest in the default
+rank order is source-grounded. The default order string is
+=tp-cp-ep-dp-pp=, and the rank formula is prefix-product based.
+
+For this TorchTitan checkout, the statement "TorchTitan constructs a single
+=("dp", "pp", "cp", "tp")= mesh" is not what the source says. TorchTitan first
+creates a one-dimensional =("world",)= mesh, then derives named views from it.
+The unflatten tuples put =pp= first and =tp= last for the dense views. The
+SPMD-facing dense storage axes used by model sharding are
+=(dp_replicate, dp_shard, cp, tp)=, while sparse MoE parameters use
+=(dp_replicate, efsdp, ep)=.
+
+Issue 1554 is therefore about two layers at once:
+
+- transformation composition order: =PP -> SPMD/TP/CP/EP -> AC -> Compile -> FSDP=
+- process-group and mesh layout: named mesh views with =pp= as the outer view
+  axis and =tp= as the inner dense axis in the full-DTensor and SPMD layouts
+
+Changing the former is a semantic/compiler/FSDP compatibility question. Changing
+the latter is a rank placement and process-group construction question. They are
+related because every transformation consumes a mesh view, but they are not the
+same knob in this checkout.
+
+* Llama3 Parallelize File Deconstruction
+
+The file [[file:../../torchtitan/models/llama3/parallelize.py][torchtitan/models/llama3/parallelize.py]] is small enough to read as a
+composition boundary. Its preamble imports three kinds of things:
+
+- config types and dtype policy: =CompileConfig=, =ParallelismConfig=,
+  =TrainingConfig=, and =TORCH_DTYPE_MAP=
+- distributed transforms and mesh helpers: =ParallelDims=,
+  =apply_cp_to_forward=, =maybe_enable_async_tp=, =apply_compile=,
+  =resolve_fsdp_mesh=, =validate_config=, and =apply_fsdp_to_decoder=
+- the model type being transformed: =Llama3Model=
+
+The implementation has two branches. The modern =full_dtensor= and
+=spmd_types= branch validates the model/config pair and delegates the local
+state/input/output placement work to =model.parallelize(parallel_dims)=. The
+legacy branch applies CP directly to attention kernels first, then calls the
+same =model.parallelize= hook only for TP.
+
+If we erase the compatibility branches and write only the clean full-DTensor
+case, the transformation reads as a straight pipeline:
+
+#+begin_src python
+validate_config(parallel_dims, model)
+model.parallelize(parallel_dims)
+maybe_enable_async_tp(parallelism, compile_config, parallel_dims.get_mesh("tp"))
+ac_config.build(dump_folder=dump_folder).apply(model)
+apply_compile(model, compile_config)
+dp_mesh, dp_mesh_dims = resolve_fsdp_mesh(parallel_dims)
+apply_fsdp_to_decoder(
+    model,
+    dp_mesh,
+    param_dtype=TORCH_DTYPE_MAP[training.mixed_precision_param],
+    reduce_dtype=TORCH_DTYPE_MAP[training.mixed_precision_reduce],
+    pp_enabled=parallel_dims.pp_enabled,
+    cpu_offload=training.enable_cpu_offload,
+    reshard_after_forward_policy=parallelism.fsdp_reshard_after_forward,
+    dp_mesh_dims=dp_mesh_dims,
+    enable_symm_mem=parallelism.enable_fsdp_symm_mem,
+)
+#+end_src
+
+This is the order issue 1554 is really asking about inside a pipeline stage:
+=SPMD model.parallelize -> async TP enablement -> AC -> compile -> FSDP/HSDP=.
+The outer =PP -> stage-local parallelize_fn= edge lives in
+[[file:../../torchtitan/distributed/pipeline_parallel.py::for i, m in enumerate(model_parts)][pipeline_llm]], not in
+=llama3/parallelize.py= itself.
+
+** Full-DTensor Command Deep Dive
+
+The full-DTensor branch in
+[[file:../../torchtitan/models/llama3/parallelize.py::43][parallelize_llama]]
+is short, but each command sits on top of a fairly specific contract. Read it
+as a model-local transformation pipeline that runs after pipeline splitting has
+already decided which stage-local module this rank owns.
+
+*** =validate_config(parallel_dims, model)=
+
+The callsite is
+[[file:../../torchtitan/models/llama3/parallelize.py::44][parallelize.py:44]].
+The implementation lives at
+[[file:../../torchtitan/distributed/full_dtensor.py::30][full_dtensor.py:30]].
+It is intentionally narrow today: it walks the actual module tree and rejects
+=full_dtensor= or =spmd_types= with CP when the model uses
+=ScaledDotProductAttention= or =VarlenAttention=.
+
+That means this is not the general shape validator for TP/DP/PP. It is a
+compatibility guard for multi-axis SPMD backends. The important detail is that
+it inspects the built model, not just the config, so it catches the attention
+implementation that will actually run.
+
+*** =model.parallelize(parallel_dims)=
+
+The callsite is
+[[file:../../torchtitan/models/llama3/parallelize.py::45][parallelize.py:45]].
+The method it resolves to is the shared module protocol at
+[[file:../../torchtitan/protocols/module.py::248][module.py:248]].
+
+This call is the main SPMD/TP materialization step. It recursively descends
+through =Module= children, and for each module carrying a =_sharding_config= it:
+
+- distributes direct parameters and buffers according to =state_shardings=
+- caches positional argument names from the module's =forward= signature
+- optionally wraps local compute regions with =local_map=
+- replaces =forward= with a wrapper that redistributes inputs, calls the local
+  or DTensor-aware body, then redistributes outputs
+
+For Llama3, the sharding metadata exists because the config update path seeds
+it before model construction. =Llama3Model.Config.update_from_config= calls
+[[file:../../torchtitan/models/llama3/sharding.py::25][set_llama3_sharding_config]]
+through
+[[file:../../torchtitan/models/llama3/model.py::83][model.py:83]]. That helper
+fills the root decoder sharding and then walks every layer config.
+
+Useful sub-contracts:
+
+- [[file:../../torchtitan/models/common/decoder_sharding.py::272][decoder_sharding.py:272]]
+  gives =tok_embeddings.weight= a dense parameter layout with TP sharding.
+- [[file:../../torchtitan/models/common/decoder_sharding.py::174][decoder_sharding.py:174]]
+  gives the attention module its input/output boundary layouts.
+- [[file:../../torchtitan/models/common/decoder_sharding.py::186][decoder_sharding.py:186]]
+  colwise-shards the QKV projection.
+- [[file:../../torchtitan/models/common/decoder_sharding.py::187][decoder_sharding.py:187]]
+  rowwise-shards the attention output projection.
+- [[file:../../torchtitan/models/common/decoder_sharding.py::244][decoder_sharding.py:244]]
+  declares the FFN boundary, and
+  [[file:../../torchtitan/models/common/decoder_sharding.py::248][decoder_sharding.py:248]]
+  through
+  [[file:../../torchtitan/models/common/decoder_sharding.py::250][decoder_sharding.py:250]]
+  apply colwise/rowwise layouts to =w1=, =w3=, and =w2=.
+
+So the command name =model.parallelize= is compact, but it is not a single
+tensor-parallel wrapper. It is the point where TorchTitan turns the model's
+registered sharding intent into distributed state and module-boundary behavior.
+
+*** =maybe_enable_async_tp(parallelism, compile_config, tp_mesh)=
+
+The callsite is
+[[file:../../torchtitan/models/llama3/parallelize.py::56][parallelize.py:56]],
+guarded by =parallel_dims.tp_enabled=. The implementation is
+[[file:../../torchtitan/distributed/tensor_parallel.py::102][tensor_parallel.py:102]].
+
+This command is deliberately tiny. If async TP is disabled, it returns. If async
+TP is enabled, it requires model-level compile to be enabled; otherwise it
+raises. When the precondition is satisfied, it flips
+=torch._inductor.config._micro_pipeline_tp = True=.
+
+That explains why it sits after =model.parallelize= and before compile. The
+model has already been transformed into TP-aware distributed structure, and the
+compiler has not yet captured the transformer blocks. Async TP is therefore a
+compiler/backend scheduling option for the already-TP model, not a replacement
+for the model sharding pass.
+
+*** =ac_config.build(...).apply(model)=
+
+The callsite is
+[[file:../../torchtitan/models/llama3/parallelize.py::62][parallelize.py:62]].
+The shared =apply= method for the ordinary AC policies is
+[[file:../../torchtitan/distributed/activation_checkpoint.py::152][activation_checkpoint.py:152]].
+
+The ordinary AC path disables the Dynamo LRU cache, obtains =model.layers=, and
+wraps each transformer block. The concrete wrapper depends on the selected
+config:
+
+- =FullAC= wraps the entire transformer block with PyTorch's checkpoint wrapper
+  at
+  [[file:../../torchtitan/distributed/activation_checkpoint.py::173][activation_checkpoint.py:173]].
+- =SelectiveAC= builds a custom checkpoint policy at
+  [[file:../../torchtitan/distributed/activation_checkpoint.py::214][activation_checkpoint.py:214]]
+  and chooses which ops to save versus recompute.
+- =MemoryBudgetAC= does not wrap each layer in the same way; its =apply= at
+  [[file:../../torchtitan/distributed/activation_checkpoint.py::315][activation_checkpoint.py:315]]
+  configures the compiler partitioner memory budget.
+
+The practical reason this comes before compile is visible in the next command:
+TorchTitan compiles each transformer block after AC wrapping, so the compiler
+sees the AC-shaped block boundary.
+
+*** =apply_compile(model, compile_config)=
+
+The callsite is
+[[file:../../torchtitan/models/llama3/parallelize.py::67][parallelize.py:67]],
+guarded by =compile_config.enable= and ="model" in compile_config.components=.
+The implementation is
+[[file:../../torchtitan/distributed/compile.py::35][compile.py:35]].
+
+This is regional model compile, not whole-model compile. It sets Dynamo flags
+needed by the current model stack, resolves the backend, then iterates
+=model.layers.named_children()= and calls =transformer_block.compile(...)= with
+=fullgraph=True=.
+
+Two details matter for the ordering question:
+
+- The source comment at
+  [[file:../../torchtitan/models/llama3/parallelize.py::65][parallelize.py:65]]
+  says this is "after AC wrapping and before FSDP".
+- The compile helper has a special =aot_eager= path for models using
+  =FlexAttention=: [[file:../../torchtitan/distributed/compile.py::61][compile.py:61]]
+  wraps the backend so FlexAttention regions can still be lowered through
+  inductor.
+
+The command is therefore placed where the module still looks like a stack of
+transformer blocks, but after the AC policy has changed the block bodies.
+
+*** =resolve_fsdp_mesh(parallel_dims)=
+
+The callsite is
+[[file:../../torchtitan/models/llama3/parallelize.py::72][parallelize.py:72]].
+The implementation is
+[[file:../../torchtitan/distributed/full_dtensor.py::70][full_dtensor.py:70]].
+
+This command selects the dense storage mesh and the explicit FSDP data-parallel
+axes. For =full_dtensor=, the dense storage axes are
+=dp_replicate, dp_shard, cp, tp= at
+[[file:../../torchtitan/distributed/full_dtensor.py::54][full_dtensor.py:54]].
+=resolve_fsdp_mesh= asks =ParallelDims= for the activated mesh over those axes,
+then builds a =DataParallelMeshDims= where:
+
+- =dp_shard= is always the shard axis
+- =cp= joins the shard axes when CP is enabled
+- =dp_replicate= is the replicate axis when HSDP replication is enabled
+
+This is where the dense full-DTensor layout becomes an FSDP input contract.
+The backing mesh view is constructed in
+[[file:../../torchtitan/distributed/parallel_dims.py::286][parallel_dims.py:286]]
+through
+[[file:../../torchtitan/distributed/parallel_dims.py::296][parallel_dims.py:296]]
+as =("pp", "dp_replicate", "dp_shard", "cp", "tp")=.
+
+*** =apply_fsdp_to_decoder(...)=
+
+The callsite is
+[[file:../../torchtitan/models/llama3/parallelize.py::80][parallelize.py:80]].
+The implementation is
+[[file:../../torchtitan/distributed/fsdp.py::110][fsdp.py:110]].
+
+This command installs FSDP2/HSDP on a decoder-style model. It constructs a
+=MixedPrecisionPolicy= from the training dtypes, carries the explicit
+=dp_mesh_dims= from =resolve_fsdp_mesh=, applies optional CPU offload, resolves
+the =reshard_after_forward= policy, and then wraps:
+
+- token embeddings, root norm, and LM head at
+  [[file:../../torchtitan/distributed/fsdp.py::180][fsdp.py:180]]
+  through
+  [[file:../../torchtitan/distributed/fsdp.py::207][fsdp.py:207]]
+- every transformer block at
+  [[file:../../torchtitan/distributed/fsdp.py::209][fsdp.py:209]]
+  through
+  [[file:../../torchtitan/distributed/fsdp.py::308][fsdp.py:308]]
+- the decoder root itself at
+  [[file:../../torchtitan/distributed/fsdp.py::310][fsdp.py:310]]
+
+For dense Llama3, the MoE-specific branches are skipped. If =dp_replicate= is
+present in the mesh names, the result is logged as HSDP; otherwise it is pure
+FSDP. The function also disables FSDP's automatic gradient division at
+[[file:../../torchtitan/distributed/fsdp.py::315][fsdp.py:315]], because
+TorchTitan handles gradient scaling in the training loop.
+
+#+name: llama3-source-setup
+#+begin_src jupyter-python
+import ast
+import inspect
+import textwrap
+
+import torchtitan.models.llama3.parallelize as llama3_parallelize_module
+from torchtitan.models.llama3.parallelize import parallelize_llama
+
+parallelize_source = inspect.getsource(parallelize_llama)
+parallelize_tree = ast.parse(textwrap.dedent(parallelize_source))
+
+module_tree = ast.parse(inspect.getsource(llama3_parallelize_module))
+
+print(f"parallelize.py source loaded: {inspect.getsourcefile(parallelize_llama)}")
+print(f"parallelize_llama source lines: {len(parallelize_source.splitlines())}")
+#+end_src
+
+#+RESULTS: llama3-source-setup
+: parallelize.py source loaded: /workspace/torchtitan/torchtitan/models/llama3/parallelize.py
+: parallelize_llama source lines: 67
+
+
+
+
+
+
+#+name: llama3-parallelize-deconstruction
+#+begin_src jupyter-python
+preamble_imports = []
+for node in module_tree.body:
+    if isinstance(node, ast.ImportFrom):
+        imported = ", ".join(alias.name for alias in node.names)
+        preamble_imports.append(f"{node.module}: {imported}")
+
+print("preamble imports:")
+for imported in preamble_imports:
+    print(f"  {imported}")
+#+end_src
+
+#+RESULTS: llama3-parallelize-deconstruction
+: preamble imports:
+:   torchtitan.config: CompileConfig, ParallelismConfig, TORCH_DTYPE_MAP, TrainingConfig
+:   torchtitan.distributed: ParallelDims
+:   torchtitan.distributed.activation_checkpoint: ActivationCheckpointingConfig
+:   torchtitan.distributed.compile: apply_compile
+:   torchtitan.distributed.context_parallel: apply_cp_to_forward
+:   torchtitan.distributed.fsdp: apply_fsdp_to_decoder
+:   torchtitan.distributed.full_dtensor: resolve_fsdp_mesh, validate_config
+:   torchtitan.distributed.tensor_parallel: maybe_enable_async_tp
+:   torchtitan.models.llama3.model: Llama3Model
+
+
+
+
+
+
+
+
+#+name: llama3-parallelize-context
+#+begin_src jupyter-python
+print(f"shared source state visible: {'parallelize_tree' in globals() and 'preamble_imports' in globals()}")
+source_lines, source_start = inspect.getsourcelines(parallelize_llama)
+print(f"parallelize_llama starts at line {source_start}")
+print(f"source file: {inspect.getsourcefile(parallelize_llama)}")
+#+end_src
+
+#+RESULTS: llama3-parallelize-context
+: shared source state visible: True
+: parallelize_llama starts at line 26
+: source file: /workspace/torchtitan/torchtitan/models/llama3/parallelize.py
+
+
+
+
+
+
+
+
+
+
+** Executable Full-DTensor Micro-Trace
+
+The next cells execute the full-DTensor branch one command at a time in the
+same Jupyter session. They use a one-rank fixture so the notebook can safely
+create a real =DeviceMesh= and run FSDP from a batch verifier. The later
+=ParallelDims Runtime Probe= section still renders the 8-rank logical layout
+used for the topology discussion.
+
+The output format is intentionally repetitive: each command prints a compact
+before/after view of the model, mesh, or tensor state it changes. The final
+ledger block gathers those observations into one scan-friendly trace.
+
+*** Setup The One-Rank Fixture
+
+#+name: llama3-step-setup
+#+begin_src jupyter-python
+from pathlib import Path
+
+import torch
+import torch.distributed as dist
+from torch.distributed._composable.fsdp import FSDPModule
+from torch.distributed.tensor import DTensor, Replicate, distribute_tensor
+
+from torchtitan.config import TORCH_DTYPE_MAP
+from torchtitan.distributed.compile import apply_compile
+from torchtitan.distributed.fsdp import apply_fsdp_to_decoder
+from torchtitan.distributed.full_dtensor import resolve_fsdp_mesh, validate_config
+from torchtitan.distributed.parallel_dims import ParallelDims
+from torchtitan.distributed.tensor_parallel import maybe_enable_async_tp
+from torchtitan.models.llama3.config_registry import llama3_debugmodel
+
+if not dist.is_initialized():
+    init_file = Path("/tmp/torchtitan-org-parallel-layout-gloo").resolve()
+    init_file.unlink(missing_ok=True)
+    dist.init_process_group(
+        "gloo",
+        init_method=f"file://{init_file}",
+        rank=0,
+        world_size=1,
+    )
+
+step_pd = ParallelDims(
+    dp_replicate=1,
+    dp_shard=1,
+    cp=1,
+    tp=1,
+    pp=1,
+    ep=1,
+    world_size=1,
+    spmd_backend="full_dtensor",
+)
+step_pd.build_mesh()
+
+step_config = llama3_debugmodel()
+step_config.parallelism.data_parallel_replicate_degree = step_pd.dp_replicate
+step_config.parallelism.data_parallel_shard_degree = step_pd.dp_shard
+step_config.parallelism.context_parallel_degree = step_pd.cp
+step_config.parallelism.tensor_parallel_degree = step_pd.tp
+step_config.parallelism.pipeline_parallel_degree = step_pd.pp
+step_config.parallelism.expert_parallel_degree = step_pd.ep
+step_config.parallelism.spmd_backend = step_pd.spmd_backend
+step_config.training.seq_len = 128
+
+# Compile is enabled here so the apply_compile command has visible state.
+step_config.compile.enable = True
+step_config.compile.components = ["model"]
+step_config.compile.backend = "aot_eager"
+
+step_model_config = step_config.model_spec.model
+step_model_config.update_from_config(config=step_config)
+with torch.device("meta"):
+    step_model = step_model_config.build()
+
+step_first_block = step_model.layers["0"]
+step_tok_cfg = getattr(step_model.tok_embeddings, "_sharding_config", None)
+step_device = "cuda" if torch.cuda.is_available() else "cpu"
+step_tensor = torch.arange(8, device=step_device, dtype=torch.float32).reshape(2, 4)
+step_dtensor = distribute_tensor(step_tensor, step_pd.world_mesh, [Replicate()])
+step_trace = []
+
+def _record_step(name, detail):
+    step_trace.append((name, detail))
+
+print(f"step setup: full_dtensor fixture world_size={step_pd.world_size}")
+print(f"process group initialized: {dist.is_initialized()} backend={dist.get_backend()}")
+print(f"mesh names: {step_pd.world_mesh.mesh_dim_names}")
+print(f"model before pipeline: {type(step_model).__name__} layers={len(step_model.layers)}")
+print(f"tok_embeddings sharding state keys: {list(step_tok_cfg.state_shardings)}")
+print(f"real tensor: shape={tuple(step_tensor.shape)} device={step_tensor.device} values={step_tensor.cpu().tolist()}")
+print(f"real DTensor: placements={step_dtensor.placements} local={step_dtensor.to_local().cpu().tolist()}")
+#+end_src
+
+#+RESULTS: llama3-step-setup
+: step setup: full_dtensor fixture world_size=1
+: process group initialized: True backend=gloo
+: mesh names: ('world',)
+: model before pipeline: Llama3Model layers=6
+: tok_embeddings sharding state keys: ['weight']
+: real tensor: shape=(2, 4) device=cuda:0 values=[[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, 7.0]]
+: real DTensor: placements=(Replicate(),) local=[[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, 7.0]]
+
+
+*** Inspect A Real CUDA Model Tensor
+
+The transformation trace below keeps the model on =meta= so FSDP and compile
+stay cheap. This block separately instantiates the same debug model on the real
+device and prints a small parameter slice, so the page also shows actual tensor
+content from the custom Torch runtime.
+
+#+name: llama3-real-model-tensor
+#+begin_src jupyter-python
+torch.manual_seed(1554)
+with torch.device(step_device):
+    real_probe_model = step_model_config.build()
+
+qkv_weight = real_probe_model.layers["0"].attention.qkv_linear.wqkv.weight
+qkv_slice = qkv_weight[:2, :4].detach().cpu().tolist()
+
+print("real CUDA Llama3 probe:")
+print(f"model: {type(real_probe_model).__name__} layers={len(real_probe_model.layers)}")
+print(f"qkv weight: shape={tuple(qkv_weight.shape)} device={qkv_weight.device}")
+print(f"qkv weight slice: {qkv_slice}")
+#+end_src
+
+#+RESULTS: llama3-real-model-tensor
+: real CUDA Llama3 probe:
+: model: Llama3Model layers=6
+: qkv weight: shape=(768, 256) device=cuda:0
+: qkv weight slice: [[0.058748066425323486, -0.006706349551677704, -0.04094327986240387, -0.0008821338415145874], [-0.037307754158973694, -0.023429665714502335, 0.02921343594789505, -0.036904484033584595]]
+
+
+
+*** Execute =validate_config=
+
+#+name: llama3-step-validate
+#+begin_src jupyter-python
+before_parallelized = step_model._parallelized
+validate_config(step_pd, step_model)
+attention_types = sorted(
+    {type(block.attention.inner_attention).__name__ for block in step_model.layers.values()}
+)
+
+print("after validate_config: ok")
+print(f"model parallelized flag: {before_parallelized} -> {step_model._parallelized}")
+print(f"attention implementations: {attention_types}")
+print(f"cp enabled: {step_pd.cp_enabled}")
+_record_step("validate_config", f"ok; attention={attention_types}; cp={step_pd.cp_enabled}")
+#+end_src
+
+#+RESULTS: llama3-step-validate
+: after validate_config: ok
+: model parallelized flag: False -> False
+: attention implementations: ['FlexAttention']
+: cp enabled: False
+
+
+
+*** Execute =model.parallelize=
+
+#+name: llama3-step-model-parallelize
+#+begin_src jupyter-python
+before_tok_type = type(step_model.tok_embeddings.weight).__name__
+before_model_parallelized = step_model._parallelized
+before_forward_name = getattr(
+    step_first_block.attention.forward,
+    "__name__",
+    type(step_first_block.attention.forward).__name__,
+)
+step_model.parallelize(step_pd)
+tok_weight = step_model.tok_embeddings.weight
+attn_forward_name = getattr(
+    step_first_block.attention.forward,
+    "__name__",
+    type(step_first_block.attention.forward).__name__,
+)
+dtensor_param_count = sum(isinstance(param, DTensor) for param in step_model.parameters())
+
+print("after model.parallelize:")
+print(f"model parallelized flag: {before_model_parallelized} -> {step_model._parallelized}")
+print(f"tok_embeddings.weight type: {before_tok_type} -> {type(tok_weight).__name__}")
+print(f"tok_embeddings.weight placements: {getattr(tok_weight, 'placements', None)}")
+print(f"attention forward wrapper: {before_forward_name} -> {attn_forward_name}")
+print(f"DTensor parameter count: {dtensor_param_count}")
+_record_step(
+    "model.parallelize",
+    f"{dtensor_param_count} DTensor params; tok_embeddings={getattr(tok_weight, 'placements', None)}",
+)
+#+end_src
+
+#+RESULTS: llama3-step-model-parallelize
+: after model.parallelize:
+: model parallelized flag: False -> True
+: tok_embeddings.weight type: Parameter -> DTensor
+: tok_embeddings.weight placements: (Replicate(),)
+: attention forward wrapper: forward -> forward_with_redistribution
+: DTensor parameter count: 45
+
+
+
+*** Execute =maybe_enable_async_tp=
+
+#+name: llama3-step-async-tp
+#+begin_src jupyter-python
+async_flag_before = torch._inductor.config._micro_pipeline_tp
+maybe_enable_async_tp(
+    step_config.parallelism,
+    step_config.compile,
+    step_pd.world_mesh,
+)
+async_flag_after = torch._inductor.config._micro_pipeline_tp
+
+print(f"after maybe_enable_async_tp: enabled={step_config.parallelism.enable_async_tensor_parallel}")
+print(f"inductor micro_pipeline_tp: {async_flag_before} -> {async_flag_after}")
+_record_step(
+    "maybe_enable_async_tp",
+    f"enabled={step_config.parallelism.enable_async_tensor_parallel}; micro_pipeline_tp={async_flag_before}->{async_flag_after}",
+)
+#+end_src
+
+#+RESULTS: llama3-step-async-tp
+: after maybe_enable_async_tp: enabled=False
+: inductor micro_pipeline_tp: False -> False
+
+
+
+*** Execute =ac_config.build(...).apply(model)=
+
+#+name: llama3-step-ac
+#+begin_src jupyter-python
+block_type_before_ac = type(step_model.layers["0"]).__name__
+ac_policy = step_config.activation_checkpoint.build(
+    dump_folder=".cache/org-parallel-layout"
+)
+ac_policy.apply(step_model)
+wrapped_block = step_model.layers["0"]
+
+print(f"after activation checkpointing: {block_type_before_ac} -> {type(wrapped_block).__name__}")
+print(f"wrapped child module: {type(getattr(wrapped_block, '_checkpoint_wrapped_module', None)).__name__}")
+print(f"ac policy: {type(ac_policy).__name__}")
+_record_step(
+    "activation_checkpointing",
+    f"{block_type_before_ac}->{type(wrapped_block).__name__}; policy={type(ac_policy).__name__}",
+)
+#+end_src
+
+#+RESULTS: llama3-step-ac
+: after activation checkpointing: Llama3TransformerBlock -> CheckpointWrapper
+: wrapped child module: Llama3TransformerBlock
+: ac policy: SelectiveAC
+
+
+
+*** Execute =apply_compile=
+
+#+name: llama3-step-compile
+#+begin_src jupyter-python
+compiled_impl_before = getattr(step_model.layers["0"], "_compiled_call_impl", None)
+apply_compile(step_model, step_config.compile)
+compiled_block = step_model.layers["0"]
+compiled_impl = getattr(compiled_block, "_compiled_call_impl", None)
+
+print(f"after apply_compile: {type(compiled_block).__name__}")
+print(f"compiled call installed: {compiled_impl_before is not None} -> {compiled_impl is not None}")
+print(f"compile backend: {step_config.compile.backend}")
+_record_step(
+    "apply_compile",
+    f"compiled_call={compiled_impl_before is not None}->{compiled_impl is not None}; backend={step_config.compile.backend}",
+)
+#+end_src
+
+#+RESULTS: llama3-step-compile
+: after apply_compile: CheckpointWrapper
+: compiled call installed: False -> True
+: compile backend: aot_eager
+
+
+
+*** Execute =resolve_fsdp_mesh=
+
+#+name: llama3-step-resolve-fsdp
+#+begin_src jupyter-python
+step_dp_mesh, step_dp_mesh_dims = resolve_fsdp_mesh(step_pd)
+
+print(f"after resolve_fsdp_mesh: mesh={step_dp_mesh}")
+print(f"dp mesh dim names: {step_dp_mesh.mesh_dim_names}")
+print(f"dp mesh dims: {step_dp_mesh_dims}")
+_record_step(
+    "resolve_fsdp_mesh",
+    f"mesh={step_dp_mesh.mesh_dim_names}; dims={step_dp_mesh_dims}",
+)
+#+end_src
+
+#+RESULTS: llama3-step-resolve-fsdp
+: after resolve_fsdp_mesh: mesh=DeviceMesh((dp_shard=1), 'cuda', stride=((),))
+: dp mesh dim names: ('dp_shard',)
+: dp mesh dims: DataParallelMeshDims(shard='dp_shard', replicate=None)
+
+
+
+*** Execute =apply_fsdp_to_decoder=
+
+#+name: llama3-step-fsdp
+#+begin_src jupyter-python
+model_type_before_fsdp = type(step_model).__name__
+apply_fsdp_to_decoder(
+    step_model,
+    step_dp_mesh,
+    param_dtype=TORCH_DTYPE_MAP[step_config.training.mixed_precision_param],
+    reduce_dtype=TORCH_DTYPE_MAP[step_config.training.mixed_precision_reduce],
+    pp_enabled=step_pd.pp_enabled,
+    cpu_offload=step_config.training.enable_cpu_offload,
+    reshard_after_forward_policy=step_config.parallelism.fsdp_reshard_after_forward,
+    dp_mesh_dims=step_dp_mesh_dims,
+    enable_symm_mem=step_config.parallelism.enable_fsdp_symm_mem,
+)
+fsdp_modules = sum(isinstance(module, FSDPModule) for module in step_model.modules())
+
+print(f"after apply_fsdp_to_decoder: {model_type_before_fsdp} -> {type(step_model).__name__}")
+print(f"FSDP module count: {fsdp_modules}")
+print(f"root is FSDPModule: {isinstance(step_model, FSDPModule)}")
+_record_step(
+    "apply_fsdp_to_decoder",
+    f"{model_type_before_fsdp}->{type(step_model).__name__}; fsdp_modules={fsdp_modules}",
+)
+#+end_src
+
+#+RESULTS: llama3-step-fsdp
+: after apply_fsdp_to_decoder: Llama3Model -> FSDPLlama3Model
+: FSDP module count: 10
+: root is FSDPModule: True
+
+
+*** Trace Ledger
+
+#+name: llama3-step-ledger
+#+begin_src jupyter-python
+print("full_dtensor micro-trace ledger:")
+for name, detail in step_trace:
+    print(f"  {name}: {detail}")
+#+end_src
+
+#+RESULTS: llama3-step-ledger
+: full_dtensor micro-trace ledger:
+:   validate_config: ok; attention=['FlexAttention']; cp=False
+:   model.parallelize: 45 DTensor params; tok_embeddings=(Replicate(),)
+:   maybe_enable_async_tp: enabled=False; micro_pipeline_tp=False->False
+:   activation_checkpointing: Llama3TransformerBlock->CheckpointWrapper; policy=SelectiveAC
+:   apply_compile: compiled_call=False->True; backend=aot_eager
+:   resolve_fsdp_mesh: mesh=('dp_shard',); dims=DataParallelMeshDims(shard='dp_shard', replicate=None)
+:   apply_fsdp_to_decoder: Llama3Model->FSDPLlama3Model; fsdp_modules=10
+
+
+
+* Executable Evidence
+
+The remaining sections are the live part of the note. They should be executed
+through =experiments/jupyter_rootfs/verify_org_babel.sh=, not by copying code
+into host Python. Each block leaves a small amount of state for later blocks to
+inspect.
+
+** Rootfs Kernel Context
+
+#+name: rootfs-context
+#+begin_src jupyter-python
+import os
+import sys
+from pathlib import Path
+
+_TT_ROOTFS_CONTEXT = {
+    "cwd": str(Path.cwd().resolve()),
+    "in_rootfs": os.environ.get("TORCHTITAN_IN_ROOTFS") == "1",
+    "python": sys.executable,
+    "shell": os.environ.get("SHELL"),
+    "sys_prefix": sys.prefix,
+}
+
+print(f"cwd={_TT_ROOTFS_CONTEXT['cwd']}")
+print(f"python={_TT_ROOTFS_CONTEXT['python']}")
+print(f"sys.prefix={_TT_ROOTFS_CONTEXT['sys_prefix']}")
+print(f"TORCHTITAN_IN_ROOTFS={_TT_ROOTFS_CONTEXT['in_rootfs']}")
+print(f"SHELL={_TT_ROOTFS_CONTEXT['shell']}")
+#+end_src
+
+#+RESULTS: rootfs-context
+: cwd=/workspace/torchtitan
+: python=/workspace/torchtitan/.venv-rootfs/bin/python
+: sys.prefix=/workspace/torchtitan/.venv-rootfs
+: TORCHTITAN_IN_ROOTFS=True
+: SHELL=/bin/bash
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+** ParallelDims Runtime Probe
+
+The first block creates the live =ParallelDims= object for the rest of the
+session. The next block inspects it. Keeping setup separate from inspection
+makes the shared-session dependency visible without turning either block into a
+wall of code.
+
+#+name: parallel-dims-setup
+#+begin_src jupyter-python
+import torchtitan.distributed.full_dtensor as full_dtensor
+from torchtitan.distributed.parallel_dims import ParallelDims
+
+pd = ParallelDims(
+    dp_replicate=2,
+    dp_shard=2,
+    cp=1,
+    tp=2,
+    pp=1,
+    ep=1,
+    world_size=8,
+    spmd_backend="full_dtensor",
+)
+
+_TT_PARALLELISM_EXAMPLE = pd
+_TT_PARALLELISM_LAYOUT = {
+    "issue_1554_url": "https://github.com/pytorch/torchtitan/issues/1554",
+    "issue_observed_order": "PP -> TP/SPMD -> AC -> Compile -> FSDP/DDP",
+    "local_control_flow_order": [
+        "trainer.py branches to pipelining_fn first when pp_enabled",
+        "pipeline_llm splits stages and then calls parallelize_fn per model part",
+        "model parallelize functions apply SPMD/TP/CP/EP work before AC",
+        "activation checkpointing wraps before torch.compile",
+        "FSDP/HSDP is applied after compile",
+    ],
+    "world_size_formula": "dp_replicate * dp_shard * cp * tp * pp",
+    "ep_relation": "efsdp = dp_shard * cp * tp / ep",
+    "parallel_dims_fields": list(ParallelDims.__dataclass_fields__.keys())[:7],
+    "example": {
+        "dp_replicate": pd.dp_replicate,
+        "dp_shard": pd.dp_shard,
+        "cp": pd.cp,
+        "tp": pd.tp,
+        "pp": pd.pp,
+        "ep": pd.ep,
+        "world_size": pd.world_size,
+    },
+    "dataloading_mesh": ["pp", "batch", "cp", "tp"],
+    "dense_global_mesh": ["pp", "dp_replicate", "dp_shard", "cp", "tp"],
+    "legacy_dense_global_mesh": ["pp", "dp_replicate", "fsdp", "tp"],
+    "spmd_types_forward_backward_mesh": ["pp", "dp", "cp", "tp"],
+    "sparse_global_mesh": ["pp", "dp_replicate", "efsdp", "ep"],
+    "dense_storage_axes": full_dtensor._DENSE_STORAGE_AXES,
+    "sparse_storage_axes": full_dtensor._SPARSE_STORAGE_AXES,
+}
+
+print(f"parallel dims setup: pd world_size={pd.world_size}")
+print(f"stored layout facts: {len(_TT_PARALLELISM_LAYOUT)} entries")
+#+end_src
+
+#+RESULTS: parallel-dims-setup
+: parallel dims setup: pd world_size=8
+: stored layout facts: 14 entries
+
+
+
+
+
+
+
+
+#+name: torchtitan-layout
+#+begin_src jupyter-python
+print(f"ParallelDims repr: {pd!r}")
+print(f"world_size product: {pd.dp_replicate} * {pd.dp_shard} * {pd.cp} * {pd.tp} * {pd.pp} = {pd.world_size}")
+print(f"EP relation: efsdp = dp_shard * cp * tp / ep = {pd.dp_shard * pd.cp * pd.tp // pd.ep}")
+print(
+    "active flags: "
+    f"dp={pd.dp_enabled} dp_shard={pd.dp_shard_enabled} cp={pd.cp_enabled} "
+    f"tp={pd.tp_enabled} pp={pd.pp_enabled} ep={pd.ep_enabled}"
+)
+print(f"dense storage axes from full_dtensor: {full_dtensor._DENSE_STORAGE_AXES}")
+print(f"sparse storage axes from full_dtensor: {full_dtensor._SPARSE_STORAGE_AXES}")
+#+end_src
+
+#+RESULTS: torchtitan-layout
+: ParallelDims repr: ParallelDims(dp_replicate=2, dp_shard=2, cp=1, tp=2, pp=1, ep=1, world_size=8, spmd_backend='full_dtensor', _single_axis_meshes={}, _multi_axis_meshes={}, _world_mesh=None, _spmd_meshes=[])
+: world_size product: 2 * 2 * 1 * 2 * 1 = 8
+: EP relation: efsdp = dp_shard * cp * tp / ep = 4
+: active flags: dp=True dp_shard=True cp=False tp=True pp=False ep=False
+: dense storage axes from full_dtensor: ['dp_replicate', 'dp_shard', 'cp', 'tp']
+: sparse storage axes from full_dtensor: ['dp_replicate', 'efsdp', 'ep']
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+** Torch Runtime State
+
+This block intentionally depends on variables created by the earlier blocks.
+It records what the live kernel has imported and which Torch/TorchTitan objects
+are resident in the same namespace. That makes the verifier artifact closer to
+a recorded REPL session: useful for understanding the loaded custom Torch stack
+and not only the source text in the checkout.
+
+#+name: kernel-state
+#+begin_src jupyter-python
+import inspect
+
+import torch
+import torchtitan
+from torchtitan.distributed.parallel_dims import ParallelDims
+
+_TT_CUDA_SAMPLE = None
+if torch.cuda.is_available():
+    torch.manual_seed(1554)
+    _TT_CUDA_SAMPLE = torch.arange(6, device="cuda", dtype=torch.float32).reshape(2, 3)
+
+_TT_KERNEL_STATE = {
+    "shared_state_visible": (
+        "_TT_ROOTFS_CONTEXT" in globals()
+        and "_TT_PARALLELISM_LAYOUT" in globals()
+        and "_TT_PARALLELISM_EXAMPLE" in globals()
+    ),
+    "rootfs_python": _TT_ROOTFS_CONTEXT["python"],
+    "torch_version": torch.__version__,
+    "torch_cuda": torch.version.cuda,
+    "torch_git_version": getattr(torch.version, "git_version", None),
+    "torch_file": torch.__file__,
+    "torch_c_file": getattr(torch._C, "__file__", None),
+    "torch_cuda_available": torch.cuda.is_available(),
+    "torch_cuda_device_count": torch.cuda.device_count(),
+    "torch_distributed_available": torch.distributed.is_available(),
+    "torch_cxx11_abi": getattr(torch._C, "_GLIBCXX_USE_CXX11_ABI", None),
+    "torchtitan_file": torchtitan.__file__,
+    "parallel_dims_module": ParallelDims.__module__,
+    "parallel_dims_source": inspect.getsourcefile(ParallelDims),
+    "parallel_dims_fields": list(ParallelDims.__dataclass_fields__.keys())[:7],
+    "shared_example_world_size": _TT_PARALLELISM_EXAMPLE.world_size,
+}
+
+print(f"shared state visible: {_TT_KERNEL_STATE['shared_state_visible']}")
+print(f"torch version: {_TT_KERNEL_STATE['torch_version']} cuda={_TT_KERNEL_STATE['torch_cuda']}")
+print(f"torch git version: {_TT_KERNEL_STATE['torch_git_version']}")
+print(f"torch python package: {_TT_KERNEL_STATE['torch_file']}")
+print(f"torch C extension: {_TT_KERNEL_STATE['torch_c_file']}")
+print(f"cuda available/devices: {_TT_KERNEL_STATE['torch_cuda_available']} / {_TT_KERNEL_STATE['torch_cuda_device_count']}")
+print(f"distributed available: {_TT_KERNEL_STATE['torch_distributed_available']}")
+print(f"parallel dims source: {_TT_KERNEL_STATE['parallel_dims_source']}")
+print(f"parallel dims module: {_TT_KERNEL_STATE['parallel_dims_module']}")
+print(f"shared ParallelDims world_size: {_TT_KERNEL_STATE['shared_example_world_size']}")
+if _TT_CUDA_SAMPLE is not None:
+    print(f"torch cuda tensor: shape={tuple(_TT_CUDA_SAMPLE.shape)} device={_TT_CUDA_SAMPLE.device} values={_TT_CUDA_SAMPLE.cpu().tolist()}")
+#+end_src
+
+#+RESULTS: kernel-state
+: shared state visible: True
+: torch version: 2.14.0.dev20260805+cu130 cuda=13.0
+: torch git version: f012e05e101851dce4c495559849318cbb7ed119
+: torch python package: /workspace/torchtitan/.venv-rootfs/lib/python3.12/site-packages/torch/__init__.py
+: torch C extension: /workspace/torchtitan/.venv-rootfs/lib/python3.12/site-packages/torch/_C.cpython-312-x86_64-linux-gnu.so
+: cuda available/devices: True / 8
+: distributed available: True
+: parallel dims source: /workspace/torchtitan/torchtitan/distributed/parallel_dims.py
+: parallel dims module: torchtitan.distributed.parallel_dims
+: shared ParallelDims world_size: 8
+: torch cuda tensor: shape=(2, 3) device=cuda:0 values=[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+** Llama3 Post-Config Model And Mesh
+
+The next four blocks share one setup. The first creates the =llama3_debugmodel=
+config, writes the parallelism degrees from =pd=, calls
+=model_config.update_from_config=, and builds the model on =meta=. It
+intentionally stops before =parallelize_llama= because that call consumes live
+=DeviceMesh= process groups.
+
+#+name: llama3-model-setup
+#+begin_src jupyter-python
+from collections import Counter
+import torch
+from torch.distributed.device_mesh import DeviceMesh
+
+from torchtitan.models.llama3.config_registry import llama3_debugmodel
+
+config = llama3_debugmodel()
+config.parallelism.data_parallel_replicate_degree = pd.dp_replicate
+config.parallelism.data_parallel_shard_degree = pd.dp_shard
+config.parallelism.context_parallel_degree = pd.cp
+config.parallelism.tensor_parallel_degree = pd.tp
+config.parallelism.pipeline_parallel_degree = pd.pp
+config.parallelism.expert_parallel_degree = pd.ep
+config.parallelism.spmd_backend = pd.spmd_backend
+config.training.seq_len = 128
+
+llama3_model_config = config.model_spec.model
+llama3_model_config.update_from_config(config=config)
+with torch.device("meta"):
+    llama3_model = llama3_model_config.build()
+
+_TT_LLAMA3_POST_CONFIG = {
+    "model": llama3_model,
+    "model_config": llama3_model_config,
+    "trainer_config": config,
+}
+
+def _layout_axes(layout):
+    if layout is None:
+        return "-"
+    return "(" + ", ".join(axis.value for axis in layout.axes()) + ")"
+
+def _module_sharding_summary(name, module):
+    sharding = getattr(module, "_sharding_config", None)
+    if sharding is None:
+        return f"{name}: no sharding_config"
+    state = ", ".join(
+        f"{param}:{_layout_axes(layout)}"
+        for param, layout in sharding.state_shardings.items()
+    ) or "no direct state"
+    inputs = ", ".join(
+        f"{arg}:{_layout_axes(layout)}"
+        for arg, layout in (sharding.in_src_shardings or {}).items()
+    ) or "no input boundary"
+    output = _layout_axes(sharding.out_dst_shardings)
+    return f"{name}: state[{state}] in[{inputs}] out[{output}]"
+
+def _dense_mesh_lines(parallel_dims):
+    shape = (
+        parallel_dims.pp,
+        parallel_dims.dp_replicate,
+        parallel_dims.dp_shard,
+        parallel_dims.cp,
+        parallel_dims.tp,
+    )
+    rank = 0
+    lines = []
+    for pp_i in range(shape[0]):
+        for dpr_i in range(shape[1]):
+            for dps_i in range(shape[2]):
+                for cp_i in range(shape[3]):
+                    tp_ranks = list(range(rank, rank + shape[4]))
+                    rank += shape[4]
+                    lines.append(
+                        f"pp{pp_i} dp_replicate{dpr_i} "
+                        f"dp_shard{dps_i} cp{cp_i} -> tp ranks {tp_ranks}"
+                    )
+    return lines
+
+def _dense_device_mesh(parallel_dims):
+    mesh_tensor = torch.arange(parallel_dims.world_size).reshape(
+        parallel_dims.pp,
+        parallel_dims.dp_replicate,
+        parallel_dims.dp_shard,
+        parallel_dims.cp,
+        parallel_dims.tp,
+    )
+    return DeviceMesh(
+        "cuda",
+        mesh_tensor,
+        mesh_dim_names=("pp", "dp_replicate", "dp_shard", "cp", "tp"),
+        _init_backend=False,
+        _rank=0,
+    )
+
+model_lines = repr(llama3_model).splitlines()
+first_block = llama3_model.layers["0"]
+param_devices = Counter(str(param.device) for param in llama3_model.parameters())
+param_shapes = {
+    "tok_embeddings.weight": tuple(llama3_model.tok_embeddings.weight.shape),
+    "layers.0.attention.qkv_linear.wqkv.weight": tuple(first_block.attention.qkv_linear.wqkv.weight.shape),
+    "layers.0.feed_forward.w2.weight": tuple(first_block.feed_forward.w2.weight.shape),
+    "lm_head.weight": tuple(llama3_model.lm_head.weight.shape),
+}
+
+print(f"llama3 model setup: shared pd world_size={pd.world_size}")
+print(f"configured degrees: dpr={config.parallelism.data_parallel_replicate_degree} dps={config.parallelism.data_parallel_shard_degree} cp={config.parallelism.context_parallel_degree} tp={config.parallelism.tensor_parallel_degree} pp={config.parallelism.pipeline_parallel_degree} ep={config.parallelism.expert_parallel_degree}")
+#+end_src
+
+#+RESULTS: llama3-model-setup
+: llama3 model setup: shared pd world_size=8
+: configured degrees: dpr=2 dps=2 cp=1 tp=2 pp=1 ep=1
+
+
+
+
+
+
+
+
+The post-config model output focuses on things a reader cannot infer from the
+source snippet alone: the resolved model dimensions, concrete parameter shapes,
+and a compact rendering of the instantiated module tree.
+
+#+name: llama3-post-config
+#+begin_src jupyter-python
+print(
+    "llama3 post-config model: "
+    f"{type(llama3_model).__name__} layers={len(llama3_model.layers)} "
+    f"dim={llama3_model.config.dim} vocab={llama3_model.config.vocab_size} "
+    f"seq_len={config.training.seq_len}"
+)
+print(f"parameter devices: {dict(param_devices)}")
+for name, shape in param_shapes.items():
+    print(f"param shape {name}: {shape}")
+print("model pretty rendering:")
+for line in model_lines[:18]:
+    print(f"  {line}")
+print(f"  ... {max(0, len(model_lines) - 18)} more repr lines")
+#+end_src
+
+#+RESULTS: llama3-post-config
+: llama3 post-config model: Llama3Model layers=6 dim=256 vocab=2048 seq_len=128
+: parameter devices: {'meta': 45}
+: param shape tok_embeddings.weight: (2048, 256)
+: param shape layers.0.attention.qkv_linear.wqkv.weight: (768, 256)
+: param shape layers.0.feed_forward.w2.weight: (256, 768)
+: param shape lm_head.weight: (2048, 256)
+: model pretty rendering:
+:   Llama3Model(
+:     (tok_embeddings): Embedding(2048, 256)
+:     (layers): ModuleDict(
+:       (0): Llama3TransformerBlock(
+:         (attention): GQAttention(
+:           (rope): ComplexRoPE()
+:           (qkv_linear): FusedQKVLinear(
+:             (wqkv): Linear(in_features=256, out_features=768, bias=False)
+:           )
+:           (wo): Linear(in_features=256, out_features=256, bias=False)
+:           (inner_attention): FlexAttention()
+:         )
+:         (feed_forward): FeedForward(
+:           (w1): Linear(in_features=256, out_features=768, bias=False)
+:           (w2): Linear(in_features=768, out_features=256, bias=False)
+:           (w3): Linear(in_features=256, out_features=768, bias=False)
+:         )
+:         (attention_norm): RMSNorm((256,), eps=1e-05, elementwise_affine=True)
+:   ... 91 more repr lines
+
+
+
+
+
+
+
+
+The mesh block renders the same dense axis order discussed in the source map:
+=pp= first, then the dense SPMD axes, with =tp= as the inner rank stride.
+
+#+name: llama3-mesh-render
+#+begin_src jupyter-python
+print(f"device mesh pretty rendering: {_dense_device_mesh(pd)}")
+print("logical dense mesh: axes=(pp, dp_replicate, dp_shard, cp, tp)")
+for line in _dense_mesh_lines(pd):
+    print(f"  {line}")
+#+end_src
+
+#+RESULTS: llama3-mesh-render
+: device mesh pretty rendering: DeviceMesh((pp=1, dp_replicate=2, dp_shard=2, cp=1, tp=2), 'cuda', stride=((), 4, 2, (), 1))
+: logical dense mesh: axes=(pp, dp_replicate, dp_shard, cp, tp)
+:   pp0 dp_replicate0 dp_shard0 cp0 -> tp ranks [0, 1]
+:   pp0 dp_replicate0 dp_shard1 cp0 -> tp ranks [2, 3]
+:   pp0 dp_replicate1 dp_shard0 cp0 -> tp ranks [4, 5]
+:   pp0 dp_replicate1 dp_shard1 cp0 -> tp ranks [6, 7]
+
+
+
+
+
+
+
+
+Finally, the sharding block shows the sharding intents already attached to the
+post-config model. This is the useful runtime state: it connects the source
+axis vocabulary to real Llama3 modules.
+
+#+name: llama3-sharding-render
+#+begin_src jupyter-python
+print("first block shard intents:")
+for name, module in [
+    ("tok_embeddings", llama3_model.tok_embeddings),
+    ("layers.0.attention", first_block.attention),
+    ("layers.0.feed_forward", first_block.feed_forward),
+    ("lm_head", llama3_model.lm_head),
+]:
+    print(f"  {_module_sharding_summary(name, module)}")
+#+end_src
+
+#+RESULTS: llama3-sharding-render
+: first block shard intents:
+:   tok_embeddings: state[weight:(dp, cp, tp)] in[input:(dp, cp, tp)] out[(dp, cp, tp)]
+:   layers.0.attention: state[no direct state] in[x_BLD:(dp, cp, tp)] out[-]
+:   layers.0.feed_forward: state[no direct state] in[x:(dp, cp, tp)] out[-]
+:   lm_head: state[weight:(dp, cp, tp)] in[input:(dp, cp, tp)] out[(dp, cp, tp)]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

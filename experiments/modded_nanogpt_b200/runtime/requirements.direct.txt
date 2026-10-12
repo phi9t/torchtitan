@@ -1,0 +1,9 @@
+numpy
+tqdm
+huggingface-hub
+datasets
+tiktoken
+typing-extensions
+setuptools
+kernels
+flash-attn==2.8.3.post1

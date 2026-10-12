@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "classification",
+    "run_id",
+    "attempt_id",
+    "lane",
+    "mode",
+    "arm",
+    "ready_to_launch",
+    "training_launched",
+    "launch_authority_required",
+    "launch_authorization_required_token",
+    "preflight_ok",
+    "preflight_returncode",
+    "verify_sha",
+    "allow_previous_stall",
+    "skip_run",
+    "source",
+    "data_manifest",
+    "attention_backend",
+    "mlp_backend",
+    "full_mode_gates",
+    "blocked_by"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "classification": { "type": "object" },
+    "run_id": { "type": "string" },
+    "attempt_id": { "type": "string" },
+    "lane": { "type": "string" },
+    "mode": { "type": "string" },
+    "arm": { "type": "string" },
+    "ready_to_launch": { "type": "boolean" },
+    "training_launched": { "type": "boolean" },
+    "launch_authority_required": { "type": "boolean" },
+    "launch_authorization_required_token": { "type": ["string", "null"] },
+    "preflight_ok": { "type": "boolean" },
+    "preflight_returncode": { "type": ["integer", "null"] },
+    "verify_sha": { "type": "boolean" },
+    "allow_previous_stall": { "type": "boolean" },
+    "skip_run": { "type": "boolean" },
+    "source": { "type": "string" },
+    "data_manifest": { "type": "string" },
+    "attention_backend": { "type": "string" },
+    "mlp_backend": { "type": "string" },
+    "full_mode_gates": { "type": "object" },
+    "blocked_by": { "type": "array" },
+    "optimized_kernel_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "launch_eligible", "report_digest", "schema_digest"],
+      "properties": {
+        "path": { "type": "string" },
+        "launch_eligible": { "type": "boolean" },
+        "report_digest": { "type": ["object", "null"] },
+        "schema_digest": { "type": ["object", "null"] }
+      }
+    },
+    "command_env_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "sha256"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "runtime_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "ok", "training_launch_allowed", "command_env_digest"],
+      "properties": {
+        "path": { "type": "string" },
+        "ok": { "type": "boolean" },
+        "training_launch_allowed": { "type": "boolean" },
+        "command_env_digest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "sha256"],
+          "properties": {
+            "algorithm": { "const": "sha256" },
+            "sha256": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

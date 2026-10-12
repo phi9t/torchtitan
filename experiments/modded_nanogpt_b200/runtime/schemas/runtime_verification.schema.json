@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "attempt_id",
+    "ok",
+    "training_launch_allowed",
+    "command_env_path",
+    "command_env_digest",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "runtime_verification" },
+    "run_id": { "type": "string" },
+    "attempt_id": { "type": "string" },
+    "ok": { "type": "boolean" },
+    "training_launch_allowed": { "type": "boolean" },
+    "command_env_path": { "type": "string" },
+    "command_env_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "sha256"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase", "message", "expected", "actual", "artifact_path"],
+        "properties": {
+          "phase": { "type": "string" },
+          "message": { "type": "string" },
+          "expected": { "type": "string" },
+          "actual": { "type": "string" },
+          "artifact_path": { "type": "string" }
+        }
+      }
+    }
+  }
+}

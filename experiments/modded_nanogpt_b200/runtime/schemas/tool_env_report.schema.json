@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "ok",
+    "mise_data_dir",
+    "mise_cache_dir",
+    "mise_config_dir",
+    "mise_install_path",
+    "mise_shims_dir",
+    "shellcheck_version"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "tool_env_report" },
+    "ok": { "type": "boolean" },
+    "mise_data_dir": { "type": "string" },
+    "mise_cache_dir": { "type": "string" },
+    "mise_config_dir": { "type": "string" },
+    "mise_install_path": { "type": "string" },
+    "mise_shims_dir": { "type": "string" },
+    "shellcheck_version": { "type": "string" }
+  }
+}

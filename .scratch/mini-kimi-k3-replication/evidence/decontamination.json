@@ -1,0 +1,149 @@
+{
+  "benchmark_stats": {
+    "arc_challenge": {
+      "columns_missing": [],
+      "columns_used": [
+        "question",
+        "choices"
+      ],
+      "config": "ARC-Challenge",
+      "ngrams": 36381,
+      "repo": "allenai/ai2_arc",
+      "rows": 1172,
+      "rows_too_short_for_13gram": 16,
+      "rows_with_text": 1172,
+      "split": "test"
+    },
+    "gsm8k": {
+      "columns_missing": [],
+      "columns_used": [
+        "question",
+        "answer"
+      ],
+      "config": "main",
+      "ngrams": 127571,
+      "repo": "openai/gsm8k",
+      "rows": 1319,
+      "rows_too_short_for_13gram": 0,
+      "rows_with_text": 1319,
+      "split": "test"
+    },
+    "hellaswag": {
+      "columns_missing": [],
+      "columns_used": [
+        "ctx",
+        "activity_label",
+        "endings"
+      ],
+      "config": null,
+      "ngrams": 1345100,
+      "repo": "Rowan/hellaswag",
+      "rows": 10042,
+      "rows_too_short_for_13gram": 0,
+      "rows_with_text": 10042,
+      "split": "validation"
+    },
+    "humaneval": {
+      "columns_missing": [],
+      "columns_used": [
+        "prompt",
+        "canonical_solution"
+      ],
+      "config": null,
+      "ngrams": 14237,
+      "repo": "openai/openai_humaneval",
+      "rows": 164,
+      "rows_too_short_for_13gram": 0,
+      "rows_with_text": 164,
+      "split": "test"
+    },
+    "mmlu": {
+      "columns_missing": [],
+      "columns_used": [
+        "question",
+        "answer",
+        "choices"
+      ],
+      "config": "all",
+      "ngrams": 897772,
+      "repo": "cais/mmlu",
+      "rows": 14042,
+      "rows_too_short_for_13gram": 136,
+      "rows_with_text": 14042,
+      "split": "test"
+    },
+    "piqa": {
+      "columns_missing": [],
+      "columns_used": [
+        "goal",
+        "sol1",
+        "sol2"
+      ],
+      "config": null,
+      "ngrams": 60385,
+      "repo": "ybisk/piqa",
+      "rows": 1838,
+      "rows_too_short_for_13gram": 153,
+      "rows_with_text": 1838,
+      "split": "validation"
+    },
+    "triviaqa": {
+      "columns_missing": [],
+      "columns_used": [
+        "question"
+      ],
+      "config": "rc.nocontext",
+      "ngrams": 59585,
+      "repo": "mandarjoshi/trivia_qa",
+      "rows": 17944,
+      "rows_too_short_for_13gram": 9163,
+      "rows_with_text": 17944,
+      "split": "validation"
+    },
+    "winogrande": {
+      "columns_missing": [],
+      "columns_used": [
+        "sentence",
+        "option1",
+        "option2"
+      ],
+      "config": "winogrande_xl",
+      "ngrams": 10559,
+      "repo": "allenai/winogrande",
+      "rows": 1267,
+      "rows_too_short_for_13gram": 0,
+      "rows_with_text": 1267,
+      "split": "validation"
+    }
+  },
+  "benchmarks_covered": [
+    "arc_challenge",
+    "gsm8k",
+    "hellaswag",
+    "humaneval",
+    "mmlu",
+    "piqa",
+    "triviaqa",
+    "winogrande"
+  ],
+  "index": {
+    "bytes": 23869470,
+    "path": "experiments/mini_kimi_k3/data/decontamination/index.npz",
+    "sha256": "f454dedeadf9e171175752d390184891e5b1dd6fa586f6f69f6a86e1f49460d1"
+  },
+  "kind": "mini_kimi_k3_decontamination_report",
+  "n_unique_13grams": 2386667,
+  "ngram_n": 13,
+  "schema_version": 1,
+  "scope": "launch_grade_benchmark_suite",
+  "seconds": 56.7,
+  "self_check": {
+    "rows_checked": 1414,
+    "rows_missed": 0
+  },
+  "source_resolution_report": {
+    "path": "experiments/mini_kimi_k3/reports/stage1-source-resolution.json",
+    "sha256": "e56afefd66b145acd1b15e8efed71058cfe335e3f2388251f0e869831d80967d"
+  },
+  "status": "completed"
+}

@@ -1,0 +1,79 @@
+#+TITLE: TorchTitan RL Stack Map
+#+AUTHOR: TRAE CLI
+#+OPTIONS: toc:nil num:nil
+
+* One-Sentence Model
+
+=torchtitan.experiments.rl= is an experimental async RL training stack where
+TorchTitan trains the policy, vLLM samples rollouts from the same TorchTitan
+model definition, Monarch runs trainer/generator actors on separate GPU meshes,
+and TorchStore syncs weights from trainer to generator.
+
+* Core Pipeline
+
+1. *Data input* asks a task-specific =Rollouter= for a prompt sample.
+2. *Rollout workers* call a =GenerateFn=, usually routed to one or more
+   =VLLMGenerator= actors.
+3. *Rubric/env code* turns generated completions into rewards and advantages
+   inside =RolloutGroup= objects.
+4. *Sample builder* collapses rollout turns into =TrainingSample= objects with
+   masks, generator logprobs, and advantages.
+5. *Batcher* packs samples into =TrainingBatch= microbatches.
+6. *Trainer* runs the loss and optimizer step, publishes new weights, and
+   releases rollout-buffer capacity.
+
+* Where Things Live
+
+** Entrypoint
+
+=train.py= parses a config, spawns Monarch process meshes, and runs
+=Controller=.
+
+** Orchestration
+
+=controller.py= owns async queues, the rollout buffer, routing, validation,
+metrics, and weight sync coordination.
+
+** Actors
+
+=actors/= contains =PolicyTrainer= for optimization and =VLLMGenerator= for
+sampling.
+
+** Rollouts
+
+=rollout/= contains task-neutral rollout interfaces and dataclasses.
+
+** Task Examples
+
+=examples/*= contains datasets, environments, rollouters, rubrics, and config
+recipes.
+
+** Losses
+
+=losses/= contains GRPO and DAPO objective implementations.
+
+** Components
+
+=components/= contains batch packing, sample building, work buffers, and weight
+sync.
+
+** Routing
+
+=routing/= controls how generation requests choose generator replicas and
+preserve affinity.
+
+** vLLM Bridge
+
+=models/= adapts TorchTitan model specs into vLLM-compatible model execution.
+
+** Reproducibility
+
+=batch_invariance.py= contains batch-invariant conversions and patches for
+bitwise logprob parity experiments.
+
+* Read These First
+
+1. [[file:../torchtitan/experiments/rl/README.md][README.md]] for intent, dependencies, and reproducibility claims.
+2. [[file:../torchtitan/experiments/rl/controller.py][controller.py]], lines 7-88, for the full async pipeline diagram.
+3. [[file:../torchtitan/experiments/rl/types.py][types.py]] and [[file:../torchtitan/experiments/rl/rollout/types.py][rollout/types.py]] for the data vocabulary.
+4. [[file:../torchtitan/experiments/rl/examples/dapo_math/config_registry.py][examples/dapo_math/config_registry.py]] for a realistic Qwen3/DAPO config.

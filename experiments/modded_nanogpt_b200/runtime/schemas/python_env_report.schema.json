@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "ok",
+    "venv",
+    "lock",
+    "network_mode"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "python_env_report" },
+    "ok": { "type": "boolean" },
+    "venv": { "type": "string" },
+    "lock": { "type": "string" },
+    "network_mode": { "type": "string" }
+  }
+}

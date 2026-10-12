@@ -1,0 +1,26 @@
+{
+  "claim_label": "representative_small + replicated_eval",
+  "arms": [
+    {
+      "arm": "A1",
+      "seed": 0,
+      "requested_steps": 8000,
+      "completed_steps": 8000,
+      "mixer": "gdn",
+      "variant": "falcon1a",
+      "alignment": "delayed",
+      "phi": "rms",
+      "initial_loss": 10.883572578430176,
+      "final_loss": 4.674562454223633,
+      "all_finite": true,
+      "unstable": false,
+      "val_ce": 4.797327972948551,
+      "val_ppl": 121.18617178569583,
+      "val_tokens": 1048576,
+      "elapsed_sec": 13943.3,
+      "tokens_per_step": 16384,
+      "dry_run": false
+    }
+  ],
+  "addition": {}
+}
