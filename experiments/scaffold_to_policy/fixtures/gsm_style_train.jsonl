@@ -1,0 +1,4 @@
+{"answer": "21", "question": "Maya has 12 stickers. She buys 15 more and gives 6 to her brother. How many stickers does Maya have now?", "rationale": "12 + 15 = 27\n27 - 6 = 21\nFINAL: 21", "source": "local_gsm_style_fixture"}
+{"answer": "$1,250", "question": "A tablet costs $1,000. A warranty adds $250. What is the total cost?", "rationale": "1000 + 250 = 1250\nFINAL: $1,250", "source": "local_gsm_style_fixture"}
+{"answer": "3/2", "question": "A recipe uses 1/2 cup of oil and then 1 more cup. How many cups of oil are used?", "rationale": "1/2 + 1 = 3/2\nFINAL: 3/2", "source": "local_gsm_style_fixture"}
+{"answer": "-4", "question": "A hiker starts 3 meters above sea level, descends 10 meters, then climbs 3 meters. What is the final elevation?", "rationale": "3 - 10 = -7\n-7 + 3 = -4\nFINAL: -4", "source": "local_gsm_style_fixture"}
