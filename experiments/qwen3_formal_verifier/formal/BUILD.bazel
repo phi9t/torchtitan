@@ -1,0 +1,416 @@
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files(["lean.BUILD.bazel"])
+
+filegroup(
+    name = "tlc_smoke_models",
+    srcs = [
+        "TlcSmokeBad.cfg",
+        "TlcSmokeBad.tla",
+        "TlcSmokeGood.cfg",
+        "TlcSmokeGood.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_single_rank_models",
+    srcs = [
+        "SingleRankBadFacts.tla",
+        "SingleRankFacts.tla",
+        "SingleRankInvalid.cfg",
+        "SingleRankInvalid.tla",
+        "SingleRankValid.cfg",
+        "SingleRankValid.tla",
+        "TraceLifecycle.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_single_rank_model_abstract",
+    srcs = [
+        "SingleRankModel.cfg",
+        "SingleRankModel.tla",
+        "SingleRankModelUnsafe.cfg",
+        "TraceLifecycle.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_single_rank_model_refine",
+    srcs = [
+        "SingleRankFacts.tla",
+        "SingleRankModel.cfg",
+        "SingleRankModel.tla",
+        "SingleRankRefine.cfg",
+        "SingleRankRefine.tla",
+        "SingleRankRefineBad.cfg",
+        "SingleRankRefineBad.tla",
+        "SingleRankRefineBadReach.cfg",
+        "SingleRankRefineBadRelaxed.cfg",
+        "TraceLifecycle.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_device_mesh_model",
+    srcs = [
+        "DeviceMeshModel.cfg",
+        "DeviceMeshModel.tla",
+        "DeviceMeshModelDivergent.cfg",
+        "DeviceMeshModelLive.cfg",
+        "DeviceMeshModelLiveDivergent.cfg",
+        "DeviceMeshModelLiveUnconditional.cfg",
+        "DeviceMeshModelOpMismatch.cfg",
+        "DeviceMeshModelReach.cfg",
+        "DeviceMeshModelStreamShape.cfg",
+        "DeviceMeshModelUnguarded.cfg",
+        "DeviceMeshModelWitness.cfg",
+    ],
+)
+
+filegroup(
+    name = "tlc_device_mesh_refine",
+    srcs = [
+        "DeviceMeshFacts.tla",
+        "DeviceMeshModel.tla",
+        "DeviceMeshRefine.cfg",
+        "DeviceMeshRefine.tla",
+        "DeviceMeshRefineBad.cfg",
+        "DeviceMeshRefineBadReach.cfg",
+        "DeviceMeshRefineBadRelaxed.cfg",
+        "DeviceMeshRefineBadUniform.cfg",
+        "DeviceMeshRefineMapping.cfg",
+        "DeviceMeshRefineOverlap.cfg",
+        "DeviceMeshRefineSingleRankPermutation.cfg",
+        "DeviceMeshRefineSkew.cfg",
+        "DeviceMeshRefineUniformPermutation.cfg",
+        "MeshTopology.tla",
+    ],
+)
+
+filegroup(
+    name = "tlc_device_mesh_models",
+    srcs = [
+        "DeviceMeshBadFacts.tla",
+        "DeviceMeshFacts.tla",
+        "DeviceMeshInvalid.cfg",
+        "DeviceMeshInvalid.tla",
+        "DeviceMeshIssueOrderInvalid.cfg",
+        "DeviceMeshIssueOrderInvalid.tla",
+        "DeviceMeshPayloadOperationInvalid.cfg",
+        "DeviceMeshPayloadOperationInvalid.tla",
+        "DeviceMeshPayloadSizeInvalid.cfg",
+        "DeviceMeshPayloadSizeInvalid.tla",
+        "DeviceMeshPlacementPartialInvalid.cfg",
+        "DeviceMeshPlacementPartialInvalid.tla",
+        "DeviceMeshValid.cfg",
+        "DeviceMeshValid.tla",
+        "MeshTopology.tla",
+    ],
+)
+
+sh_test(
+    name = "tlc_smoke_test",
+    srcs = ["run_tlc_smoke.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_smoke_models",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "lean_smoke_test",
+    srcs = ["run_lean_smoke.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":LeanSmokeInvalid.lean",
+        ":LeanSmokeValid.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+)
+
+sh_test(
+    name = "tlc_single_rank_test",
+    srcs = ["run_tlc_single_rank.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_single_rank_models",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "lean_single_rank_test",
+    srcs = ["run_lean_single_rank.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":SingleRankBadFacts.lean",
+        ":SingleRankFacts.lean",
+        ":SingleRankInvalid.lean",
+        ":SingleRankValid.lean",
+        ":TraceLifecycle.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+)
+
+sh_test(
+    name = "tlc_single_rank_model_abstract_test",
+    srcs = ["run_tlc_single_rank_model.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+        "abstract",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_single_rank_model_abstract",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "tlc_single_rank_model_refine_test",
+    srcs = ["run_tlc_single_rank_model.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+        "refine",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_single_rank_model_refine",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "tlc_device_mesh_model_test",
+    srcs = ["run_tlc_device_mesh_model.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_device_mesh_model",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    # Eleven checks, four of them liveness. Measured at about 4min 45s in
+    # total, the liveness negative alone taking about 2min 05s, so the default
+    # moderate timeout has no headroom.
+    timeout = "long",
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "tlc_device_mesh_refine_test",
+    srcs = ["run_tlc_device_mesh_refine.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_device_mesh_refine",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    # Ten TLC searches, four of which replay all 108 issues of four ranks.
+    # Measured at about five minutes in total, so the default moderate
+    # timeout has no headroom.
+    timeout = "long",
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "tlc_device_mesh_test",
+    srcs = ["run_tlc_device_mesh.sh"],
+    args = [
+        "$(JAVA)",
+        "$(location @tla2tools_1_7_4//file)",
+    ],
+    data = [
+        ":checker_contract.sh",
+        ":tlc_device_mesh_models",
+        "@bazel_tools//tools/jdk:current_java_runtime",
+        "@tla2tools_1_7_4//file",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
+)
+
+sh_test(
+    name = "lean_device_mesh_test",
+    srcs = ["run_lean_device_mesh.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":DeviceMeshBaseChecks.lean",
+        ":DeviceMeshBadFacts.lean",
+        ":DeviceMeshCollectiveEventRank0.lean",
+        ":DeviceMeshCollectiveEventRank1.lean",
+        ":DeviceMeshCollectiveEventRank2.lean",
+        ":DeviceMeshCollectiveEventRank3.lean",
+        ":DeviceMeshEventMutationChecks.lean",
+        ":DeviceMeshEventRank0.lean",
+        ":DeviceMeshEventRank1.lean",
+        ":DeviceMeshEventRank2.lean",
+        ":DeviceMeshEventRank3.lean",
+        ":DeviceMeshFacts.lean",
+        ":DeviceMeshInvalid.lean",
+        ":DeviceMeshPayloadChecks.lean",
+        ":DeviceMeshPayloadMutationChecks.lean",
+        ":DeviceMeshPlacementChecks.lean",
+        ":DeviceMeshProducerCheck.lean",
+        ":DeviceMeshSyncChunk0.lean",
+        ":DeviceMeshSyncChunk1.lean",
+        ":DeviceMeshSyncChunk2.lean",
+        ":DeviceMeshSyncChunk3.lean",
+        ":DeviceMeshValid.lean",
+        ":MeshTopology.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    timeout = "long",
+)
+
+sh_test(
+    name = "lean_device_mesh_protocol_test",
+    srcs = ["run_lean_device_mesh_protocol.sh"],
+    args = ["$(location @lean_4_34_0//:lean)"],
+    data = [
+        ":DeviceMeshInductiveInvariant.lean",
+        ":DeviceMeshProtocol.lean",
+        ":DeviceMeshProtocolInvalid.lean",
+        ":DeviceMeshWaitGraph.lean",
+        ":checker_contract.sh",
+        "@lean_4_34_0//:lean",
+        "@lean_4_34_0//:lean_runtime",
+    ],
+    tags = [
+        "formal",
+        "manual",
+    ],
+    # Separate from lean_device_mesh_test on purpose: that target is already the
+    # slowest in the suite at roughly 92s, and these modules read no trace data
+    # so they have no reason to share its runfiles or its wall time.
+    timeout = "long",
+)
+
+test_suite(
+    name = "formal_smoke_tests",
+    tests = [
+        ":lean_smoke_test",
+        ":tlc_smoke_test",
+    ],
+)
+
+# Tier 0: the trace-free checks. Every target here reads only hand-written
+# sources, so it runs on CPU without a generated facts module, a GPU or an
+# attempt bundle. Minutes rather than seconds: tlc_device_mesh_model_test runs
+# eleven checks over eight communicators, and lean_device_mesh_protocol_test carries
+# the quantified protocol theorems, which mention no trace and no bound. This
+# suite is for iteration and is not a gate: no attempt bundle is sealed from
+# it.
+test_suite(
+    name = "tier0_formal_tests",
+    tests = [
+        ":lean_device_mesh_protocol_test",
+        ":lean_smoke_test",
+        ":tlc_single_rank_model_abstract_test",
+        ":tlc_device_mesh_model_test",
+        ":tlc_smoke_test",
+    ],
+)
+
+test_suite(
+    name = "single_rank_formal_tests",
+    tests = [
+        ":lean_single_rank_test",
+        ":lean_smoke_test",
+        ":tlc_single_rank_model_abstract_test",
+        ":tlc_single_rank_model_refine_test",
+        ":tlc_single_rank_test",
+        ":tlc_smoke_test",
+    ],
+)
+
+test_suite(
+    name = "device_mesh_formal_tests",
+    tests = [
+        ":lean_single_rank_test",
+        ":lean_device_mesh_protocol_test",
+        ":lean_device_mesh_test",
+        ":lean_smoke_test",
+        ":tlc_single_rank_model_abstract_test",
+        ":tlc_single_rank_model_refine_test",
+        ":tlc_single_rank_test",
+        ":tlc_device_mesh_model_test",
+        ":tlc_device_mesh_refine_test",
+        ":tlc_device_mesh_test",
+        ":tlc_smoke_test",
+    ],
+)
