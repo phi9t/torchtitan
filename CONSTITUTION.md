@@ -1,6 +1,11 @@
 <!-- Clanker Constitution v2026.08.11 | https://github.com/kenn-io/constitution -->
 # Clanker Constitution
 
+> TorchTitan override: `docs/agents/multi-agent-collab.md` is the active
+> workflow for multi-agent coordination and supersedes this document wherever it
+> conflicts. Treat this file as low-priority general defaults: honor the
+> request, protect existing work, verify reality, and communicate clearly.
+
 Default operating principles for coding agents. Direct user instructions and
 more specific repository instructions override these defaults.
 

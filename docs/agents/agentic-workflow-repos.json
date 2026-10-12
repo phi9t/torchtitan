@@ -2,9 +2,7 @@
   "version": "2026.08.15.2",
   "source_repository": "ultron",
   "managed_policy_files": [
-    "CONSTITUTION.md",
-    "docs/agents/agentic-engineering.md",
-    "docs/agents/skill-orchestration.md",
+    "docs/agents/multi-agent-collab.md",
     "docs/agents/agentic-workflow-repos.json",
     "docs/agents/ultron-mainline.md",
     "tools/ultron_mainline.py"
@@ -48,12 +46,6 @@
     {
       "path": "megatronlm/CLAUDE.md",
       "target": "AGENTS.md"
-    }
-  ],
-  "required_content": [
-    {
-      "path": "monarch/CLAUDE.md",
-      "snippets": ["@CONSTITUTION.md", "`AGENTS.md`"]
     }
   ],
   "repositories": [

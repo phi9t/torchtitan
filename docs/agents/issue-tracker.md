@@ -1,25 +1,25 @@
-# Issue tracker: Local Markdown
+# Issue tracker: Git tickets
 
-Issues and specs for this repo live as markdown files in `.scratch/`.
-That remains the canonical tracker for single-repository work.
+Dispatchable multi-agent issues live as committed markdown files in `.tickets/`.
+This follows the Corenius Collab Lite shape described in
+`docs/agents/multi-agent-collab.md`.
 
-Kata is an additional Ultron control plane. Read
-`docs/agents/active-work.md` and use `tools/active_work.py` for the
-projection over Kata. Do not treat `.scratch/` as read-only history and
-do not dual-write the same ticket into both systems unless a ticket
-explicitly says to import it.
+`.scratch/` may still hold private notes, research, or planning scratch. It is
+not a dispatch queue and does not grant a worker authority.
 
 ## Conventions
 
-- One feature per directory: `.scratch/<feature-slug>/`
-- The spec is `.scratch/<feature-slug>/spec.md`
-- Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
-- Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
+- One dispatchable ticket per file: `.tickets/<exact-id>.md`.
+- IDs are exact and stable, for example `T-qwen-formal-cleanup`.
+- Ticket state is recorded in frontmatter as `status: open`, `in_progress`, or
+  `closed`.
+- Dependencies are recorded in frontmatter as `deps: [T-other-ticket]`.
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
 
 ## When a skill says "publish to the issue tracker"
 
-Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+Create or update a committed `.tickets/<exact-id>.md` file unless the user asks
+for scratch planning only.
 
 ## When a skill says "fetch the relevant ticket"
 
@@ -27,7 +27,8 @@ Read the file at the referenced path. The user will normally pass the path or th
 
 ## Wayfinding operations
 
-Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
+Used by `/wayfinder`. Keep exploratory maps in `.scratch/`; promote only
+dispatchable, accepted implementation work into `.tickets/`.
 
 - **Map**: `.scratch/<effort>/map.md` — the Notes / Decisions-so-far / Fog body.
 - **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `open`/`claimed`/`resolved`.

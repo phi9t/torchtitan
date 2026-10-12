@@ -472,21 +472,11 @@ A change is ready for review when:
    at this seam.
 
 <!-- ultron-agentic-workflow:start -->
-## Agentic engineering workflow
+## Multi-agent collaboration workflow
 
-**Mandatory:** Read and follow `CONSTITUTION.md` before acting. Before planning,
-building, fixing, or changing code, read and follow
-`docs/agents/agentic-engineering.md`. Direct user instructions and more specific
-repository guidance take precedence. Before selecting, claiming, or tracking
-engineering work, also read `docs/agents/active-work.md`. Durable intent for
-this repository still lives in `.scratch/` as described in
-`docs/agents/issue-tracker.md`; Kata is an additional projection, not a
-cutover.
-Default to the clean-context subagent execution rule in that workflow for
-discrete implementation, audit, and verification tasks.
-For implementation-plan work, the main agent should behave as an orchestrator:
-dispatch a fresh task subagent with precise context, dispatch a separate review
-subagent for that task, then dispatch a finalizer subagent to inspect both
-execution traces, identify challenges/issues/bottlenecks, propose plan or
-task-skill improvements, and decide whether the task must be rerun.
+For multi-agent work, follow `docs/agents/multi-agent-collab.md`. It is the
+active TorchTitan workflow and supersedes `CONSTITUTION.md` and the older
+agentic-engineering guides wherever they add ceremony or conflict. In short:
+use committed Git tickets, isolated worker workspaces, exact candidate
+verification, and explicit operator landing.
 <!-- ultron-agentic-workflow:end -->
