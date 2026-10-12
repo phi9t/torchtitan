@@ -36,7 +36,7 @@ from pathlib import Path
 
 def _install_finite_loss_probe() -> list[float]:
     """Record every logged loss so we can assert finiteness after training."""
-    from torchtitan.components.metrics import MetricsProcessor
+    from torchtitan.observability.metrics import MetricsProcessor
 
     seen: list[float] = []
     original_log = MetricsProcessor.log
@@ -82,13 +82,15 @@ def main() -> None:
     os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
     os.environ.setdefault("MASTER_PORT", "29514")
 
-    from torchtitan.config import ConfigManager
-    from torchtitan.experiments.falcon.config_registry import falcon_science
+    from torchtitan.experiments.falcon.config_registry import (
+        falcon_science,
+        set_falcon_batch_shape,
+    )
 
     losses = _install_finite_loss_probe()
 
     config = falcon_science()
-    inner = config.model_spec.model.config
+    inner = config.model.config
 
     if not args.full_shape:
         # Shrink to a CPU-friendly shape while keeping the science surface:
@@ -98,30 +100,24 @@ def main() -> None:
         inner.head_dim = 16
         inner.num_hidden_layers = 2
         inner.intermediate_size = 128
-        inner.seq_len = 64
-        config.training.seq_len = 64
-        config.training.local_batch_size = 4
+        set_falcon_batch_shape(config, local_batch_size=4, max_context_length=64)
 
     config.training.steps = args.steps
-    config.lr_scheduler.total_steps = args.steps
-    config.lr_scheduler.warmup_steps = 1
-    config.comm.mode = "fake_backend"
+    config.optim.lr_scheduler.total_steps = args.steps
+    config.optim.lr_scheduler.warmup_steps = 1
+    config.comm.backend = "fake"
     config.debug.enable_structured_logging = False
     config.metrics.log_freq = 1
 
     with tempfile.TemporaryDirectory() as tmp:
         bin_path = Path(tmp) / "falcon_science_smoke.bin"
-        window = config.training.local_batch_size * config.training.seq_len + 1
+        window = config.training.num_tokens_per_microbatch_per_dp_rank + 1
         _write_synthetic_bin(
             bin_path,
             num_tokens=window * (args.steps + 2),
             vocab_size=inner.vocab_size,
         )
         config.dataloader.bin_glob = str(bin_path)
-
-        manager = ConfigManager()
-        manager.config = config
-        manager._validate_config()
 
         trainer = config.build()
         try:

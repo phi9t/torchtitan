@@ -8,7 +8,7 @@
 
 Builds ``falcon_tiny_overfit`` through the core ``Trainer`` under the fake
 backend and runs N>1 optimizer steps, asserting a finite loss at every step.
-``run_train.sh COMM_MODE=fake_backend`` hard-clamps ``--training.steps 1``, so
+``run_train.sh COMM_BACKEND=fake`` hard-clamps the run to one trainer step, so
 this driver constructs the same registry config directly to exercise more than
 one step. It is a plumbing/smoke artifact only, not a convergence claim.
 
@@ -28,7 +28,7 @@ import os
 
 def _install_finite_loss_probe() -> list[float]:
     """Record every logged loss so we can assert finiteness after training."""
-    from torchtitan.components.metrics import MetricsProcessor
+    from torchtitan.observability.metrics import MetricsProcessor
 
     seen: list[float] = []
     original_log = MetricsProcessor.log
@@ -58,22 +58,15 @@ def main() -> None:
     os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
     os.environ.setdefault("MASTER_PORT", "29513")
 
-    from torchtitan.config import ConfigManager
     from torchtitan.experiments.falcon.config_registry import falcon_tiny_overfit
 
     losses = _install_finite_loss_probe()
 
     config = falcon_tiny_overfit()
     config.training.steps = args.steps
-    config.lr_scheduler.total_steps = args.steps
-    config.comm.mode = "fake_backend"
+    config.optim.lr_scheduler.total_steps = args.steps
+    config.comm.backend = "fake"
     config.debug.enable_structured_logging = False
-
-    # Route through ConfigManager validation so we exercise the real config
-    # path, then swap in our multi-step config object.
-    manager = ConfigManager()
-    manager.config = config
-    manager._validate_config()
 
     trainer = config.build()
     try:

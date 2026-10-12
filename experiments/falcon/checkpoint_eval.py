@@ -129,28 +129,26 @@ def _json_write(path: Path, payload: Any) -> None:
 
 
 def _build_eval_config(arm: str, checkpoint: Path, attempt_dir: Path):
-    from torchtitan.config import ConfigManager
+    from torchtitan.components.checkpointer import CheckpointManager
     from torchtitan.experiments.falcon.config_registry import apply_arm, falcon_science
 
     config = falcon_science()
     apply_arm(config, arm)
     restore_step = _checkpoint_step(checkpoint)
     config.training.steps = restore_step
-    config.lr_scheduler.total_steps = max(restore_step, 1)
-    config.lr_scheduler.warmup_steps = min(200, max(1, restore_step // 40))
+    config.optim.lr_scheduler.total_steps = max(restore_step, 1)
+    config.optim.lr_scheduler.warmup_steps = min(200, max(1, restore_step // 40))
     config.debug.seed = 0
     config.debug.enable_structured_logging = False
     config.dump_folder = str(attempt_dir)
-    config.checkpoint.enable = True
-    config.checkpoint.load_only = True
-    config.checkpoint.initial_load_path = str(checkpoint.resolve())
-    config.checkpoint.initial_load_model_only = False
-    config.checkpoint.load_step = -1
+    config.checkpointer = CheckpointManager.Config(
+        load_only=True,
+        initial_load_path=str(checkpoint.resolve()),
+        initial_load_model_only=False,
+        load_step=-1,
+    )
     config.metrics.log_freq = 1
 
-    manager = ConfigManager()
-    manager.config = config
-    manager._validate_config()
     return config
 
 
@@ -213,14 +211,15 @@ def run_checkpoint_eval(
     try:
         config = _build_eval_config(arm, checkpoint, attempt_dir)
         trainer = config.build()
-        loaded = trainer.checkpointer.load(step=config.checkpoint.load_step)
+        assert config.checkpointer is not None
+        loaded = trainer.engine.checkpointer.load(step=config.checkpointer.load_step)
         if not loaded:
             raise RuntimeError(f"checkpoint did not load: {checkpoint}")
-        inner = config.model_spec.model.config
+        inner = config.model.config
         region_results = evaluate_regions(
-            trainer.model_parts[0],
+            trainer.engine.model_parts[0],
             registry,
-            seq_len=config.training.seq_len,
+            seq_len=config.training.max_context_length,
             vocab_size=inner.vocab_size,
         )
         aggregate = aggregate_region_ce(region_results, registry)

@@ -60,7 +60,7 @@ def _pristine_metrics_log():
     Every per-run probe restores to and wraps this, so no probe ever chains
     onto another probe (which would cross-contaminate per-arm loss lists).
     """
-    from torchtitan.components.metrics import MetricsProcessor
+    from torchtitan.observability.metrics import MetricsProcessor
 
     return MetricsProcessor.log
 
@@ -78,7 +78,7 @@ def _install_finite_loss_probe() -> tuple[list[float], "callable"]:
     probe. Chaining would make the last-installed probe re-enter every earlier
     probe, cross-contaminating the recorded losses across arms.
     """
-    from torchtitan.components.metrics import MetricsProcessor
+    from torchtitan.observability.metrics import MetricsProcessor
 
     seen: list[float] = []
     original_log = _PRISTINE_METRICS_LOG
@@ -108,40 +108,38 @@ def _set_single_process_env() -> None:
 
 def _build_arm_config(arm: str, *, seed: int, steps: int, dry_run: bool):
     """Build a science Trainer config for one arm x seed."""
-    from torchtitan.config import ConfigManager
-    from torchtitan.experiments.falcon.config_registry import apply_arm, falcon_science
+    from torchtitan.experiments.falcon.config_registry import (
+        apply_arm,
+        falcon_science,
+        set_falcon_batch_shape,
+    )
 
     config = falcon_science()
     apply_arm(config, arm)
 
     config.training.steps = steps
-    config.lr_scheduler.total_steps = steps
-    config.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
+    config.optim.lr_scheduler.total_steps = steps
+    config.optim.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
     config.debug.seed = seed
     config.debug.enable_structured_logging = False
-    config.checkpoint.enable = False
+    config.checkpointer = None
     # Per-arm dump folder keeps logs separate; no checkpoints are written.
     config.dump_folder = str(_RESULTS_ROOT / f"{arm}_seed{seed}")
 
     if dry_run:
         # Cheap smoke shape: keep the science surface (mixer, alignment, phi,
         # GPT-2 vocab, SwiGLU) but shrink width/seq so a few steps are fast.
-        inner = config.model_spec.model.config
+        inner = config.model.config
         inner.hidden_size = 128
         inner.num_heads = 4
         inner.head_dim = 32
         inner.num_hidden_layers = 2
         inner.intermediate_size = 512
-        inner.seq_len = 128
-        config.training.seq_len = 128
-        config.training.local_batch_size = 8
+        set_falcon_batch_shape(config, local_batch_size=8, max_context_length=128)
         config.metrics.log_freq = 1
     else:
         config.metrics.log_freq = 50
 
-    manager = ConfigManager()
-    manager.config = config
-    manager._validate_config()
     return config
 
 
@@ -157,11 +155,14 @@ def _eval_val_ce(model_parts, config, *, max_windows: int) -> dict[str, float]:
 
     from torchtitan.experiments.falcon.bin_reader import NanoGptBinDataLoader
 
-    inner = config.model_spec.model.config
+    inner = config.model.config
     loader = NanoGptBinDataLoader(
         [Path(_VAL_BIN)],
-        seq_len=config.training.seq_len,
-        local_batch_size=config.training.local_batch_size,
+        seq_len=config.training.max_context_length,
+        local_batch_size=(
+            config.training.num_tokens_per_microbatch_per_dp_rank
+            // config.training.max_context_length
+        ),
         vocab_size=inner.vocab_size,
     )
     device = next(model_parts[0].parameters()).device
@@ -171,9 +172,9 @@ def _eval_val_ce(model_parts, config, *, max_windows: int) -> dict[str, float]:
     it = iter(loader)
     with torch.no_grad():
         for _ in range(max_windows):
-            batch, labels = next(it)
-            tokens = batch["input"].to(device)
-            labels = labels.to(device)
+            microbatch = next(it)
+            tokens = microbatch.input.to(device)
+            labels = microbatch.labels.to(device)
             logits = model_parts[0](tokens)
             loss = F.cross_entropy(
                 logits.reshape(-1, inner.vocab_size).float(),
@@ -204,7 +205,7 @@ def _train_one_arm(
     completed_steps = 0
     try:
         trainer.train()
-        completed_steps = trainer.step
+        completed_steps = trainer.engine.num_completed_steps
     except RuntimeError as exc:
         # The core Trainer raises RuntimeError on a non-finite loss. Treat that
         # as an unstable run rather than a crash: keep the steps reached and let
@@ -214,17 +215,17 @@ def _train_one_arm(
             restore_probe()
             raise
         unstable = True
-        completed_steps = trainer.step
+        completed_steps = trainer.engine.num_completed_steps
     val = {"val_ce": float("nan"), "val_ppl": float("nan"), "val_tokens": 0}
     try:
-        val = _eval_val_ce(trainer.model_parts, config, max_windows=val_windows)
+        val = _eval_val_ce(trainer.engine.model_parts, config, max_windows=val_windows)
     finally:
         trainer.close()
         restore_probe()
     elapsed = time.time() - started
 
     finite = all(math.isfinite(x) for x in losses) if losses else False
-    inner = config.model_spec.model.config
+    inner = config.model.config
     return {
         "arm": arm,
         "seed": seed,
@@ -242,7 +243,7 @@ def _train_one_arm(
         "val_ppl": val["val_ppl"],
         "val_tokens": val["val_tokens"],
         "elapsed_sec": round(elapsed, 2),
-        "tokens_per_step": config.training.local_batch_size * config.training.seq_len,
+        "tokens_per_step": config.training.num_tokens_per_microbatch_per_dp_rank,
         "dry_run": dry_run,
     }
 

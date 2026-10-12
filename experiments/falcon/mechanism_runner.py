@@ -141,36 +141,34 @@ def build_mechanism_config(
     dump_folder: Path,
     dry_run: bool,
 ):
-    from torchtitan.config import ConfigManager
     from torchtitan.experiments.falcon.config_registry import (
         apply_mechanism_arm,
         falcon_science,
+        set_falcon_batch_shape,
     )
 
     config = falcon_science()
     apply_mechanism_arm(config, arm)
     config.training.steps = steps
-    config.lr_scheduler.total_steps = steps
-    config.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
+    config.optim.lr_scheduler.total_steps = steps
+    config.optim.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
     config.debug.seed = seed
     config.debug.enable_structured_logging = False
     config.dump_folder = str(dump_folder)
-    config.checkpoint.enable = False
+    config.checkpointer = None
     config.metrics.log_freq = 1 if dry_run else 50
 
     if dry_run:
         from torchtitan.experiments.falcon.repeat_data import FalconRepeatDataLoader
 
-        inner = config.model_spec.model.config
+        inner = config.model.config
         inner.vocab_size = 32
         inner.hidden_size = 32
         inner.num_heads = 4
         inner.head_dim = 8
         inner.num_hidden_layers = 2
         inner.intermediate_size = 64
-        inner.seq_len = 16
-        config.training.seq_len = 16
-        config.training.local_batch_size = 4
+        set_falcon_batch_shape(config, local_batch_size=4, max_context_length=16)
         config.dataloader = FalconRepeatDataLoader.Config(
             num_sequences=4,
             vocab_size=32,
@@ -178,9 +176,6 @@ def build_mechanism_config(
         )
         config.loss.global_vocab_size = 32
 
-    manager = ConfigManager()
-    manager.config = config
-    manager._validate_config()
     return config
 
 
@@ -204,11 +199,15 @@ def _probe_batch_digest(tokens) -> str:
 def _probe_model(model, config, *, seed: int) -> dict[str, Any]:
     import torch
 
-    inner = config.model_spec.model.config
-    batch_size = min(2, config.training.local_batch_size)
+    inner = config.model.config
+    local_batch_size = (
+        config.training.num_tokens_per_microbatch_per_dp_rank
+        // config.training.max_context_length
+    )
+    batch_size = min(2, local_batch_size)
     tokens = _fixed_probe_tokens(
         vocab_size=inner.vocab_size,
-        seq_len=config.training.seq_len,
+        seq_len=config.training.max_context_length,
         batch_size=batch_size,
         seed=seed,
     )
@@ -438,7 +437,7 @@ def run_mechanism(
         probes.append(
             {
                 "step": step,
-                **_probe_model(trainer.model_parts[0], config, seed=seed),
+                **_probe_model(trainer.engine.model_parts[0], config, seed=seed),
             }
         )
         seen_probe_steps.add(step)
@@ -449,13 +448,14 @@ def run_mechanism(
 
         def train_step_with_probes(data_iterator):
             result = orig_train_step(data_iterator)
-            if trainer.step in probe_steps:
-                collect_probe(trainer.step)
+            step = trainer.engine.num_completed_steps
+            if step in probe_steps:
+                collect_probe(step)
             return result
 
         trainer.train_step = train_step_with_probes  # type: ignore[method-assign]
         trainer.train()
-        completed_steps = trainer.step
+        completed_steps = trainer.engine.num_completed_steps
         if completed_steps in probe_steps:
             collect_probe(completed_steps)
     finally:

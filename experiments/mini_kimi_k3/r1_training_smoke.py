@@ -221,21 +221,19 @@ def _smoke_argv(
 ) -> list[str]:
     argv = [
         "/usr/bin/env",
-        "MODULE=mini_kimi_k3",
-        "CONFIG=mini_kimi_k3_r1_contract",
-        "COMM_MODE=fake_backend",
+        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+        "CONFIG=mini_kimi_k3_r1_training_smoke",
+        "COMM_BACKEND=fake",
         "NGPU=1",
+        f"MINI_KIMI_K3_HF_ASSETS_PATH={hf_assets_path}",
+        f"MINI_KIMI_K3_TOKEN_MANIFEST={token_manifest}",
+        f"MINI_KIMI_K3_TOKENS_DIR={tokens_dir}",
+        f"MINI_KIMI_K3_SMOKE_SEQ_LEN={seq_len}",
+        f"MINI_KIMI_K3_SMOKE_LOCAL_BATCH_SIZE={local_batch_size}",
+        f"MINI_KIMI_K3_SMOKE_GLOBAL_BATCH_SIZE={global_batch_size}",
+        f"MINI_KIMI_K3_SMOKE_STEPS={steps}",
         "./run_train.sh",
-        f"--hf_assets_path={hf_assets_path}",
-        f"--dump_folder={dump_folder}",
-        "--training.steps",
-        str(steps),
-        f"--training.local_batch_size={local_batch_size}",
-        f"--training.global_batch_size={global_batch_size}",
-        f"--training.seq_len={seq_len}",
-        "--checkpoint.no-enable",
-        f"--dataloader.token_manifest={token_manifest}",
-        f"--dataloader.tokens_dir={tokens_dir}",
+        f"--output-dir={dump_folder}",
     ]
     if cuda_visible_devices is not None:
         argv.insert(1, f"CUDA_VISIBLE_DEVICES={cuda_visible_devices}")
@@ -274,7 +272,7 @@ def _base_report(
         "schema_version": SCHEMA_VERSION,
         "kind": "mini_kimi_k3_r1_training_smoke",
         "status": status,
-        "config": "mini_kimi_k3_r1_contract",
+        "config": "mini_kimi_k3_r1_training_smoke",
         "model_flavor": "r1",
         "rootfs": {
             "marker": os.environ.get("TORCHTITAN_IN_ROOTFS"),

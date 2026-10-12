@@ -71,5 +71,5 @@ experiments/falcon/run.sh overfit
 or:
 
 ```bash
-MODULE=falcon CONFIG=falcon_tiny_overfit NGPU=1 COMM_MODE=fake_backend ./run_train.sh
+MODULE=torchtitan.experiments.falcon.config_registry CONFIG=falcon_tiny_overfit NGPU=1 COMM_BACKEND=fake ./run_train.sh
 ```

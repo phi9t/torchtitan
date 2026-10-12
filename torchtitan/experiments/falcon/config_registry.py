@@ -9,26 +9,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import torch
 
-from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.components.loss import CrossEntropyLoss
-from torchtitan.components.lr_scheduler import LRSchedulersContainer
-from torchtitan.components.metrics import MetricsProcessor
-from torchtitan.components.optimizer import default_adamw
+from torchtitan.components.optim import (
+    AdamW,
+    LRSchedulersContainer,
+    Optim,
+    OptimizersContainer,
+)
 from torchtitan.config import DebugConfig, TrainingConfig
 from torchtitan.experiments.falcon.bin_reader import NanoGptBinDataLoader
 from torchtitan.experiments.falcon.model import FalconConfig, FalconForCausalLM
 from torchtitan.experiments.falcon.overfit import _initialize_weights
 from torchtitan.experiments.falcon.repeat_data import FalconRepeatDataLoader
-from torchtitan.protocols.model import BaseModel
-from torchtitan.protocols.model_spec import ModelSpec
-
-
-def _identity_parallelize(model: torch.nn.Module, **kwargs) -> torch.nn.Module:
-    del kwargs
-    return model
+from torchtitan.models.base import BaseModel
+from torchtitan.observability.metrics import MetricsProcessor
 
 
 def _tiny_overfit_model_config() -> FalconConfig:
@@ -68,14 +66,16 @@ class FalconTinyModel(BaseModel):
     @dataclass(kw_only=True, slots=True)
     class Config(BaseModel.Config):
         config: FalconConfig = field(default_factory=_tiny_overfit_model_config)
+        experiment_name: str = "falcon"
+        experiment_flavor: str = "tiny_overfit"
 
         def update_from_config(self, *, config, **kwargs) -> None:
             del kwargs
-            seq_len = config.training.seq_len
+            seq_len = config.training.max_context_length
             if seq_len > self.config.seq_len:
                 raise ValueError(
-                    f"training.seq_len ({seq_len}) exceeds Falcon tiny seq_len "
-                    f"({self.config.seq_len})"
+                    "training.max_context_length "
+                    f"({seq_len}) exceeds Falcon tiny seq_len ({self.config.seq_len})"
                 )
             self.config.seq_len = seq_len
 
@@ -101,12 +101,28 @@ class FalconTinyModel(BaseModel):
         attention_masks: object | None = None,
         mechanism_diagnostics: object | None = None,
     ) -> torch.Tensor:
-        return self.inner(
+        logits_BLV = self.inner(
             tokens,
             positions=positions,
             attention_masks=attention_masks,
             mechanism_diagnostics=mechanism_diagnostics,
         )
+        return logits_BLV.reshape(-1, logits_BLV.shape[-1])
+
+    def preprocess_inputs(
+        self,
+        input_dict: dict[str, Any],
+        **kwargs,
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
+        del kwargs
+        labels = input_dict.pop("labels")
+        tokens = input_dict.pop("input")
+        input_dict.pop("padding_mask", None)
+        return tokens, labels.reshape(-1), input_dict
+
+    def _apply_fsdp(self, **kwargs) -> None:
+        del kwargs
+        return
 
     def verify_module_protocol(self) -> None:
         return
@@ -116,21 +132,63 @@ class FalconTinyModel(BaseModel):
         _initialize_weights(self)
 
 
-def model_registry(flavor: str) -> ModelSpec:
+def model_registry(flavor: str) -> FalconTinyModel.Config:
     if flavor == "tiny_overfit":
         model_config = _tiny_overfit_model_config()
     elif flavor == "science":
         model_config = _science_model_config()
     else:
         raise ValueError(f"unsupported Falcon flavor: {flavor}")
-    return ModelSpec(
-        name="falcon",
-        flavor=flavor,
-        model=FalconTinyModel.Config(config=model_config),
-        parallelize_fn=_identity_parallelize,
-        pipelining_fn=None,
-        post_optimizer_build_fn=None,
-        state_dict_adapter=None,
+    return FalconTinyModel.Config(
+        config=model_config,
+        experiment_name="falcon",
+        experiment_flavor=flavor,
+    )
+
+
+def _adamw_config(
+    *,
+    lr: float,
+    weight_decay: float,
+    lr_scheduler: LRSchedulersContainer.Config | None = None,
+) -> Optim.Config:
+    return Optim.Config(
+        optimizer=OptimizersContainer.Config(
+            optimizers=[
+                AdamW.Config(
+                    pattern=r".*",
+                    lr=lr,
+                    betas=(0.9, 0.95),
+                    eps=1.0e-8,
+                    weight_decay=weight_decay,
+                ),
+            ],
+        ),
+        lr_scheduler=(
+            lr_scheduler
+            if lr_scheduler is not None
+            else LRSchedulersContainer.Config()
+        ),
+    )
+
+
+def falcon_local_batch_size(config: "Trainer.Config") -> int:
+    return (
+        config.training.num_tokens_per_microbatch_per_dp_rank
+        // config.training.max_context_length
+    )
+
+
+def set_falcon_batch_shape(
+    config: "Trainer.Config",
+    *,
+    local_batch_size: int,
+    max_context_length: int,
+) -> None:
+    config.model.config.seq_len = max_context_length
+    config.training.max_context_length = max_context_length
+    config.training.num_tokens_per_microbatch_per_dp_rank = (
+        local_batch_size * max_context_length
     )
 
 
@@ -177,7 +235,7 @@ def apply_arm(config: "Trainer.Config", arm_id: str) -> "Trainer.Config":
         raise ValueError(
             f"unknown Falcon arm {arm_id!r}; expected one of {list(_ARM_KNOBS)}"
         )
-    inner = config.model_spec.model.config
+    inner = config.model.config
     for key, value in _ARM_KNOBS[arm_id].items():
         setattr(inner, key, value)
     return config
@@ -229,7 +287,7 @@ def apply_mechanism_arm(config: "Trainer.Config", arm_id: str) -> "Trainer.Confi
             f"unknown Falcon mechanism arm {arm_id!r}; "
             f"expected one of {list(_MECHANISM_ARM_KNOBS)}"
         )
-    inner = config.model_spec.model.config
+    inner = config.model.config
     for key, value in _MECHANISM_ARM_KNOBS[arm_id].items():
         setattr(inner, key, value)
     return config
@@ -238,37 +296,35 @@ def apply_mechanism_arm(config: "Trainer.Config", arm_id: str) -> "Trainer.Confi
 def falcon_tiny_overfit() -> "Trainer.Config":
     from torchtitan.trainer import Trainer
 
-    model_spec = model_registry("tiny_overfit")
     return Trainer.Config(
         dump_folder="./experiments/falcon/results/tiny_overfit",
         hf_assets_path="./tests/assets/tokenizer",
         metrics=MetricsProcessor.Config(log_freq=1),
-        model_spec=model_spec,
+        model=model_registry("tiny_overfit"),
         dataloader=FalconRepeatDataLoader.Config(
             num_sequences=8,
             vocab_size=32,
             seed=0,
         ),
-        optimizer=default_adamw(lr=3.0e-2, weight_decay=0.0),
-        lr_scheduler=LRSchedulersContainer.Config(
-            warmup_steps=1,
-            total_steps=80,
-            decay_ratio=0.0,
-            decay_type="linear",
-            min_lr_factor=1.0,
+        optim=_adamw_config(
+            lr=3.0e-2,
+            weight_decay=0.0,
+            lr_scheduler=LRSchedulersContainer.Config(
+                warmup_steps=1,
+                total_steps=80,
+                decay_ratio=0.0,
+                decay_type="linear",
+                min_lr_factor=1.0,
+            ),
         ),
         training=TrainingConfig(
-            local_batch_size=8,
-            seq_len=16,
+            num_tokens_per_microbatch_per_dp_rank=8 * 16,
+            max_context_length=16,
             steps=80,
             dtype="float32",
         ),
         debug=DebugConfig(enable_structured_logging=False),
-        checkpoint=CheckpointManager.Config(
-            enable=False,
-            interval=80,
-            last_save_model_only=False,
-        ),
+        checkpointer=None,
         loss=CrossEntropyLoss.Config(global_vocab_size=32),
     )
 
@@ -283,36 +339,34 @@ def falcon_science() -> "Trainer.Config":
     """
     from torchtitan.trainer import Trainer
 
-    model_spec = model_registry("science")
     return Trainer.Config(
         dump_folder="./experiments/falcon/results/science",
         hf_assets_path="./tests/assets/tokenizer",
         metrics=MetricsProcessor.Config(log_freq=10),
-        model_spec=model_spec,
+        model=model_registry("science"),
         dataloader=NanoGptBinDataLoader.Config(
             bin_glob=_FINEWEB10B_TRAIN_GLOB,
             vocab_size=50257,
         ),
         # AdamW betas (0.9, 0.95) per the paper-like science setup.
-        optimizer=default_adamw(lr=1.0e-3, weight_decay=0.1),
-        lr_scheduler=LRSchedulersContainer.Config(
-            warmup_steps=200,
-            total_steps=8000,
-            decay_ratio=0.8,
-            decay_type="cosine",
-            min_lr_factor=0.1,
+        optim=_adamw_config(
+            lr=1.0e-3,
+            weight_decay=0.1,
+            lr_scheduler=LRSchedulersContainer.Config(
+                warmup_steps=200,
+                total_steps=8000,
+                decay_ratio=0.8,
+                decay_type="cosine",
+                min_lr_factor=0.1,
+            ),
         ),
         training=TrainingConfig(
-            local_batch_size=32,
-            seq_len=512,
+            num_tokens_per_microbatch_per_dp_rank=32 * 512,
+            max_context_length=512,
             steps=8000,
             dtype="float32",
         ),
         debug=DebugConfig(enable_structured_logging=False),
-        checkpoint=CheckpointManager.Config(
-            enable=False,
-            interval=1000,
-            last_save_model_only=False,
-        ),
+        checkpointer=None,
         loss=CrossEntropyLoss.Config(global_vocab_size=50257),
     )

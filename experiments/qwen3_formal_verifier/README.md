@@ -111,7 +111,7 @@ TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST="$HOME/.cache/torchtitan/formal" \
 ## Single-rank: observed single-rank step
 
 `run_single_rank.sh` is the supported tracer-bullet command for one real Qwen3
-optimizer step. It selects `qwen3_debugmodel` through `ConfigManager` and runs
+optimizer step. It selects `qwen3_debugmodel` through `ConfigLoader` and runs
 the unchanged core `Trainer` on one visible CUDA device. The experiment-owned
 adapter observes the first batch, root-module forward and backward boundaries,
 post-accumulation gradient readiness, and AdamW parameter mutation through

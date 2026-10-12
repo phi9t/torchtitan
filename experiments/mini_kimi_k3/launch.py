@@ -335,22 +335,24 @@ def _validate_ready_preflight_report(
 
 
 def _train_argv(args: argparse.Namespace, *, attempt: RunAttempt) -> list[str]:
-    argv = [
+    env_argv = [
         "/usr/bin/env",
-        "MODULE=mini_kimi_k3",
+        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
         "CONFIG=mini_kimi_k3_r1_contract",
         "NGPU=1",
         f"TORCHTITAN_RUN_ID={args.run_id}",
         f"TORCHTITAN_ATTEMPT_ID={args.attempt_id}",
-        "./run_train.sh",
-        f"--dump_folder={attempt.bundle_dir / 'train'}",
-        "--checkpoint.keep_latest_k=2",
+        "MINI_KIMI_K3_CHECKPOINT_KEEP_LATEST_K=2",
     ]
     if args.token_manifest is not None:
-        argv.append(f"--dataloader.token_manifest={args.token_manifest}")
+        env_argv.append(f"MINI_KIMI_K3_TOKEN_MANIFEST={args.token_manifest}")
     if args.tokens_dir is not None:
-        argv.append(f"--dataloader.tokens_dir={args.tokens_dir}")
-    return argv
+        env_argv.append(f"MINI_KIMI_K3_TOKENS_DIR={args.tokens_dir}")
+    return [
+        *env_argv,
+        "./run_train.sh",
+        f"--output-dir={attempt.bundle_dir / 'train'}",
+    ]
 
 
 if __name__ == "__main__":

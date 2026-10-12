@@ -10,7 +10,22 @@ from typing import Any
 
 import torch
 
-from torchtitan.components.dataloader import BaseDataLoader
+from torchtitan.components.data.loader import BaseDataLoader
+from torchtitan.components.data.types import TrainingMicrobatch
+
+
+@dataclass(kw_only=True, slots=True)
+class SyntheticLatentMicrobatch(TrainingMicrobatch):
+    labels: torch.Tensor
+    class_labels: torch.Tensor
+    loss_token_counts: torch.Tensor
+    routing_token_counts: torch.Tensor
+
+    def as_input_dict(self) -> dict[str, Any]:
+        return {
+            "input": self.labels,
+            "class_labels": self.class_labels,
+        }
 
 
 class SyntheticLatentDataLoader(BaseDataLoader):
@@ -29,18 +44,27 @@ class SyntheticLatentDataLoader(BaseDataLoader):
         dp_world_size: int,
         dp_rank: int,
         tokenizer,
-        seq_len: int,
-        local_batch_size: int,
-        snapshot_every_n_steps: int | None = None,
+        max_context_length: int,
+        num_tokens_per_microbatch: int,
+        **kwargs: Any,
     ):
-        del tokenizer, seq_len, snapshot_every_n_steps
+        del tokenizer, kwargs
+        if max_context_length <= 0:
+            raise ValueError("max_context_length must be positive.")
+        if num_tokens_per_microbatch % max_context_length != 0:
+            raise ValueError(
+                "num_tokens_per_microbatch must be divisible by "
+                "max_context_length for the DiT synthetic dataloader."
+            )
+        local_batch_size = num_tokens_per_microbatch // max_context_length
         self.config = config
         self.dp_world_size = dp_world_size
         self.dp_rank = dp_rank
+        self.max_context_length = max_context_length
         self.local_batch_size = local_batch_size
         self.sample_offset = 0
 
-    def __iter__(self) -> Iterator[tuple[dict[str, torch.Tensor], torch.Tensor]]:
+    def __iter__(self) -> Iterator[TrainingMicrobatch]:
         while True:
             start = self.sample_offset
             global_ids_B = torch.arange(
@@ -60,13 +84,23 @@ class SyntheticLatentDataLoader(BaseDataLoader):
             )
             y_B = (global_ids_B % self.config.num_classes).to(torch.long)
             self.sample_offset += self.local_batch_size
-            yield {"input": x0_BCHW, "class_labels": y_B}, x0_BCHW
+            yield SyntheticLatentMicrobatch(
+                labels=x0_BCHW,
+                class_labels=y_B,
+                loss_token_counts=torch.tensor(
+                    self.local_batch_size * self.max_context_length,
+                    dtype=torch.int64,
+                ),
+                routing_token_counts=torch.tensor(0, dtype=torch.int64),
+            )
 
     def state_dict(self) -> dict[str, Any]:
         return {
             "sample_offset": self.sample_offset,
             "dp_world_size": self.dp_world_size,
             "dp_rank": self.dp_rank,
+            "max_context_length": self.max_context_length,
+            "local_batch_size": self.local_batch_size,
         }
 
     def load_state_dict(self, state_dict: dict[str, Any]) -> None:
@@ -80,5 +114,15 @@ class SyntheticLatentDataLoader(BaseDataLoader):
         if state_dict["dp_rank"] != self.dp_rank:
             raise ValueError(
                 "SyntheticLatentDataLoader checkpoint rank does not match this rank."
+            )
+        if state_dict.get("max_context_length") != self.max_context_length:
+            raise ValueError(
+                "SyntheticLatentDataLoader does not support max_context_length "
+                "changes across checkpoint restore."
+            )
+        if state_dict.get("local_batch_size") != self.local_batch_size:
+            raise ValueError(
+                "SyntheticLatentDataLoader does not support local batch size "
+                "changes across checkpoint restore."
             )
         self.sample_offset = state_dict["sample_offset"]

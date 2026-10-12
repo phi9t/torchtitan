@@ -33,7 +33,8 @@ from typing import Any
 import numpy as np
 import torch
 
-from torchtitan.components.dataloader import BaseDataLoader
+from torchtitan.components.data.loader import BaseDataLoader
+from torchtitan.components.data.types import TokenizedTrainingMicrobatch
 
 _NANOGPT_MAGIC = 20240520
 _NANOGPT_VERSION = 1
@@ -117,20 +118,25 @@ class NanoGptBinDataLoader(BaseDataLoader):
             dp_world_size: int,
             dp_rank: int,
             tokenizer,
-            seq_len: int,
-            local_batch_size: int,
-            snapshot_every_n_steps: int | None = 1,
+            max_context_length: int,
+            num_tokens_per_microbatch: int,
             **kwargs,
         ) -> "NanoGptBinDataLoader":
-            del tokenizer, snapshot_every_n_steps, kwargs
+            del tokenizer, kwargs
             if dp_world_size != 1 or dp_rank != 0:
                 raise ValueError("Falcon nanogpt bin loader is single-rank only")
+            if num_tokens_per_microbatch % max_context_length != 0:
+                raise ValueError(
+                    "num_tokens_per_microbatch must be divisible by "
+                    "max_context_length for Falcon nanogpt batches"
+                )
+            local_batch_size = num_tokens_per_microbatch // max_context_length
             files = _resolve_bins(self.bin_glob)
             if not files:
                 raise ValueError(f"no nanogpt bins matched glob {self.bin_glob!r}")
             return NanoGptBinDataLoader(
                 files,
-                seq_len=seq_len,
+                seq_len=max_context_length,
                 local_batch_size=local_batch_size,
                 vocab_size=self.vocab_size,
             )
@@ -185,8 +191,18 @@ class NanoGptBinDataLoader(BaseDataLoader):
             body = buf[:-1].view(self.local_batch_size, self.seq_len)
             labels = buf[1:].view(self.local_batch_size, self.seq_len)
             pos += self.local_batch_size * self.seq_len
-            batch = {"input": body.clone(), "positions": positions}
-            yield batch, labels.clone()
+            input_ids = body.clone()
+            labels = labels.clone()
+            yield TokenizedTrainingMicrobatch(
+                input=input_ids,
+                labels=labels,
+                positions=positions,
+                padding_mask=torch.zeros_like(input_ids, dtype=torch.bool),
+                loss_token_counts=torch.tensor(labels.numel(), dtype=torch.long),
+                routing_token_counts=torch.tensor(
+                    labels.numel(), dtype=torch.long
+                ).view(1),
+            )
 
     def state_dict(self) -> dict[str, Any]:
         return {}

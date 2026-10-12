@@ -1544,9 +1544,9 @@ def test_mini_kimi_k3_completion_audit_passes_completed_full_launch(
                                 "command": {
                                     "argv": [
                                         "/usr/bin/env",
-                                        "MODULE=mini_kimi_k3",
-                                        "CONFIG=mini_kimi_k3_r1_contract",
-                                        "COMM_MODE=fake_backend",
+                                        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+                                        "CONFIG=mini_kimi_k3_r1_training_smoke",
+                                        "COMM_BACKEND=fake",
                                         "NGPU=1",
                                         "./run_train.sh",
                                     ],
@@ -1918,9 +1918,9 @@ def test_mini_kimi_k3_completion_audit_rejects_training_measurement_without_stag
                                 "command": {
                                     "argv": [
                                         "/usr/bin/env",
-                                        "MODULE=mini_kimi_k3",
-                                        "CONFIG=mini_kimi_k3_r1_contract",
-                                        "COMM_MODE=fake_backend",
+                                        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+                                        "CONFIG=mini_kimi_k3_r1_training_smoke",
+                                        "COMM_BACKEND=fake",
                                         "NGPU=1",
                                         "./run_train.sh",
                                     ],
@@ -2078,9 +2078,9 @@ def test_mini_kimi_k3_completion_audit_rejects_remote_readiness_without_rootfs_m
                                 "command": {
                                     "argv": [
                                         "/usr/bin/env",
-                                        "MODULE=mini_kimi_k3",
-                                        "CONFIG=mini_kimi_k3_r1_contract",
-                                        "COMM_MODE=fake_backend",
+                                        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+                                        "CONFIG=mini_kimi_k3_r1_training_smoke",
+                                        "COMM_BACKEND=fake",
                                         "NGPU=1",
                                         "./run_train.sh",
                                     ],
@@ -2523,9 +2523,9 @@ def test_mini_kimi_k3_completion_audit_rejects_stale_preflight_schema(
                                 "command": {
                                     "argv": [
                                         "/usr/bin/env",
-                                        "MODULE=mini_kimi_k3",
-                                        "CONFIG=mini_kimi_k3_r1_contract",
-                                        "COMM_MODE=fake_backend",
+                                        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+                                        "CONFIG=mini_kimi_k3_r1_training_smoke",
+                                        "COMM_BACKEND=fake",
                                         "NGPU=1",
                                         "./run_train.sh",
                                     ],
@@ -3373,9 +3373,9 @@ def test_mini_kimi_k3_completion_audit_accepts_local_corpus_without_remote_readi
                                 "command": {
                                     "argv": [
                                         "/usr/bin/env",
-                                        "MODULE=mini_kimi_k3",
-                                        "CONFIG=mini_kimi_k3_r1_contract",
-                                        "COMM_MODE=fake_backend",
+                                        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+                                        "CONFIG=mini_kimi_k3_r1_training_smoke",
+                                        "COMM_BACKEND=fake",
                                         "NGPU=1",
                                         "./run_train.sh",
                                     ],
@@ -7645,18 +7645,20 @@ def test_mini_kimi_k3_launch_runs_train_stage_after_ready_preflight(tmp_path: Pa
         preflight_argv.index("--stage1-input-inspection-report") + 1
     ] == str(stage1_input_inspection)
     train_argv = executor.calls[1]
-    assert train_argv[:6] == [
+    assert train_argv[:7] == [
         "/usr/bin/env",
-        "MODULE=mini_kimi_k3",
+        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
         "CONFIG=mini_kimi_k3_r1_contract",
         "NGPU=1",
         "TORCHTITAN_RUN_ID=mini-k3-r1-ready-test",
         "TORCHTITAN_ATTEMPT_ID=attempt-001",
+        "MINI_KIMI_K3_CHECKPOINT_KEEP_LATEST_K=2",
     ]
-    assert train_argv[6] == "./run_train.sh"
-    assert f"--dataloader.token_manifest={token_manifest}" in train_argv
-    assert f"--dataloader.tokens_dir={tokens_dir}" in train_argv
-    assert "--checkpoint.keep_latest_k=2" in train_argv
+    launcher_index = train_argv.index("./run_train.sh")
+    assert all("=" in item for item in train_argv[1:launcher_index])
+    assert f"MINI_KIMI_K3_TOKEN_MANIFEST={token_manifest}" in train_argv
+    assert f"MINI_KIMI_K3_TOKENS_DIR={tokens_dir}" in train_argv
+    assert train_argv[launcher_index + 1].startswith("--output-dir=")
 
     bundle = results_root / "runs" / "mini-k3-r1-ready-test" / "attempt-001"
     events = [
@@ -7813,7 +7815,7 @@ def test_mini_kimi_k3_r1_training_smoke_writes_pass_report(tmp_path: Path):
 
     assert result["kind"] == "mini_kimi_k3_r1_training_smoke"
     assert result["status"] == "pass"
-    assert result["config"] == "mini_kimi_k3_r1_contract"
+    assert result["config"] == "mini_kimi_k3_r1_training_smoke"
     assert result["model_flavor"] == "r1"
     assert result["data"] == {
         "manifest": str(token_manifest),
@@ -7828,20 +7830,19 @@ def test_mini_kimi_k3_r1_training_smoke_writes_pass_report(tmp_path: Path):
     argv = executor.calls[0]
     assert argv[0] == "/usr/bin/env"
     assert "CUDA_VISIBLE_DEVICES=0" in argv
-    assert "MODULE=mini_kimi_k3" in argv
-    assert "CONFIG=mini_kimi_k3_r1_contract" in argv
-    assert "COMM_MODE=fake_backend" in argv
+    assert "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry" in argv
+    assert "CONFIG=mini_kimi_k3_r1_training_smoke" in argv
+    assert "COMM_BACKEND=fake" in argv
     assert "NGPU=1" in argv
     assert "./run_train.sh" in argv
-    assert "--hf_assets_path=tests/assets/tokenizer" in argv
-    assert "--training.steps" in argv
-    assert "1" in argv
-    assert "--training.local_batch_size=1" in argv
-    assert "--training.global_batch_size=1" in argv
-    assert "--training.seq_len=4096" in argv
-    assert "--checkpoint.no-enable" in argv
-    assert f"--dataloader.token_manifest={token_manifest}" in argv
-    assert f"--dataloader.tokens_dir={tokens_dir}" in argv
+    assert "MINI_KIMI_K3_HF_ASSETS_PATH=tests/assets/tokenizer" in argv
+    assert "MINI_KIMI_K3_SMOKE_STEPS=1" in argv
+    assert "MINI_KIMI_K3_SMOKE_LOCAL_BATCH_SIZE=1" in argv
+    assert "MINI_KIMI_K3_SMOKE_GLOBAL_BATCH_SIZE=1" in argv
+    assert "MINI_KIMI_K3_SMOKE_SEQ_LEN=4096" in argv
+    assert f"MINI_KIMI_K3_TOKEN_MANIFEST={token_manifest}" in argv
+    assert f"MINI_KIMI_K3_TOKENS_DIR={tokens_dir}" in argv
+    assert f"--output-dir={report.parent / 'r1_training_smoke_train'}" in argv
 
 
 def test_mini_kimi_k3_r1_training_smoke_writes_fail_report(tmp_path: Path):

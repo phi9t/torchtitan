@@ -38,23 +38,19 @@ def _set_single_process_env() -> None:
 
 
 def _build_config(arm: str, *, seed: int, steps: int, log_freq: int, dump: Path):
-    from torchtitan.config import ConfigManager
     from torchtitan.experiments.falcon.config_registry import apply_arm, falcon_science
 
     config = falcon_science()
     apply_arm(config, arm)
     config.training.steps = steps
-    config.lr_scheduler.total_steps = steps
-    config.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
+    config.optim.lr_scheduler.total_steps = steps
+    config.optim.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
     config.debug.seed = seed
     config.debug.enable_structured_logging = False
-    config.checkpoint.enable = False
+    config.checkpointer = None
     config.metrics.log_freq = log_freq
     config.metrics.enable_tensorboard = False
     config.dump_folder = str(dump)
-    manager = ConfigManager()
-    manager.config = config
-    manager._validate_config()
     return config
 
 
@@ -87,7 +83,7 @@ def main() -> None:
         log_freq=args.log_freq,
         dump=dump,
     )
-    inner = config.model_spec.model.config
+    inner = config.model.config
     manifest = {
         "claim_label": "smoke",
         "purpose": "perf_tooling_base",
@@ -98,9 +94,8 @@ def main() -> None:
         "phi": inner.phi,
         "steps": args.steps,
         "seed": args.seed,
-        "seq_len": config.training.seq_len,
-        "local_batch_size": config.training.local_batch_size,
-        "tokens_per_step": config.training.local_batch_size * config.training.seq_len,
+        "seq_len": config.training.max_context_length,
+        "tokens_per_step": config.training.num_tokens_per_microbatch_per_dp_rank,
         "dtype": config.training.dtype,
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "pid": os.getpid(),
@@ -113,7 +108,7 @@ def main() -> None:
     trainer = config.build()
     try:
         trainer.train()
-        completed = trainer.step
+        completed = trainer.engine.num_completed_steps
     finally:
         trainer.close()
     elapsed = time.time() - started

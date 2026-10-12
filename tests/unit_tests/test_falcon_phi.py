@@ -131,4 +131,4 @@ def test_falcon_science_default_phi_is_rms():
     from torchtitan.experiments.falcon.config_registry import falcon_science
 
     config = falcon_science()
-    assert config.model_spec.model.config.phi == "rms"
+    assert config.model.config.phi == "rms"

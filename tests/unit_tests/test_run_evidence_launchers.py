@@ -17,7 +17,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).parents[2]
 RUN_TRAIN = REPO_ROOT / "run_train.sh"
-MULTINODE_TRAINER = REPO_ROOT / "multinode_trainer.slurm"
+MULTINODE_TRAINER = REPO_ROOT / "scripts" / "multinode_trainer.slurm"
 GENERATED_RUN_ID = "11111111-1111-4111-8111-111111111111"
 GENERATED_ATTEMPT_ID = "22222222-2222-4222-8222-222222222222"
 UUID_GENERATION_CODE = "import uuid; print(uuid.uuid4())"
@@ -146,6 +146,7 @@ def _launcher_env(
     env = os.environ.copy()
     for name in (
         "COMM_MODE",
+        "COMM_BACKEND",
         "CONFIG",
         "LOCAL_RANK",
         "LOG_RANK",
@@ -216,10 +217,10 @@ def _local_torchrun_argv(ngpu: int, run_id: str) -> list[str]:
         "-m",
         "torchtitan.train",
         "--module",
-        "llama3",
+        "torchtitan_recipes.tests.models.llama3",
         "--config",
         "llama3_debugmodel",
-        "--training.seq_len=128",
+        "--output-dir=out",
     ]
 
 
@@ -230,7 +231,7 @@ def test_local_launcher_shares_generated_identity_with_each_gpu_topology(
     _, capture_dir, state_dir = launcher_stubs
     env = _launcher_env(launcher_stubs, NGPU=str(ngpu))
 
-    _run_launcher(RUN_TRAIN, env, "--training.seq_len=128")
+    _run_launcher(RUN_TRAIN, env, "--output-dir=out")
 
     assert _nul_record(capture_dir / "torchrun-env") == [
         GENERATED_RUN_ID,
@@ -313,14 +314,13 @@ def test_local_launcher_preserves_overrides_and_generates_only_missing_ids(
     )
 
 
-@pytest.mark.parametrize("comm_mode", ("fake_backend", "local_tensor"))
-def test_direct_communication_modes_receive_identity_without_torchrun(
-    launcher_stubs: tuple[Path, Path, Path], comm_mode: str
+def test_fake_communication_backend_receives_identity_without_torchrun(
+    launcher_stubs: tuple[Path, Path, Path],
 ) -> None:
     _, capture_dir, state_dir = launcher_stubs
-    env = _launcher_env(launcher_stubs, COMM_MODE=comm_mode, NGPU="8")
+    env = _launcher_env(launcher_stubs, COMM_BACKEND="fake", NGPU="8")
 
-    _run_launcher(RUN_TRAIN, env, "--training.seq_len=128")
+    _run_launcher(RUN_TRAIN, env, "--output-dir=out")
 
     assert _nul_record(capture_dir / "python-env") == [
         GENERATED_RUN_ID,
@@ -333,13 +333,12 @@ def test_direct_communication_modes_receive_identity_without_torchrun(
         "-m",
         "torchtitan.train",
         "--module",
-        "llama3",
+        "torchtitan_recipes.tests.models.llama3",
         "--config",
         "llama3_debugmodel",
-        "--training.seq_len=128",
-        f"--comm.mode={comm_mode}",
-        "--training.steps",
-        "1",
+        "--comm-backend",
+        "fake",
+        "--output-dir=out",
     ]
     assert not (capture_dir / "torchrun-argv").exists()
     assert _generation_count(state_dir) == 2
@@ -413,7 +412,7 @@ def test_multinode_launcher_propagates_identity_topology_and_rendezvous(
     _, capture_dir, state_dir = launcher_stubs
     env = _launcher_env(launcher_stubs)
 
-    _run_launcher(MULTINODE_TRAINER, env, "--training.seq_len=256")
+    _run_launcher(MULTINODE_TRAINER, env, "--output-dir=out")
 
     expected_identity = [GENERATED_RUN_ID, GENERATED_ATTEMPT_ID]
     assert _nul_record(capture_dir / "srun-env") == expected_identity
@@ -432,10 +431,10 @@ def test_multinode_launcher_propagates_identity_topology_and_rendezvous(
         "-m",
         "torchtitan.train",
         "--module",
-        "llama3",
+        "torchtitan_recipes.tests.models.llama3",
         "--config",
         "llama3_debugmodel",
-        "--training.seq_len=256",
+        "--output-dir=out",
     ]
     assert _nul_record(capture_dir / "srun-argv") == [
         "torchrun",

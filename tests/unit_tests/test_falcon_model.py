@@ -41,12 +41,10 @@ def test_repeat_dataloader_cycles_the_same_bank_and_shifts_labels():
     first = next(iter(loader))
     second = next(iter(loader))
 
-    batch, labels = first
-    batch_again, labels_again = second
-    assert torch.equal(batch["input"], bank[:, :-1])
-    assert torch.equal(labels, bank[:, 1:])
-    assert torch.equal(batch["input"], batch_again["input"])
-    assert torch.equal(labels, labels_again)
+    assert torch.equal(first.input, bank[:, :-1])
+    assert torch.equal(first.labels, bank[:, 1:])
+    assert torch.equal(first.input, second.input)
+    assert torch.equal(first.labels, second.labels)
 
 
 def test_repeat_dataloader_labels_are_a_shift_not_a_circular_roll():
@@ -54,14 +52,14 @@ def test_repeat_dataloader_labels_are_a_shift_not_a_circular_roll():
     # would wrap the first token in as the label for the last position.
     bank = make_overfit_bank(num_sequences=3, seq_len=6, vocab_size=16, seed=2)
     loader = FalconRepeatDataLoader(bank, local_batch_size=3)
-    batch, labels = next(iter(loader))
+    microbatch = next(iter(loader))
 
-    assert torch.equal(labels, bank[:, 1:])
+    assert torch.equal(microbatch.labels, bank[:, 1:])
     # A circular roll of the inputs would place input[:, 0] at labels[:, -1].
-    rolled = torch.roll(batch["input"], shifts=-1, dims=1)
-    assert not torch.equal(labels, rolled)
+    rolled = torch.roll(microbatch.input, shifts=-1, dims=1)
+    assert not torch.equal(microbatch.labels, rolled)
     # The last label is the appended next-token target, not the wrapped head.
-    assert torch.equal(labels[:, -1], bank[:, -1])
+    assert torch.equal(microbatch.labels[:, -1], bank[:, -1])
 
 
 def test_falcon_config_alignment_defaults_to_delayed():

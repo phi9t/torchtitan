@@ -16,6 +16,7 @@ import os
 import random
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import numpy as np
@@ -213,13 +214,30 @@ class OutputRecorder:  # noqa: B903
         self.kwargs = kwargs
 
 
+def check_model_inputs(function: Any | None = None, *args: Any, **kwargs: Any) -> Any:
+    del args, kwargs
+    if function is None:
+        return lambda inner: inner
+    return function
+
+
 def _install_transformers_compat_shims() -> None:
-    import transformers.utils.generic as generic
+    try:
+        import transformers.utils.generic as generic
+    except ImportError:
+        transformers = sys.modules.setdefault("transformers", ModuleType("transformers"))
+        utils = sys.modules.setdefault("transformers.utils", ModuleType("transformers.utils"))
+        generic = sys.modules.setdefault(
+            "transformers.utils.generic",
+            ModuleType("transformers.utils.generic"),
+        )
+        setattr(transformers, "utils", utils)
+        setattr(utils, "generic", generic)
 
-    if hasattr(generic, "OutputRecorder"):
-        return
-
-    generic.OutputRecorder = OutputRecorder
+    if not hasattr(generic, "OutputRecorder"):
+        generic.OutputRecorder = OutputRecorder
+    if not hasattr(generic, "check_model_inputs"):
+        generic.check_model_inputs = check_model_inputs
 
 
 def _load_config_payload(

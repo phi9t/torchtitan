@@ -17,7 +17,7 @@ from typing import Any
 
 import torch
 
-from torchtitan.config import ConfigManager
+from torchtitan.config import ConfigLoader
 from torchtitan.experiments.mini_kimi_k3.model import apply_attention_residual
 
 from .dump_first_party_logits import (
@@ -131,10 +131,15 @@ def trace_forward_oracle(
         config_json=config_json,
         state_dict=state_dict,
     )
-    config = ConfigManager().parse_args(
-        ["--module", "mini_kimi_k3", "--config", config_name]
+    config = ConfigLoader().load(
+        [
+            "--module",
+            "torchtitan.experiments.mini_kimi_k3.config_registry",
+            "--config",
+            config_name,
+        ]
     )
-    torch_titan_model = config.model_spec.model.build()
+    torch_titan_model = config.model.build()
     torch_titan_model.init_states()
     alignment_report = align_first_party_state_dict(state_dict, torch_titan_model)
     first_party_model.eval()
@@ -152,7 +157,7 @@ def trace_forward_oracle(
             "kind": "mini_kimi_k3_forward_trace",
             "status": "pass",
             "config": config_name,
-            "model_flavor": config.model_spec.flavor,
+            "model_flavor": config.model.experiment_flavor,
             "seed": seed,
             "device": str(torch_device),
             "source": {

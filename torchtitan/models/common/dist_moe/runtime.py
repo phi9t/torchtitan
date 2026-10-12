@@ -25,10 +25,10 @@ from dataclasses import dataclass
 from typing import Literal, TYPE_CHECKING
 
 import torch
-from torch.distributed.pipelining import (
-    analyze_pipeline_activation_liveness,
-    PipelineStageInfo,
-)
+try:
+    from torch.distributed.pipelining import analyze_pipeline_activation_liveness
+except ImportError:  # pragma: no cover - depends on the installed PyTorch build.
+    analyze_pipeline_activation_liveness = None
 from torch.distributed.pipelining.schedules import PipelineScheduleMulti
 from torch.utils.hooks import RemovableHandle
 
@@ -39,6 +39,8 @@ from . import _dist_moe as dist_moe
 
 
 if TYPE_CHECKING:
+    from torch.distributed.pipelining import PipelineStageInfo
+
     from torchtitan.distributed.parallelism_context import ParallelismContext
     from torchtitan.models.common.dist_moe.routed_experts import DistMoeRoutedExperts
 
@@ -504,6 +506,11 @@ class DistMoeRuntime(Configurable):
         }
         if not modules_by_stage:
             raise RuntimeError("no local pipeline stage contains Dist-MoE")
+        if analyze_pipeline_activation_liveness is None:
+            raise RuntimeError(
+                "Dist-MoE pipeline activation-slot planning requires "
+                "torch.distributed.pipelining.analyze_pipeline_activation_liveness"
+            )
 
         stage_indices = tuple(modules_by_stage)
         liveness = analyze_pipeline_activation_liveness(

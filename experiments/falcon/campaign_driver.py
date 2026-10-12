@@ -614,15 +614,16 @@ def publish_existing_addition_preflight(
 
 
 def _mechanism_shape(config) -> dict[str, int]:
-    inner = config.model_spec.model.config
+    inner = config.model.config
     return {
         "num_hidden_layers": int(inner.num_hidden_layers),
         "hidden_size": int(inner.hidden_size),
         "num_heads": int(inner.num_heads),
         "head_dim": int(inner.head_dim),
-        "seq_len": int(config.training.seq_len),
-        "tokens_per_step": int(config.training.local_batch_size)
-        * int(config.training.seq_len),
+        "seq_len": int(config.training.max_context_length),
+        "tokens_per_step": int(
+            config.training.num_tokens_per_microbatch_per_dp_rank
+        ),
     }
 
 
@@ -632,7 +633,6 @@ def _build_mechanism_preflight_config(
     seed: int,
     steps: int,
 ):
-    from torchtitan.config import ConfigManager
     from torchtitan.experiments.falcon.config_registry import (
         apply_mechanism_arm,
         falcon_science,
@@ -641,15 +641,12 @@ def _build_mechanism_preflight_config(
     config = falcon_science()
     apply_mechanism_arm(config, arm)
     config.training.steps = steps
-    config.lr_scheduler.total_steps = steps
-    config.lr_scheduler.warmup_steps = min(200, max(1, steps))
+    config.optim.lr_scheduler.total_steps = steps
+    config.optim.lr_scheduler.warmup_steps = min(200, max(1, steps))
     config.debug.seed = seed
     config.debug.enable_structured_logging = False
-    config.checkpoint.enable = False
+    config.checkpointer = None
     config.metrics.log_freq = 1
-    manager = ConfigManager()
-    manager.config = config
-    manager._validate_config()
     shape = _mechanism_shape(config)
     if shape != MECHANISM_SCREEN_REQUIRED_SHAPE:
         raise ValueError(f"M03 preflight must use exact science shape, got {shape}")
@@ -770,7 +767,7 @@ def _run_one_mechanism_preflight_arm(
     config = _build_mechanism_preflight_config(arm=arm, seed=seed, steps=steps)
     shape = _mechanism_shape(config)
     device, device_record = _runtime_device()
-    model = config.model_spec.model.build()
+    model = config.model.build()
     model.init_states()
     model.to(device)
     model.train()
@@ -779,13 +776,15 @@ def _run_one_mechanism_preflight_arm(
         dp_world_size=1,
         dp_rank=0,
         tokenizer=None,
-        seq_len=config.training.seq_len,
-        local_batch_size=config.training.local_batch_size,
+        max_context_length=config.training.max_context_length,
+        num_tokens_per_microbatch=(
+            config.training.num_tokens_per_microbatch_per_dp_rank
+        ),
     )
     data_iter = iter(data)
     probe_tokens = (
         torch.arange(
-            config.training.seq_len,
+            config.training.max_context_length,
             dtype=torch.long,
         ).unsqueeze(0)
         % config.loss.global_vocab_size
@@ -795,9 +794,9 @@ def _run_one_mechanism_preflight_arm(
     completed_steps = 0
     started = time.perf_counter()
     for step in range(1, steps + 1):
-        batch, labels = next(data_iter)
-        tokens = batch["input"].to(device)
-        labels = labels.to(device)
+        microbatch = next(data_iter)
+        tokens = microbatch.input.to(device)
+        labels = microbatch.labels.to(device)
         _sync_device()
         step_started = time.perf_counter()
         logits = model(tokens)
@@ -829,7 +828,7 @@ def _run_one_mechanism_preflight_arm(
     region_rows = evaluate_regions(
         model,
         registry,
-        seq_len=config.training.seq_len,
+        seq_len=config.training.max_context_length,
         vocab_size=config.loss.global_vocab_size,
     )
     _sync_device()

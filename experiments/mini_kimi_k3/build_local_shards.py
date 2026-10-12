@@ -25,6 +25,7 @@ from typing import Any
 
 import numpy as np
 
+from experiments.mini_kimi_k3.decontaminate_local import NGRAM_N, NgramIndex
 from experiments.mini_kimi_k3.register_shards import _register_shards
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -38,12 +39,6 @@ FIRST_PARTY_DATA = (
 )
 if FIRST_PARTY_DATA.is_dir() and str(FIRST_PARTY_DATA) not in sys.path:
     sys.path.insert(0, str(FIRST_PARTY_DATA))
-
-try:
-    from ngram import NGRAM_N, NgramIndex
-except ImportError:  # pragma: no cover - exercised only without first-party assets.
-    NGRAM_N = 13
-    NgramIndex = None  # type: ignore[assignment]
 
 
 KIMI_K3_VOCAB_SIZE = 163_840
@@ -441,8 +436,6 @@ def _load_decontamination_index(
         return None
     if input_format not in {"text", "jsonl-text", "parquet-text"}:
         raise ValueError("decontamination index can only be used with text inputs")
-    if NgramIndex is None:
-        raise ValueError("decontamination index requires first-party ngram.py asset")
     if not path.is_file():
         raise FileNotFoundError(f"decontamination index does not exist: {path}")
     return NgramIndex.load(path)

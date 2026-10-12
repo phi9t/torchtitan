@@ -167,7 +167,7 @@ def test_main_preserves_training_error_when_structured_handler_close_fails(
 ):
     config = make_trainer_config()
     config.dump_folder = str(tmp_path)
-    config.comm.mode = "fake_backend"
+    config.comm.backend = "fake"
     failing_handler = FailingCloseHandler()
 
     def fail_training_build():

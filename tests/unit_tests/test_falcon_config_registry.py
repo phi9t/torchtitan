@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from torchtitan.config import ConfigManager
+from torchtitan.config import ConfigLoader
 from torchtitan.experiments.falcon.config_registry import (
     _ARM_KNOBS,
     apply_arm,
@@ -20,29 +20,33 @@ from torchtitan.experiments.falcon.model import FalconConfig, FalconForCausalLM
 def test_falcon_tiny_overfit_config_is_synchronous_bank_training():
     config = falcon_tiny_overfit()
 
-    assert config.model_spec.name == "falcon"
-    assert config.model_spec.flavor == "tiny_overfit"
-    assert config.training.local_batch_size == 8
-    assert config.training.seq_len == 16
+    assert config.model.experiment_name == "falcon"
+    assert config.model.experiment_flavor == "tiny_overfit"
+    assert config.training.num_tokens_per_microbatch_per_dp_rank == 8 * 16
+    assert config.training.max_context_length == 16
     assert config.training.steps >= 80
     assert config.dataloader.num_sequences == 8
-    assert config.optimizer.param_groups[0].optimizer_kwargs["weight_decay"] == 0.0
+    assert config.optim.optimizer.optimizers[0].weight_decay == 0.0
 
 
 def test_config_manager_resolves_falcon_tiny_overfit():
-    manager = ConfigManager()
-    config = manager.parse_args(
-        ["--module", "falcon", "--config", "falcon_tiny_overfit"]
+    config = ConfigLoader().load(
+        [
+            "--module",
+            "torchtitan.experiments.falcon.config_registry",
+            "--config",
+            "falcon_tiny_overfit",
+        ]
     )
-    assert config.model_spec.flavor == "tiny_overfit"
+    assert config.model.experiment_flavor == "tiny_overfit"
 
 
 def test_falcon_science_config_has_locked_science_shape():
     config = falcon_science()
 
-    assert config.model_spec.name == "falcon"
-    assert config.model_spec.flavor == "science"
-    inner = config.model_spec.model.config
+    assert config.model.experiment_name == "falcon"
+    assert config.model.experiment_flavor == "science"
+    inner = config.model.config
     # Science shape locked by ticket 05/06.
     assert inner.num_hidden_layers == 4
     assert inner.hidden_size == 256
@@ -56,25 +60,31 @@ def test_falcon_science_config_has_locked_science_shape():
     assert inner.nlms_denom_eps == 1.0e-6
     assert inner.scale_compensation == "none"
 
-    assert config.training.seq_len == 512
-    assert config.training.local_batch_size == 32
+    assert config.training.max_context_length == 512
+    assert config.training.num_tokens_per_microbatch_per_dp_rank == 32 * 512
     # 8000-step science config is registered but the smoke never runs it.
     assert config.training.steps == 8000
     # AdamW betas (0.9, 0.95) per the paper-like science setup.
-    betas = config.optimizer.param_groups[0].optimizer_kwargs["betas"]
+    betas = config.optim.optimizer.optimizers[0].betas
     assert tuple(betas) == (0.9, 0.95)
 
 
 def test_config_manager_resolves_falcon_science():
-    manager = ConfigManager()
-    config = manager.parse_args(["--module", "falcon", "--config", "falcon_science"])
-    assert config.model_spec.flavor == "science"
+    config = ConfigLoader().load(
+        [
+            "--module",
+            "torchtitan.experiments.falcon.config_registry",
+            "--config",
+            "falcon_science",
+        ]
+    )
+    assert config.model.experiment_flavor == "science"
     assert config.loss.global_vocab_size == 50257
 
 
 def test_falcon_science_tokens_per_step_is_16384():
     config = falcon_science()
-    tokens_per_step = config.training.local_batch_size * config.training.seq_len
+    tokens_per_step = config.training.num_tokens_per_microbatch_per_dp_rank
     assert tokens_per_step == 16384
 
 
@@ -90,7 +100,7 @@ def test_apply_mechanism_arm_materializes_m0_to_m4_without_changing_a_arms():
 
     for arm_id, (alignment, phi, scale_compensation) in expected.items():
         config = apply_mechanism_arm(falcon_science(), arm_id)
-        inner = config.model_spec.model.config
+        inner = config.model.config
         assert inner.mixer == "falcon"
         assert inner.variant == "falcon1a"
         assert inner.alignment == alignment
@@ -102,7 +112,7 @@ def test_apply_mechanism_arm_materializes_m0_to_m4_without_changing_a_arms():
 
 def test_apply_arm_preserves_legacy_a5_without_scale_compensation():
     config = apply_arm(falcon_science(), "A5")
-    inner = config.model_spec.model.config
+    inner = config.model.config
 
     assert inner.mixer == "falcon"
     assert inner.variant == "falcon1a"

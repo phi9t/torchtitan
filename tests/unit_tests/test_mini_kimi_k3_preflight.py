@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -226,11 +227,39 @@ def _write_launch_backend_report(
     return path
 
 
+def _r1_training_smoke_argv(
+    *,
+    manifest: str,
+    tokens_dir: str,
+    hf_assets_path: str = "tests/assets/tokenizer",
+    dump_folder: str = "r1_training_smoke_train",
+    seq_len: int = 4096,
+    steps: int = 1,
+) -> list[str]:
+    return [
+        "/usr/bin/env",
+        "CUDA_VISIBLE_DEVICES=0",
+        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+        "CONFIG=mini_kimi_k3_r1_training_smoke",
+        "COMM_BACKEND=fake",
+        "NGPU=1",
+        f"MINI_KIMI_K3_HF_ASSETS_PATH={hf_assets_path}",
+        f"MINI_KIMI_K3_TOKEN_MANIFEST={manifest}",
+        f"MINI_KIMI_K3_TOKENS_DIR={tokens_dir}",
+        f"MINI_KIMI_K3_SMOKE_SEQ_LEN={seq_len}",
+        "MINI_KIMI_K3_SMOKE_LOCAL_BATCH_SIZE=1",
+        "MINI_KIMI_K3_SMOKE_GLOBAL_BATCH_SIZE=1",
+        f"MINI_KIMI_K3_SMOKE_STEPS={steps}",
+        "./run_train.sh",
+        f"--output-dir={dump_folder}",
+    ]
+
+
 def _write_r1_training_smoke_report(
     path: Path,
     *,
     status: str = "pass",
-    config: str = "mini_kimi_k3_r1_contract",
+    config: str = "mini_kimi_k3_r1_training_smoke",
     model_flavor: str = "r1",
     manifest: str = "manifest.json",
     tokens_dir: str = "tokens",
@@ -264,25 +293,14 @@ def _write_r1_training_smoke_report(
     if command is None:
         command_steps = steps if steps > 0 else 1
         command = {
-            "argv": [
-                "/usr/bin/env",
-                "CUDA_VISIBLE_DEVICES=0",
-                "MODULE=mini_kimi_k3",
-                "CONFIG=mini_kimi_k3_r1_contract",
-                "COMM_MODE=fake_backend",
-                "NGPU=1",
-                "./run_train.sh",
-                f"--hf_assets_path={hf_assets_path}",
-                f"--dump_folder={dump_folder}",
-                "--training.steps",
-                str(command_steps),
-                "--training.local_batch_size=1",
-                "--training.global_batch_size=1",
-                f"--training.seq_len={seq_len}",
-                "--checkpoint.no-enable",
-                f"--dataloader.token_manifest={manifest}",
-                f"--dataloader.tokens_dir={tokens_dir}",
-            ],
+            "argv": _r1_training_smoke_argv(
+                manifest=manifest,
+                tokens_dir=tokens_dir,
+                hf_assets_path=hf_assets_path,
+                dump_folder=dump_folder,
+                seq_len=seq_len,
+                steps=command_steps,
+            ),
             "cwd": "/workspace/torchtitan",
             "return_code": 0,
             "stdout_tail": "Train | Step: 1 grad_norm: 1.0\n",
@@ -511,7 +529,7 @@ def test_preflight_trainable_config_reports_blocked_r1_training_smoke(
     assert smoke == {
         "report": str(training_smoke),
         "status": "blocked",
-        "config": "mini_kimi_k3_r1_contract",
+        "config": "mini_kimi_k3_r1_training_smoke",
         "model_flavor": "r1",
         "rootfs": {"marker": "1", "cwd": "/workspace/torchtitan"},
         "steps": 0,
@@ -532,25 +550,10 @@ def test_preflight_trainable_config_reports_blocked_r1_training_smoke(
             ],
         },
         "command": {
-            "argv": [
-                "/usr/bin/env",
-                "CUDA_VISIBLE_DEVICES=0",
-                "MODULE=mini_kimi_k3",
-                "CONFIG=mini_kimi_k3_r1_contract",
-                "COMM_MODE=fake_backend",
-                "NGPU=1",
-                "./run_train.sh",
-                "--hf_assets_path=tests/assets/tokenizer",
-                "--dump_folder=r1_training_smoke_train",
-                "--training.steps",
-                "1",
-                "--training.local_batch_size=1",
-                "--training.global_batch_size=1",
-                "--training.seq_len=4096",
-                "--checkpoint.no-enable",
-                "--dataloader.token_manifest=manifest.json",
-                "--dataloader.tokens_dir=tokens",
-            ],
+            "argv": _r1_training_smoke_argv(
+                manifest="manifest.json",
+                tokens_dir="tokens",
+            ),
             "cwd": "/workspace/torchtitan",
             "return_code": 0,
         },
@@ -575,9 +578,9 @@ def test_preflight_report_marks_full_launch_not_ready(tmp_path: Path):
     assert gates["trainable_config"]["status"] == "partial"
     assert gates["trainable_config"]["evidence"]["module"] == "mini_kimi_k3"
     assert gates["trainable_config"]["evidence"]["config"] == "mini_kimi_k3_r1_contract"
-    assert gates["trainable_config"]["evidence"]["model_spec"] == {
-        "name": "mini_kimi_k3",
-        "flavor": "r1_contract",
+    assert gates["trainable_config"]["evidence"]["model"] == {
+        "experiment_name": "mini_kimi_k3",
+        "experiment_flavor": "r1_contract",
     }
     assert gates["trainable_config"]["evidence"]["build_status"] == "buildable"
     assert gates["trainable_config"]["evidence"]["model_fidelity_status"] == "partial"
@@ -587,8 +590,10 @@ def test_preflight_report_marks_full_launch_not_ready(tmp_path: Path):
     assert gates["trainable_config"]["evidence"]["model_variant"] == "r1"
     assert gates["trainable_config"]["evidence"]["seq_len"] == 4096
     assert gates["trainable_config"]["evidence"]["local_batch_size"] == 4
-    assert gates["trainable_config"]["evidence"]["global_batch_size"] == 32
-    assert gates["trainable_config"]["evidence"]["tokens_per_step"] == 131_072
+    assert (
+        gates["trainable_config"]["evidence"]["num_tokens_per_train_step"]
+        == 131_072
+    )
     assert gates["trainable_config"]["evidence"]["optimizer_steps"] == 38_147
     assert gates["trainable_config"]["evidence"]["checkpoint_interval"] == 100
     assert gates["trainable_config"]["evidence"]["adam_betas"] == [0.9, 0.95]
@@ -794,7 +799,7 @@ def test_preflight_trainable_config_passes_with_r1_training_smoke_report(
     assert gates["trainable_config"]["evidence"]["r1_training_smoke"] == {
         "report": str(training_smoke),
         "status": "pass",
-        "config": "mini_kimi_k3_r1_contract",
+        "config": "mini_kimi_k3_r1_training_smoke",
         "model_flavor": "r1",
         "rootfs": {"marker": "1", "cwd": "/workspace/torchtitan"},
         "steps": 1,
@@ -814,25 +819,10 @@ def test_preflight_trainable_config_passes_with_r1_training_smoke_report(
             ],
         },
         "command": {
-            "argv": [
-                "/usr/bin/env",
-                "CUDA_VISIBLE_DEVICES=0",
-                "MODULE=mini_kimi_k3",
-                "CONFIG=mini_kimi_k3_r1_contract",
-                "COMM_MODE=fake_backend",
-                "NGPU=1",
-                "./run_train.sh",
-                "--hf_assets_path=tests/assets/tokenizer",
-                "--dump_folder=r1_training_smoke_train",
-                "--training.steps",
-                "1",
-                "--training.local_batch_size=1",
-                "--training.global_batch_size=1",
-                "--training.seq_len=4096",
-                "--checkpoint.no-enable",
-                f"--dataloader.token_manifest={token_manifest}",
-                f"--dataloader.tokens_dir={tokens_dir}",
-            ],
+            "argv": _r1_training_smoke_argv(
+                manifest=str(token_manifest),
+                tokens_dir=str(tokens_dir),
+            ),
             "cwd": "/workspace/torchtitan",
             "return_code": 0,
         },
@@ -986,15 +976,15 @@ def test_preflight_trainable_config_rejects_r1_smoke_without_rootfs_command(
     ("command_override", "detail_fragment"),
     [
         (
-            "--dataloader.token_manifest=other-manifest.json",
+            "MINI_KIMI_K3_TOKEN_MANIFEST=other-manifest.json",
             "exactly one token manifest",
         ),
         (
-            "--dataloader.tokens_dir=other-tokens",
+            "MINI_KIMI_K3_TOKENS_DIR=other-tokens",
             "exactly one tokens dir",
         ),
         (
-            "--training.seq_len=2048",
+            "MINI_KIMI_K3_SMOKE_SEQ_LEN=2048",
             "exactly one seq_len",
         ),
     ],
@@ -1015,21 +1005,19 @@ def test_preflight_trainable_config_rejects_r1_smoke_command_data_mismatch(
         "argv": [
             "/usr/bin/env",
             "CUDA_VISIBLE_DEVICES=0",
-            "MODULE=mini_kimi_k3",
-            "CONFIG=mini_kimi_k3_r1_contract",
-            "COMM_MODE=fake_backend",
+            "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+            "CONFIG=mini_kimi_k3_r1_training_smoke",
+            "COMM_BACKEND=fake",
             "NGPU=1",
+            "MINI_KIMI_K3_HF_ASSETS_PATH=tests/assets/tokenizer",
+            f"MINI_KIMI_K3_TOKEN_MANIFEST={manifest}",
+            f"MINI_KIMI_K3_TOKENS_DIR={tokens_dir}",
+            "MINI_KIMI_K3_SMOKE_SEQ_LEN=4096",
+            "MINI_KIMI_K3_SMOKE_LOCAL_BATCH_SIZE=1",
+            "MINI_KIMI_K3_SMOKE_GLOBAL_BATCH_SIZE=1",
+            "MINI_KIMI_K3_SMOKE_STEPS=1",
             "./run_train.sh",
-            "--hf_assets_path=tests/assets/tokenizer",
-            "--dump_folder=r1_training_smoke_train",
-            "--training.steps",
-            "1",
-            "--training.local_batch_size=1",
-            "--training.global_batch_size=1",
-            f"--dataloader.token_manifest={manifest}",
-            f"--dataloader.tokens_dir={tokens_dir}",
-            "--training.seq_len=4096",
-            "--checkpoint.no-enable",
+            "--output-dir=r1_training_smoke_train",
             command_override,
         ],
         "cwd": "/workspace/torchtitan",
@@ -1075,24 +1063,23 @@ def test_preflight_trainable_config_rejects_r1_smoke_command_data_mismatch(
         ),
         (
             {},
-            {"argv_append": ["--training.steps", "0"]},
+            {
+                "argv_replace": {
+                    "MINI_KIMI_K3_SMOKE_STEPS=1": "MINI_KIMI_K3_SMOKE_STEPS=0"
+                }
+            },
             "training steps",
         ),
-        (
-            {"gpu_memory": {"selected": {"index": 1}}},
-            None,
-            "GPU selection",
-        ),
-        (
-            {},
-            {"argv_remove": ["--checkpoint.no-enable"]},
-            "checkpoint disabling",
-        ),
+        ({"gpu_memory": {"selected": {"index": 1}}}, None, "GPU selection"),
         (
             {},
             {
-                "argv_remove": ["MODULE=mini_kimi_k3"],
-                "argv_append": ["MODULE=mini_kimi_k3"],
+                "argv_remove": [
+                    "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry"
+                ],
+                "argv_append": [
+                    "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry"
+                ],
             },
             "environment arguments",
         ),
@@ -1105,15 +1092,17 @@ def test_preflight_trainable_config_rejects_r1_smoke_command_data_mismatch(
             {},
             {
                 "argv_replace": {
-                    "--hf_assets_path=tests/assets/tokenizer": "--hf_assets_path=other-tokenizer"
+                    "MINI_KIMI_K3_HF_ASSETS_PATH=tests/assets/tokenizer": (
+                        "MINI_KIMI_K3_HF_ASSETS_PATH=other-tokenizer"
+                    )
                 }
             },
             "hf assets path",
         ),
         (
             {},
-            {"argv_remove": ["--dump_folder=r1_training_smoke_train"]},
-            "dump folder",
+            {"argv_remove": ["--output-dir=r1_training_smoke_train"]},
+            "output dir",
         ),
     ],
 )
@@ -1131,25 +1120,10 @@ def test_preflight_trainable_config_rejects_r1_smoke_bad_command_contract(
     token_manifest = tmp_path / "manifest.json"
     tokens_dir = tmp_path / "tokens"
     base_command = {
-        "argv": [
-            "/usr/bin/env",
-            "CUDA_VISIBLE_DEVICES=0",
-            "MODULE=mini_kimi_k3",
-            "CONFIG=mini_kimi_k3_r1_contract",
-            "COMM_MODE=fake_backend",
-            "NGPU=1",
-            "./run_train.sh",
-            "--hf_assets_path=tests/assets/tokenizer",
-            "--dump_folder=r1_training_smoke_train",
-            "--training.steps",
-            "1",
-            "--training.local_batch_size=1",
-            "--training.global_batch_size=1",
-            "--training.seq_len=4096",
-            "--checkpoint.no-enable",
-            f"--dataloader.token_manifest={token_manifest}",
-            f"--dataloader.tokens_dir={tokens_dir}",
-        ],
+        "argv": _r1_training_smoke_argv(
+            manifest=str(token_manifest),
+            tokens_dir=str(tokens_dir),
+        ),
         "cwd": "/workspace/torchtitan",
         "return_code": 0,
     }
@@ -1868,9 +1842,16 @@ def test_full_preflight_treats_remote_readiness_as_optional_for_local_manifest(
         "report": str(local_report),
         "sha256": hashlib.sha256(local_report.read_bytes()).hexdigest(),
         "total_tokens": 4,
-        "input_format": "jsonl",
+        "input_format": "jsonl-tokens",
     }
     manifest.write_text(json.dumps(data, sort_keys=True))
+    _attach_local_stage1_decontaminated_build(
+        manifest,
+        source="alpha",
+        shard_name="a.bin",
+        input_format="jsonl-tokens",
+        tokens=4,
+    )
     remote_readiness = _write_stage1_remote_readiness_report(
         tmp_path / "reports" / "stage1-remote-readiness.json"
     )
@@ -3484,7 +3465,7 @@ def test_preflight_cli_writes_report_and_exits_21(tmp_path: Path):
 
     proc = subprocess.run(
         [
-            "python",
+            sys.executable,
             "-m",
             "experiments.mini_kimi_k3.preflight",
             "--mode",
@@ -3511,7 +3492,7 @@ def test_preflight_cli_accepts_token_manifest(tmp_path: Path):
 
     proc = subprocess.run(
         [
-            "python",
+            sys.executable,
             "-m",
             "experiments.mini_kimi_k3.preflight",
             "--mode",
@@ -3550,7 +3531,7 @@ def test_preflight_cli_accepts_launch_evidence_bundle_args(tmp_path: Path):
 
     proc = subprocess.run(
         [
-            "python",
+            sys.executable,
             "-m",
             "experiments.mini_kimi_k3.preflight",
             "--mode",

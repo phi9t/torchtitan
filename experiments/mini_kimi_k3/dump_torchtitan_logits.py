@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from torchtitan.config import ConfigManager
+from torchtitan.config import ConfigLoader
 
 from .dump_first_party_logits import (
     _install_transformers_compat_shims,
@@ -156,10 +156,16 @@ def dump_torchtitan_logits(
     input_ids = _parse_input_ids(input_ids_csv)
     _seed_everything(seed)
 
-    config = ConfigManager().parse_args(
-        ["--module", "mini_kimi_k3", "--config", config_name]
+    config = ConfigLoader().load(
+        [
+            "--module",
+            "torchtitan.experiments.mini_kimi_k3.config_registry",
+            "--config",
+            config_name,
+        ]
     )
-    if config.model_spec.flavor == "r1_contract":
+    model_flavor = config.model.experiment_flavor
+    if model_flavor == "r1_contract":
         if allow_unverified_r1:
             fidelity_status = "unverified_candidate"
         else:
@@ -169,7 +175,7 @@ def dump_torchtitan_logits(
             )
     else:
         fidelity_status = "tiny_plumbing"
-    model = config.model_spec.model.build()
+    model = config.model.build()
     model.init_states()
     alignment_report = None
     torch_device = _resolve_device(
@@ -177,7 +183,7 @@ def dump_torchtitan_logits(
         align_first_party_weights_enabled=align_first_party_weights_enabled,
     )
     if align_first_party_weights_enabled:
-        if config.model_spec.flavor != "r1_contract":
+        if model_flavor != "r1_contract":
             raise ValueError(
                 "--align-first-party-weights is only supported for r1_contract"
             )
@@ -215,11 +221,11 @@ def dump_torchtitan_logits(
         device=torch_device,
     ).unsqueeze(0)
     with torch.no_grad():
-        logits = model(input_ids, positions=positions)
+        logits = model.inner(input_ids, positions=positions)
 
     payload = {
         "config": config_name,
-        "model_flavor": config.model_spec.flavor,
+        "model_flavor": model_flavor,
         "fidelity_status": fidelity_status,
         "seed": seed,
         "input_ids": input_ids.cpu(),

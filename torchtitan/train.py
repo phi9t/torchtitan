@@ -50,18 +50,6 @@ def main() -> None:
             trainer: Trainer | None = None
 
             try:
-                # TODO(local_tensor): Remove this special case once LocalTensor supports
-                # init_states() and foreach_allgather. In local tensor mode, skip
-                # training/checkpointing as the model is not fully initialized.
-                if (
-                    config.comm.mode  # pyrefly: ignore [missing-attribute]
-                    == "local_tensor"
-                ):
-                    logger.info(
-                        "Local tensor mode enabled - skipping training execution"
-                    )
-                    return
-
                 trainer = config.build()
 
                 if config.create_seed_checkpoint:

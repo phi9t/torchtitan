@@ -87,13 +87,13 @@ def test_dataloader_yields_shifted_next_token_labels(tmp_path):
     loader = NanoGptBinDataLoader(
         [path], seq_len=4, local_batch_size=2, vocab_size=50257
     )
-    batch, labels = next(iter(loader))
+    microbatch = next(iter(loader))
 
-    assert batch["input"].shape == (2, 4)
-    assert labels.shape == (2, 4)
+    assert microbatch.input.shape == (2, 4)
+    assert microbatch.labels.shape == (2, 4)
     # Labels are the next-token shift of a contiguous window, not a roll.
-    flat_in = batch["input"].reshape(-1).tolist()
-    flat_lbl = labels.reshape(-1).tolist()
+    flat_in = microbatch.input.reshape(-1).tolist()
+    flat_lbl = microbatch.labels.reshape(-1).tolist()
     # First window: inputs 0..3, labels 1..4; second window: 4..7, labels 5..8.
     assert flat_in == [0, 1, 2, 3, 4, 5, 6, 7]
     assert flat_lbl == [1, 2, 3, 4, 5, 6, 7, 8]
@@ -108,11 +108,11 @@ def test_dataloader_advances_and_wraps_across_shards(tmp_path):
         [path], seq_len=4, local_batch_size=2, vocab_size=50257
     )
     it = iter(loader)
-    first, _ = next(it)
-    second, _ = next(it)
+    first = next(it)
+    second = next(it)
     # After exhausting the single shard the loader wraps to the start.
-    assert first["input"].reshape(-1).tolist()[0] == 0
-    assert second["input"].reshape(-1).tolist()[0] == 0
+    assert first.input.reshape(-1).tolist()[0] == 0
+    assert second.input.reshape(-1).tolist()[0] == 0
 
 
 def test_dataloader_rejects_token_over_vocab(tmp_path):
@@ -138,8 +138,8 @@ def test_dataloader_config_builds_from_registry(tmp_path):
         dp_world_size=1,
         dp_rank=0,
         tokenizer=None,
-        seq_len=4,
-        local_batch_size=2,
+        max_context_length=4,
+        num_tokens_per_microbatch=2 * 4,
     )
-    batch, labels = next(iter(loader))
-    assert batch["input"].shape == (2, 4)
+    microbatch = next(iter(loader))
+    assert microbatch.input.shape == (2, 4)

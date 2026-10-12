@@ -541,10 +541,10 @@ within declared `tolerances`.
   next-token loss, backpropagates, performs AdamW steps, and writes a compact
   JSON report.
 - `experiments.mini_kimi_k3.r1_training_smoke` launches `run_train.sh` with
-  `MODULE=mini_kimi_k3`, `CONFIG=mini_kimi_k3_r1_contract`,
-  `COMM_MODE=fake_backend`, one GPU rank, one optimizer step, and the supplied
-  real token manifest. It writes the r1 Trainer-path smoke report consumed by
-  full-mode preflight.
+  `MODULE=torchtitan.experiments.mini_kimi_k3.config_registry`,
+  `CONFIG=mini_kimi_k3_r1_training_smoke`, `COMM_BACKEND=fake`, one GPU rank,
+  one optimizer step, and the supplied real token manifest. It writes the r1
+  Trainer-path smoke report consumed by full-mode preflight.
 - `experiments.mini_kimi_k3.preflight` writes a machine-readable readiness
   report, validates an optional token-shard manifest through the loader,
   validates optional tiny-smoke evidence for tiny-plumbing mode, rejects
@@ -563,7 +563,7 @@ within declared `tolerances`.
 - `experiments.mini_kimi_k3.trace_forward_oracle` writes a layer trace from
   exact first-party state without keeping both full r1 models resident on GPU.
 - `experiments.mini_kimi_k3.dump_torchtitan_logits` builds a Mini-K3
-  TorchTitan config through `ConfigManager`, emits tiny-plumbing logits for a
+  TorchTitan config through `ConfigLoader`, emits tiny-plumbing logits for a
   supplied token row, and preserves the r1 contract's default fail-closed
   backend guard. It can emit an explicitly labeled, unverified r1 candidate
   logits payload only when `--allow-unverified-r1` is supplied, with optional

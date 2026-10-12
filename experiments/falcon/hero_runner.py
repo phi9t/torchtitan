@@ -32,6 +32,8 @@ import signal
 import time
 from pathlib import Path
 
+from torchtitan.components.checkpointer import CheckpointManager
+
 _HERO_ARMS = ("A0", "A1", "A5")
 _RESULTS_ROOT = Path("experiments/falcon/results/hero")
 _DISK_FLOOR_BYTES = 5 * 1024**3
@@ -90,7 +92,7 @@ def install_pause_control(trainer, dump_folder: Path) -> dict:
     signal.signal(signal.SIGTERM, _trip)
     signal.signal(signal.SIGINT, _trip)
 
-    orig_save = trainer.checkpointer.save
+    orig_save = trainer.engine.checkpointer.save
 
     def save(curr_step, last_step=False):
         pause = state["requested"] or pause_requested(dump_folder)
@@ -102,7 +104,7 @@ def install_pause_control(trainer, dump_folder: Path) -> dict:
             state["saved"] = True
         return written
 
-    trainer.checkpointer.save = save  # type: ignore[method-assign]
+    trainer.engine.checkpointer.save = save  # type: ignore[method-assign]
 
     orig_continue = trainer.should_continue_training
 
@@ -111,10 +113,11 @@ def install_pause_control(trainer, dump_folder: Path) -> dict:
         if not pause:
             return orig_continue()
         state["requested"] = True
-        if trainer.step > 0 and not state["saved"]:
-            trainer.checkpointer.save(trainer.step, last_step=True)
+        step = trainer.engine.num_completed_steps
+        if step > 0 and not state["saved"]:
+            trainer.engine.checkpointer.save(step, last_step=True)
             state["saved"] = True
-        trainer.config.training.steps = trainer.step
+        trainer.config.training.steps = step
         return False
 
     trainer.should_continue_training = should_continue  # type: ignore[method-assign]
@@ -148,8 +151,11 @@ def build_hero_config(
     checkpoint_interval: int,
 ):
     """Science Trainer config for one hero arm, with resumable checkpoints."""
-    from torchtitan.config import ConfigManager
-    from torchtitan.experiments.falcon.config_registry import apply_arm, falcon_science
+    from torchtitan.experiments.falcon.config_registry import (
+        apply_arm,
+        falcon_science,
+        set_falcon_batch_shape,
+    )
 
     if arm not in _HERO_ARMS:
         raise ValueError(f"hero arm must be one of {_HERO_ARMS}, got {arm!r}")
@@ -159,32 +165,27 @@ def build_hero_config(
     config = falcon_science()
     apply_arm(config, arm)
     config.training.steps = steps
-    config.lr_scheduler.total_steps = steps
-    config.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
+    config.optim.lr_scheduler.total_steps = steps
+    config.optim.lr_scheduler.warmup_steps = min(200, max(1, steps // 40))
     config.debug.seed = seed
     config.debug.enable_structured_logging = False
     config.dump_folder = str(dump_folder)
-    config.checkpoint.enable = True
-    config.checkpoint.interval = checkpoint_interval
-    config.checkpoint.last_save_model_only = False
-    config.checkpoint.keep_latest_k = 2
-    config.checkpoint.load_step = -1
+    config.checkpointer = config.checkpointer or CheckpointManager.Config()
+    config.checkpointer.interval = checkpoint_interval
+    config.checkpointer.last_save_model_only = False
+    config.checkpointer.keep_latest_k = 2
+    config.checkpointer.load_step = -1
     config.metrics.log_freq = 1 if dry_run else 50
 
     if dry_run:
-        inner = config.model_spec.model.config
+        inner = config.model.config
         inner.hidden_size = 128
         inner.num_heads = 4
         inner.head_dim = 32
         inner.num_hidden_layers = 2
         inner.intermediate_size = 512
-        inner.seq_len = 128
-        config.training.seq_len = 128
-        config.training.local_batch_size = 8
+        set_falcon_batch_shape(config, local_batch_size=8, max_context_length=128)
 
-    manager = ConfigManager()
-    manager.config = config
-    manager._validate_config()
     return config
 
 
@@ -241,8 +242,9 @@ def run_hero(
     started = time.time()
     trainer = config.build()
     install_pause_control(trainer, dump_folder)
-    trainer.checkpointer.load(step=config.checkpoint.load_step)
-    resume_step = trainer.step
+    assert config.checkpointer is not None
+    trainer.engine.checkpointer.load(step=config.checkpointer.load_step)
+    resume_step = trainer.engine.num_completed_steps
     (dump_folder / "hero.pid").write_text(f"{os.getpid()}\n")
     _write_status(
         dump_folder,
@@ -260,7 +262,7 @@ def run_hero(
     paused = False
     try:
         trainer.train()
-        completed_steps = trainer.step
+        completed_steps = trainer.engine.num_completed_steps
         paused = pause_requested(dump_folder) or completed_steps < steps
     except RuntimeError as exc:
         if "not finite" not in str(exc):
@@ -268,11 +270,11 @@ def run_hero(
             restore_probe()
             raise
         unstable = True
-        completed_steps = trainer.step
+        completed_steps = trainer.engine.num_completed_steps
     val = {"val_ce": float("nan"), "val_ppl": float("nan"), "val_tokens": 0}
     try:
         if not dry_run and not paused and not unstable:
-            val = _eval_val_ce(trainer.model_parts, config, max_windows=64)
+            val = _eval_val_ce(trainer.engine.model_parts, config, max_windows=64)
     finally:
         trainer.close()
         restore_probe()
@@ -280,7 +282,7 @@ def run_hero(
         if pid_path.exists():
             pid_path.unlink()
 
-    inner = config.model_spec.model.config
+    inner = config.model.config
     result = {
         "claim_label": "smoke" if dry_run else "representative_training",
         "arm": arm,
@@ -299,7 +301,7 @@ def run_hero(
         "unstable": unstable,
         "val_ce": val["val_ce"],
         "val_ppl": val["val_ppl"],
-        "tokens_per_step": config.training.local_batch_size * config.training.seq_len,
+        "tokens_per_step": config.training.num_tokens_per_microbatch_per_dp_rank,
         "elapsed_sec": round(time.time() - started, 2),
         "dump_folder": str(dump_folder),
         "dry_run": dry_run,

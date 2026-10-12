@@ -6,16 +6,20 @@
 
 import math
 from dataclasses import dataclass
+from typing import Any, cast
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torchtitan.config import TORCH_DTYPE_MAP, TrainingConfig
+from torchtitan.config.parallelism import ParallelismConfig
+from torchtitan.distributed.parallelism_context import ParallelismContext
 from torchtitan.models.common.embedding import Embedding
 from torchtitan.models.common.linear import Linear
 from torchtitan.models.common.nn_modules import LayerNorm
-from torchtitan.protocols.model import BaseModel
-from torchtitan.protocols.module import Module, ModuleList
+from torchtitan.models.base import BaseModel
+from torchtitan.models.base.module import Module, ModuleList
 
 
 # Shape suffix legend for this file:
@@ -368,12 +372,71 @@ class DiTModel(BaseModel):
         )
         self.pos_embed = pos_embed_TD.unsqueeze(0)
 
+    def preprocess_inputs(
+        self,
+        input_dict: dict[str, Any],
+        *,
+        parallelism_context: ParallelismContext,
+        parallelism: ParallelismConfig,
+        max_num_documents: int | None = None,
+        max_context_length: int | None = None,
+        **kwargs: Any,
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
+        del parallelism_context, parallelism, max_num_documents, max_context_length
+        alpha_bar_T = cast(torch.Tensor, kwargs["alpha_bar"])
+        diffusion_timesteps = cast(int, kwargs["diffusion_timesteps"])
+        dtype = TORCH_DTYPE_MAP[cast(str, kwargs["training_dtype"])]
+
+        x0_BCHW = input_dict.pop("input").to(dtype=dtype)
+        y_B = input_dict.pop("class_labels")
+        batch_size = x0_BCHW.shape[0]
+
+        with torch.no_grad():
+            eps_BCHW = torch.randn_like(x0_BCHW)
+            t_B = torch.randint(
+                0,
+                diffusion_timesteps,
+                (batch_size,),
+                device=x0_BCHW.device,
+                dtype=torch.long,
+            )
+            alpha_bar_B = alpha_bar_T[t_B].to(dtype=x0_BCHW.dtype)
+            alpha_bar_B111 = alpha_bar_B.view(batch_size, 1, 1, 1)
+            xt_BCHW = (
+                alpha_bar_B111.sqrt() * x0_BCHW
+                + (1.0 - alpha_bar_B111).sqrt() * eps_BCHW
+            )
+
+        return xt_BCHW, eps_BCHW, {"timesteps_B": t_B, "y_B": y_B}
+
+    def _apply_fsdp(
+        self,
+        *,
+        parallelism_context: ParallelismContext,
+        training: TrainingConfig,
+        parallelism: ParallelismConfig,
+    ) -> None:
+        del training, parallelism
+        if (
+            parallelism_context.dp_enabled
+            or parallelism_context.tp_enabled
+            or parallelism_context.pp_enabled
+            or parallelism_context.cp_enabled
+            or parallelism_context.ep_enabled
+        ):
+            raise ValueError(
+                "The DiT synthetic experiment currently supports only single-rank "
+                "training. Use NGPU=1 and leave all parallelism degrees at 1."
+            )
+
     def forward(
         self,
         x_BCHW: torch.Tensor,
-        timesteps_B: torch.Tensor,
-        y_B: torch.Tensor,
+        timesteps_B: torch.Tensor | None = None,
+        y_B: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        if timesteps_B is None or y_B is None:
+            raise ValueError("DiTModel.forward requires timesteps_B and y_B.")
         x_BTD = self.x_embedder(patchify(x_BCHW, self.config.patch_size))
         x_BTD = x_BTD + self.pos_embed.to(device=x_BTD.device, dtype=x_BTD.dtype)
         c_BD = self.t_embedder(timesteps_B) + self.y_embedder(y_B)

@@ -33,7 +33,7 @@ def _tiny_hero(dump: Path, bin_path: Path, *, steps: int, interval: int = 2):
         checkpoint_interval=interval,
     )
     config.dataloader.bin_glob = str(bin_path)
-    config.comm.mode = "fake_backend"
+    config.comm.backend = "fake"
     return config
 
 
@@ -54,7 +54,7 @@ def test_hero_runner_pauses_and_resumes_optimizer_step(tmp_path: Path):
     trainer = first.build()
     try:
         trainer.train()
-        assert trainer.step == 4
+        assert trainer.engine.num_completed_steps == 4
     finally:
         trainer.close()
 
@@ -67,11 +67,11 @@ def test_hero_runner_pauses_and_resumes_optimizer_step(tmp_path: Path):
     paused = paused_cfg.build()
     try:
         paused.checkpointer.load(step=-1)
-        assert paused.step == 4
+        assert paused.engine.num_completed_steps == 4
         request_pause(dump)
         install_pause_control(paused, dump)
         paused.train()
-        assert paused.step == 4
+        assert paused.engine.num_completed_steps == 4
     finally:
         paused.close()
 
@@ -80,8 +80,8 @@ def test_hero_runner_pauses_and_resumes_optimizer_step(tmp_path: Path):
     resumed = resumed_cfg.build()
     try:
         resumed.checkpointer.load(step=-1)
-        assert resumed.step == 4
+        assert resumed.engine.num_completed_steps == 4
         resumed.train()
-        assert resumed.step == 6
+        assert resumed.engine.num_completed_steps == 6
     finally:
         resumed.close()

@@ -13,7 +13,8 @@ from typing import Any
 
 import torch
 
-from torchtitan.components.dataloader import BaseDataLoader
+from torchtitan.components.data.loader import BaseDataLoader
+from torchtitan.components.data.types import TokenizedTrainingMicrobatch
 
 
 def make_overfit_bank(
@@ -71,17 +72,22 @@ class FalconRepeatDataLoader(BaseDataLoader):
             dp_world_size: int,
             dp_rank: int,
             tokenizer,
-            seq_len: int,
-            local_batch_size: int,
-            snapshot_every_n_steps: int | None = 1,
+            max_context_length: int,
+            num_tokens_per_microbatch: int,
             **kwargs,
         ) -> "FalconRepeatDataLoader":
-            del tokenizer, snapshot_every_n_steps, kwargs
+            del tokenizer, kwargs
             if dp_world_size != 1 or dp_rank != 0:
                 raise ValueError("Falcon overfit dataloader is single-rank only")
+            if num_tokens_per_microbatch % max_context_length != 0:
+                raise ValueError(
+                    "num_tokens_per_microbatch must be divisible by "
+                    "max_context_length for Falcon overfit batches"
+                )
+            local_batch_size = num_tokens_per_microbatch // max_context_length
             bank = make_overfit_bank(
                 num_sequences=self.num_sequences,
-                seq_len=seq_len,
+                seq_len=max_context_length,
                 vocab_size=self.vocab_size,
                 seed=self.seed,
             )
@@ -103,9 +109,18 @@ class FalconRepeatDataLoader(BaseDataLoader):
         input_ids = self.bank[:, :-1]
         labels = self.bank[:, 1:]
         positions = torch.arange(self.seq_len).expand(self.local_batch_size, -1)
-        batch = {"input": input_ids, "positions": positions}
+        padding_mask = torch.zeros_like(input_ids, dtype=torch.bool)
+        loss_token_counts = torch.tensor(labels.numel(), dtype=torch.long)
+        routing_token_counts = torch.tensor(labels.numel(), dtype=torch.long).view(1)
         while True:
-            yield batch, labels
+            yield TokenizedTrainingMicrobatch(
+                input=input_ids,
+                labels=labels,
+                positions=positions,
+                padding_mask=padding_mask,
+                loss_token_counts=loss_token_counts,
+                routing_token_counts=routing_token_counts,
+            )
 
     def state_dict(self) -> dict[str, Any]:
         return {"bank": self.bank.clone()}

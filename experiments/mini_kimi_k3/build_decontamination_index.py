@@ -20,6 +20,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from experiments.mini_kimi_k3.decontaminate_local import (
+    NGRAM_N,
+    NgramIndex,
+    text_ngram_hashes,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIRST_PARTY_DATA = (
     REPO_ROOT
@@ -34,12 +40,59 @@ if FIRST_PARTY_DATA.is_dir() and str(FIRST_PARTY_DATA) not in sys.path:
 
 try:
     from bench_extract import extract_rows, missing_fields, row_text
-    from ngram import NGRAM_N, NgramIndex, text_ngram_hashes
+except ImportError:  # pragma: no cover - exercised only without assets.
+    def row_text(
+        row: dict[str, Any],
+        fields: list[str],
+        list_fields: list[str],
+    ) -> str:
+        parts: list[str] = []
+        for field in fields:
+            value = row.get(field)
+            if isinstance(value, str) and value.strip():
+                parts.append(value)
+        for field in list_fields:
+            value = row.get(field)
+            if isinstance(value, list):
+                parts.extend(
+                    item
+                    for item in value
+                    if isinstance(item, str) and item.strip()
+                )
+        return "\n".join(parts)
+
+    def missing_fields(
+        row: dict[str, Any],
+        fields: list[str],
+        list_fields: list[str],
+    ) -> list[str]:
+        missing = [
+            field
+            for field in fields
+            if not isinstance(row.get(field), str)
+        ]
+        missing.extend(
+            field
+            for field in list_fields
+            if not isinstance(row.get(field), list)
+        )
+        return missing
+
+    def extract_rows(
+        rows: Iterable[dict[str, Any]],
+        fields: list[str],
+        list_fields: list[str],
+    ) -> list[str]:
+        return [
+            text
+            for row in rows
+            if (text := row_text(row, fields, list_fields)).strip()
+        ]
+
+try:
     from sources import BENCHMARKS
-except ImportError as exc:  # pragma: no cover - exercised only without assets.
-    raise ImportError(
-        "Mini-K3 launch-grade decontamination requires first-party data assets"
-    ) from exc
+except ImportError:  # pragma: no cover - exercised only without assets.
+    BENCHMARKS = None
 
 
 SCHEMA_VERSION = 1
@@ -116,14 +169,21 @@ def build_decontamination_index(
             "Mini-K3 launch-grade decontamination index build must run inside rootfs"
         )
     resolution = _read_ready_resolution(source_resolution_report)
-    specs = benchmark_specs or [
-        BenchmarkSpec(
-            name=benchmark.name,
-            fields=list(benchmark.fields),
-            list_fields=list(benchmark.list_fields),
-        )
-        for benchmark in BENCHMARKS
-    ]
+    if benchmark_specs is None:
+        if BENCHMARKS is None:
+            raise ValueError(
+                "Mini-K3 launch-grade decontamination requires first-party data assets"
+            )
+        specs = [
+            BenchmarkSpec(
+                name=benchmark.name,
+                fields=list(benchmark.fields),
+                list_fields=list(benchmark.list_fields),
+            )
+            for benchmark in BENCHMARKS
+        ]
+    else:
+        specs = benchmark_specs
     loader = benchmark_loader or _load_hf_benchmark_rows
 
     started = time.time()

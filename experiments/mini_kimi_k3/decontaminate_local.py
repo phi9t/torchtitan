@@ -17,6 +17,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIRST_PARTY_DATA = (
     REPO_ROOT
@@ -31,10 +33,97 @@ if FIRST_PARTY_DATA.is_dir() and str(FIRST_PARTY_DATA) not in sys.path:
 
 try:
     from ngram import NGRAM_N, NgramIndex, text_ngram_hashes
-except ImportError as exc:  # pragma: no cover - exercised only without assets.
-    raise ImportError(
-        "Mini-K3 local decontamination requires the first-party ngram.py asset"
-    ) from exc
+except ImportError:  # pragma: no cover - exercised only without assets.
+    NGRAM_N = 13
+
+    def text_ngram_hashes(text: str, *, n: int = NGRAM_N) -> np.ndarray:
+        tokens = text.split()
+        if n <= 0:
+            raise ValueError("n must be positive")
+        if len(tokens) < n:
+            return np.asarray([], dtype=np.uint64)
+        hashes = [
+            int.from_bytes(
+                hashlib.blake2b(
+                    " ".join(tokens[index : index + n]).encode("utf-8"),
+                    digest_size=8,
+                ).digest(),
+                "little",
+            )
+            for index in range(len(tokens) - n + 1)
+        ]
+        return np.asarray(hashes, dtype=np.uint64)
+
+    class NgramIndex:  # type: ignore[no-redef]
+        def __init__(self, index: dict[str, set[int]]) -> None:
+            self._index = index
+
+        def __len__(self) -> int:
+            unique_hashes: set[int] = set()
+            for hashes in self._index.values():
+                unique_hashes.update(hashes)
+            return len(unique_hashes)
+
+        @classmethod
+        def build(
+            cls,
+            per_benchmark: dict[str, list[str]],
+            *,
+            n: int = NGRAM_N,
+        ) -> "NgramIndex":
+            return cls(
+                {
+                    name: {
+                        int(value)
+                        for text in texts
+                        for value in text_ngram_hashes(text, n=n)
+                    }
+                    for name, texts in per_benchmark.items()
+                }
+            )
+
+        @classmethod
+        def load(cls, path: Path) -> "NgramIndex":
+            with np.load(path, allow_pickle=False) as data:
+                names = [str(name) for name in data["names"].tolist()]
+                index = {
+                    name: {
+                        int(value)
+                        for value in data[f"hashes_{idx}"].astype(np.uint64)
+                    }
+                    for idx, name in enumerate(names)
+                }
+            return cls(index)
+
+        def save(self, path: Path) -> None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            names = sorted(self._index)
+            arrays = {
+                "names": np.asarray(names, dtype=np.str_),
+                **{
+                    f"hashes_{idx}": np.asarray(
+                        sorted(self._index[name]),
+                        dtype=np.uint64,
+                    )
+                    for idx, name in enumerate(names)
+                },
+            }
+            np.savez_compressed(path, **arrays)
+
+        def check(
+            self,
+            text: str,
+            *,
+            n: int = NGRAM_N,
+            min_matches: int = 1,
+        ) -> tuple[bool, dict[str, int]]:
+            query = {int(value) for value in text_ngram_hashes(text, n=n)}
+            hits = {
+                name: len(query & hashes)
+                for name, hashes in self._index.items()
+                if len(query & hashes) >= min_matches
+            }
+            return bool(hits), hits
 
 
 SCHEMA_VERSION = 1

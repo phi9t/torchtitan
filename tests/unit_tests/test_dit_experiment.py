@@ -6,6 +6,8 @@
 
 import torch
 
+from torchtitan.experiments.dit import model_registry
+from torchtitan.experiments.dit.dataloader import SyntheticLatentDataLoader
 from torchtitan.experiments.dit.model import DiTBlock, DiTModel, patchify, unpatchify
 
 
@@ -57,3 +59,30 @@ def test_dit_model_initial_output_shape_and_zero_output():
 
     assert out_BCHW.shape == x_BCHW.shape
     torch.testing.assert_close(out_BCHW, torch.zeros_like(out_BCHW))
+
+
+def test_dit_model_registry_returns_model_config():
+    assert isinstance(model_registry("debug"), DiTModel.Config)
+
+
+def test_synthetic_latent_loader_yields_training_microbatch():
+    dataloader = SyntheticLatentDataLoader.Config(
+        latent_channels=4,
+        latent_height=16,
+        latent_width=16,
+        num_classes=10,
+    ).build(
+        dp_world_size=1,
+        dp_rank=0,
+        tokenizer=None,
+        max_context_length=64,
+        num_tokens_per_microbatch=2 * 64,
+    )
+
+    microbatch = next(iter(dataloader))
+    input_dict = microbatch.as_input_dict()
+
+    assert input_dict["input"].shape == (2, 4, 16, 16)
+    assert input_dict["class_labels"].shape == (2,)
+    assert microbatch.loss_token_counts.item() == 2 * 64
+    assert microbatch.routing_token_counts.item() == 0

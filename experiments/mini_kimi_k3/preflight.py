@@ -24,7 +24,7 @@ if str(REPO_ROOT) not in sys.path:
 from experiments.mini_kimi_k3.evidence import (  # noqa: E402
     inspect_launch_evidence_bundle,
 )
-from torchtitan.config import ConfigManager  # noqa: E402
+from torchtitan.config import ConfigLoader  # noqa: E402
 from torchtitan.experiments.mini_kimi_k3.model_contract import (  # noqa: E402
     compare_with_first_party_oracle,
     estimate_parameter_budget,
@@ -1892,17 +1892,16 @@ def _trainable_config_gate(
     }
     if mode == "tiny-plumbing":
         try:
-            config = ConfigManager().parse_args(
+            config = ConfigLoader().load(
                 [
                     "--module",
-                    "mini_kimi_k3",
+                    "torchtitan.experiments.mini_kimi_k3.config_registry",
                     "--config",
                     "mini_kimi_k3_tiny_plumbing",
                 ]
             )
-            model_spec = config.model_spec
-            assert model_spec is not None
-            model = model_spec.model.build()
+            model_config = config.model
+            model = model_config.build()
             model.verify_module_protocol()
         except Exception as exc:
             return _gate(
@@ -1920,38 +1919,37 @@ def _trainable_config_gate(
                 **recipe_evidence,
                 "module": "mini_kimi_k3",
                 "config": "mini_kimi_k3_tiny_plumbing",
-                "model_spec": {
-                    "name": model_spec.name,
-                    "flavor": model_spec.flavor,
+                "model": {
+                    "experiment_name": model_config.experiment_name,
+                    "experiment_flavor": model_config.experiment_flavor,
                 },
             },
         )
     try:
-        config = ConfigManager().parse_args(
+        config = ConfigLoader().load(
             [
                 "--module",
-                "mini_kimi_k3",
+                "torchtitan.experiments.mini_kimi_k3.config_registry",
                 "--config",
                 "mini_kimi_k3_r1_contract",
             ]
         )
-        model_spec = config.model_spec
-        assert model_spec is not None
-        model = model_spec.model.build()
+        model_config = config.model
+        model = model_config.build()
         model.verify_module_protocol()
-        nparams, _ = model_spec.model.get_nparams_and_flops(
+        nparams, _ = model_config.get_nparams_and_flops(
             model,
-            config.training.seq_len,
+            config.training.max_context_length,
         )
         evidence = {
             **recipe_evidence,
             "module": "mini_kimi_k3",
             "config": "mini_kimi_k3_r1_contract",
-            "global_batch_size": config.training.global_batch_size,
-            "weight_decay_policy": model_spec.model.weight_decay_policy,
-            "model_spec": {
-                "name": model_spec.name,
-                "flavor": model_spec.flavor,
+            "num_tokens_per_train_step": config.training.num_tokens_per_train_step,
+            "weight_decay_policy": model_config.weight_decay_policy,
+            "model": {
+                "experiment_name": model_config.experiment_name,
+                "experiment_flavor": model_config.experiment_flavor,
             },
             "model_fidelity_status": model_gate["status"],
             "parameter_count": nparams,
@@ -2091,11 +2089,14 @@ def _r1_training_smoke_evidence(
             "evidence": evidence,
             "detail": report_error or "r1 training smoke report did not pass",
         }
-    if report.get("config") != "mini_kimi_k3_r1_contract":
+    if report.get("config") != "mini_kimi_k3_r1_training_smoke":
         return {
             "status": "fail",
             "evidence": evidence,
-            "detail": "r1 training smoke report config must be mini_kimi_k3_r1_contract",
+            "detail": (
+                "r1 training smoke report config must be "
+                "mini_kimi_k3_r1_training_smoke"
+            ),
         }
     if report.get("model_flavor") != "r1":
         return {
@@ -2132,9 +2133,9 @@ def _r1_training_smoke_evidence(
         }
     command_argv = command.get("argv") if isinstance(command, dict) else None
     required_argv_items = {
-        "MODULE=mini_kimi_k3",
-        "CONFIG=mini_kimi_k3_r1_contract",
-        "COMM_MODE=fake_backend",
+        "MODULE=torchtitan.experiments.mini_kimi_k3.config_registry",
+        "CONFIG=mini_kimi_k3_r1_training_smoke",
+        "COMM_BACKEND=fake",
         "NGPU=1",
         "./run_train.sh",
     }
@@ -2185,7 +2186,7 @@ def _r1_training_smoke_evidence(
             "evidence": evidence,
             "detail": command_contract_error,
         }
-    command_options = _argv_options(command_argv)
+    command_values = _argv_values(command_argv)
     if token_manifest is not None and data.get("manifest") != str(token_manifest):
         return {
             "status": "fail",
@@ -2195,16 +2196,14 @@ def _r1_training_smoke_evidence(
                 f"{data.get('manifest')} != {token_manifest}"
             ),
         }
-    if token_manifest is not None and command_options.get(
-        "--dataloader.token_manifest"
-    ) != str(token_manifest):
+    command_manifest = command_values["MINI_KIMI_K3_TOKEN_MANIFEST"][0]
+    if token_manifest is not None and command_manifest != str(token_manifest):
         return {
             "status": "fail",
             "evidence": evidence,
             "detail": (
                 "r1 training smoke command does not match requested token manifest: "
-                f"{command_options.get('--dataloader.token_manifest')} != "
-                f"{token_manifest}"
+                f"{command_manifest} != {token_manifest}"
             ),
         }
     if tokens_dir is not None and data.get("tokens_dir") != str(tokens_dir):
@@ -2216,15 +2215,14 @@ def _r1_training_smoke_evidence(
                 f"{data.get('tokens_dir')} != {tokens_dir}"
             ),
         }
-    if tokens_dir is not None and command_options.get("--dataloader.tokens_dir") != str(
-        tokens_dir
-    ):
+    command_tokens_dir = command_values["MINI_KIMI_K3_TOKENS_DIR"][0]
+    if tokens_dir is not None and command_tokens_dir != str(tokens_dir):
         return {
             "status": "fail",
             "evidence": evidence,
             "detail": (
                 "r1 training smoke command does not match requested tokens dir: "
-                f"{command_options.get('--dataloader.tokens_dir')} != {tokens_dir}"
+                f"{command_tokens_dir} != {tokens_dir}"
             ),
         }
     try:
@@ -2241,7 +2239,7 @@ def _r1_training_smoke_evidence(
             ),
         }
     try:
-        command_seq_len = int(command_options.get("--training.seq_len", -1))
+        command_seq_len = int(command_values["MINI_KIMI_K3_SMOKE_SEQ_LEN"][0])
     except (TypeError, ValueError):
         command_seq_len = -1
     if command_seq_len != seq_len:
@@ -2250,7 +2248,7 @@ def _r1_training_smoke_evidence(
             "evidence": evidence,
             "detail": (
                 "r1 training smoke command does not match requested seq_len: "
-                f"{command_options.get('--training.seq_len')} != {seq_len}"
+                f"{command_values['MINI_KIMI_K3_SMOKE_SEQ_LEN'][0]} != {seq_len}"
             ),
         }
     try:
@@ -2280,26 +2278,6 @@ def _r1_training_smoke_evidence(
         "evidence": evidence,
         "detail": "r1 Trainer smoke report passed",
     }
-
-
-def _argv_options(argv: list[Any]) -> dict[str, str]:
-    options: dict[str, str] = {}
-    index = 0
-    while index < len(argv):
-        item = argv[index]
-        if not isinstance(item, str):
-            index += 1
-            continue
-        if item.startswith("--") and "=" in item:
-            key, value = item.split("=", 1)
-            options[key] = value
-        elif item.startswith("--") and index + 1 < len(argv):
-            value = argv[index + 1]
-            if isinstance(value, str) and not value.startswith("--"):
-                options[item] = value
-                index += 1
-        index += 1
-    return options
 
 
 def _argv_values(argv: list[Any]) -> dict[str, list[str]]:
@@ -2362,37 +2340,32 @@ def _r1_smoke_command_contract_error(
     train_argv = argv[launcher_index + 1 :]
     if any(isinstance(item, str) and item.startswith("--") for item in env_argv):
         return "r1 training smoke command has run arguments before ./run_train.sh"
-    bare_train_arg = _first_bare_train_arg(train_argv)
-    if bare_train_arg is not None:
-        return (
-            "r1 training smoke command has environment arguments after ./run_train.sh"
-        )
     values = _argv_values(argv)
     expected_values = {
-        "MODULE": "mini_kimi_k3",
-        "CONFIG": "mini_kimi_k3_r1_contract",
-        "COMM_MODE": "fake_backend",
+        "MODULE": "torchtitan.experiments.mini_kimi_k3.config_registry",
+        "CONFIG": "mini_kimi_k3_r1_training_smoke",
+        "COMM_BACKEND": "fake",
         "NGPU": "1",
-        "--training.local_batch_size": "1",
-        "--training.global_batch_size": "1",
-        "--training.seq_len": str(data.get("seq_len")),
-        "--hf_assets_path": _optional_str(data.get("hf_assets_path")),
-        "--dump_folder": "__required__",
-        "--dataloader.token_manifest": _optional_str(data.get("manifest")),
-        "--dataloader.tokens_dir": _optional_str(data.get("tokens_dir")),
+        "MINI_KIMI_K3_SMOKE_LOCAL_BATCH_SIZE": "1",
+        "MINI_KIMI_K3_SMOKE_GLOBAL_BATCH_SIZE": "1",
+        "MINI_KIMI_K3_SMOKE_SEQ_LEN": str(data.get("seq_len")),
+        "MINI_KIMI_K3_HF_ASSETS_PATH": _optional_str(data.get("hf_assets_path")),
+        "MINI_KIMI_K3_TOKEN_MANIFEST": _optional_str(data.get("manifest")),
+        "MINI_KIMI_K3_TOKENS_DIR": _optional_str(data.get("tokens_dir")),
+        "--output-dir": "__required__",
     }
     descriptions = {
         "MODULE": "MODULE",
         "CONFIG": "CONFIG",
-        "COMM_MODE": "COMM_MODE",
+        "COMM_BACKEND": "COMM_BACKEND",
         "NGPU": "NGPU",
-        "--training.local_batch_size": "local batch size",
-        "--training.global_batch_size": "global batch size",
-        "--training.seq_len": "seq_len",
-        "--hf_assets_path": "hf assets path",
-        "--dump_folder": "dump folder",
-        "--dataloader.token_manifest": "token manifest",
-        "--dataloader.tokens_dir": "tokens dir",
+        "MINI_KIMI_K3_SMOKE_LOCAL_BATCH_SIZE": "local batch size",
+        "MINI_KIMI_K3_SMOKE_GLOBAL_BATCH_SIZE": "global batch size",
+        "MINI_KIMI_K3_SMOKE_SEQ_LEN": "seq_len",
+        "MINI_KIMI_K3_HF_ASSETS_PATH": "hf assets path",
+        "MINI_KIMI_K3_TOKEN_MANIFEST": "token manifest",
+        "MINI_KIMI_K3_TOKENS_DIR": "tokens dir",
+        "--output-dir": "output dir",
     }
     for key, expected_value in expected_values.items():
         if expected_value is None:
@@ -2409,7 +2382,7 @@ def _r1_smoke_command_contract_error(
             )
 
     steps_value, error = _single_argv_value(
-        values, "--training.steps", "training steps"
+        values, "MINI_KIMI_K3_SMOKE_STEPS", "training steps"
     )
     if error is not None:
         return error
@@ -2424,9 +2397,6 @@ def _r1_smoke_command_contract_error(
             f"{steps_value} != {expected_steps}"
         )
 
-    if values.get("--checkpoint.no-enable") != ["true"]:
-        return "r1 training smoke command must include checkpoint disabling"
-
     selected = gpu_memory.get("selected")
     if not isinstance(selected, dict) or not isinstance(selected.get("index"), int):
         return "r1 training smoke report has no selected GPU index"
@@ -2439,6 +2409,11 @@ def _r1_smoke_command_contract_error(
         return (
             "r1 training smoke command does not match selected GPU selection: "
             f"{cuda_visible_devices} != {selected['index']}"
+        )
+    bare_train_arg = _first_bare_train_arg(train_argv)
+    if bare_train_arg is not None:
+        return (
+            "r1 training smoke command has environment arguments after ./run_train.sh"
         )
     return None
 
