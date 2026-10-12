@@ -10,6 +10,14 @@ dist/*
 
 # data
 /data/
+experiments/countdown_search_distill/data_rescored/
+experiments/countdown_search_distill/results/
+experiments/countdown_search_distill/sweeps/
+experiments/modded_nanogpt_b200/data/
+experiments/modded_nanogpt_b200/results/
+experiments/modded_nanogpt_b200/sources/
+experiments/scaffold_to_policy/data/
+experiments/scaffold_to_policy/results/
 out
 wandb
 
@@ -20,9 +28,12 @@ assets/hf/*
 assets/tokenizer/*
 
 # temp files
+*.pyc
 *.log
+a.out
 error.json
 _remote_module_non_scriptable.py
+.scratch/trae-pytest-tmp/
 
 # Editor temporaries (VIM)
 [._]*.s[a-v][a-z]
@@ -42,6 +53,13 @@ Sessionx.vim
 # env files
 .env
 
+# local virtualenv and HF cache (created by env setup / experiment run.sh)
+.venv
+.venv-rootfs
+.cache
+.hf_cache
+scripts/rootfs/rootfs
+
 # Claude Code local configuration
 CLAUDE.local.md
 /test_*.py
@@ -51,3 +69,9 @@ CLAUDE_CONTEXT/
 
 # Lychee (link checker) cache
 .lycheecache
+
+# roborev snapshots
+/.roborev/
+
+# TRAE CLI agent worktrees
+/.trae/

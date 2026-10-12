@@ -14,6 +14,9 @@ repos:
         args: ['--branch=main']
     -   id: check-added-large-files
         args: ['--maxkb=500']
+        # These deterministic modules contain the complete bounded Device-mesh
+        # graph and are consumed directly by TLC/Lean plus artifact sync.
+        exclude: '^experiments/qwen3_formal_verifier/formal/DeviceMesh(?:Bad)?Facts\.(?:lean|tla)$'
     -   id: end-of-file-fixer
         exclude: '^(.*\.svg)$'
 
@@ -115,3 +118,23 @@ repos:
         - "--retry-wait-time=10"
         - "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       types_or: [markdown, python]
+
+    # Block reintroduction of machine- and person-identifiable tokens.
+    - id: check-no-pii
+      name: check-no-pii
+      entry: python scripts/check_no_pii.py
+      language: system
+      pass_filenames: true
+      exclude: '^tests/assets/c4_test/data\.json$'
+
+    # Keep the formal-verifier notes reflowed at 80 columns. Scoped to that
+    # corpus on purpose: most markdown elsewhere in the repository is wider,
+    # and widening this hook would mean mechanically reflowing other programs'
+    # documents. Extending the scope means extending "files" and reflowing the
+    # newly covered corpus in the same change.
+    - id: check-line-width
+      name: check-line-width
+      entry: python scripts/check_line_width.py
+      language: system
+      pass_filenames: true
+      files: '^\.scratch/qwen3-formal-verifier/.*\.md$'
