@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+import os
+
 from renderers import Qwen3RendererConfig
 
 from torchtitan.components.checkpointer import CheckpointManager
@@ -19,9 +22,12 @@ from torchtitan.components.optim import (
     OptimizersContainer,
 )
 from torchtitan.components.renderer import from_renderers
-from torchtitan.config import TrainingConfig
+from torchtitan.config import DebugConfig, TrainingConfig
 from torchtitan.config.parallelism import ParallelismConfig
-from torchtitan.config.transform import LMHeadFP32OutputConverter
+from torchtitan.config.transform import (
+    BatchInvariantFlexConverter,
+    LMHeadFP32OutputConverter,
+)
 from torchtitan.models.common.config_utils import decoder_vocab_size
 from torchtitan.models.qwen3 import build_model_config
 from torchtitan.rl.components.data import IterableRLDataLoader
@@ -30,7 +36,12 @@ from torchtitan.rl.distributed.parallelism import InferenceParallelismConfig
 from torchtitan.rl.examples.dapo_math.data import AIME2025Dataset, DapoMathDataset
 from torchtitan.rl.examples.dapo_math.env import DapoMathEnv
 from torchtitan.rl.examples.dapo_math.rubric import RewardMathVerify
-from torchtitan.rl.generator import SamplingConfig, VLLMCudaGraphConfig, VLLMGenerator
+from torchtitan.rl.generator import (
+    SamplingConfig,
+    VLLMCudaGraphConfig,
+    VLLMGenerator,
+    VLLMKernelConfig,
+)
 from torchtitan.rl.losses import DAPOLoss
 from torchtitan.rl.observability.metrics import MetricsProcessor
 from torchtitan.rl.rollout.advantage import AdvantageEstimator
@@ -39,8 +50,20 @@ from torchtitan.rl.rollout.rubric import Rubric
 from torchtitan.rl.rollout.token_env import TokenEnv
 from torchtitan.rl.trainer import Trainer
 
+_REFERENCE_SEED = 42
+
 # TODO: Enable CUDA graphs for RL trainers after eager/graph numerics parity is
 # verified.
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except ValueError as error:
+        raise ValueError(f"{name} must be an integer, got {value!r}") from error
 
 
 def _dapo_math_rollouter_config(
@@ -187,4 +210,190 @@ def rl_dapo_qwen3_4b_math_32k() -> Controller.Config:
         max_response_tokens=32768,
         max_total_tokens=34816,
         dump_folder="outputs/rl/qwen3_4b_dapo_math_32k",
+    )
+
+
+def _rl_batch_invariance_reference_base(
+    *,
+    dump_folder: str,
+    max_response_tokens: int,
+    max_total_tokens: int,
+    num_training_steps: int,
+    validation_steps: int,
+    num_prompts_per_train_step: int,
+    num_samples_per_prompt: int,
+    target_offpolicy_steps: int,
+) -> Controller.Config:
+    """Shared 8K DAPO-Math reference settings for BI comparison runs."""
+    config = _qwen3_4b_dapo_math_config(
+        max_response_tokens=max_response_tokens,
+        max_total_tokens=max_total_tokens,
+        dump_folder=dump_folder,
+    )
+    config.metrics = MetricsProcessor.Config(
+        enable_wandb=False,
+        enable_tensorboard=True,
+    )
+    config.async_loop = dataclasses.replace(
+        config.async_loop,
+        num_training_steps=num_training_steps,
+        num_prompts_per_train_step=num_prompts_per_train_step,
+        num_samples_per_prompt=num_samples_per_prompt,
+        target_offpolicy_steps=target_offpolicy_steps,
+        validation=dataclasses.replace(
+            config.async_loop.validation,
+            steps=validation_steps,
+        ),
+    )
+    config.trainer = dataclasses.replace(
+        config.trainer,
+        debug=DebugConfig(seed=_REFERENCE_SEED),
+    )
+    config.generator = dataclasses.replace(
+        config.generator,
+        cuda_graph=VLLMCudaGraphConfig(mode="NONE"),
+        debug=DebugConfig(seed=_REFERENCE_SEED),
+        gpu_memory_limit=0.75,
+        kernel=VLLMKernelConfig(
+            enable_flashinfer_autotune=False,
+            enable_cutedsl_warmup=False,
+            enable_jit_warmup=False,
+        ),
+    )
+    return config
+
+
+def _rl_batch_invariance_reference_from_env(
+    *,
+    dump_folder: str,
+    max_response_tokens: int = 8192,
+    max_total_tokens: int = 10240,
+    num_training_steps: int = 150,
+    validation_steps: int = 30,
+    num_prompts_per_train_step: int = 8,
+    num_samples_per_prompt: int = 16,
+    target_offpolicy_steps: int = 4,
+) -> Controller.Config:
+    """Build a reference recipe, with script-owned env overrides."""
+    return _rl_batch_invariance_reference_base(
+        dump_folder=dump_folder,
+        max_response_tokens=_env_int(
+            "TT_RL_REFERENCE_MAX_TOKENS", max_response_tokens
+        ),
+        max_total_tokens=_env_int(
+            "TT_RL_REFERENCE_MAX_CONTEXT_LENGTH", max_total_tokens
+        ),
+        num_training_steps=_env_int(
+            "TT_RL_REFERENCE_STEPS", num_training_steps
+        ),
+        validation_steps=_env_int(
+            "TT_RL_REFERENCE_VALIDATION_STEPS", validation_steps
+        ),
+        num_prompts_per_train_step=_env_int(
+            "TT_RL_REFERENCE_NUM_PROMPTS", num_prompts_per_train_step
+        ),
+        num_samples_per_prompt=_env_int(
+            "TT_RL_REFERENCE_NUM_SAMPLES", num_samples_per_prompt
+        ),
+        target_offpolicy_steps=_env_int(
+            "TT_RL_REFERENCE_TARGET_OFFPOLICY_STEPS", target_offpolicy_steps
+        ),
+    )
+
+
+def _apply_batch_invariant_reference(config: Controller.Config) -> Controller.Config:
+    """Make a reference config suitable for bitwise trainer/generator parity."""
+    assert config.model is not None
+    max_total_tokens = config.trainer.training.max_context_length
+    config.model = build_model_config(
+        "4B",
+        seq_len=max_total_tokens,
+        attn_backend="flex",
+        converters=[
+            BatchInvariantFlexConverter.Config(),
+            LMHeadFP32OutputConverter.Config(),
+        ],
+    )
+    # Local compile regions do not support batch-invariant mode.
+    config.model.local_compile_regions = []
+    block_size = config.model.layers[0].attention.inner_attention.block_size
+    config.async_loop = dataclasses.replace(
+        config.async_loop,
+        target_offpolicy_steps=0,
+        windowed_fifo_batches=1,
+        batcher=dataclasses.replace(
+            config.async_loop.batcher,
+            per_sample_pad_multiple=block_size,
+        ),
+    )
+    batch_invariant_debug = DebugConfig(
+        seed=_REFERENCE_SEED,
+        batch_invariant=True,
+        deterministic=True,
+    )
+    config.num_generators = 3
+    config.trainer = dataclasses.replace(
+        config.trainer,
+        debug=batch_invariant_debug,
+        parallelism=dataclasses.replace(
+            config.trainer.parallelism,
+            enable_sequence_parallel=False,
+        ),
+    )
+    config.generator = dataclasses.replace(
+        config.generator,
+        debug=batch_invariant_debug,
+        parallelism=dataclasses.replace(
+            config.generator.parallelism,
+            tensor_parallel_degree=2,
+        ),
+        reset_kv_cache_on_weight_sync=True,
+    )
+    return config
+
+
+def rl_dapo_qwen3_4b_math_8k_reference_no_bi() -> Controller.Config:
+    """150-step DAPO-Math baseline: TP=2 trainer and six TP=1 generators."""
+    return _rl_batch_invariance_reference_from_env(
+        dump_folder="outputs/rl_batch_invariance_async/no_bi",
+    )
+
+
+def rl_dapo_qwen3_4b_math_8k_reference_bi() -> Controller.Config:
+    """150-step DAPO-Math BI parity run: TP=2 trainer and three TP=2 generators."""
+    return _apply_batch_invariant_reference(
+        _rl_batch_invariance_reference_from_env(
+            dump_folder="outputs/rl_batch_invariance_async/bi",
+            target_offpolicy_steps=0,
+        )
+    )
+
+
+def rl_dapo_qwen3_4b_math_8k_reference_no_bi_preflight() -> Controller.Config:
+    """Bounded startup check for the no-BI reference arm."""
+    return _rl_batch_invariance_reference_from_env(
+        dump_folder="outputs/rl_batch_invariance_async/preflight_no_bi",
+        max_response_tokens=512,
+        max_total_tokens=2048,
+        num_training_steps=2,
+        validation_steps=0,
+        num_prompts_per_train_step=1,
+        num_samples_per_prompt=1,
+        target_offpolicy_steps=0,
+    )
+
+
+def rl_dapo_qwen3_4b_math_8k_reference_bi_preflight() -> Controller.Config:
+    """Bounded startup and parity check for the BI reference arm."""
+    return _apply_batch_invariant_reference(
+        _rl_batch_invariance_reference_from_env(
+            dump_folder="outputs/rl_batch_invariance_async/preflight_bi",
+            max_response_tokens=512,
+            max_total_tokens=2048,
+            num_training_steps=2,
+            validation_steps=0,
+            num_prompts_per_train_step=1,
+            num_samples_per_prompt=1,
+            target_offpolicy_steps=0,
+        )
     )

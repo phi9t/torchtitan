@@ -61,6 +61,23 @@ def isfile(path: str | os.PathLike) -> bool:
     return os.path.isfile(path)
 
 
+def getsize(path: str | os.PathLike) -> int:
+    """Return ``path``'s size in bytes, mirroring ``os.path.getsize``.
+
+    A remote backend that declines to report a size raises ``OSError`` rather
+    than returning ``None``, so a caller cannot mistake "size unknown" for
+    "size zero". That distinction matters for the checkpoint manifest integrity
+    sentinel, which reads a shard's length to detect truncation.
+    """
+    if is_remote(path):
+        fs, p = _resolve(path)
+        size = fs.size(p)
+        if size is None:
+            raise OSError(f"remote filesystem reported no size for {path}")
+        return int(size)
+    return os.path.getsize(path)
+
+
 def listdir(path: str | os.PathLike) -> list[str]:
     """List directory entries as basenames, matching ``os.listdir``.
 

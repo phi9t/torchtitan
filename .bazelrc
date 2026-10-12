@@ -1,0 +1,14 @@
+# Bazel is an opt-in formal-tooling surface. Existing repository workflows
+# remain owned by pytest, torchrun, uv, and their shell entrypoints.
+common --enable_bzlmod
+common --lockfile_mode=error
+
+build --incompatible_strict_action_env
+build --sandbox_default_allow_network=false
+
+test --test_output=errors
+
+# TLC runs with Bazel's declared JDK 17 rather than host Java.
+common:formal --java_runtime_version=remotejdk_17
+common:formal --tool_java_runtime_version=remotejdk_17
+test:formal --test_tag_filters=formal

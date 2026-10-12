@@ -32,7 +32,7 @@ import os
 os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
 
 from vllm import EngineArgs, LLMEngine, SamplingParams
-from vllm.config import AttentionConfig
+from vllm.config import AttentionConfig, KernelConfig
 from vllm.distributed.parallel_state import cleanup_dist_env_and_memory
 from vllm.logger import init_logger
 from vllm.sampling_params import RequestOutputKind
@@ -49,7 +49,7 @@ from torchtitan.rl.model.vllm_registry import (
     TORCHTITAN_WORKER_CLS,
 )
 from torchtitan.tools import filesystem
-from torchtitan.tools.utils import has_cuda_capability
+from torchtitan.tools.utils import get_cuda_flash_attention_impl
 
 
 logger = init_logger(__name__)
@@ -168,13 +168,21 @@ def generate() -> None:
                 else AttentionBackendEnum.CUSTOM
             ),
         ),
+        kernel_config=KernelConfig(
+            enable_flashinfer_autotune=gen_config.kernel.enable_flashinfer_autotune,
+            enable_cutedsl_warmup=gen_config.kernel.enable_cutedsl_warmup,
+            enable_jit_warmup=gen_config.kernel.enable_jit_warmup,
+        ),
         disable_log_stats=False,
     )
     engine_kwargs["max_model_len"] = model_config.max_context_length
     engine_kwargs["max_num_seqs"] = max_num_seqs
     if gen_config.max_num_batched_tokens is not None:
         engine_kwargs["max_num_batched_tokens"] = gen_config.max_num_batched_tokens
-    if not has_cuda_capability(9, 0):
+    if (
+        not isinstance(attention_backend, FlexInnerAttention.Config)
+        and get_cuda_flash_attention_impl() != "FA3"
+    ):
         engine_kwargs["block_size"] = 256
     expert_sequence_parallel_size = gen_config.parallelism.expert_sequence_parallel_size
     vllm_compilation_config = gen_config.cuda_graph.get_vllm_compilation_config(

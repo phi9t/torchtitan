@@ -21,7 +21,6 @@ import torch
 import torch.nn.functional as F
 import torch_remat as remat
 from torch.nn.attention import (
-    activate_flash_attention_impl,
     current_flash_attention_impl,
     sdpa_kernel,
     SDPBackend,
@@ -47,7 +46,7 @@ from torchtitan.models.base.module import Module
 from torchtitan.models.common.linear import Linear
 from torchtitan.models.common.nn_modules import RMSNorm
 from torchtitan.models.common.rope import RoPE
-from torchtitan.tools.utils import round_up
+from torchtitan.tools.utils import activate_cuda_flash_attention_impl, round_up
 
 if TYPE_CHECKING:
     from . import AttentionMetadata
@@ -202,14 +201,9 @@ class VarlenInnerAttention(InnerAttention):
         super().__init__()
         self.window_size = config.window_size
 
-        from torchtitan.tools.utils import get_cuda_flash_attention_impl
-
-        flash_attention_impl = get_cuda_flash_attention_impl()
-        if (
-            flash_attention_impl is not None
-            and current_flash_attention_impl() != flash_attention_impl
-        ):
-            activate_flash_attention_impl(flash_attention_impl)
+        flash_attention_impl = activate_cuda_flash_attention_impl()
+        if flash_attention_impl is not None:
+            assert current_flash_attention_impl() == flash_attention_impl
 
     def forward(
         self,

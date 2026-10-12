@@ -181,10 +181,48 @@ LOG_RANK=1 ./run_train.sh
 LOG_RANK=0,1 ./run_train.sh
 ```
 
+## Local Tensor Bootstrap Validation
+
+`COMM_MODE=local_tensor` validates the direct core entrypoint and its
+pre-trainer bootstrap:
+
+```bash
+NGPU=32 COMM_MODE="local_tensor" ./run_train.sh
+```
+
+Use it to check config parsing, CLI overrides, run/attempt identity propagation,
+the core [run-evidence bundle](run_evidence.md), structured logger setup and
+close, and successful early-return outcome handling without spending a GPU
+training budget. It records the bootstrap structured event and process outcome,
+then returns before `Trainer` construction, distributed initialization, model
+construction, checkpointing, or any training step.
+
+This mode does not exercise FSDP, TP, PP, CP, EP, collectives, gradient
+synchronization, model numerics, or training correctness. `NGPU` can still be
+used while validating the requested topology, but the launch remains one
+process and performs no distributed work.
+
+```bash
+# Validate bootstrap for a requested 8-way TP + 2-way data-parallel config
+NGPU=16 COMM_MODE="local_tensor" ./run_train.sh \
+  --parallelism.tensor_parallel_degree 8 \
+  --parallelism.data_parallel_shard_degree 2
+```
+
 ## Troubleshooting jobs that timeout
 
-If you encounter jobs that timeout, you'll need to debug them to identify the root cause. To help with this process, we've enabled Flight Recorder, a tool that continuously collects diagnostic information about your jobs.
-When a job times out, Flight Recorder automatically generates dump files on every rank containing valuable debugging data. You can find these dump files in the `dump_folder` directory.
+If you encounter jobs that timeout, Flight Recorder can retain a bounded
+history of distributed operations when its trace buffer is enabled. TorchTitan
+configures a native dump prefix under
+`dump_folder/<comm.save_traces_folder>/<comm.save_traces_file_prefix>` and asks
+PyTorch to dump on NCCL timeout.
+
+The run-evidence index records that prefix as a `declared`
+`pytorch.flight_recorder.dump` artifact with `path_semantics="prefix"`. The row
+does not assert that a timeout happened, that every rank wrote a file, or that a
+dump completed. Confirm native files at the prefix and account for the PyTorch,
+backend, timeout, and environment behavior of the actual run before analyzing
+them.
 To learn how to analyze and diagnose issues using these logs, follow our step-by-step tutorial [link](https://pytorch.org/tutorials/prototype/flight_recorder_tutorial.html).
 
 

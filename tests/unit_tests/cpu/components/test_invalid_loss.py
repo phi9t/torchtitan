@@ -4,7 +4,11 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
+import os
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +16,7 @@ import torch
 from torchtitan.components.data.types import TokenizedTrainingMicrobatch
 from torchtitan.components.loss import IGNORE_INDEX
 from torchtitan.components.optim import Optim
+from torchtitan.observability.run_evidence import RunEvidence
 from torchtitan.trainer import Trainer
 from torchtitan.training_engine import ForwardBackwardResult, TrainingEngine
 
@@ -123,6 +128,61 @@ class TestInvalidLoss(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             self._run_step(float("nan"), should_log=False)
         self.assertIn("not finite", str(ctx.exception))
+
+
+class TestInvalidLossEvidence(unittest.TestCase):
+    def _incident_rows(self, tmp_dir: str) -> list[dict]:
+        index = next(
+            (
+                Path(tmp_dir)
+                / "run_evidence"
+                / "invalid-loss-run"
+                / "invalid-loss-attempt"
+                / "indexes"
+            ).glob("artifacts.*.jsonl")
+        )
+        with index.open() as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        return [row for row in rows if row["record_type"] == "incident"]
+
+    def _run_with_evidence(self, tmp_dir: str, loss_value: float) -> Trainer:
+        env = {
+            "WORLD_SIZE": "1",
+            "RANK": "0",
+            "LOCAL_RANK": "0",
+            "TORCHTITAN_RUN_ID": "invalid-loss-run",
+            "TORCHTITAN_ATTEMPT_ID": "invalid-loss-attempt",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with RunEvidence(
+                RunEvidence.Config(),
+                dump_folder=tmp_dir,
+                job_config={"training": {"steps": 3}},
+                role="trainer",
+                actor_id="core",
+            ):
+                return TestInvalidLoss()._run_step(loss_value, should_log=True)
+
+    def test_nan_loss_emits_nonfinite_incident_before_raising(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_with_evidence(tmp_dir, float("nan"))
+            self.assertIn("not finite", str(ctx.exception))
+
+            incidents = self._incident_rows(tmp_dir)
+            self.assertEqual(len(incidents), 1)
+            incident = incidents[0]
+            self.assertEqual(incident["incident_class"], "nonfinite_loss")
+            self.assertEqual(incident["policy"], "abort_fatal")
+            self.assertEqual(incident["capture_state"], "abort_and_preserve")
+            self.assertEqual(incident["detected_locus"], "trainer_rank")
+            self.assertEqual(incident["step"], 2)
+            self.assertIn("local_loss", incident["metadata"])
+
+    def test_finite_loss_does_not_emit_incident(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self._run_with_evidence(tmp_dir, 1.5)
+            self.assertEqual(self._incident_rows(tmp_dir), [])
 
 
 if __name__ == "__main__":

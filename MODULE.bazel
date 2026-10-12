@@ -1,0 +1,58 @@
+module(
+    name = "torchtitan_formal",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_shell", version = "0.6.1")
+
+http_file = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_file",
+)
+
+# TLA+ 1.7.4, the newest STABLE tlaplus release (prerelease = false, published
+# 2024-08-05, asset last modified 2024-08-08 and unchanged since).
+#
+# Do not move this to v1.8.0 "Clarke". That tag is a rolling PRERELEASE:
+# upstream regenerates the asset in place under the same URL, which changes its
+# digest and breaks the build with a checksum error. Observed twice in three
+# days -- asset id 584079629 on 2026-09-23, then id 587305877 republished
+# 2026-09-25T02:05:27Z. Pinning a digest against a mutable URL is not a pin; it
+# is a tripwire that fires at upstream's convenience.
+#
+# The digest below was computed from the downloaded artifact. GitHub does not
+# publish a digest for assets this old, so unlike the Lean pin it cannot be
+# corroborated against upstream metadata; it is instead anchored by the asset
+# being untouched for over two years. Verified equivalent to 1.8.0 for this
+# project: all three valid models pass and all three negative models produce the
+# same named invariant violations with the same exit code 12.
+http_file(
+    name = "tla2tools_1_7_4",
+    downloaded_file_path = "tla2tools.jar",
+    sha256 = "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    urls = [
+        "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+    ],
+)
+
+http_archive = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_archive",
+)
+
+# Lean 4.34.0 x86_64 Linux distribution. This is a STABLE release
+# (prerelease = false, draft = false, published 2026-09-14T14:04:36Z, asset id
+# 563514499, unmodified since 2026-09-14T14:04:34Z). The SHA-256 below was
+# confirmed on 2026-09-25 to equal the digest GitHub itself publishes for the
+# asset, so it is corroborated against upstream metadata rather than merely
+# against what was downloaded. Keep this policy: pin stable releases only, and
+# record asset identity plus the upstream-published digest.
+http_archive(
+    name = "lean_4_34_0",
+    build_file = "//experiments/qwen3_formal_verifier/formal:lean.BUILD.bazel",
+    sha256 = "5f14e0f3762058a529b1598f4355e6787c5f155be1bcce72ae288b9c35e3adb4",
+    strip_prefix = "lean-4.34.0-linux",
+    urls = [
+        "https://github.com/leanprover/lean4/releases/download/v4.34.0/lean-4.34.0-linux.zip",
+    ],
+)

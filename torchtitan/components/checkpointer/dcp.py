@@ -12,9 +12,11 @@ import os
 import queue
 import threading
 import time
+from collections.abc import Mapping, Sequence
 from concurrent.futures import Future
 from dataclasses import dataclass
-from typing import Any, cast, Literal, TYPE_CHECKING
+from pathlib import Path
+from typing import Any, cast, Literal, NoReturn, TYPE_CHECKING
 
 import torch
 import torch.distributed as dist
@@ -23,6 +25,7 @@ from torch.distributed.checkpoint import HuggingFaceStorageWriter
 from torch.distributed.checkpoint._consolidate_hf_safetensors import (
     consolidate_safetensors_files_on_every_rank,
 )
+from torch.distributed.checkpoint._storage_utils import _storage_setup
 from torch.distributed.checkpoint.staging import DefaultStager, StagingOptions
 from torch.distributed.checkpoint.state_dict_saver import (
     AsyncCheckpointerType,
@@ -30,6 +33,17 @@ from torch.distributed.checkpoint.state_dict_saver import (
 )
 from torchtitan.config import TORCH_DTYPE_MAP
 from torchtitan.observability import structured_logger as sl
+from torchtitan.observability.run_evidence import (
+    ArtifactRelation,
+    ArtifactState,
+    FaultAttributionLocus,
+    FaultConfidence,
+    IncidentCaptureState,
+    IncidentClass,
+    IncidentPolicy,
+    record_artifact,
+    record_incident,
+)
 from torchtitan.tools import filesystem
 from torchtitan.tools.garbage_collector import GarbageCollector
 
@@ -57,6 +71,196 @@ if TYPE_CHECKING:
         OptimizersContainer,
     )
     from torchtitan.models.base.state_dict_adapter import BaseStateDictAdapter
+
+
+DCP_MANIFEST_NAME = ".metadata"
+MANIFEST_MISSING = "missing_manifest"
+MANIFEST_UNREADABLE = "unreadable_manifest"
+SHARD_MISSING = "missing_shard"
+SHARD_TRUNCATED = "truncated_shard"
+
+
+class CheckpointCorruptionError(ValueError):
+    """A checkpoint's DCP manifest does not describe the files on disk."""
+
+
+def _shard_byte_extents(storage_data: Any) -> dict[str, int] | None:
+    """Map each shard file the manifest references to its required end offset.
+
+    DCP stores ``Metadata.storage_data`` as a writer-private mapping whose
+    values carry ``relative_path``, ``offset``, and ``length``. Return None when
+    that layout is not recognized so callers can report a non-detection instead
+    of guessing.
+    """
+    if not isinstance(storage_data, Mapping) or not storage_data:
+        return None
+    extents: dict[str, int] = {}
+    for info in storage_data.values():
+        relative_path = getattr(info, "relative_path", None)
+        offset = getattr(info, "offset", None)
+        length = getattr(info, "length", None)
+        if not isinstance(relative_path, (str, os.PathLike)):
+            return None
+        if type(offset) is not int or type(length) is not int:
+            return None
+        key = os.fspath(relative_path)
+        extents[key] = max(extents.get(key, 0), offset + length)
+    return extents
+
+
+def _read_dcp_manifest(checkpoint_id: str, *, manifest_path: str) -> tuple[Any, Any]:
+    """Read the DCP manifest that ``dcp.load`` will use for ``checkpoint_id``."""
+    try:
+        reader = cast(Any, _storage_setup(None, checkpoint_id, reader=True))
+        manifest = reader.read_metadata()
+        return manifest.state_dict_metadata, manifest.storage_data
+    except Exception as error:
+        _report_checkpoint_corruption(
+            [
+                {
+                    "defect": MANIFEST_UNREADABLE,
+                    "path": manifest_path,
+                    "detail": (
+                        "the DCP manifest could not be read: "
+                        f"{type(error).__name__}: {error}"
+                    ),
+                }
+            ],
+            checkpoint_id=checkpoint_id,
+            cause=error,
+        )
+
+
+def _report_checkpoint_corruption(
+    defects: Sequence[Mapping[str, Any]],
+    *,
+    checkpoint_id: str,
+    cause: BaseException | None = None,
+) -> NoReturn:
+    """Record a typed CHECKPOINT_CORRUPTION incident, then raise."""
+    summary_parts: list[str] = []
+    for defect in defects:
+        part = f"{defect['defect']} at {defect['path']}"
+        detail = defect.get("detail")
+        if detail:
+            part = f"{part} ({detail})"
+        summary_parts.append(part)
+    summary = "; ".join(summary_parts)
+    record_incident(
+        incident_class=IncidentClass.CHECKPOINT_CORRUPTION,
+        capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+        policy=IncidentPolicy.ABORT_FATAL,
+        summary=f"checkpoint manifest integrity failed for {checkpoint_id}: {summary}",
+        detected_locus=FaultAttributionLocus.CHECKPOINT_PATH,
+        attribution_confidence=FaultConfidence.OBSERVED_LOCAL_FAULT,
+        last_operation="checkpoint.validate_dcp_manifest_integrity",
+        useful_work_preserved=False,
+        terminal_disposition="abort",
+        metadata={
+            "checkpoint_id": str(checkpoint_id),
+            "defect_kinds": sorted({str(defect["defect"]) for defect in defects}),
+            "defects": [dict(defect) for defect in defects],
+        },
+    )
+    error = CheckpointCorruptionError(
+        f"checkpoint at {checkpoint_id} failed manifest integrity validation "
+        f"before load: {summary}"
+    )
+    if cause is not None:
+        raise error from cause
+    raise error
+
+
+def validate_dcp_manifest_integrity(checkpoint_id: str) -> None:
+    """Validate a native DCP checkpoint manifest against its shard files.
+
+    The sentinel runs before ``dcp.load`` so a missing manifest, unreadable
+    manifest, missing shard, or truncated shard aborts with a typed incident
+    before partial state can be installed. It does not checksum shard contents
+    or validate Hugging Face safetensors checkpoints.
+    """
+    manifest_path = filesystem.join(checkpoint_id, DCP_MANIFEST_NAME)
+    if not filesystem.isfile(manifest_path):
+        _report_checkpoint_corruption(
+            [
+                {
+                    "defect": MANIFEST_MISSING,
+                    "path": manifest_path,
+                    "detail": "the DCP manifest is absent from the checkpoint",
+                }
+            ],
+            checkpoint_id=checkpoint_id,
+        )
+
+    state_dict_metadata, storage_data = _read_dcp_manifest(
+        checkpoint_id, manifest_path=manifest_path
+    )
+
+    if not isinstance(state_dict_metadata, Mapping):
+        _report_checkpoint_corruption(
+            [
+                {
+                    "defect": MANIFEST_UNREADABLE,
+                    "path": manifest_path,
+                    "detail": (
+                        "the DCP manifest carries no state_dict_metadata mapping "
+                        f"(found {type(state_dict_metadata).__name__})"
+                    ),
+                }
+            ],
+            checkpoint_id=checkpoint_id,
+        )
+
+    extents = _shard_byte_extents(storage_data)
+    if extents is None:
+        logger.warning(
+            "Checkpoint manifest integrity: shard existence and length checks "
+            f"are SKIPPED for {checkpoint_id}. Its manifest's storage_data is "
+            "not the {MetadataIndex: _StorageInfo} mapping written by DCP's "
+            "filesystem writer, so no shard file could be identified. A missing "
+            "or truncated shard in this checkpoint is NOT detected."
+        )
+        return
+
+    defects: list[dict[str, Any]] = []
+    for relative_path, required_bytes in sorted(extents.items()):
+        shard_path = filesystem.join(checkpoint_id, relative_path)
+        if not filesystem.isfile(shard_path):
+            defects.append(
+                {
+                    "defect": SHARD_MISSING,
+                    "path": shard_path,
+                    "required_bytes": required_bytes,
+                    "detail": "referenced by the manifest but not present",
+                }
+            )
+            continue
+        try:
+            actual_bytes = filesystem.getsize(shard_path)
+        except OSError as error:
+            logger.warning(
+                "Checkpoint manifest integrity: length check SKIPPED for "
+                f"{shard_path} because its size could not be read "
+                f"({type(error).__name__}: {error}). Truncation of this shard "
+                "is NOT detected."
+            )
+            continue
+        if actual_bytes < required_bytes:
+            defects.append(
+                {
+                    "defect": SHARD_TRUNCATED,
+                    "path": shard_path,
+                    "required_bytes": required_bytes,
+                    "actual_bytes": actual_bytes,
+                    "detail": (
+                        f"{required_bytes - actual_bytes} bytes short of the "
+                        "manifest's largest recorded byte range"
+                    ),
+                }
+            )
+
+    if defects:
+        _report_checkpoint_corruption(defects, checkpoint_id=checkpoint_id)
 
 
 class AsyncMode(str, enum.Enum):
@@ -212,6 +416,9 @@ class CheckpointManager(BaseCheckpointManager):
         self.stager: DefaultStager | None = None
         self.staging_future: Future | None = None
         self.save_future: Future | None = None
+        self._pending_checkpoint_artifact: (
+            tuple[str, str, ArtifactRelation, int, dict[str, Any]] | None
+        ) = None
 
         # Retention Policy (Purge)
         self.keep_latest_k = config.keep_latest_k
@@ -351,6 +558,54 @@ class CheckpointManager(BaseCheckpointManager):
 
         return ret
 
+    def _begin_load_artifact(
+        self,
+        checkpoint_id: str,
+        *,
+        step: int,
+        model_only: bool,
+        from_hf: bool,
+    ) -> tuple[str | None, str, ArtifactRelation, int, dict[str, Any]]:
+        metadata = self._checkpoint_artifact_metadata(
+            step=step,
+            model_only=model_only,
+            from_hf=from_hf,
+        )
+        artifact_id = self._declare_checkpoint_artifact(
+            checkpoint_id=checkpoint_id,
+            relation=ArtifactRelation.INPUT,
+            step=step,
+            metadata=metadata,
+        )
+        return (artifact_id, checkpoint_id, ArtifactRelation.INPUT, step, metadata)
+
+    def _complete_load_artifact(
+        self,
+        load_artifact: Any,
+    ) -> None:
+        artifact_id, checkpoint_id, relation, step, metadata = load_artifact
+        self._finish_checkpoint_artifact(
+            artifact_id=artifact_id,
+            checkpoint_id=checkpoint_id,
+            relation=relation,
+            state=ArtifactState.COMPLETE,
+            step=step,
+            metadata=metadata,
+        )
+
+    def _fail_load_artifact(
+        self,
+        load_artifact: Any,
+    ) -> None:
+        artifact_id, checkpoint_id, relation, step, metadata = load_artifact
+        self._fail_checkpoint_artifact(
+            artifact_id=artifact_id,
+            checkpoint_id=checkpoint_id,
+            relation=relation,
+            step=step,
+            metadata=metadata,
+        )
+
     def _load_checkpoint(
         self,
         states: dict[str, Any],
@@ -384,6 +639,10 @@ class CheckpointManager(BaseCheckpointManager):
                 "trying to load checkpoint in HF safetensors format, "
                 "but sd_adapter is not provided."
             )
+            logger.warning(
+                "Checkpoint manifest integrity is NOT validated for Hugging Face "
+                f"safetensors checkpoint {checkpoint_id}."
+            )
 
             hf_state_dict = self.sd_adapter.to_hf(state_dict)
             hf_storage_reader = self.sd_adapter.get_hf_storage_reader(
@@ -395,6 +654,7 @@ class CheckpointManager(BaseCheckpointManager):
             state_dict = self.sd_adapter.from_hf(hf_state_dict)
             states[MODEL].load_state_dict(state_dict)
         else:
+            validate_dcp_manifest_integrity(checkpoint_id)
             dcp.load(state_dict, checkpoint_id=checkpoint_id)
 
             # TODO: Since we flatten the model states in state_dict, we need to
@@ -442,60 +702,120 @@ class CheckpointManager(BaseCheckpointManager):
         )
         logger.info(f"{checkpoint_phase.capitalize()} the checkpointer.")
 
+        checkpoint_id = self._create_checkpoint_id(curr_step)
+        model_only = last_step and self.last_save_model_only
+        metadata = self._checkpoint_artifact_metadata(
+            step=curr_step,
+            model_only=model_only,
+            from_hf=last_step and self.last_save_in_hf,
+            async_mode=AsyncMode.DISABLED if last_step else self.async_mode,
+        )
+        artifact_id = self._declare_checkpoint_artifact(
+            checkpoint_id=checkpoint_id,
+            relation=ArtifactRelation.OUTPUT,
+            step=curr_step,
+            metadata=metadata,
+        )
+
         if last_step:
-            self._save_last_step(curr_step)
+            try:
+                self._save_last_step(curr_step)
+            except BaseException:
+                self._fail_checkpoint_artifact(
+                    artifact_id=artifact_id,
+                    checkpoint_id=checkpoint_id,
+                    relation=ArtifactRelation.OUTPUT,
+                    step=curr_step,
+                    metadata=metadata,
+                )
+                raise
+            self._finish_checkpoint_artifact(
+                artifact_id=artifact_id,
+                checkpoint_id=checkpoint_id,
+                relation=ArtifactRelation.OUTPUT,
+                state=ArtifactState.COMPLETE,
+                step=curr_step,
+                metadata=metadata,
+            )
             logger.info(
                 f"Last step checkpoint completed in {time.monotonic() - begin:.2f}s"
             )
             return True
 
-        checkpoint_id = self._create_checkpoint_id(curr_step)
-        states = self._flattened_model_states_sd()
         async_save_started_at: float | None = None
 
-        if self.async_mode == AsyncMode.ASYNC_WITH_PINNED_MEM:
-            GarbageCollector.collect("GC collection invoked by checkpointer.")
-            if self.stager is None:
-                self.stager = DefaultStager(
-                    StagingOptions(
-                        use_pinned_memory=True,
-                        use_shared_memory=True,
-                        use_async_staging=True,
-                        use_non_blocking_copy=True,
+        try:
+            states = self._flattened_model_states_sd()
+            if self.async_mode == AsyncMode.ASYNC_WITH_PINNED_MEM:
+                GarbageCollector.collect("GC collection invoked by checkpointer.")
+                if self.stager is None:
+                    self.stager = DefaultStager(
+                        StagingOptions(
+                            use_pinned_memory=True,
+                            use_shared_memory=True,
+                            use_async_staging=True,
+                            use_non_blocking_copy=True,
+                        )
                     )
+
+                async_save_started_at = time.monotonic()
+                result = self.dcp_save(
+                    states,
+                    checkpoint_id=checkpoint_id,
+                    async_mode=self.async_mode,
                 )
+                # Calling GC here is not required for this path.
 
-            async_save_started_at = time.monotonic()
-            result = self.dcp_save(
-                states,
+                assert isinstance(result, AsyncSaveResponse)
+                self.staging_future = result.staging_completion
+                self.save_future = result.upload_completion
+
+            elif self.async_mode == AsyncMode.ASYNC:
+                GarbageCollector.collect("GC collection invoked by checkpointer.")
+                async_save_started_at = time.monotonic()
+                result = self.dcp_save(
+                    states,
+                    checkpoint_id=checkpoint_id,
+                    async_mode=self.async_mode,
+                )
+                GarbageCollector.collect("GC collection invoked by checkpointer.")
+
+                assert isinstance(result, Future)
+                self.save_future = result
+
+            else:
+                self.dcp_save(
+                    states,
+                    checkpoint_id=checkpoint_id,
+                    async_mode=AsyncMode.DISABLED,
+                    enable_garbage_collection=True,
+                )
+        except BaseException:
+            self._fail_checkpoint_artifact(
+                artifact_id=artifact_id,
                 checkpoint_id=checkpoint_id,
-                async_mode=self.async_mode,
+                relation=ArtifactRelation.OUTPUT,
+                step=curr_step,
+                metadata=metadata,
             )
-            # Calling GC here is not required for this path.
+            raise
 
-            assert isinstance(result, AsyncSaveResponse)
-            self.staging_future = result.staging_completion
-            self.save_future = result.upload_completion
-
-        elif self.async_mode == AsyncMode.ASYNC:
-            GarbageCollector.collect("GC collection invoked by checkpointer.")
-            async_save_started_at = time.monotonic()
-            result = self.dcp_save(
-                states,
+        if self.save_future is None:
+            self._finish_checkpoint_artifact(
+                artifact_id=artifact_id,
                 checkpoint_id=checkpoint_id,
-                async_mode=self.async_mode,
+                relation=ArtifactRelation.OUTPUT,
+                state=ArtifactState.COMPLETE,
+                step=curr_step,
+                metadata=metadata,
             )
-            GarbageCollector.collect("GC collection invoked by checkpointer.")
-
-            assert isinstance(result, Future)
-            self.save_future = result
-
-        else:
-            self.dcp_save(
-                states,
-                checkpoint_id=checkpoint_id,
-                async_mode=AsyncMode.DISABLED,
-                enable_garbage_collection=True,
+        elif artifact_id is not None:
+            self._pending_checkpoint_artifact = (
+                artifact_id,
+                checkpoint_id,
+                ArtifactRelation.OUTPUT,
+                curr_step,
+                metadata,
             )
 
         if async_save_started_at is not None:
@@ -567,7 +887,142 @@ class CheckpointManager(BaseCheckpointManager):
         save_future = self.save_future
         assert save_future is not None
         self.save_future = None
-        save_future.result()
+        self._wait_for_save_future(save_future)
+
+    def _wait_for_save_future(self, save_future: Future | None = None) -> None:
+        """Wait for a save future and resolve its checkpoint artifact."""
+        if save_future is None:
+            assert self.save_future is not None
+            save_future = self.save_future
+        try:
+            save_future.result()
+        except BaseException:
+            if self._pending_checkpoint_artifact is not None:
+                (
+                    artifact_id,
+                    checkpoint_id,
+                    relation,
+                    step,
+                    metadata,
+                ) = self._pending_checkpoint_artifact
+                self._pending_checkpoint_artifact = None
+                self._fail_checkpoint_artifact(
+                    artifact_id=artifact_id,
+                    checkpoint_id=checkpoint_id,
+                    relation=relation,
+                    step=step,
+                    metadata=metadata,
+                )
+            raise
+        if self._pending_checkpoint_artifact is not None:
+            (
+                artifact_id,
+                checkpoint_id,
+                relation,
+                step,
+                metadata,
+            ) = self._pending_checkpoint_artifact
+            self._finish_checkpoint_artifact(
+                artifact_id=artifact_id,
+                checkpoint_id=checkpoint_id,
+                relation=relation,
+                state=ArtifactState.COMPLETE,
+                step=step,
+                metadata=metadata,
+            )
+            self._pending_checkpoint_artifact = None
+
+    @staticmethod
+    def _checkpoint_artifact_metadata(
+        *,
+        step: int,
+        model_only: bool,
+        from_hf: bool,
+        async_mode: AsyncMode | None = None,
+    ) -> dict[str, Any]:
+        metadata: dict[str, Any] = {
+            "format": (
+                "huggingface_safetensors" if from_hf else "torch_distributed_checkpoint"
+            ),
+            "model_only": model_only,
+            "step": step,
+        }
+        if async_mode is not None:
+            metadata["async_mode"] = async_mode.value
+        return metadata
+
+    @staticmethod
+    def _checkpoint_evidence_path(checkpoint_id: str) -> str:
+        if filesystem.is_remote(checkpoint_id):
+            return checkpoint_id
+        return str(Path(checkpoint_id).resolve())
+
+    def _declare_checkpoint_artifact(
+        self,
+        *,
+        checkpoint_id: str,
+        relation: ArtifactRelation,
+        step: int,
+        metadata: dict[str, Any],
+    ) -> str | None:
+        return record_artifact(
+            producer="checkpoint",
+            kind="torchtitan.checkpoint",
+            path=self._checkpoint_evidence_path(checkpoint_id),
+            state=ArtifactState.DECLARED,
+            relation=relation,
+            step=step,
+            metadata=metadata,
+        )
+
+    def _finish_checkpoint_artifact(
+        self,
+        *,
+        artifact_id: str | None,
+        checkpoint_id: str,
+        relation: ArtifactRelation,
+        state: ArtifactState,
+        step: int,
+        metadata: dict[str, Any],
+    ) -> None:
+        if artifact_id is None:
+            return
+        record_artifact(
+            producer="checkpoint",
+            kind="torchtitan.checkpoint",
+            path=self._checkpoint_evidence_path(checkpoint_id),
+            state=state,
+            relation=relation,
+            artifact_id=artifact_id,
+            step=step,
+            metadata=metadata,
+        )
+
+    def _fail_checkpoint_artifact(
+        self,
+        *,
+        artifact_id: str | None,
+        checkpoint_id: str,
+        relation: ArtifactRelation,
+        step: int,
+        metadata: dict[str, Any],
+    ) -> None:
+        try:
+            self._finish_checkpoint_artifact(
+                artifact_id=artifact_id,
+                checkpoint_id=checkpoint_id,
+                relation=relation,
+                state=ArtifactState.FAILED,
+                step=step,
+                metadata=metadata,
+            )
+        except BaseException:
+            try:
+                logger.exception(
+                    "failed to append run evidence while recording checkpoint failure"
+                )
+            except BaseException:
+                pass
 
     def _is_resumable_checkpoint(self, checkpoint_dir: str) -> bool:
         return self._storage.isfile(filesystem.join(checkpoint_dir, ".metadata"))

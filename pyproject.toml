@@ -28,7 +28,17 @@ optional-dependencies.flux = {file = [".ci/docker/requirements-flux.txt"]}
 
 [tool.codespell]
 skip = ["*.json"]
-ignore-words-list = ["assertin", "datas" ,"indx", "inpt", "nd", "socio-economic"]
+ignore-words-list = [
+    "assertin",
+    "datas",
+    "disjointness",
+    "etcp",
+    "indx",
+    "inpt",
+    "nd",
+    "requestor",
+    "socio-economic",
+]
 
 # ---- Explicit project build information ---- #
 [build-system]
@@ -50,9 +60,15 @@ markers = [
 
 [tool.pyrefly]
 python-version = "3.11"
-project-excludes = ["torchtitan/experiments", "torchtitan/rl", "**/tests/**"]
+project-includes = ["torchtitan"]
+project-excludes = [
+    "torchtitan/experiments",
+    "torchtitan/rl",
+    "**/tests/**",
+    "scripts/rootfs/rootfs",
+]
 replace-imports-with-any = [
-    "torchao.*", "torchft", "torchvision.*", "deep_ep.*", "jinja2.*", "helion", "helion.*", "batch_invariant_ops", "verifiers.*", # optional dependencies
+    "torchao.*", "torchft", "torchvision.*", "deep_ep.*", "jinja2.*", "fla.*", "helion", "helion.*", "batch_invariant_ops", "torchcomms", "verifiers.*", # optional dependencies
     "dist_moe", "dist_moe.*", # optional dependency without Pyrefly stubs
     # torch_remat is required, but does not publish Pyrefly stubs.
     "torch_remat",

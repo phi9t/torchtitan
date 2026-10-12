@@ -152,6 +152,7 @@ class TorchFTCheckpointManager(CheckpointManager):
             if self.pg is None:
                 self.pg = cast(dist.ProcessGroup, dist.new_group(backend="gloo"))
 
+    # pyrefly: ignore [bad-override]
     def _save(self, curr_step: int, last_step: bool = False) -> bool:
         # FT dataloader checkpoint is saved every step (not gated by interval)
         # to minimize data replay on replica failure.
@@ -199,16 +200,15 @@ class TorchFTCheckpointManager(CheckpointManager):
 
     def _wait_for_saving(self) -> None:
         # _ft_save() always uses AsyncMode.ASYNC (regardless of self.async_mode),
-        # so save_future can exist even when self.async_mode is DISABLED. The DCP
-        # manager would incorrectly raise in that case, so we override to handle
-        # it. BaseCheckpointManager.maybe_wait_for_saving has already checked
-        # that save_future is set; assert to narrow it for the type checker.
-        assert self.save_future is not None
-        self.save_future.result()
+        # so save_future can exist even when self.async_mode is DISABLED. The base
+        # class would incorrectly raise in that case, so we override to handle it.
+        save_future = self.save_future
+        assert save_future is not None
         # ASYNC_WITH_PINNED_MEM: the stager manages the future's lifecycle;
         # all other modes (ASYNC, DISABLED with FT) should clear the future.
         if self.async_mode != AsyncMode.ASYNC_WITH_PINNED_MEM:
             self.save_future = None
+        self._wait_for_save_future(save_future)
 
     def _is_checkpoint_owner(self) -> bool:
         if self.ft_manager is None:

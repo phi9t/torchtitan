@@ -32,40 +32,61 @@ def main() -> None:
 
     config = cast(Trainer.Config, ConfigLoader().load())
 
-    # NOTE: internal meta tooling relies on source="training".
-    sl.init_structured_logger(
-        source="training",
-        output_dir=config.dump_folder,
-        enable=config.debug.enable_structured_logging,
-    )
-    sl.log_trace_instant("structured_logger_started")
+    with config.run_evidence.build(
+        dump_folder=config.dump_folder,
+        job_config=config.to_dict(),
+        role="trainer",
+        actor_id="core",
+    ):
+        try:
+            # NOTE: internal meta tooling relies on source="training".
+            sl.init_structured_logger(
+                source="training",
+                output_dir=config.dump_folder,
+                enable=config.debug.enable_structured_logging,
+            )
+            sl.log_trace_instant("structured_logger_started")
 
-    trainer: Trainer | None = None
+            trainer: Trainer | None = None
 
-    try:
-        trainer = config.build()
+            try:
+                # TODO(local_tensor): Remove this special case once LocalTensor supports
+                # init_states() and foreach_allgather. In local tensor mode, skip
+                # training/checkpointing as the model is not fully initialized.
+                if (
+                    config.comm.mode  # pyrefly: ignore [missing-attribute]
+                    == "local_tensor"
+                ):
+                    logger.info(
+                        "Local tensor mode enabled - skipping training execution"
+                    )
+                    return
 
-        if config.create_seed_checkpoint:
-            assert (
-                int(os.environ["WORLD_SIZE"]) == 1
-            ), "Must create seed checkpoint using a single device, to disable sharding."
-            assert (
-                config.checkpointer is not None
-            ), "Must configure checkpointer when creating a seed checkpoint."
-            trainer.engine.save_checkpoint(last_step=True)
-            logger.info("Created seed checkpoint")
-        else:
-            trainer.train()
-    except Exception:
-        if trainer:
-            trainer.close()
-        raise
-    else:
-        trainer.close()
-        if torch.distributed.is_initialized():
-            with sl.log_trace_span("torch_distributed_teardown"):
-                torch.distributed.destroy_process_group()
-        logger.info("Process group destroyed")
+                trainer = config.build()
+
+                if config.create_seed_checkpoint:
+                    assert (
+                        int(os.environ["WORLD_SIZE"]) == 1
+                    ), "Must create seed checkpoint using a single device, to disable sharding."
+                    assert (
+                        config.checkpointer is not None
+                    ), "Must configure checkpointer when creating a seed checkpoint."
+                    trainer.engine.save_checkpoint(last_step=True)
+                    logger.info("Created seed checkpoint")
+                else:
+                    trainer.train()
+            except Exception:
+                if trainer:
+                    trainer.close()
+                raise
+            else:
+                trainer.close()
+                if torch.distributed.is_initialized():
+                    with sl.log_trace_span("torch_distributed_teardown"):
+                        torch.distributed.destroy_process_group()
+                logger.info("Process group destroyed")
+        finally:
+            sl.close_structured_logger()
 
 
 if __name__ == "__main__":

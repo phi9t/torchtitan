@@ -258,6 +258,19 @@ DATASETS: dict[str, SingleDatasetConfig] = {
         processor=TextProcessor.Config(),
         post_filters=(lambda sample: sample is not None,),
     ),
+    "fineweb_test": SingleDatasetConfig(
+        source=HuggingFaceRandomAccessSource.Config(
+            path="json",
+            split="train",
+            load_dataset_kwargs={
+                "data_files": (
+                    "experiments/qwen3_fineweb_hsdp_tp/data/fineweb_test/data.json"
+                ),
+            },
+        ),
+        processor=TextProcessor.Config(),
+        post_filters=(lambda sample: sample is not None,),
+    ),
     "c4_validation": SingleDatasetConfig(
         source=HuggingFaceStreamingSource.Config(
             path="allenai/c4",

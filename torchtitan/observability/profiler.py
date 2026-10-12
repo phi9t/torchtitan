@@ -12,12 +12,14 @@ import os
 import pickle
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 
 from torchtitan.config import Configurable
 from torchtitan.distributed.cuda_graph import get_cuda_graph_annotations
 from torchtitan.observability import structured_logger as sl
+from torchtitan.observability.run_evidence import ArtifactState, record_artifact
 from torchtitan.tools.utils import device_module
 
 # torch's export_chrome_trace gained cuda_graph_annotations when the offline joiner
@@ -44,6 +46,22 @@ MEMORY_EXIT_DIR = "step_{step:012d}_exit"  # OOM dump variant
 MEMORY_FILE = (
     "{rank:06d}_step_{step}.pickle"  # MEMORY_DIR/MEMORY_STEP_DIR/{MEMORY_FILE}
 )
+
+
+def _record_failed_artifact(**kwargs) -> None:
+    try:
+        record_artifact(**kwargs)
+    except BaseException:
+        try:
+            logger.exception(
+                "failed to append run evidence while recording producer failure"
+            )
+        except BaseException:
+            pass
+
+
+def _evidence_path(path: str) -> str:
+    return str(Path(path).resolve())
 
 
 class MemoryProfiler:
@@ -99,9 +117,39 @@ class MemoryProfiler:
         output_file = os.path.join(
             curr_snapshot_dir, MEMORY_FILE.format(rank=self._rank, step=curr_step)
         )
-        with open(output_file, "wb") as output:
-            # Protocol 4 for compatibility with pytorch.org/memory_viz JS parser
-            pickle.dump(device_module.memory._snapshot(), output, protocol=4)
+        evidence_path = _evidence_path(output_file)
+        artifact_id = record_artifact(
+            producer="pytorch_memory",
+            kind="pytorch.cuda.memory_snapshot",
+            path=evidence_path,
+            state=ArtifactState.DECLARED,
+            step=curr_step,
+            metadata={"format": "python_pickle_v4"},
+        )
+        try:
+            with open(output_file, "wb") as output:
+                # Protocol 4 for compatibility with pytorch.org/memory_viz JS parser
+                pickle.dump(device_module.memory._snapshot(), output, protocol=4)
+        except BaseException:
+            _record_failed_artifact(
+                producer="pytorch_memory",
+                kind="pytorch.cuda.memory_snapshot",
+                path=evidence_path,
+                state=ArtifactState.FAILED,
+                artifact_id=artifact_id,
+                step=curr_step,
+                metadata={"format": "python_pickle_v4"},
+            )
+            raise
+        record_artifact(
+            producer="pytorch_memory",
+            kind="pytorch.cuda.memory_snapshot",
+            path=evidence_path,
+            state=ArtifactState.COMPLETE,
+            artifact_id=artifact_id,
+            step=curr_step,
+            metadata={"format": "python_pickle_v4"},
+        )
         logger.info(
             f"Finished dumping memory snapshot in {time.monotonic() - begin:.2f} seconds"
         )
@@ -287,6 +335,48 @@ class Profiler(Configurable):
             with sl.log_trace_span("memory_profiler_step_call"):
                 self.memory_profiler.step()
 
+    def _export_trace(
+        self,
+        prof,
+        *,
+        output_file: str,
+        post_processor,
+        export_kwargs: dict[str, object] | None = None,
+    ) -> None:
+        evidence_path = _evidence_path(output_file)
+        artifact_id = record_artifact(
+            producer="pytorch_profiler",
+            kind="pytorch.profiler.trace",
+            path=evidence_path,
+            state=ArtifactState.DECLARED,
+            step=prof.step_num,
+            metadata={"format": "chrome_trace_json_gzip"},
+        )
+        try:
+            prof.export_chrome_trace(output_file, **(export_kwargs or {}))
+            if post_processor is not None:
+                post_processor(output_file)
+        except BaseException:
+            _record_failed_artifact(
+                producer="pytorch_profiler",
+                kind="pytorch.profiler.trace",
+                path=evidence_path,
+                state=ArtifactState.FAILED,
+                artifact_id=artifact_id,
+                step=prof.step_num,
+                metadata={"format": "chrome_trace_json_gzip"},
+            )
+            raise
+        record_artifact(
+            producer="pytorch_profiler",
+            kind="pytorch.profiler.trace",
+            path=evidence_path,
+            state=ArtifactState.COMPLETE,
+            artifact_id=artifact_id,
+            step=prof.step_num,
+            metadata={"format": "chrome_trace_json_gzip"},
+        )
+
     def build_torch_profiler(
         self,
         *,
@@ -334,7 +424,12 @@ class Profiler(Configurable):
                 )
                 annotations = None
             extra = {"cuda_graph_annotations": annotations} if annotations else {}
-            prof.export_chrome_trace(output_file, **extra)
+            self._export_trace(
+                prof,
+                output_file=output_file,
+                post_processor=None,
+                export_kwargs=extra,
+            )
 
             logger.info(
                 f"Finished dumping profiler traces in {time.monotonic() - begin:.2f} seconds"

@@ -326,12 +326,23 @@ class BaseCheckpointManager(Configurable, ABC):
 
             logger.info("Loading the checkpoint from %s.", checkpoint_id)
             begin = time.monotonic()
-            self._load_checkpoint(
-                self._states_to_load(model_only),
+            load_artifact = self._begin_load_artifact(
                 checkpoint_id,
+                step=step,
+                model_only=model_only,
                 from_hf=from_hf,
-                from_quantized=from_quantized,
             )
+            try:
+                self._load_checkpoint(
+                    self._states_to_load(model_only),
+                    checkpoint_id,
+                    from_hf=from_hf,
+                    from_quantized=from_quantized,
+                )
+            except BaseException:
+                self._fail_load_artifact(load_artifact)
+                raise
+            self._complete_load_artifact(load_artifact)
             GarbageCollector.collect("GC collection for checkpoint loading.")
             logger.info(
                 "Finished loading the checkpoint in %.2f seconds.",
@@ -387,6 +398,23 @@ class BaseCheckpointManager(Configurable, ABC):
         """Standardized checkpoint path, e.g. ``checkpoints/step-100``."""
         folder = folder or self.folder
         return filesystem.join(folder, f"step-{step}")
+
+    def _begin_load_artifact(
+        self,
+        checkpoint_id: str,
+        *,
+        step: int,
+        model_only: bool,
+        from_hf: bool,
+    ) -> Any:
+        """Start backend-specific load artifact tracking, if any."""
+        return None
+
+    def _complete_load_artifact(self, load_artifact: Any) -> None:
+        """Finish backend-specific load artifact tracking, if any."""
+
+    def _fail_load_artifact(self, load_artifact: Any) -> None:
+        """Mark backend-specific load artifact tracking failed, if any."""
 
     @abstractmethod
     def _load_checkpoint(

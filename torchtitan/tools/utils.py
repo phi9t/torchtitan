@@ -33,23 +33,31 @@ def has_cuda_capability(major: int, minor: int) -> bool:
 
 def get_cuda_flash_attention_impl() -> str | None:
     """Return the FlashAttention implementation for the current CUDA architecture."""
-
-    # ROCm has neither FA3 nor FA4: torch's flash_attn_interface is CUDA-only.
-    # This has to be checked explicitly, because has_cuda_capability() below is
-    # just torch.cuda.get_device_capability() >= (major, minor) and AMD devices
-    # report a capability too -- gfx950 (MI350X) reports (9, 5), which satisfies
-    # the (9, 0) test and would select FA3 on hardware that cannot run it.
-    if torch.version.hip is not None:
-        return None
-
-    # FA4 advertises Hopper support, but as of writing it hangs under
-    # torch.compile there, so Hopper (sm90) stays on FA3.
-    # https://github.com/pytorch/torchtitan/pull/4413
-    if has_cuda_capability(10, 0):
-        return "FA4"
-    if has_cuda_capability(9, 0):
+    # Hopper (SM 9.0) uses FA3. Blackwell currently falls back to PyTorch's
+    # default flash backend because the packaged FA3 kernels are SM90-only and
+    # the external FA4 package is not available in this environment.
+    if (
+        torch.cuda.is_available()
+        and torch.version.hip is None
+        and torch.cuda.get_device_capability()[0] == 9
+    ):
         return "FA3"
     return None
+
+
+def activate_cuda_flash_attention_impl() -> str | None:
+    """Activate this host's FlashAttention implementation and apply local shims."""
+    from torch.nn.attention import (
+        activate_flash_attention_impl,
+        current_flash_attention_impl,
+    )
+
+    flash_attention_impl = get_cuda_flash_attention_impl()
+    if flash_attention_impl is None:
+        return None
+    if current_flash_attention_impl() != flash_attention_impl:
+        activate_flash_attention_impl(flash_attention_impl)
+    return flash_attention_impl
 
 
 def has_rocm_capability(major: int, minor: int) -> bool:

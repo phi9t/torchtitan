@@ -30,11 +30,46 @@ from torchtitan.distributed.cuda_graph import cuda_graphs_supported
 from torchtitan.models.base.model import BaseModel
 from torchtitan.models.common.aux_loss import collect_aux_loss_metrics
 from torchtitan.observability import structured_logger as sl
+from torchtitan.observability.distributed_faults import (
+    detect_step_stragglers,
+    record_collective_failure,
+)
 from torchtitan.observability.metrics import ensure_pp_loss_visible, MetricsProcessor
+from torchtitan.observability.run_evidence import (
+    FaultAttributionLocus,
+    IncidentCaptureState,
+    IncidentClass,
+    IncidentPolicy,
+    record_incident,
+    RunEvidence,
+)
 from torchtitan.training_engine import TrainingEngine
 
 
 logger = logging.getLogger(__name__)
+
+
+def _record_nonfinite_loss_incident(loss: torch.Tensor, *, step: int) -> None:
+    try:
+        local_loss = loss.detach()
+        loss_is_finite = bool(torch.isfinite(local_loss).all().item())
+    except Exception:
+        logger.exception("failed to inspect loss while handling optimizer failure")
+        return
+
+    if loss_is_finite:
+        return
+
+    record_incident(
+        incident_class=IncidentClass.NONFINITE_LOSS,
+        capture_state=IncidentCaptureState.ABORT_AND_PRESERVE,
+        policy=IncidentPolicy.ABORT_FATAL,
+        summary=f"loss is not finite (local_loss={local_loss!r})",
+        detected_locus=FaultAttributionLocus.TRAINER_RANK,
+        step=step,
+        terminal_disposition="abort",
+        metadata={"local_loss": repr(local_loss)},
+    )
 
 
 class Trainer(Configurable):
@@ -71,6 +106,7 @@ class Trainer(Configurable):
 
         create_seed_checkpoint: bool = False
         """Initialize and save an unsharded model-only checkpoint, then exit."""
+        run_evidence: RunEvidence.Config = field(default_factory=RunEvidence.Config)
 
         def __post_init__(self):
             TrainingEngine.Config.__post_init__(self)
@@ -402,7 +438,14 @@ class Trainer(Configurable):
         # Capture the learning rates used by this optimizer update before the
         # scheduler advances in engine.optim_step().
         lr_metrics = engine.optim.lr_schedulers.get_metrics() if should_log else {}
-        grad_norm = engine.optim_step()
+        try:
+            grad_norm = engine.optim_step()
+        except RuntimeError:
+            _record_nonfinite_loss_incident(
+                forward_backward_result.loss,
+                step=current_step,
+            )
+            raise
 
         # log metrics
         if not should_log:
@@ -462,6 +505,42 @@ class Trainer(Configurable):
         )
 
     @record
+    def _detect_step_stragglers(self, step: int, step_duration_ns: int) -> None:
+        """Compare this rank's step duration against its peers, on logging steps.
+
+        Gated on ``should_log`` rather than run every step because the comparison
+        needs an all_gather, and adding a collective to every step would make
+        every job pay for a fault that is not step-local. ``should_log`` is a
+        pure function of the step number and the configured frequency, so every
+        rank takes the same branch -- which it must, or the all_gather here would
+        itself hang and manufacture the fault it is looking for.
+
+        Skipped below three ranks because the detector declines there anyway:
+        with two samples the median lies between them, so the slow rank is not
+        separable from the fast one. Skipping before the collective rather than
+        after keeps a single-rank or two-rank job free of it entirely.
+        """
+        if not self.metrics_processor.should_log(step):
+            return
+        if not torch.distributed.is_initialized():
+            return
+        world_size = torch.distributed.get_world_size()
+        if world_size < 3:
+            return
+
+        local = torch.tensor(
+            [step_duration_ns], dtype=torch.int64, device=self.engine.device
+        )
+        gathered = [torch.zeros_like(local) for _ in range(world_size)]
+        torch.distributed.all_gather(gathered, local)
+        detect_step_stragglers(
+            [int(duration.item()) for duration in gathered],
+            incident_class=IncidentClass.COMPUTE_STRAGGLER,
+            slowdown_threshold=self.config.run_evidence.straggler_slowdown_threshold,
+            step=step,
+            phase="train_step",
+        )
+
     def train(self):
         config = self.config
         engine = self.engine
@@ -484,11 +563,27 @@ class Trainer(Configurable):
                 sl.set_step(current_step, relative_step=current_step - loaded_step)
 
                 with sl.log_trace_span("step"):
+                    step_started_ns = time.monotonic_ns()
                     try:
                         self.train_step(data_iterator)
                     except DataloaderExhaustedError:
                         logger.warning("Ran out of data; last step was canceled.")
                         break
+                    except Exception as error:
+                        # A collective hang or a peer's death reaches a surviving
+                        # rank only as a backend error. Classify it here, before
+                        # it propagates, so the abort carries a typed incident
+                        # naming the fault instead of only a transport message.
+                        # Unclassified errors are left completely alone: the
+                        # helper returns None and the original exception is the
+                        # primary finding either way.
+                        record_collective_failure(
+                            error, step=current_step, last_operation="train_step"
+                        )
+                        raise
+                    self._detect_step_stragglers(
+                        current_step, time.monotonic_ns() - step_started_ns
+                    )
 
                     engine.save_checkpoint(
                         last_step=(engine.num_completed_steps == config.training.steps)

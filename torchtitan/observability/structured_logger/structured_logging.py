@@ -18,6 +18,7 @@ import importlib
 import inspect
 import logging
 import os
+import sys
 from collections.abc import Callable
 from timeit import default_timer as timer
 from typing import Any, cast, TypeVar
@@ -83,6 +84,7 @@ class ExtraFields(enum.StrEnum):
     VALUE = "value"
     RELATIVE_STEP = "relative_step"
     TASK_NAME = "task_name"
+    EVIDENCE_CONTEXT = "_run_evidence_context"
 
 
 class _StructuredRecordForwarder(logging.Handler):
@@ -166,6 +168,10 @@ def event_extra(
     log_type: LogType = LogType.EVENT,
 ) -> dict[str, Any]:
     """Build the extra dict for a structured JSONL event record."""
+    # Keep this import lazy: Configurable imports structured logging while
+    # RunEvidence imports Configurable for its Config implementation.
+    from torchtitan.observability.run_evidence import event_context
+
     return {
         str(ExtraFields.LOG_TYPE): str(log_type),
         str(ExtraFields.LOG_TYPE_NAME): str(event_type),
@@ -174,6 +180,7 @@ def event_extra(
         str(ExtraFields.RELATIVE_STEP): relative_step,
         str(ExtraFields.VALUE): value,
         str(ExtraFields.TASK_NAME): task_name,
+        str(ExtraFields.EVIDENCE_CONTEXT): event_context(),
     }
 
 
@@ -292,6 +299,30 @@ def init_structured_logger(
     _ensure_root_forwarder()
 
 
+def close_structured_logger() -> None:
+    """Close and detach all structured handlers so a later lifecycle can initialize."""
+    global _is_initialized, _disabled, _structured_logger_subprocess_init_fn
+
+    handling_exception = sys.exc_info()[0] is not None
+    cleanup_error: Exception | None = None
+    try:
+        for handler in _structured_logger.handlers[:]:
+            _structured_logger.removeHandler(handler)
+            try:
+                handler.close()
+            except Exception as error:
+                console_logger.exception("Failed to close structured logging handler")
+                if cleanup_error is None:
+                    cleanup_error = error
+    finally:
+        _is_initialized = False
+        _disabled = False
+        _structured_logger_subprocess_init_fn = None
+
+    if cleanup_error is not None and not handling_exception:
+        raise cleanup_error
+
+
 def log_trace_scalar(scalars: dict[str, float | int], *, stacklevel: int = 2) -> None:
     """Emit a record per (name, value) pair. Useful when adding more context
     to the trace for debugging, e.g. registering `num_tokens_processed`.
@@ -408,6 +439,7 @@ class log_trace_span:  # noqa: N801
         self.stacklevel = stacklevel
         self.start_time: float = 0.0
         self._task_name: str | None = None
+        self._phase_context: Any | None = None
         self.start_type_name = self.base_name + "_start"
         self.end_type_name = self.base_name + "_end"
 
@@ -427,15 +459,24 @@ class log_trace_span:  # noqa: N801
         display_name = self.description or self.base_name
         self.start_time = timer()
         step = get_step()
-        _structured_logger.info(
-            f"[step {step if step is not None else 'N/A'}] {display_name} {self.start_type_name}",
-            extra=event_extra(
-                self.start_type_name,
-                step=step,
-                task_name=self._task_name,
-            ),
-            stacklevel=self.stacklevel,
-        )
+        # See event_extra() for why this import remains local.
+        from torchtitan.observability.run_evidence import bind_phase
+
+        self._phase_context = bind_phase(self.base_name)
+        self._phase_context.__enter__()
+        try:
+            _structured_logger.info(
+                f"[step {step if step is not None else 'N/A'}] {display_name} {self.start_type_name}",
+                extra=event_extra(
+                    self.start_type_name,
+                    step=step,
+                    task_name=self._task_name,
+                ),
+                stacklevel=self.stacklevel,
+            )
+        except BaseException as error:
+            self._exit_phase(type(error), error, error.__traceback__)
+            raise
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -443,37 +484,47 @@ class log_trace_span:  # noqa: N801
         # ``_end``. The trailing ``_end`` carries elapsed-until-crash
         # and keeps pairing simple -- analysis tools don't have to
         # special-case exceptional spans.
-        if torch.compiler.is_compiling() or _structured_logger_disabled():
+        if self._phase_context is None:
             return None
 
-        end_time = timer()
-        step = get_step()
-        duration_s = end_time - self.start_time
-        delta_ms = duration_s * 1000
+        try:
+            if not (torch.compiler.is_compiling() or _structured_logger_disabled()):
+                end_time = timer()
+                step = get_step()
+                duration_s = end_time - self.start_time
+                delta_ms = duration_s * 1000
 
-        if exc_type is not None:
-            error_type_name = self.base_name + "_error"
-            _structured_logger.info(
-                f"[step {step if step is not None else 'N/A'}] {error_type_name}: {exc_type.__name__}: {exc_val}",
-                extra=event_extra(
-                    error_type_name,
-                    step=step,
-                    task_name=self._task_name,
-                ),
-                stacklevel=self.stacklevel,
-            )
+                if exc_type is not None:
+                    error_type_name = self.base_name + "_error"
+                    _structured_logger.info(
+                        f"[step {step if step is not None else 'N/A'}] {error_type_name}: {exc_type.__name__}: {exc_val}",
+                        extra=event_extra(
+                            error_type_name,
+                            step=step,
+                            task_name=self._task_name,
+                        ),
+                        stacklevel=self.stacklevel,
+                    )
 
-        _structured_logger.info(
-            f"[step {step if step is not None else 'N/A'}] {self.end_type_name} took {delta_ms:.2f} ms",
-            extra=event_extra(
-                self.end_type_name,
-                value=delta_ms,
-                step=step,
-                task_name=self._task_name,
-            ),
-            stacklevel=self.stacklevel,
-        )
+                _structured_logger.info(
+                    f"[step {step if step is not None else 'N/A'}] {self.end_type_name} took {delta_ms:.2f} ms",
+                    extra=event_extra(
+                        self.end_type_name,
+                        value=delta_ms,
+                        step=step,
+                        task_name=self._task_name,
+                    ),
+                    stacklevel=self.stacklevel,
+                )
+        finally:
+            self._exit_phase(exc_type, exc_val, exc_tb)
         return None
+
+    def _exit_phase(self, exc_type, exc_val, exc_tb) -> None:
+        phase_context = self._phase_context
+        self._phase_context = None
+        if phase_context is not None:
+            phase_context.__exit__(exc_type, exc_val, exc_tb)
 
     def __call__(self, func: F) -> F:
         # Decorator support. Each invocation of the decorated function builds

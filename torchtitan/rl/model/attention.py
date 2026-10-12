@@ -12,10 +12,7 @@ from typing import Any, ClassVar
 import spmd_types as spmd
 
 import torch
-from torch.nn.attention import (
-    activate_flash_attention_impl,
-    current_flash_attention_impl,
-)
+from torch.nn.attention import current_flash_attention_impl
 from torch.nn.attention.varlen import AuxRequest
 from torchtitan.distributed.batch_invariant import is_in_batch_invariant_mode
 from torchtitan.models.base.module import Module
@@ -23,7 +20,8 @@ from torchtitan.models.base.sharding import ShardingConfig
 from torchtitan.models.common.attention import InnerAttention
 from torchtitan.models.common.decoder_sharding import dense_param_placement
 from torchtitan.observability.logging import warn_once
-from torchtitan.tools.utils import get_cuda_flash_attention_impl
+from torchtitan.tools.utils import activate_cuda_flash_attention_impl
+from vllm.compilation.breakable_cudagraph import eager_break_during_capture
 from vllm.model_executor.layers.attention import Attention
 from vllm.model_executor.layers.attention.attention import get_attention_context
 from vllm.v1.attention.backend import AttentionCGSupport, AttentionType
@@ -67,10 +65,16 @@ class TorchTitanVarlenInnerAttentionBackend(FlashAttentionBackend):
 
     @staticmethod
     def get_builder_cls():
+        # Report UNIFORM_SINGLE_TOKEN_DECODE cudagraph support instead of the FA3
+        # builder's ALWAYS. Our varlen forward bakes per-step cu_seqlens /
+        # max_query_len into the captured graph, so a FULL graph over a mixed
+        # prefill+decode batch replays stale offsets -> NaN (#3709); only
+        # query_len==1 decode is safe to capture. This keeps FULL_DECODE_ONLY
+        # valid, auto-downgrades FULL to FULL_DECODE_ONLY, and allows PIECEWISE.
         class TorchTitanVarlenInnerAttentionMetadataBuilder(
             FlashAttentionMetadataBuilder
         ):
-            _cudagraph_support = AttentionCGSupport.ALWAYS
+            _cudagraph_support = AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE
 
         return TorchTitanVarlenInnerAttentionMetadataBuilder
 
@@ -107,19 +111,9 @@ class TorchTitanVarlenInnerAttentionImpl(FlashAttentionImpl):
 
         self.enable_gqa = self.num_heads > self.num_kv_heads
 
-        flash_attention_impl = get_cuda_flash_attention_impl()
+        flash_attention_impl = activate_cuda_flash_attention_impl()
         if flash_attention_impl is not None:
-            # activate_flash_attention_impl() will restore internal global state
-            # and re-run register function, so we want to only call it once.
-            if current_flash_attention_impl() != flash_attention_impl:
-                try:
-                    activate_flash_attention_impl(flash_attention_impl)
-                except (ImportError, RuntimeError, ValueError) as error:
-                    capability = torch.cuda.get_device_capability()
-                    raise RuntimeError(
-                        f"{flash_attention_impl} is required on detected SM "
-                        f"{capability[0]}.{capability[1]}, but activation failed."
-                    ) from error
+            assert current_flash_attention_impl() == flash_attention_impl
         else:
             warn_once(
                 logger,
@@ -128,6 +122,10 @@ class TorchTitanVarlenInnerAttentionImpl(FlashAttentionImpl):
 
     # Based on vLLM's FlashAttentionImpl.forward():
     # https://github.com/vllm-project/vllm/blob/main/vllm/v1/attention/backends/flash_attn.py
+    #
+    # @eager_break_during_capture makes this forward a break point for vLLM's
+    # breakable cudagraph (VLLM_USE_BREAKABLE_CUDAGRAPH=1, cudagraph_mode=PIECEWISE)
+    @eager_break_during_capture
     def forward(
         self,
         layer: torch.nn.Module,

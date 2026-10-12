@@ -104,6 +104,21 @@ def test_operational_overrides() -> None:
     assert config.dump_folder == "/tmp/torchtitan-test"
 
 
+def test_run_evidence_defaults_are_serialized() -> None:
+    config = ConfigLoader().load(
+        [
+            "--module",
+            "torchtitan_recipes.tests.models.llama3",
+            "--config",
+            "llama3_debugmodel",
+        ]
+    )
+
+    assert config.run_evidence.enable is True
+    assert config.run_evidence.folder == "run_evidence"
+    assert config.to_dict()["run_evidence"]["enable"] is True
+
+
 def test_invalid_comm_backend_is_rejected() -> None:
     with pytest.raises(SystemExit):
         ConfigLoader().load(

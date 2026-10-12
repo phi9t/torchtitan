@@ -32,7 +32,13 @@ CONFIG=${CONFIG:-"llama3_debugmodel"}
 ENTRYPOINT=${ENTRYPOINT:-"torchtitan.train"}
 COMM_BACKEND=${COMM_BACKEND:-""}
 
+TORCHTITAN_RUN_ID=${TORCHTITAN_RUN_ID:-"$(python3 -c 'import uuid; print(uuid.uuid4())')"}
+TORCHTITAN_ATTEMPT_ID=${TORCHTITAN_ATTEMPT_ID:-"$(python3 -c 'import uuid; print(uuid.uuid4())')"}
+export TORCHTITAN_RUN_ID TORCHTITAN_ATTEMPT_ID
+
 TORCHFT_LIGHTHOUSE=${TORCHFT_LIGHTHOUSE:-"http://localhost:29510"}
+TORCHTITAN_RDZV_ENDPOINT=${TORCHTITAN_RDZV_ENDPOINT:-"127.0.0.1:0"}
+TORCHTITAN_LOCAL_ADDR=${TORCHTITAN_LOCAL_ADDR:-"127.0.0.1"}
 
 if [[ -n "$COMM_BACKEND" && "$COMM_BACKEND" != "fake" ]]; then
     echo "COMM_BACKEND must be empty or fake, got: ${COMM_BACKEND}" >&2
@@ -46,7 +52,9 @@ else
     # Normal training with torchrun
     PYTORCH_ALLOC_CONF="expandable_segments:True" \
     TORCHFT_LIGHTHOUSE=${TORCHFT_LIGHTHOUSE} \
-    torchrun --nproc_per_node=${NGPU} --rdzv_backend c10d --rdzv_endpoint="localhost:0" \
+    torchrun --nproc_per_node=${NGPU} --rdzv_id "${TORCHTITAN_RUN_ID}" \
+    --rdzv_backend c10d --rdzv_endpoint="${TORCHTITAN_RDZV_ENDPOINT}" \
+    --local_addr="${TORCHTITAN_LOCAL_ADDR}" \
     --local-ranks-filter ${LOG_RANK} --role rank --tee 3 \
     -m ${ENTRYPOINT} --module ${MODULE} --config ${CONFIG} "$@"
 fi

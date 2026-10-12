@@ -24,7 +24,7 @@ import torch.distributed as dist
 import torchstore as ts
 from torchstore import RankRole
 from vllm import EngineArgs, LLMEngine, SamplingParams
-from vllm.config import AttentionConfig, CompilationConfig
+from vllm.config import AttentionConfig, CompilationConfig, KernelConfig
 from vllm.config.compilation import CompilationMode, CUDAGraphMode, PassConfig
 from vllm.outputs import RequestOutput
 from vllm.sampling_params import RequestOutputKind
@@ -49,7 +49,7 @@ from torchtitan.rl.model.vllm_registry import (
 from torchtitan.rl.observability import metrics as m
 from torchtitan.rl.observability.vllm import StatLoggerContext, VllmOtelStatLogger
 from torchtitan.rl.rollout.types import Completion
-from torchtitan.tools.utils import has_cuda_capability
+from torchtitan.tools.utils import get_cuda_flash_attention_impl
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,7 @@ def add_extra_vllm_engine_args(
     config_field_by_engine_arg = {
         "max_num_batched_tokens": "max_num_batched_tokens",
         "compilation_config": "cuda_graph",
+        "kernel_config": "kernel",
         "seed": "debug.seed",
     }
     owned_keys = sorted(
@@ -339,6 +340,15 @@ class VLLMCudaGraphConfig:
                 sp_min_token_num=1 if enable_sequence_parallel else None,
             ),
         )
+
+
+@dataclass(kw_only=True, slots=True)
+class VLLMKernelConfig:
+    """vLLM kernel selection and warmup settings."""
+
+    enable_flashinfer_autotune: bool | None = None
+    enable_cutedsl_warmup: bool = True
+    enable_jit_warmup: bool = True
 
 
 @dataclass(kw_only=True, slots=True)
@@ -803,6 +813,9 @@ class VLLMGenerator(Configurable):
         cuda_graph: VLLMCudaGraphConfig = field(default_factory=VLLMCudaGraphConfig)
         """CUDA graph capture settings for the vLLM engine."""
 
+        kernel: VLLMKernelConfig = field(default_factory=VLLMKernelConfig)
+        """Kernel selection and warmup settings for the vLLM engine."""
+
         checkpointer: CheckpointManager.Config | None = None
         """Optional initial-weight loader for the vLLM wrapper.
 
@@ -956,6 +969,11 @@ class VLLMGenerator(Configurable):
                     else AttentionBackendEnum.CUSTOM
                 ),
             ),
+            kernel_config=KernelConfig(
+                enable_flashinfer_autotune=config.kernel.enable_flashinfer_autotune,
+                enable_cutedsl_warmup=config.kernel.enable_cutedsl_warmup,
+                enable_jit_warmup=config.kernel.enable_jit_warmup,
+            ),
             # Enables RequestOutput.metrics, so generator metrics can be returned
             disable_log_stats=False,
             enable_cumem_allocator=False,
@@ -985,8 +1003,12 @@ class VLLMGenerator(Configurable):
         # - None: every full block boundary, as before v0.29. Blocks are still freed
         #   when the request moves past them; hashed ones stay reusable until evicted.
         engine_kwargs["prefix_cache_retention_interval"] = None
-        # FA2 requires block_size to be a multiple of 256
-        if not has_cuda_capability(9, 0):
+        # PyTorch's default flash backend requires paged KV block size to be a
+        # multiple of 256. FlexAttention and Hopper FA3 do not use that path.
+        if (
+            not isinstance(attention_backend, FlexInnerAttention.Config)
+            and get_cuda_flash_attention_impl() != "FA3"
+        ):
             engine_kwargs["block_size"] = 256
         expert_sequence_parallel_size = config.parallelism.expert_sequence_parallel_size
         vllm_compilation_config = config.cuda_graph.get_vllm_compilation_config(

@@ -44,6 +44,7 @@ from torchtitan.observability.metrics import (
     DeviceMemStats,
 )
 from torchtitan.observability.profiler import Profiler
+from torchtitan.observability.run_evidence import bind_distributed
 from torchtitan.observability.sdc_replayer import SDCReplayer
 from torchtitan.quantization.utils import has_quantization
 from torchtitan.tools import utils
@@ -276,6 +277,7 @@ class TrainingEngine(Configurable, torch.distributed.checkpoint.stateful.Statefu
         self.parallelism_context = ParallelismContext.from_config(
             config.parallelism, topology, dump_folder=self.output_dir
         )
+        bind_distributed(self.parallelism_context, self.device)
         self.garbage_collector = config.garbage_collector.build()
         dist_utils.set_determinism(
             self.parallelism_context,
