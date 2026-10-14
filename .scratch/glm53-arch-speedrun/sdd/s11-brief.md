@@ -11,3 +11,9 @@ GPUs in Exclusive_Process mode that hold another process, never kill foreign pro
 GLM rung 4 (T08d) has GPU priority: `experiments/glm53_flash_sft_ladder/priority_pause.sh` may pause this worker while
 T08d waits for GPUs -- that is expected; resume where you left off. Do NOT commit. Every run records lane, mode, arm,
 claim_label, evidence_tier, run_id, attempt_id, environment_class and its input HDFS URIs.
+
+## Addendum (K03 landed, d4f4fa0a2)
+- All cells containing the indexer (F4 != dense) run with `indexer_aux_compile=True`, `indexer_aux_query_stride=1`
+  (exact objective; stride barely helps once compiled). Expected ~0.36-0.46x B0 tokens/s at seq 4096.
+- FIRST re-queue slice 4a's A4 and A5 cells (x2 seeds) at the FULL 268,435,456-token budget with these settings (S10 ran
+  them at the reduced 33.5M side-table budget) and fold them into the 4a analysis, then run slice 4b.
