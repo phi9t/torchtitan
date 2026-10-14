@@ -34,6 +34,7 @@ from torchtitan.experiments.glm53_flash.model import (
     GlmTopKRouter,
     LoRALinear,
 )
+from torchtitan.models.common.token_dispatcher import LocalTokenDispatcher
 
 from .flavors import debugmodel_ep
 from .moe import GlmEPExperts, GlmEPMoE, GlmEPRouter
@@ -53,6 +54,7 @@ class Glm53FlashEPForCausalLM(Glm53FlashForCausalLM):
         glm_config: Glm53FlashConfig = field(default_factory=debugmodel_ep)
         experiment_name: str = "glm53_flash_ep"
         experiment_flavor: str = "debugmodel_ep"
+        token_dispatcher: LocalTokenDispatcher.Config | None = None
 
         def set_sharding_(self, parallelism: ParallelismConfig) -> None:
             validate_glm53_flash_ep_parallelism(self.glm_config, parallelism)
@@ -65,7 +67,7 @@ class Glm53FlashEPForCausalLM(Glm53FlashForCausalLM):
             if cfg.mlp_layer_types[layer_id] != "sparse":
                 continue
             assert isinstance(layer, Glm53FlashDecoderLayer)
-            layer.mlp = GlmEPMoE(cfg)
+            layer.mlp = GlmEPMoE(cfg, token_dispatcher=config.token_dispatcher)
             layer.moe_enabled = True
         if cfg.lora_rank is not None:
             apply_lora_trainable_policy(self)
@@ -124,10 +126,10 @@ class Glm53FlashEPForCausalLM(Glm53FlashForCausalLM):
         )
 
     def init_states(self, *, buffer_device: torch.device | None = None) -> None:
-        del buffer_device
         if self.enable_weight_tying:
             self.lm_head.weight = self.tok_embeddings.weight
         _initialize_glm53_flash_ep_weights(self, self.glm_config)
+        _initialize_glm53_flash_ep_buffers(self, buffer_device=buffer_device)
 
 
 def _initialize_glm53_flash_ep_weights(
@@ -206,6 +208,18 @@ def _initialize_glm53_flash_ep_weights(
                 nn.init.zeros_(module.A_log)
                 dt = torch.empty_like(module.dt_bias).uniform_(1.0e-3, 1.0e-1)
                 module.dt_bias.copy_(dt + torch.log(-torch.expm1(-dt)))
+
+
+def _initialize_glm53_flash_ep_buffers(
+    model: nn.Module,
+    *,
+    buffer_device: torch.device | None,
+) -> None:
+    """Initialize EP communication buffers after custom GLM weight init."""
+
+    for module in model.modules():
+        if isinstance(module, GlmEPExperts):
+            module._init_self_buffers(buffer_device=buffer_device)
 
 
 from .state_dict_adapter import Glm53FlashEPStateDictAdapter

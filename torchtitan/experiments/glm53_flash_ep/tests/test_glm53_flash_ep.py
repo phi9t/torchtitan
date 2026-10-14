@@ -34,6 +34,7 @@ from torchtitan.experiments.glm53_flash.model import (
 
 from torchtitan.experiments.glm53_flash_ep.config_registry import (
     glm53_flash_ep_countdown_lora_truncated,
+    glm53_flash_ep_countdown_lora_truncated_deepep,
     glm53_flash_ep_debugmodel,
     glm53_flash_ep_debugmodel_lora,
     glm53_flash_ep_mini,
@@ -67,6 +68,10 @@ from torchtitan.experiments.glm53_flash_ep.state_dict_adapter import (
 )
 from torchtitan.models.common.decoder_sharding import dense_param_placement
 from torchtitan.models.common.moe_sharding import expert_param_placement_sparse
+from torchtitan.models.common.token_dispatcher import (
+    AllToAllTokenDispatcher,
+    DeepEPTokenDispatcher,
+)
 
 
 def _copy_glm_moe_to_ep(ref: GlmMoE, ep: GlmEPMoE) -> None:
@@ -175,6 +180,44 @@ def test_truncated_countdown_lora_config_matches_t13_contract(monkeypatch):
     assert config.debug.deterministic
     assert config.metrics.enable_tensorboard
     assert config.checkpointer is not None
+
+
+def test_truncated_countdown_lora_deepep_config_sets_dispatcher(monkeypatch):
+    monkeypatch.delenv("GLM53_FLASH_EP_DEGREE", raising=False)
+    monkeypatch.setenv("GLM53_FLASH_FULL_SEQ_LEN", "512")
+    monkeypatch.setenv("GLM53_FLASH_FULL_LOCAL_BATCH_SIZE", "1")
+    monkeypatch.setenv("GLM53_FLASH_FULL_TOKENS_PER_STEP", "32768")
+    monkeypatch.setenv("GLM53_FLASH_FULL_STEPS", "20")
+
+    config = glm53_flash_ep_countdown_lora_truncated_deepep()
+
+    assert isinstance(config.model, Glm53FlashEPForCausalLM.Config)
+    dispatcher = config.model.token_dispatcher
+    assert isinstance(dispatcher, DeepEPTokenDispatcher.Config)
+    assert config.parallelism.expert_parallel_degree == 8
+    assert dispatcher.num_experts == config.model.glm_config.num_experts
+    assert dispatcher.top_k == config.model.glm_config.num_experts_per_tok
+    assert dispatcher.hidden_dim == config.model.glm_config.hidden_size
+    assert dispatcher.num_max_tokens_per_rank == 512
+    assert config.training.disable_cuda_graphs
+
+
+def test_glm_ep_config_builds_requested_token_dispatcher():
+    pytest.importorskip("deep_ep")
+
+    cfg = tiny_ep()
+    deep_ep_dispatcher = DeepEPTokenDispatcher.Config(
+        num_experts=cfg.num_experts,
+        top_k=cfg.num_experts_per_tok,
+        hidden_dim=cfg.hidden_size,
+        num_max_tokens_per_rank=8,
+    )
+
+    all_to_all = GlmEPMoE(cfg)
+    deep_ep = GlmEPMoE(cfg, token_dispatcher=deep_ep_dispatcher)
+
+    assert isinstance(all_to_all.experts.token_dispatcher, AllToAllTokenDispatcher)
+    assert isinstance(deep_ep.experts.token_dispatcher, DeepEPTokenDispatcher)
 
 
 @pytest.mark.parametrize("world_size,valid_eps", [(4, (1, 2, 4)), (8, (1, 2, 4, 8))])

@@ -15,6 +15,7 @@ from torchtitan.components.loss import ChunkedLossWrapper, CrossEntropyLoss
 from torchtitan.components.tokenizer import HuggingFaceTokenizer
 from torchtitan.config import DebugConfig, ParallelismConfig, TrainingConfig
 from torchtitan.distributed.activation_checkpoint import FullAC
+from torchtitan.models.common.token_dispatcher import DeepEPTokenDispatcher
 
 from torchtitan.experiments.glm53_flash.config_registry import (
     _countdown_data_loader_config,
@@ -229,6 +230,50 @@ def glm53_flash_ep_countdown_lora_truncated() -> "LeanMemoryTrainer.Config":
             num_chunks=_positive_env_int("GLM53_FLASH_LOSS_CHUNKS", 8),
             loss_fn=CrossEntropyLoss.Config(global_vocab_size=cfg.vocab_size),
         ),
+    )
+
+
+def glm53_flash_ep_countdown_lora_truncated_deepep() -> "LeanMemoryTrainer.Config":
+    """First-8-layer GLM EP Countdown LoRA config using DeepEP v2 dispatch."""
+
+    config = glm53_flash_ep_countdown_lora_truncated()
+    if "GLM53_FLASH_EP_DEGREE" not in os.environ:
+        config.parallelism.expert_parallel_degree = 8
+    assert isinstance(config.model, Glm53FlashEPForCausalLM.Config)
+    config.model.experiment_flavor = (
+        f"{config.model.experiment_flavor}_deepep"
+    )
+    config.model.token_dispatcher = _deepep_dispatcher_config(config)
+    config.dump_folder = os.environ.get(
+        "GLM53_FLASH_DEEPEP_DUMP_FOLDER",
+        os.environ.get(
+            "GLM53_FLASH_EP_FULL_DUMP_FOLDER",
+            "./outputs/glm53_flash_ep_countdown_lora_truncated_deepep",
+        ),
+    )
+    return config
+
+
+def _deepep_dispatcher_config(
+    config: "LeanMemoryTrainer.Config",
+) -> DeepEPTokenDispatcher.Config:
+    assert isinstance(config.model, Glm53FlashEPForCausalLM.Config)
+    cfg = config.model.glm_config
+    num_token_shards = (
+        config.parallelism.context_parallel_degree
+        * config.parallelism.tensor_parallel_degree
+    )
+    num_tokens = config.training.num_tokens_per_microbatch_per_dp_rank
+    if num_tokens % num_token_shards != 0:
+        raise ValueError(
+            "training.num_tokens_per_microbatch_per_dp_rank must be divisible "
+            "by context_parallel_degree * tensor_parallel_degree for DeepEP."
+        )
+    return DeepEPTokenDispatcher.Config(
+        num_experts=cfg.num_experts,
+        top_k=cfg.num_experts_per_tok,
+        num_max_tokens_per_rank=num_tokens // num_token_shards,
+        hidden_dim=cfg.hidden_size,
     )
 
 

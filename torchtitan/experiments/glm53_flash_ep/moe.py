@@ -23,7 +23,10 @@ from torchtitan.experiments.glm53_flash.flavors import Glm53FlashConfig
 from torchtitan.experiments.glm53_flash.model import GlmMLP
 from torchtitan.models.common.linear import GroupedLinear
 from torchtitan.models.common.moe import RoutedExperts
-from torchtitan.models.common.token_dispatcher import AllToAllTokenDispatcher
+from torchtitan.models.common.token_dispatcher import (
+    AllToAllTokenDispatcher,
+    LocalTokenDispatcher,
+)
 
 
 class GlmEPRouter(nn.Module):
@@ -158,7 +161,17 @@ class GlmEPGroupedLinear(GroupedLinear):
 class GlmEPExperts(RoutedExperts):
     """Common routed experts with GLM dimensions and clamp behavior."""
 
-    def __init__(self, config: Glm53FlashConfig) -> None:
+    def __init__(
+        self,
+        config: Glm53FlashConfig,
+        *,
+        token_dispatcher: LocalTokenDispatcher.Config | None = None,
+    ) -> None:
+        if token_dispatcher is None:
+            token_dispatcher = AllToAllTokenDispatcher.Config(
+                num_experts=config.num_experts,
+                top_k=config.num_experts_per_tok,
+            )
         routed_config = RoutedExperts.Config(
             w13=GlmEPGroupedLinear.Config(
                 region_label="w13",
@@ -173,10 +186,7 @@ class GlmEPExperts(RoutedExperts):
                 in_features=config.moe_intermediate_size,
                 out_features=config.hidden_size,
             ),
-            token_dispatcher=AllToAllTokenDispatcher.Config(
-                num_experts=config.num_experts,
-                top_k=config.num_experts_per_tok,
-            ),
+            token_dispatcher=token_dispatcher,
             activation_fn=GlmClampedSwiGLU.Config(
                 swiglu_limit=config.swiglu_limit,
             ),
@@ -187,10 +197,15 @@ class GlmEPExperts(RoutedExperts):
 class GlmEPMoE(nn.Module):
     """GLM MoE wrapper using common token dispatch for routed experts."""
 
-    def __init__(self, config: Glm53FlashConfig) -> None:
+    def __init__(
+        self,
+        config: Glm53FlashConfig,
+        *,
+        token_dispatcher: LocalTokenDispatcher.Config | None = None,
+    ) -> None:
         super().__init__()
         self.num_experts = config.num_experts
-        self.experts = GlmEPExperts(config)
+        self.experts = GlmEPExperts(config, token_dispatcher=token_dispatcher)
         self.gate = GlmEPRouter(config)
         self.shared_experts = GlmMLP(
             config,
