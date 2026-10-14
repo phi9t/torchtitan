@@ -44,3 +44,7 @@
   T17 (grouped experts) continues as the local-compute prerequisite. T08d loop-path run kept as fallback.
   priority_pause.sh restarted to also cover task-13..18 workers.
 - ~19:00Z user: TorchTitan already integrates DeepEP v2 (DeepEPTokenDispatcher) + B200 MXFP8/DeepEP blog. T18 relaunched: install pinned DeepEP v2 for SM100 in glm53_train, qwen3_moe_deepep smoke, GLM EP with DeepEPTokenDispatcher, benchmark vs all-to-all/FSDP.
+- ~19:10Z user: first priority = rootfs has DeepEP done properly, following TorchTitan + the B200 MXFP8/DeepEP blog. Stopped
+  T18 (had begun an ad hoc DeepEP build). Launched R01: declared reproducible env (lock + sync + verify) as new env
+  `glm53_ep` with DeepEP v2 @01dc3aa (SM100), hybrid-ep if supported, torchao MXFP8, NVSHMEM; no live-rootfs rebuild;
+  insula repo untouched (its AGENTS.md excludes ML framework builds). T18 (GLM on DeepEPTokenDispatcher) re-queued after R01.
