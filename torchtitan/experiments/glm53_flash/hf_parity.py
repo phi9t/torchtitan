@@ -370,7 +370,7 @@ def _build_parity_inputs(
     checkpoint: Path,
     data_file: Path,
     *,
-    long_seq_len: int,
+    long_seq_len: int | None,
     device: torch.device,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     tokenizer = _load_hf_tokenizer(checkpoint)
@@ -396,23 +396,24 @@ def _build_parity_inputs(
             }
         )
 
-    vocab_size = int(getattr(tokenizer, "vocab_size", 154_880))
-    generator = torch.Generator(device="cpu").manual_seed(20261014)
-    long_ids = torch.randint(
-        low=0,
-        high=vocab_size,
-        size=(long_seq_len,),
-        generator=generator,
-        dtype=torch.long,
-    ).view(1, -1)
-    long_ids = long_ids.to(device)
-    samples.append(
-        {
-            "name": f"random_{long_seq_len}",
-            "input_ids": long_ids,
-            "attention_mask": torch.ones_like(long_ids, dtype=torch.bool),
-        }
-    )
+    if long_seq_len is not None:
+        vocab_size = int(getattr(tokenizer, "vocab_size", 154_880))
+        generator = torch.Generator(device="cpu").manual_seed(20261014)
+        long_ids = torch.randint(
+            low=0,
+            high=vocab_size,
+            size=(long_seq_len,),
+            generator=generator,
+            dtype=torch.long,
+        ).view(1, -1)
+        long_ids = long_ids.to(device)
+        samples.append(
+            {
+                "name": f"random_{long_seq_len}",
+                "input_ids": long_ids,
+                "attention_mask": torch.ones_like(long_ids, dtype=torch.bool),
+            }
+        )
     return samples, rendered
 
 
@@ -578,7 +579,7 @@ def run_slice_parity(args: argparse.Namespace) -> dict[str, Any]:
     input_samples, rendered = _build_parity_inputs(
         checkpoint,
         Path(args.data_file),
-        long_seq_len=args.long_seq_len,
+        long_seq_len=None if args.no_long_sequence else args.long_seq_len,
         device=device,
     )
     sample_results = []
@@ -936,6 +937,7 @@ def _main() -> None:
     parity.add_argument("--layer-start", type=int, required=True)
     parity.add_argument("--num-layers", type=int, required=True)
     parity.add_argument("--long-seq-len", type=int, default=4096)
+    parity.add_argument("--no-long-sequence", action="store_true")
     parity.add_argument("--dtype", choices=("float32", "bfloat16"), default="float32")
     parity.add_argument("--device", default="cpu")
     parity.set_defaults(func=run_slice_parity)

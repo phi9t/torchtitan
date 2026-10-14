@@ -22,11 +22,21 @@ from torchtitan.components.data import (
 from torchtitan.components.data.text_datasets import ChatProcessor
 from torchtitan.components.loss import ChunkedLossWrapper
 from torchtitan.components.tokenizer import HuggingFaceTokenizer
+from torchtitan.experiments.glm53_flash.checkpoint import (
+    Glm53FlashLoRACheckpointManager,
+    TrainableModelWrapper,
+)
 from torchtitan.experiments.glm53_flash.config_registry import (
+    glm53_flash_countdown_lora,
+    glm53_flash_debugmodel_lora,
     glm53_flash_mini_countdown_full,
     glm53_flash_mini_countdown_lora,
 )
-from torchtitan.experiments.glm53_flash.flavors import debugmodel
+from torchtitan.experiments.glm53_flash.flavors import (
+    build_model_config,
+    debugmodel,
+    with_lora,
+)
 from torchtitan.experiments.glm53_flash.hf_parity import run_key_coverage
 from torchtitan.experiments.glm53_flash.model import (
     _initialize_glm53_flash_weights,
@@ -489,6 +499,40 @@ def test_meta_to_empty_init_has_nonzero_norms_and_distinct_layers():
     assert not torch.allclose(layer_outputs[0], layer_outputs[-1])
 
 
+def test_lora_debug_model_only_lora_params_require_grad():
+    config = glm53_flash_debugmodel_lora()
+    with torch.device("meta"):
+        model = config.model.build()
+
+    lora_names = {
+        name
+        for name, _ in model.named_parameters()
+        if name.endswith(".lora_a") or name.endswith(".lora_b")
+    }
+    trainable_names = {
+        name for name, param in model.named_parameters() if param.requires_grad
+    }
+
+    assert lora_names
+    assert trainable_names == lora_names
+    assert config.optim.optimizer.optimizers[0].pattern == r".*\.lora_[ab]$"
+
+
+def test_full_lora_trainable_count_matches_memory_plan_on_meta():
+    cfg = with_lora(build_model_config("glm53_flash"), rank=16, alpha=64.0)
+    with torch.device("meta"):
+        model = Glm53FlashForCausalLM.Config(
+            glm_config=cfg,
+            experiment_flavor="glm53_flash",
+        ).build()
+
+    trainable_count = sum(
+        param.numel() for param in model.parameters() if param.requires_grad
+    )
+
+    assert trainable_count == 67_190_784
+
+
 def test_mini_countdown_configs_use_chat_data_qwen_vocab_and_fast_path(
     monkeypatch, tmp_path
 ):
@@ -528,6 +572,54 @@ def test_mini_countdown_configs_use_chat_data_qwen_vocab_and_fast_path(
     assert isinstance(full_config.loss, ChunkedLossWrapper.Config)
 
 
+def test_full_countdown_lora_config_uses_campaign_defaults(monkeypatch, tmp_path):
+    data_file = tmp_path / "formatting.jsonl"
+    data_file.write_text(
+        '{"question":"Numbers: 1, 2\\nTarget: 3","answer":"1 + 2 = 3\\nFINAL: 3"}\n'
+    )
+    monkeypatch.setenv("GLM53_FLASH_COUNTDOWN_DATA_FILE", str(data_file))
+    monkeypatch.setenv("GLM53_FLASH_COUNTDOWN_HF_ASSETS_PATH", str(tmp_path / "glm53"))
+
+    config = glm53_flash_countdown_lora()
+
+    assert config.training.max_context_length == 512
+    assert config.training.num_tokens_per_train_step == 64 * 512
+    assert config.training.steps == 94
+    assert isinstance(config.checkpointer, Glm53FlashLoRACheckpointManager.Config)
+    assert config.checkpointer.load_frozen_base_from_hf
+    assert config.checkpointer.trainable_model_only
+    assert not config.training.enable_cpu_offload
+    assert not config.checkpointer.initial_load_in_hf
+    assert not config.checkpointer.last_save_model_only
+    assert not config.checkpointer.load_only
+    assert config.checkpointer.interval == 31
+    assert config.optim.optimizer.optimizers[0].pattern == r".*\.lora_[ab]$"
+    assert config.optim.optimizer.optimizers[0].lr == 1.0e-4
+
+    monkeypatch.setenv("GLM53_FLASH_FULL_CHECKPOINT_LOAD_ONLY", "1")
+    load_only_config = glm53_flash_countdown_lora()
+    assert load_only_config.checkpointer.load_only
+
+    monkeypatch.setenv("GLM53_FLASH_FULL_CPU_OFFLOAD", "1")
+    with pytest.raises(ValueError, match="GLM53_FLASH_FULL_CPU_OFFLOAD is disabled"):
+        glm53_flash_countdown_lora()
+
+
+def test_trainable_model_wrapper_exposes_only_lora_tensors():
+    config = glm53_flash_debugmodel_lora()
+    with torch.device("meta"):
+        model = config.model.build()
+
+    wrapper = TrainableModelWrapper(model)
+    state_dict = wrapper.state_dict()
+
+    assert state_dict
+    assert all(name.endswith((".lora_a", ".lora_b")) for name in state_dict)
+    assert set(state_dict) == {
+        name for name, param in model.named_parameters() if param.requires_grad
+    }
+
+
 def test_state_dict_adapter_round_trip_uses_real_bf16_index_schema():
     torch.manual_seed(10)
     cfg = debugmodel()
@@ -565,6 +657,90 @@ def test_state_dict_adapter_round_trip_uses_real_bf16_index_schema():
     assert restored.keys() == native.keys()
     for key in native:
         torch.testing.assert_close(restored[key], native[key])
+
+
+def test_state_dict_adapter_restores_rank_local_expert_subset():
+    cfg = debugmodel()
+    cfg.num_experts = 4
+    model_cfg = Glm53FlashForCausalLM.Config(glm_config=cfg)
+    adapter = Glm53FlashStateDictAdapter(model_cfg, None)
+    adapter.local_experts_indices["layers.{}.mlp.experts.gate_up_proj"] = (1, 3)
+    adapter.local_experts_indices["layers.{}.mlp.experts.down_proj"] = (1, 3)
+
+    hf = {
+        f"model.language_model.layers.0.mlp.experts.{expert}.gate_proj.weight": torch.full(
+            (cfg.moe_intermediate_size, cfg.hidden_size),
+            float(expert),
+        )
+        for expert in range(1, 3)
+    }
+    hf.update(
+        {
+            f"model.language_model.layers.0.mlp.experts.{expert}.up_proj.weight": torch.full(
+                (cfg.moe_intermediate_size, cfg.hidden_size),
+                float(expert + 10),
+            )
+            for expert in range(1, 3)
+        }
+    )
+    hf.update(
+        {
+            f"model.language_model.layers.0.mlp.experts.{expert}.down_proj.weight": torch.full(
+                (cfg.hidden_size, cfg.moe_intermediate_size),
+                float(expert + 20),
+            )
+            for expert in range(1, 3)
+        }
+    )
+
+    restored = adapter.from_hf(hf)
+
+    gate_up = restored["layers.0.mlp.experts.gate_up_proj"]
+    down = restored["layers.0.mlp.experts.down_proj"]
+    assert gate_up.shape == (2, 2 * cfg.moe_intermediate_size, cfg.hidden_size)
+    assert down.shape == (2, cfg.hidden_size, cfg.moe_intermediate_size)
+    torch.testing.assert_close(
+        gate_up[0],
+        torch.cat(
+            [
+                torch.full((cfg.moe_intermediate_size, cfg.hidden_size), 1.0),
+                torch.full((cfg.moe_intermediate_size, cfg.hidden_size), 11.0),
+            ],
+            dim=0,
+        ),
+    )
+    torch.testing.assert_close(
+        down[1],
+        torch.full((cfg.hidden_size, cfg.moe_intermediate_size), 22.0),
+    )
+
+
+def test_state_dict_adapter_skips_restack_when_dtensor_experts_loaded_in_place():
+    cfg = debugmodel()
+    cfg.num_experts = 4
+    model_cfg = Glm53FlashForCausalLM.Config(glm_config=cfg)
+    adapter = Glm53FlashStateDictAdapter(model_cfg, None)
+    adapter.local_experts_indices["layers.{}.mlp.experts.gate_up_proj"] = (1, 3)
+    adapter.local_experts_indices["layers.{}.mlp.experts.down_proj"] = (1, 3)
+    adapter.grouped_expert_weight_mesh["layers.{}.mlp.experts.gate_up_proj"] = object()
+    adapter.grouped_expert_weight_mesh["layers.{}.mlp.experts.down_proj"] = object()
+
+    hf = {}
+    for expert in range(1, 3):
+        hf[
+            f"model.language_model.layers.0.mlp.experts.{expert}.gate_proj.weight"
+        ] = torch.empty(cfg.moe_intermediate_size, cfg.hidden_size)
+        hf[
+            f"model.language_model.layers.0.mlp.experts.{expert}.up_proj.weight"
+        ] = torch.empty(cfg.moe_intermediate_size, cfg.hidden_size)
+        hf[
+            f"model.language_model.layers.0.mlp.experts.{expert}.down_proj.weight"
+        ] = torch.empty(cfg.hidden_size, cfg.moe_intermediate_size)
+
+    restored = adapter.from_hf(hf)
+
+    assert "layers.0.mlp.experts.gate_up_proj" not in restored
+    assert "layers.0.mlp.experts.down_proj" not in restored
 
 
 def test_real_glm53_flash_checkpoint_key_coverage_when_present():

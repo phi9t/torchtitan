@@ -102,6 +102,19 @@ inputs; the observed outlier comes from router sensitivity after accumulated
 drift, with only a small number of router slots changing and the final top-1
 remaining identical. Sparse selection masks still matched exactly.
 
+OPEN: middle-slice layer-26 drift remains unresolved and should not be hidden.
+The precise fp32 location is sample `cd-17-95-3-t75`, layer 26
+`linear_attention`, max abs `0.045856863260269165`, mean abs
+`8.540644921595231e-05`; it carries into layer 27 `deepseek_sparse_attention`
+with max abs `0.058231860399246216`, mean abs `0.00014791548892389983`, and
+final logits max abs `0.7716797590255737`. The matching bf16 middle slice is
+much noisier overall: layer 26 max abs `1.875`, layer 27 max abs `1.875`, and
+final logits max abs `8.96875`. Indexer top-k ties/order do not explain the
+layer-26 drift because layer 26 is a `linear_attention` layer; layer 27 had only
+16 raw index-order mismatches for this sample and `selection_mask_mismatch_count=0`.
+The current evidence points to accumulated-input/router sensitivity, not sparse
+selection-mask disagreement.
+
 ### Layers 0-3, bf16 CUDA
 
 | Layer | TT kind | HF kind | Max abs | Max mean abs |
@@ -240,7 +253,7 @@ No core files were edited.
 Focused pytest:
 
 ```bash
-TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; cd /workspace/torchtitan && pytest -q torchtitan/experiments/glm53_flash/tests/test_glm53_flash.py -x'
+TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; export CUDA_VISIBLE_DEVICES=6,7; cd /workspace/torchtitan && pytest -q torchtitan/experiments/glm53_flash/tests/test_glm53_flash.py -x'
 ```
 
 Result:

@@ -15,8 +15,9 @@ from typing import Any
 
 import torch
 from torch.distributed.checkpoint import HuggingFaceStorageReader
+from torch.distributed.tensor import DTensor
 
-from torchtitan.models.base.state_dict_adapter import StateDictAdapter
+from torchtitan.models.common.moe_state_dict_adapter import MoEStateDictAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ _NATIVE_GATE_UP_RE = re.compile(r"^layers\.(\d+)\.mlp\.experts\.gate_up_proj$")
 _NATIVE_DOWN_RE = re.compile(r"^layers\.(\d+)\.mlp\.experts\.down_proj$")
 
 
-class Glm53FlashStateDictAdapter(StateDictAdapter):
+class Glm53FlashStateDictAdapter(MoEStateDictAdapter):
     """Adapter for text decoder weights from `zai-org/GLM-5.3-Flash-BF16`."""
 
     def __init__(self, model_config, hf_assets_path: str | None) -> None:
@@ -84,8 +85,17 @@ class Glm53FlashStateDictAdapter(StateDictAdapter):
             if gate_up_match is not None:
                 layer = int(gate_up_match.group(1))
                 gate_up_E2FD = value
-                for expert in range(gate_up_E2FD.shape[0]):
-                    gate_FD, up_FD = gate_up_E2FD[expert].chunk(2, dim=0)
+                if isinstance(gate_up_E2FD, DTensor):
+                    abstract_key = "layers.{}.mlp.experts.gate_up_proj"
+                    self._record_grouped_expert_dtensor(abstract_key, gate_up_E2FD)
+                    start, end = self.local_experts_indices[abstract_key]
+                    local_gate_up_E2FD = gate_up_E2FD._local_tensor
+                    experts = range(start, end)
+                else:
+                    local_gate_up_E2FD = gate_up_E2FD
+                    experts = range(gate_up_E2FD.shape[0])
+                for local_expert, expert in enumerate(experts):
+                    gate_FD, up_FD = local_gate_up_E2FD[local_expert].chunk(2, dim=0)
                     hf_state_dict[
                         f"model.language_model.layers.{layer}.mlp.experts.{expert}.gate_proj.weight"
                     ] = gate_FD
@@ -97,10 +107,19 @@ class Glm53FlashStateDictAdapter(StateDictAdapter):
             if down_match is not None:
                 layer = int(down_match.group(1))
                 down_EDF = value
-                for expert in range(down_EDF.shape[0]):
+                if isinstance(down_EDF, DTensor):
+                    abstract_key = "layers.{}.mlp.experts.down_proj"
+                    self._record_grouped_expert_dtensor(abstract_key, down_EDF)
+                    start, end = self.local_experts_indices[abstract_key]
+                    local_down_EDF = down_EDF._local_tensor
+                    experts = range(start, end)
+                else:
+                    local_down_EDF = down_EDF
+                    experts = range(down_EDF.shape[0])
+                for local_expert, expert in enumerate(experts):
                     hf_state_dict[
                         f"model.language_model.layers.{layer}.mlp.experts.{expert}.down_proj.weight"
-                    ] = down_EDF[expert]
+                    ] = local_down_EDF[local_expert]
                 continue
 
             hf_key = self._map_native_key(native_key)
@@ -126,7 +145,7 @@ class Glm53FlashStateDictAdapter(StateDictAdapter):
                 "GLM-5.3-Flash experiment supports BF16 loading only; "
                 "weight_scale_inv keys are skipped."
             )
-        return HuggingFaceStorageReader(path, thread_count=thread_count or 2)
+        return HuggingFaceStorageReader(path, thread_count=thread_count or 1)
 
     @staticmethod
     def _skip_reason(hf_key: str) -> str | None:
@@ -247,14 +266,24 @@ class Glm53FlashStateDictAdapter(StateDictAdapter):
         for (layer, expert), parts in expert_parts.items():
             by_layer[layer][expert] = parts
         for layer, experts in by_layer.items():
-            missing = set(range(self.glm_config.num_experts)) - set(experts)
+            gate_up_key = "layers.{}.mlp.experts.gate_up_proj"
+            down_key = "layers.{}.mlp.experts.down_proj"
+            start, end = self.local_experts_indices.get(
+                gate_up_key, (0, self.glm_config.num_experts)
+            )
+            expected_experts = set(range(start, end))
+            missing = expected_experts - set(experts)
             if missing:
                 raise KeyError(
                     f"layer {layer} is missing expert weights for {sorted(missing)[:8]}"
                 )
             gate_up = []
             down = []
-            for expert in range(self.glm_config.num_experts):
+            validate_only = (
+                gate_up_key in self.grouped_expert_weight_mesh
+                and down_key in self.grouped_expert_weight_mesh
+            )
+            for expert in range(start, end):
                 parts = experts[expert]
                 required = {"gate", "up", "down"}
                 if set(parts) != required:
@@ -262,11 +291,45 @@ class Glm53FlashStateDictAdapter(StateDictAdapter):
                         f"layer {layer} expert {expert} has projections "
                         f"{sorted(parts)}, expected {sorted(required)}"
                     )
+                if validate_only:
+                    continue
                 gate_up.append(torch.cat([parts["gate"], parts["up"]], dim=0))
                 down.append(parts["down"])
-            state_dict[f"layers.{layer}.mlp.experts.gate_up_proj"] = torch.stack(
-                gate_up, dim=0
+            if validate_only:
+                # DCP loaded each expert projection directly into views of the
+                # local DTensor shard produced by to_hf(). Re-stacking here
+                # would allocate another large grouped expert tensor per rank.
+                continue
+            state_dict[
+                f"layers.{layer}.mlp.experts.gate_up_proj"
+            ] = self._wrap_grouped_expert_dtensor(
+                gate_up_key, torch.stack(gate_up, dim=0)
             )
-            state_dict[f"layers.{layer}.mlp.experts.down_proj"] = torch.stack(
-                down, dim=0
-            )
+            state_dict[
+                f"layers.{layer}.mlp.experts.down_proj"
+            ] = self._wrap_grouped_expert_dtensor(down_key, torch.stack(down, dim=0))
+
+    def _record_grouped_expert_dtensor(self, abstract_key: str, value: DTensor) -> None:
+        self.grouped_expert_weight_placements[abstract_key] = value.placements
+        self.grouped_expert_weight_shape[abstract_key] = value.shape
+        self.grouped_expert_weight_mesh[abstract_key] = value.device_mesh
+        self.local_experts_indices[
+            abstract_key
+        ] = self._caculate_indices_from_placements(
+            dim=0,
+            dim_size=value.shape[0],
+            dtensor_placements=value.placements,
+            device_mesh=value.device_mesh,
+        )
+
+    def _wrap_grouped_expert_dtensor(
+        self, abstract_key: str, local_tensor: torch.Tensor
+    ) -> torch.Tensor:
+        if abstract_key not in self.grouped_expert_weight_mesh:
+            return local_tensor
+        return DTensor.from_local(
+            local_tensor,
+            self.grouped_expert_weight_mesh[abstract_key],
+            self.grouped_expert_weight_placements[abstract_key],
+            run_check=False,
+        )

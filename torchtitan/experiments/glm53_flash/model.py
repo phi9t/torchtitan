@@ -126,6 +126,15 @@ class LoRALinear(nn.Linear):
         return out + adapter * (self.alpha / self.rank)
 
 
+def _is_lora_parameter(name: str) -> bool:
+    return name.endswith(".lora_a") or name.endswith(".lora_b")
+
+
+def apply_lora_trainable_policy(model: nn.Module) -> None:
+    for name, param in model.named_parameters():
+        param.requires_grad_(_is_lora_parameter(name))
+
+
 def _matches_lora_target(suffix: str, config: Glm53FlashConfig) -> bool:
     return config.lora_rank is not None and any(
         suffix == target or suffix.endswith(f".{target}")
@@ -1190,6 +1199,8 @@ class Glm53FlashForCausalLM(BaseModel):
         self.lm_head = nn.Linear(cfg.hidden_size, cfg.vocab_size, bias=False)
         if self.enable_weight_tying:
             self.lm_head.weight = self.tok_embeddings.weight
+        if cfg.lora_rank is not None:
+            apply_lora_trainable_policy(self)
 
     def parallelize(
         self,

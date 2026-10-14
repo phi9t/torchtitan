@@ -41,6 +41,7 @@ from torchtitan.distributed.activation_checkpoint import FullAC
 from torchtitan.models.base.model import BaseModel
 from torchtitan.observability.metrics import MetricsProcessor
 
+from .checkpoint import Glm53FlashLoRACheckpointManager
 from .flavors import build_model_config, with_lora
 from .model import Glm53FlashForCausalLM
 
@@ -339,6 +340,7 @@ def glm53_flash_debugmodel_lora() -> "Trainer.Config":
     config = glm53_flash_debugmodel()
     assert isinstance(config.model, Glm53FlashForCausalLM.Config)
     config.model.glm_config = with_lora(config.model.glm_config, rank=8, alpha=32.0)
+    config.optim = _lora_optim_config(steps=config.training.steps, lr=1.0e-3)
     config.dump_folder = os.environ.get(
         "GLM53_FLASH_LORA_DUMP_FOLDER",
         "./outputs/glm53_flash_debugmodel_lora",
@@ -348,7 +350,7 @@ def glm53_flash_debugmodel_lora() -> "Trainer.Config":
 
 def glm53_flash_mini_countdown_lora() -> "Trainer.Config":
     cfg = _mini_countdown_model_config(use_lora=True)
-    return _mini_countdown_trainer_config(
+    config = _mini_countdown_trainer_config(
         cfg,
         dump_folder=os.environ.get(
             "GLM53_FLASH_MINI_DUMP_FOLDER",
@@ -357,6 +359,11 @@ def glm53_flash_mini_countdown_lora() -> "Trainer.Config":
         steps=_positive_env_int("GLM53_FLASH_MINI_STEPS", 20),
         lr=_nonnegative_env_float("GLM53_FLASH_MINI_LR", 2.0e-4),
     )
+    config.optim = _lora_optim_config(
+        steps=config.training.steps,
+        lr=_nonnegative_env_float("GLM53_FLASH_MINI_LR", 2.0e-4),
+    )
+    return config
 
 
 def glm53_flash_mini_countdown_full() -> "Trainer.Config":
@@ -393,7 +400,7 @@ def glm53_flash_countdown_lora() -> "Trainer.Config":
         "./outputs/glm53_flash_countdown_lora",
     )
     config.training.max_context_length = _positive_env_int(
-        "GLM53_FLASH_FULL_SEQ_LEN", 2048
+        "GLM53_FLASH_FULL_SEQ_LEN", 512
     )
     config.training.num_tokens_per_microbatch_per_dp_rank = (
         _positive_env_int("GLM53_FLASH_FULL_LOCAL_BATCH_SIZE", 1)
@@ -402,12 +409,50 @@ def glm53_flash_countdown_lora() -> "Trainer.Config":
     config.training.num_tokens_per_train_step = _positive_env_int(
         "GLM53_FLASH_FULL_TOKENS_PER_STEP", 64 * 512
     )
-    config.training.steps = _positive_env_int("GLM53_FLASH_FULL_STEPS", 20)
-    config.optim = _optim_config(
+    config.training.steps = _positive_env_int("GLM53_FLASH_FULL_STEPS", 94)
+    if _env_bool("GLM53_FLASH_FULL_CPU_OFFLOAD", False):
+        raise ValueError(
+            "GLM53_FLASH_FULL_CPU_OFFLOAD is disabled for the full GLM rung. "
+            "Use mode A: meta init, FSDP-sharded GPU params, and rank-local "
+            "HF/DCP shard loading."
+        )
+    config.training.enable_cpu_offload = False
+    config.checkpointer = Glm53FlashLoRACheckpointManager.Config(
+        interval=_positive_env_int("GLM53_FLASH_FULL_CHECKPOINT_INTERVAL", 31),
+        initial_load_model_only=False,
+        initial_load_in_hf=False,
+        last_save_model_only=False,
+        keep_latest_k=_nonnegative_env_int("GLM53_FLASH_FULL_KEEP_LATEST_K", 10),
+        load_only=_env_bool("GLM53_FLASH_FULL_CHECKPOINT_LOAD_ONLY", False),
+    )
+    config.optim = _lora_optim_config(
         steps=config.training.steps,
-        lr=_nonnegative_env_float("GLM53_FLASH_FULL_LR", 2.0e-4),
+        lr=_nonnegative_env_float("GLM53_FLASH_FULL_LR", 1.0e-4),
     )
     return config
+
+
+def _lora_optim_config(*, steps: int, lr: float) -> Optim.Config:
+    return Optim.Config(
+        optimizer=OptimizersContainer.Config(
+            optimizers=[
+                AdamW.Config(
+                    pattern=r".*\.lora_[ab]$",
+                    lr=lr,
+                    betas=(0.9, 0.95),
+                    eps=1.0e-8,
+                    weight_decay=0.0,
+                ),
+            ],
+        ),
+        lr_scheduler=LRSchedulersContainer.Config(
+            warmup_steps=max(1, steps // 10),
+            total_steps=steps,
+            decay_ratio=0.0,
+            decay_type="linear",
+            min_lr_factor=1.0,
+        ),
+    )
 
 
 def _optim_config(*, steps: int, lr: float) -> Optim.Config:
@@ -461,6 +506,19 @@ def _nonnegative_env_float(name: str, default: float) -> float:
         value = float(raw)
     except ValueError as exc:
         raise ValueError(f"{name} must be a float, got {raw!r}") from exc
+    if value < 0:
+        raise ValueError(f"{name} must be >= 0, got {value}")
+    return value
+
+
+def _nonnegative_env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer, got {raw!r}") from exc
     if value < 0:
         raise ValueError(f"{name} must be >= 0, got {value}")
     return value

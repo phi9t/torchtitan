@@ -1,0 +1,5 @@
+HDFS_URI=hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-ladder/rung4/t08-rung4-diagnostics-20261014T130432Z/attempt-01
+FILES=7
+HDFS_PUT_MBPS=0.0034682808244718994
+LOCAL_MANIFEST=/data05/philip.yang/glm53-ladder-cache/publish-tmp/20261014T130505Z-876512/MANIFEST.jsonl
+METRICS=/data05/philip.yang/glm53-ladder-cache/publish-tmp/20261014T130505Z-876512/metrics.jsonl

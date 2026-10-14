@@ -122,7 +122,7 @@ hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-ladder/rung3/t07b-rung
 
 Publish result:
 
-- Files: `31`
+- Files: `32`
 - Manifest: `MANIFEST.jsonl`
 - Completion marker: `_COMPLETE`
 
