@@ -48,3 +48,4 @@
   T18 (had begun an ad hoc DeepEP build). Launched R01: declared reproducible env (lock + sync + verify) as new env
   `glm53_ep` with DeepEP v2 @01dc3aa (SM100), hybrid-ep if supported, torchao MXFP8, NVSHMEM; no live-rootfs rebuild;
   insula repo untouched (its AGENTS.md excludes ML framework builds). T18 (GLM on DeepEPTokenDispatcher) re-queued after R01.
+- ~19:25Z user: DeepEP must be in the rootfs image via torchtitan's Insula builder (build_rootfs.sh). R01 rev2 relaunched: build_rootfs.sh --variant ep (torch nightly + DeepEP v2 SM100 + torchao MXFP8 + fla + NVSHMEM), publish to store /data05/philip.yang/torchtitan-rootfs-store, select per-run; legacy rootfs/glm53_train untouched.
