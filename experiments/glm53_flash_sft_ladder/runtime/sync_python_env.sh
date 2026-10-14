@@ -59,7 +59,6 @@ command -v uv >/dev/null || die "uv is required inside the rootfs"
 
 unset CC CXX CUDAHOSTCXX
 export MAX_JOBS="${MAX_JOBS:-16}"
-export FLASH_ATTENTION_SKIP_CUDA_BUILD="${FLASH_ATTENTION_SKIP_CUDA_BUILD:-TRUE}"
 
 VENV="${GLM53_EP_RUNTIME_VENV:-/project/venvs/b200-runtime}"
 LOCK="${GLM53_EP_REQUIREMENTS_LOCK:-${SCRIPT_DIR}/requirements.lock}"
@@ -115,7 +114,6 @@ uv pip install \
 uv pip install \
   --python "${VENV}/bin/python" \
   --index-strategy unsafe-best-match \
-  --no-build-isolation-package flash-attn \
   --require-hashes \
   -r "${LOCK}"
 
@@ -164,9 +162,6 @@ report = {
     "direct": str(direct),
     "direct_sha256": file_sha256(direct),
     "network_mode": os.environ.get("TORCHTITAN_ROOTFS_NETWORK", "offline"),
-    "flash_attention_skip_cuda_build": os.environ.get(
-        "FLASH_ATTENTION_SKIP_CUDA_BUILD"
-    ),
     "rootfs_store_id": os.environ.get("TORCHTITAN_ROOTFS_STORE_ID"),
     "rootfs_manifest": manifest,
     "rootfs_digest": manifest.get("exported_rootfs_digest"),

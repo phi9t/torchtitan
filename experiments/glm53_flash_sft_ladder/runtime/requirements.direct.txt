@@ -29,7 +29,6 @@ attn-gym[linear,cudnn]==0.0.16
 datasets==4.7.0
 einops==0.8.2
 fla-core==0.5.2
-flash-attn==2.8.3.post1
 grain==0.2.18
 huggingface-hub==1.27.0
 numpy==2.3.5
@@ -40,7 +39,6 @@ safetensors==0.8.0
 tensorboard==2.21.0
 tiktoken==0.13.0
 tokenizers==0.22.2
-torchao==0.18.0
 tqdm==4.70.0
 transformers==5.15.0
 wandb==0.28.1

@@ -25,12 +25,13 @@ experiments/glm53_flash_sft_ladder/runtime/sync_python_env.sh \
 ```
 
 The sync script recreates the dedicated `glm53_ep` venv from
-`requirements.lock`, records `/project/venvs/b200-runtime/python_env_report.json`,
-and installs `flash-attn==2.8.3.post1` with
-`FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE`. The skipped CUDA extension is deliberate:
-with this torch nightly, the upstream flash-attn source build hardcodes
-`-std=c++17` while torch headers require C++20 symbols, and the legacy
-`glm53_train` flash-attn CUDA extension is not importable either.
+`requirements.lock` and records
+`/project/venvs/b200-runtime/python_env_report.json`. `torchao` and
+`flash-attn` are intentionally excluded from this L1 environment: `glm53_train`
+does not need either package for the GLM Flash, GLM Flash EP, or GLM
+architecture speedrun paths, and installing them in `glm53_ep` triggers import
+failures with Triton 3.9 (`torchao.prototype.moe_training` autotune-key
+validation and a non-importable flash-attn CUDA extension).
 
 Verify the environment:
 
@@ -48,12 +49,14 @@ TORCHTITAN_ROOTFS_ENV=glm53_ep scripts/rootfs/enter_rootfs.sh \
   -- bash -lc 'unset CC CXX CUDAHOSTCXX; cd /workspace/torchtitan && GLM53_FLASH_DEBUG_STEPS=2 NGPU=1 MODULE=torchtitan.experiments.glm53_flash.config_registry CONFIG=glm53_flash_debugmodel ./run_train.sh'
 ```
 
-Known R01 blockers:
+R01b status:
 
-- `verify_runtime.py` currently exits 21 because `fla.ops.kda` import trips a
-  Triton 3.9 autotune-key validation error in `fla.ops.cp.chunk_delta_h` before
-  KDA itself imports.
-- `pytest -q torchtitan/experiments/glm53_flash/tests` and the two-step
-  `glm53_flash_debugmodel` launch fail during import on a torchao
-  `torchao.prototype.moe_training.kernels.float8_rowwise` Triton 3.9 autotune
-  key mismatch.
+- `verify_runtime.py` is green for the GLM runtime gate: torch/CUDA/sm_100,
+  Triton, `attn_gym.linear.kda`, TorchTitan's `attn_gym` bridge, NVSHMEM, and
+  CUDA headers/libs.
+- Direct `fla.ops.kda` import still trips a Triton 3.9 autotune-key validation
+  error in `fla.ops.cp.chunk_delta_h`; this is recorded as a diagnostic because
+  the GLM paths verified here use `attn_gym` for KDA.
+- `flash-attn` is not used by the verified GLM/speedrun paths. If a future GLM
+  path requires it, promote it to an L2/native package with a compatible build
+  instead of re-adding the broken source install to L1.

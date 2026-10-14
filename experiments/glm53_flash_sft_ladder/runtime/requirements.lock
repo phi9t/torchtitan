@@ -543,7 +543,6 @@ einops==0.8.2 \
     # via
     #   -r experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt
     #   fla-core
-    #   flash-attn
 etils==1.14.0 \
     --hash=sha256:8136e7f4c4173cd0af0ca5481c4475152f0b8686192951eefa60ee8711e1ede4 \
     --hash=sha256:b5df7341f54dbe1405a4450b2741207b4a8c279780402b45f87202b94dfc52b4
@@ -560,9 +559,6 @@ filelock==4.1.2 \
 fla-core==0.5.2 \
     --hash=sha256:5e830c85bad3d0d34677f98ac7074d08687a3756f0f0499d95ceb96eb6920761 \
     --hash=sha256:9360fc412f784c1c8f05c320ec2902d5d968764178c9b8a92efc919e17a39680
-    # via -r experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt
-flash-attn==2.8.3.post1 \
-    --hash=sha256:55d5103ed846da8b56e0797acf4bde07dee4b1c7e8907fcfc6699c203030c348
     # via -r experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt
 frozenlist==1.8.0 \
     --hash=sha256:0325024fe97f94c41c08872db482cf8ac4800d80e79222c6b0b7b162d5b13686 \
@@ -2626,7 +2622,6 @@ torch @ https://download-r2.pytorch.org/whl/nightly/cu132/torch-2.16.0.dev202610
     # via
     #   -r experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt
     #   attn-gym
-    #   flash-attn
     #   torch-checkpointing
     #   torch-remat
 torch-checkpointing @ https://github.com/meta-pytorch/torch_checkpointing/archive/dcbb3a59cfad1cbeb95994f0d6cb1802c1d91825.tar.gz#sha256=70c62260176d902aecbc4371961245debace72f5a3d7f51c2efa5b776ccd4090 \
@@ -2634,10 +2629,6 @@ torch-checkpointing @ https://github.com/meta-pytorch/torch_checkpointing/archiv
     # via -r experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt
 torch-remat @ https://github.com/meta-pytorch/remat/archive/4fd000acba6dc66762b7f3217ecadb8e07243dd4.tar.gz#sha256=3cd06ba955072e3aff8c4f21d8b8d428cd1c3dfda11f458ec582ca56b24e8619 \
     --hash=sha256:3cd06ba955072e3aff8c4f21d8b8d428cd1c3dfda11f458ec582ca56b24e8619
-    # via -r experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt
-torchao==0.18.0 \
-    --hash=sha256:5c2b4485341bf28b7fed2c4fc95b9f298e209f41685350f067de85527a05585e \
-    --hash=sha256:6540b148e40ba81cbd4de86392225a076a1591146e9cebb099b3b234ba9feebe
     # via -r experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt
 tqdm==4.70.0 \
     --hash=sha256:55b0b0dbd97462d06ebee91e4dac24ed4d4702be82b24f07e6c1d27e08cea220 \

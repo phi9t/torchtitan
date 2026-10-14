@@ -17,16 +17,21 @@ from pathlib import Path
 from typing import Any
 
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 SCHEMA_VERSION = 1
 EXPECTED_ENV_NAME = "glm53_ep"
 EXPECTED_PYTHON = "/project/venvs/b200-runtime/bin/python"
 EXPECTED_PACKAGES = {
     "torch": "2.16.0.dev20261013+cu132",
     "triton": "3.9.0+gitfc8d31a5",
+    "attn-gym": "0.0.16",
     "fla-core": "0.5.2",
-    "torchao": "0.18.0",
     "nvidia-nvshmem-cu13": "3.7.2",
 }
+EXCLUDED_PACKAGES = ("flash-attn", "torchao")
 CUDA_HEADERS = (
     "/opt/cuda-synth/include/cuda_runtime.h",
     "/opt/cuda-synth/include/cublas_v2.h",
@@ -62,6 +67,25 @@ def _check_package(
                 actual=actual,
             )
         )
+
+
+def _check_excluded_package(
+    blockers: list[dict[str, object]], packages: dict[str, str], name: str
+) -> None:
+    try:
+        actual = importlib_metadata.version(name)
+    except importlib_metadata.PackageNotFoundError:
+        packages[name] = "not installed"
+        return
+    packages[name] = actual
+    blockers.append(
+        _blocker(
+            "package",
+            f"excluded package {name} is installed",
+            name=name,
+            actual=actual,
+        )
+    )
 
 
 def _check_import(
@@ -163,11 +187,30 @@ def verify_runtime() -> dict[str, Any]:
 
     for name, version in EXPECTED_PACKAGES.items():
         _check_package(blockers, packages, name, version)
+    for name in EXCLUDED_PACKAGES:
+        _check_excluded_package(blockers, packages, name)
 
     _check_import(blockers, imports, "triton")
-    _check_import(blockers, imports, "fla.ops.kda")
-    _check_import(blockers, imports, "torchao.prototype.mx_formats")
+    _check_import(blockers, imports, "attn_gym.linear.kda")
+    _check_import(blockers, imports, "torchtitan.models.common.attn_gym")
     _check_import(blockers, imports, "nvidia.nvshmem")
+
+    diagnostic_imports: dict[str, Any] = {}
+    try:
+        imported = importlib.import_module("fla.ops.kda")
+    except Exception as exc:
+        diagnostic_imports["fla.ops.kda"] = {
+            "ok": False,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "gate": "diagnostic",
+        }
+    else:
+        diagnostic_imports["fla.ops.kda"] = {
+            "ok": True,
+            "file": getattr(imported, "__file__", None),
+            "gate": "diagnostic",
+        }
 
     import torch
 
@@ -228,6 +271,7 @@ def verify_runtime() -> dict[str, Any]:
         "rootfs_digest": rootfs_manifest.get("exported_rootfs_digest"),
         "packages": packages,
         "imports": imports,
+        "diagnostic_imports": diagnostic_imports,
         "torch": torch_info,
         "nvcc": _nvcc_version(),
         "filesystem": filesystem_checks,

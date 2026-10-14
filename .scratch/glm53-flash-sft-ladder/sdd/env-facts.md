@@ -33,7 +33,7 @@
 - pre-commit: run only the relevant hooks on changed files (flake8, ufmt, pydoclint, codespell); the pyrefly hook currently fails
   repo-wide (52 pre-existing errors) AND auto-edits unrelated core files -- if you run it, `git checkout` those files afterwards.
 
-## GLM53_EP RUNTIME (R01, verified 2026-10-14)
+## GLM53_EP RUNTIME (R01b, verified 2026-10-14)
 - `glm53_ep` is the declared GLM Flash native-extension/post-DeepEP L1 env. It is separate from live `glm53_train` and lives under
   the env-specific rootfs state `.cache/torchtitan-rootfs/glm53_ep/venvs/b200-runtime`.
 - Select the opt-in native L0 rootfs from the managed store, not the live legacy rootfs:
@@ -44,13 +44,15 @@
   `experiments/glm53_flash_sft_ladder/runtime/sync_python_env.sh --rootfs-store /data05/philip.yang/torchtitan-rootfs-store`.
 - Launch command pattern:
   `TORCHTITAN_ROOTFS_ENV=glm53_ep scripts/rootfs/enter_rootfs.sh --rootfs-store /data05/philip.yang/torchtitan-rootfs-store -- bash -lc 'unset CC CXX CUDAHOSTCXX; cd /workspace/torchtitan && ...'`
-- R01 evidence: `.scratch/glm53-flash-sft-ladder/evidence/r01/`.
-  Runtime passes torch/CUDA/sm_100, Triton import, torchao MXFP8 import, NVSHMEM wheel presence, CUDA headers/libs, ccache,
-  CUTLASS, RDMA/NUMA, Nsight CLI visibility, and linker probes.
-- Current blocker: `fla.ops.kda` import fails before KDA on `fla.ops.cp.chunk_delta_h` because Triton 3.9 rejects an autotune key
-  containing `BT` when the kernel args omit `BT`. GLM Flash tests and the 2-step debug train also fail during import on a
-  second Triton 3.9 autotune-key mismatch in `torchao.prototype.moe_training.kernels.float8_rowwise` (`num_elements` is not
-  a kernel argument). See `task-r01-report.md` before treating `glm53_ep` as train-ready.
+- R01b evidence: `.scratch/glm53-flash-sft-ladder/evidence/r01b/`.
+  Runtime passes torch/CUDA/sm_100, Triton import, `attn_gym.linear.kda`, TorchTitan's `attn_gym` bridge, NVSHMEM wheel
+  presence, CUDA headers/libs, ccache, CUTLASS, RDMA/NUMA, Nsight CLI visibility, and linker probes. GLM Flash tests,
+  GLM Flash EP tests, GLM arch speedrun tests, and the 2-step synthetic `glm53_flash_debugmodel` train pass in `glm53_ep`.
+- `torchao` and `flash-attn` are intentionally excluded from the `glm53_ep` L1 lock. `glm53_train` does not need either for
+  the verified GLM paths, installing `torchao==0.18.0` trips a Triton 3.9 autotune-key validation error during optional
+  NVFP4 import, and `flash-attn` is not referenced by the verified GLM/speedrun paths.
+- Direct `fla.ops.kda` import still fails before KDA on `fla.ops.cp.chunk_delta_h` because Triton 3.9 rejects an autotune key
+  containing `BT` when the kernel args omit `BT`; `verify_runtime.py` records this as a diagnostic, not a GLM runtime gate.
 
 ## GPU UPDATE 2026-10-14 09:44Z
 - The other user's `pretrain_commq.py` job has ENDED; GPUs are free apart from campaign workers. Always check `nvidia-smi`
