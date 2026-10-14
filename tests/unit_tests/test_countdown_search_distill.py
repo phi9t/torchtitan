@@ -40,6 +40,7 @@ from torchtitan.experiments.countdown_search_distill.lora_export import (
     convert_torchtitan_lora_tensors,
     peft_adapter_config,
     Qwen3LoRAExportConfig,
+    resolve_qwen3_lora_export_config,
     split_qwen3_fused_qkv_lora_b,
     split_qwen3_fused_w13_lora_b,
 )
@@ -1560,14 +1561,17 @@ def test_glm53_ladder_qwen3_configs_read_env(monkeypatch, tmp_path):
     from torchtitan.experiments.glm53_flash_sft_ladder.config_registry import (
         qwen3_0_6b_countdown_full,
         qwen3_0_6b_countdown_lora,
+        qwen3_8b_countdown_lora,
     )
 
     data_file = tmp_path / "formatting.jsonl"
     dump_root = tmp_path / "runs"
     hf_root = tmp_path / "Qwen3-0.6B"
+    hf_8b_root = tmp_path / "Qwen3-8B"
     monkeypatch.setenv("GLM53_LADDER_DATA_FILE", str(data_file))
     monkeypatch.setenv("GLM53_LADDER_DUMP_ROOT", str(dump_root))
     monkeypatch.setenv("GLM53_LADDER_HF_ASSETS_PATH_0_6B", str(hf_root))
+    monkeypatch.setenv("GLM53_LADDER_HF_ASSETS_PATH_8B", str(hf_8b_root))
     monkeypatch.setenv("GLM53_LADDER_SEED", "43")
     monkeypatch.setenv("GLM53_LADDER_DETERMINISTIC", "1")
     monkeypatch.setenv("GLM53_LADDER_STEPS", "7")
@@ -1586,6 +1590,11 @@ def test_glm53_ladder_qwen3_configs_read_env(monkeypatch, tmp_path):
     assert lora_config.checkpointer.interval == 3
     assert full_config.optim.optimizer.optimizers[0].lr == 1e-5
     assert full_config.dump_folder == str(dump_root / "qwen3_0_6b_countdown_full")
+
+    qwen3_8b_config = qwen3_8b_countdown_lora()
+    assert qwen3_8b_config.dump_folder == str(dump_root / "qwen3_8b_countdown_lora")
+    assert qwen3_8b_config.hf_assets_path == str(hf_8b_root)
+    assert qwen3_8b_config.optim.optimizer.optimizers[0].lr == 1e-4
 
 
 def test_evaluate_vllm_passes_optional_gpu_memory_utilization(
@@ -1673,6 +1682,26 @@ def test_qwen3_fused_qkv_lora_b_split_preserves_grouped_order():
     assert torch.equal(q, grouped[:, :2].reshape(12, 2))
     assert torch.equal(k, grouped[:, 2:3].reshape(6, 2))
     assert torch.equal(v, grouped[:, 3:].reshape(6, 2))
+
+
+def test_lora_export_config_reads_grouped_query_shape_from_hf_config(tmp_path):
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "num_attention_heads": 32,
+                "num_key_value_heads": 8,
+                "head_dim": 128,
+            }
+        )
+    )
+
+    config = Qwen3LoRAExportConfig(base_model_name_or_path=str(tmp_path))
+
+    resolved = resolve_qwen3_lora_export_config(config)
+
+    assert resolved.num_attention_heads == 32
+    assert resolved.num_key_value_heads == 8
+    assert resolved.head_dim == 128
 
 
 def test_qwen3_fused_w13_lora_b_split_preserves_gate_up_order():

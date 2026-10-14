@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""TorchTitan configs for rung-0 Countdown LoRA SFT."""
+"""TorchTitan configs for GLM-5.3 Flash ladder Countdown LoRA SFT."""
 
 from __future__ import annotations
 
@@ -83,6 +83,7 @@ def _countdown_config(
         hf_assets_path=_hf_assets_path(model_flavor),
         initial_load_in_hf=True,
     )
+    config.checkpointer.keep_latest_k = _env_int("GLM53_LADDER_KEEP_LATEST_K", 10)
     return _finish_config(config)
 
 
@@ -99,6 +100,15 @@ def qwen3_1_7b_countdown_lora() -> Trainer.Config:
     return _countdown_config(
         config_name="qwen3_1_7b_countdown_lora",
         model_flavor="1.7B",
+        use_lora=True,
+        lr=1e-4,
+    )
+
+
+def qwen3_8b_countdown_lora() -> Trainer.Config:
+    return _countdown_config(
+        config_name="qwen3_8b_countdown_lora",
+        model_flavor="8B",
         use_lora=True,
         lr=1e-4,
     )

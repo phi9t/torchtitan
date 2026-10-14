@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import torch
@@ -61,6 +61,36 @@ def peft_adapter_config(config: Qwen3LoRAExportConfig) -> dict[str, object]:
     }
 
 
+def resolve_qwen3_lora_export_config(
+    config: Qwen3LoRAExportConfig,
+) -> Qwen3LoRAExportConfig:
+    hf_config_path = Path(config.base_model_name_or_path) / "config.json"
+    if not hf_config_path.is_file():
+        return config
+
+    hf_config = json.loads(hf_config_path.read_text())
+    num_attention_heads = int(
+        hf_config.get("num_attention_heads", config.num_attention_heads)
+    )
+    num_key_value_heads = int(
+        hf_config.get("num_key_value_heads", config.num_key_value_heads)
+    )
+    head_dim = hf_config.get("head_dim")
+    if head_dim is None:
+        hidden_size = hf_config.get("hidden_size")
+        if hidden_size is None:
+            head_dim = config.head_dim
+        else:
+            head_dim = int(hidden_size) // num_attention_heads
+
+    return replace(
+        config,
+        num_attention_heads=num_attention_heads,
+        num_key_value_heads=num_key_value_heads,
+        head_dim=int(head_dim),
+    )
+
+
 def split_qwen3_fused_qkv_lora_b(
     tensor: torch.Tensor,
     *,
@@ -68,6 +98,11 @@ def split_qwen3_fused_qkv_lora_b(
     num_key_value_heads: int,
     head_dim: int,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    if num_attention_heads % num_key_value_heads != 0:
+        raise ValueError(
+            "num_attention_heads must be divisible by num_key_value_heads: "
+            f"{num_attention_heads} vs {num_key_value_heads}"
+        )
     heads_per_key_value = num_attention_heads // num_key_value_heads
     expected_out_features = num_key_value_heads * (heads_per_key_value + 2) * head_dim
     if tensor.ndim != 2:
@@ -204,6 +239,7 @@ def export_lora_adapter(
 ) -> dict[str, object]:
     from safetensors.torch import save_file
 
+    config = resolve_qwen3_lora_export_config(config)
     tensors = _read_torchtitan_lora_tensors(checkpoint_dir)
     exported = convert_torchtitan_lora_tensors(tensors, config)
 
@@ -220,6 +256,9 @@ def export_lora_adapter(
         "exported_tensor_count": len(exported),
         "rank": config.rank,
         "alpha": config.alpha,
+        "num_attention_heads": config.num_attention_heads,
+        "num_key_value_heads": config.num_key_value_heads,
+        "head_dim": config.head_dim,
         "target_modules": TARGET_MODULES,
     }
     (output_dir / "export_summary.json").write_text(
