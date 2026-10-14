@@ -75,3 +75,6 @@ CLAUDE_CONTEXT/
 
 # TRAE CLI agent worktrees
 /.trae/
+experiments/glm53_flash_sft_ladder/logs/
+experiments/glm53_flash_sft_ladder/results/
+experiments/glm53_flash_sft_ladder/cache/

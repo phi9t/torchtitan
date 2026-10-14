@@ -1,0 +1,15 @@
+diff --git a/torchtitan/models/deepseek_v4/mhc.py b/torchtitan/models/deepseek_v4/mhc.py
+index e00eaa4bc..2de51ad8 100644
+--- a/torchtitan/models/deepseek_v4/mhc.py
++++ b/torchtitan/models/deepseek_v4/mhc.py
+@@ -140,8 +140,8 @@ class HcPost(Module):
+         Returns:
+             Hidden states of shape ``[T, hc_mult, D]``.
+         """
+-        y = post.unsqueeze(-1) * x.unsqueeze(-2) + torch.sum(
+-            comb.unsqueeze(-1) * residual.unsqueeze(-2), dim=2
++        y = post.unsqueeze(-1) * x.unsqueeze(-2) + torch.matmul(
++            comb.transpose(-1, -2), residual
+         )
+         return y.type_as(x)
+ 
