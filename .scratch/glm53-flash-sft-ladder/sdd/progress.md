@@ -62,3 +62,6 @@
   full-depth 4-GPU stream leg, loop path). priority_hold/priority_pause exited and released. Rung 4 (T08e brief ready) and
   4-GPU re-measurement are ON HOLD until EP is in a good state: T13 (all-to-all EP parity/timing), R01 -> N01 (DeepEP
   wheel) -> T18 (DeepEP vs all-to-all), T16 (Dist-MoE).
+- ~19:20Z T13 DONE (3aa4f8048): first-8-layer EP4 on 8 GPUs 5.3 s/step (vs ~110 s loop FSDP), 21.6 GiB/rank; step-1 loss
+  delta 8e-5; grad norm +3.4% (same symptom as T09a/b). T13b launched: per-param grad dumps to root-cause, fair grouped
+  FSDP baseline, EP8, 20-step curves, full-depth EP8 timing probe (<= 15 steps). T16 (Dist-MoE) waits for T13b.
