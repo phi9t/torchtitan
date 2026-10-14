@@ -21,8 +21,8 @@ REQUIRED_PATH = ":".join(
     (
         "/project/venvs/b200-runtime/bin",
         "/project/mise/data/shims",
-        "/usr/local/cuda/bin",
         "/opt/cuda-synth/bin",
+        "/usr/local/cuda/bin",
         "/usr/local/bin",
         "/usr/bin",
         "/bin",

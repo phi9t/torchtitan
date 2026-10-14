@@ -110,7 +110,21 @@ def test_build_rootfs_native_variant_records_pinned_manifest(tmp_path: Path):
     assert manifest["variant"] == "native"
     assert manifest["image_tag"] == "torchtitan-rootfs:native"
     assert manifest["native_packages"]["apt"]["ccache"] == "4.9.1-1"
-    assert "nvidia-cuda-runtime==13.2.86" in manifest["native_packages"]["pip"]
+    cuda_pins = dict(
+        item.split("==", 1)
+        for item in manifest["native_packages"]["pip"].split()
+        if "==" in item
+    )
+    assert cuda_pins == {
+        "nvidia-cuda-nvcc": "13.2.86",
+        "nvidia-cuda-cuobjdump": "13.2.86",
+        "nvidia-nvvm": "13.2.86",
+        "nvidia-cuda-crt": "13.2.86",
+        "nvidia-cuda-cccl": "13.2.86",
+        "nvidia-cuda-runtime": "13.2.86",
+        "nvidia-cuda-nvrtc": "13.2.86",
+        "nvidia-cublas": "13.2.2.2",
+    }
     assert manifest["native_packages"]["cutlass"] == {
         "version": "v4.8.0",
         "url": "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.8.0.tar.gz",

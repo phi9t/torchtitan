@@ -59,6 +59,10 @@ def test_runtime_env_exports_canonical_json(tmp_path: Path):
         "/project/venvs/b200-runtime/bin",
         "/project/mise/data/shims",
     ]
+    path_entries = environment["PATH"].split(":")
+    assert path_entries.index("/opt/cuda-synth/bin") < path_entries.index(
+        "/usr/local/cuda/bin"
+    )
 
 
 def test_runtime_env_exports_glm53_ep_config_json(tmp_path: Path):

@@ -30,8 +30,8 @@ CANONICAL_PATH = ":".join(
     (
         "/project/venvs/b200-runtime/bin",
         "/project/mise/data/shims",
-        "/usr/local/cuda/bin",
         "/opt/cuda-synth/bin",
+        "/usr/local/cuda/bin",
         "/usr/local/bin",
         "/usr/bin",
         "/bin",
@@ -157,7 +157,10 @@ def test_enter_rootfs_emits_plan_without_running_bwrap(tmp_path: Path):
     assert plan["environment"]["CUDA_VISIBLE_DEVICES"] == "0,1"
     assert plan["pid_mode"] == "isolated"
     assert "--unshare-all" in plan["bwrap_argv"]
-    assert "/usr/local/cuda/bin" in plan["environment"]["PATH"].split(":")
+    path_entries = plan["environment"]["PATH"].split(":")
+    assert path_entries.index("/opt/cuda-synth/bin") < path_entries.index(
+        "/usr/local/cuda/bin"
+    )
     assert any(
         mount["target"] == "/workspace/torchtitan"
         and mount["source"] == str(REPO_ROOT)

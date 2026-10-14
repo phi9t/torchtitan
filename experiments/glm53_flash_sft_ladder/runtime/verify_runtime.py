@@ -36,12 +36,15 @@ CUDA_HEADERS = (
     "/opt/cuda-synth/include/cuda_runtime.h",
     "/opt/cuda-synth/include/cublas_v2.h",
     "/opt/cuda-synth/include/nvrtc.h",
+    "/opt/cuda-synth/include/cutlass/cutlass.h",
+    "/opt/cuda-synth/include/cute/arch/tmem_capacity_sm100.hpp",
 )
 CUDA_LIBS = (
     "/opt/cuda-synth/lib64/libcudart.so",
     "/opt/cuda-synth/lib64/libcublas.so",
     "/opt/cuda-synth/lib64/libnvrtc.so",
 )
+CUDA_TOOLS = ("nvcc", "cuobjdump", "ptxas", "nvlink", "fatbinary")
 
 
 def _blocker(phase: str, message: str, **detail: object) -> dict[str, object]:
@@ -123,25 +126,33 @@ def _load_rootfs_manifest() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {"manifest_error": "not object"}
 
 
+def _cuda_tool_versions() -> dict[str, dict[str, object]]:
+    tools: dict[str, dict[str, object]] = {}
+    for tool in CUDA_TOOLS:
+        path = f"/opt/cuda-synth/bin/{tool}"
+        if not Path(path).is_file():
+            path = shutil.which(tool) or ""
+        if not path:
+            tools[tool] = {"ok": False, "error": f"{tool} not found"}
+            continue
+        proc = subprocess.run(
+            [path, "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+        tools[tool] = {
+            "ok": proc.returncode == 0,
+            "path": path,
+            "returncode": proc.returncode,
+            "output": proc.stdout.splitlines(),
+        }
+    return tools
+
+
 def _nvcc_version() -> dict[str, object]:
-    nvcc = "/opt/cuda-synth/bin/nvcc"
-    if not Path(nvcc).is_file():
-        nvcc = shutil.which("nvcc") or ""
-    if not nvcc:
-        return {"ok": False, "error": "nvcc not found"}
-    proc = subprocess.run(
-        [nvcc, "--version"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-    return {
-        "ok": proc.returncode == 0,
-        "path": nvcc,
-        "returncode": proc.returncode,
-        "output": proc.stdout.splitlines(),
-    }
+    return _cuda_tool_versions()["nvcc"]
 
 
 def verify_runtime() -> dict[str, Any]:
@@ -253,6 +264,39 @@ def verify_runtime() -> dict[str, Any]:
                 _blocker("cuda_file", "required CUDA file is missing", path=path)
             )
 
+    cuda_tools = _cuda_tool_versions()
+    for tool, tool_info in cuda_tools.items():
+        expected_path = f"/opt/cuda-synth/bin/{tool}"
+        if not tool_info["ok"]:
+            blockers.append(
+                _blocker(
+                    "cuda_tool",
+                    "required CUDA tool failed version probe",
+                    tool=tool,
+                    detail=tool_info,
+                )
+            )
+        if tool_info.get("path") != expected_path:
+            blockers.append(
+                _blocker(
+                    "cuda_tool_path",
+                    "required CUDA tool does not resolve from /opt/cuda-synth",
+                    tool=tool,
+                    expected=expected_path,
+                    actual=tool_info.get("path"),
+                )
+            )
+        output = "\n".join(str(line) for line in tool_info.get("output", []))
+        if "13.2" not in output:
+            blockers.append(
+                _blocker(
+                    "cuda_tool_version",
+                    "required CUDA tool is not CUDA 13.2",
+                    tool=tool,
+                    output=tool_info.get("output", []),
+                )
+            )
+
     rootfs_manifest = _load_rootfs_manifest()
     report = {
         "schema_version": SCHEMA_VERSION,
@@ -273,7 +317,8 @@ def verify_runtime() -> dict[str, Any]:
         "imports": imports,
         "diagnostic_imports": diagnostic_imports,
         "torch": torch_info,
-        "nvcc": _nvcc_version(),
+        "nvcc": cuda_tools["nvcc"],
+        "cuda_tools": cuda_tools,
         "filesystem": filesystem_checks,
         "blockers": blockers,
     }

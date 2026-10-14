@@ -19,7 +19,7 @@ rootfs_runtime_config_for_env() {
 
 ROOTFS_RUNTIME_CONFIG="${TORCHTITAN_ROOTFS_RUNTIME_CONFIG:-$(rootfs_runtime_config_for_env "${ROOTFS_RUNTIME_ENV_NAME}")}"
 ROOTFS_RUNTIME_VENV="/project/venvs/b200-runtime"
-ROOTFS_RUNTIME_PATH="${ROOTFS_RUNTIME_VENV}/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin"
+ROOTFS_RUNTIME_PATH="${ROOTFS_RUNTIME_VENV}/bin:/project/mise/data/shims:/opt/cuda-synth/bin:/usr/local/cuda/bin:/usr/local/bin:/usr/bin:/bin"
 ROOTFS_RUNTIME_STATE_ROOT="${TORCHTITAN_ROOTFS_HOST_STATE:-${ROOTFS_RUNTIME_REPO_ROOT}/.cache/torchtitan-rootfs/${ROOTFS_RUNTIME_ENV_NAME}}"
 ROOTFS_RUNTIME_STATE_DIRS=(home xdg-cache uv-cache pip-cache mise venvs wheels downloads scratch tmp logs)
 

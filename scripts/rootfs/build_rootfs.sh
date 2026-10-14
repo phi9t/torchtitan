@@ -299,6 +299,11 @@ RUN set -euo pipefail; \
     site="$(python -c 'import site;print(site.getsitepackages()[0])')"; \
     cu="$site/nvidia/cu13"; \
     test -x "$cu/bin/nvcc" || { echo "nvcc missing at $cu/bin/nvcc" >&2; exit 1; }; \
+    test -x "$cu/bin/cuobjdump" || { echo "cuobjdump missing at $cu/bin/cuobjdump" >&2; exit 1; }; \
+    test -x "$cu/bin/ptxas" || { echo "ptxas missing at $cu/bin/ptxas" >&2; exit 1; }; \
+    test -x "$cu/bin/nvlink" || { echo "nvlink missing at $cu/bin/nvlink" >&2; exit 1; }; \
+    test -x "$cu/bin/fatbinary" || { echo "fatbinary missing at $cu/bin/fatbinary" >&2; exit 1; }; \
+    test -x "$cu/nvvm/bin/cicc" || { echo "cicc missing at $cu/nvvm/bin/cicc" >&2; exit 1; }; \
     test -f "$cu/include/cuda_runtime.h" || { echo "cuda headers missing" >&2; exit 1; }; \
     test -f "$cu/include/cublas_v2.h" || { echo "cuBLAS headers missing" >&2; exit 1; }; \
     test -f "$cu/include/nvrtc.h" || { echo "NVRTC headers missing" >&2; exit 1; }; \
@@ -309,7 +314,23 @@ RUN set -euo pipefail; \
       test -n "$target" || { echo "${soname} versioned library missing" >&2; exit 1; }; \
       ln -sfn "$(basename "$target")" "$cu/lib/${soname}"; \
     done; \
-    /opt/cuda-synth/bin/nvcc --version
+    python -c 'import importlib.metadata as m, sys; expected={"nvidia-cuda-nvcc":"13.2.86","nvidia-cuda-cuobjdump":"13.2.86","nvidia-nvvm":"13.2.86","nvidia-cuda-crt":"13.2.86","nvidia-cuda-cccl":"13.2.86","nvidia-cuda-runtime":"13.2.86","nvidia-cuda-nvrtc":"13.2.86","nvidia-cublas":"13.2.2.2"}; mismatches=[f"{name}: {m.version(name)} != {want}" for name, want in expected.items() if m.version(name) != want]; sys.exit("\n".join(mismatches) if mismatches else 0)'; \
+    export PATH="/opt/cuda-synth/bin:/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"; \
+    for tool in nvcc cuobjdump ptxas nvlink fatbinary; do \
+      first="$(command -v "$tool")"; \
+      test "$first" = "/opt/cuda-synth/bin/$tool" || { echo "$tool resolves to $first" >&2; exit 1; }; \
+    done; \
+    for tool in nvcc cuobjdump ptxas nvlink fatbinary; do \
+      "/opt/cuda-synth/bin/$tool" --version | grep -E '13\.2' >/dev/null \
+        || { echo "$tool is not CUDA 13.2" >&2; exit 1; }; \
+    done; \
+    test -x /opt/cuda-synth/nvvm/bin/cicc || { echo "cicc missing under /opt/cuda-synth" >&2; exit 1; }; \
+    printf '%s\n' \
+      'extern "C" __global__ void torchtitan_sm100_probe(float *x) {' \
+      '  x[threadIdx.x] = x[threadIdx.x] + 1.0f;' \
+      '}' > /tmp/torchtitan-sm100-probe.cu; \
+    /opt/cuda-synth/bin/nvcc -arch=sm_100 -cubin /tmp/torchtitan-sm100-probe.cu -o /tmp/torchtitan-sm100-probe.cubin; \
+    rm -f /tmp/torchtitan-sm100-probe.cu /tmp/torchtitan-sm100-probe.cubin
 
 RUN curl -fsSL -o /tmp/cutlass.tar.gz "${ROOTFS_NATIVE_CUTLASS_URL}" && \
     printf '%s  /tmp/cutlass.tar.gz\n' "${ROOTFS_NATIVE_CUTLASS_SHA256}" | sha256sum -c - && \
@@ -317,9 +338,12 @@ RUN curl -fsSL -o /tmp/cutlass.tar.gz "${ROOTFS_NATIVE_CUTLASS_URL}" && \
     tar -C /opt/cutlass --strip-components=1 -xzf /tmp/cutlass.tar.gz && \
     rm -f /tmp/cutlass.tar.gz && \
     test -f /opt/cutlass/include/cutlass/cutlass.h && \
+    test -f /opt/cutlass/include/cute/arch/tmem_capacity_sm100.hpp && \
     site="$(python -c 'import site;print(site.getsitepackages()[0])')" && \
     ln -sfn /opt/cutlass/include/cutlass "$site/nvidia/cu13/include/cutlass" && \
-    test -f "$site/nvidia/cu13/include/cutlass/cutlass.h"
+    ln -sfn /opt/cutlass/include/cute "$site/nvidia/cu13/include/cute" && \
+    test -f "$site/nvidia/cu13/include/cutlass/cutlass.h" && \
+    test -f "$site/nvidia/cu13/include/cute/arch/tmem_capacity_sm100.hpp"
 
 ENV CUDA_HOME=/opt/cuda-synth CUDA_PATH=/opt/cuda-synth
 ENV PATH=/opt/cuda-synth/bin:/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin
