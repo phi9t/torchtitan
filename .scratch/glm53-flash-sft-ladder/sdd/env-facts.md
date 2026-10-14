@@ -37,3 +37,18 @@
 - The other user's `pretrain_commq.py` job has ENDED; GPUs are free apart from campaign workers. Always check `nvidia-smi`
   before launching (it may restart). Coordinate: T02 uses GPUs 0-3, T07b uses 4-5, T07c/T05 use 6-7 unless free otherwise.
   Throughput taken while no foreign job is present is labelled `exclusive_foreign_free` (still shared between our workers).
+
+## HDFS-STRICT INPUT RULE (user 2026-10-14, binding for every ticket in both campaigns)
+"All training will be using HDFS strictly."
+- Every training/eval/parity input (datasets, model weights, tokenizers, checkpoints to resume from) must come from a
+  waystone HDFS URI that has `_COMPLETE` and `MANIFEST.jsonl` with md5s. Local disk is ONLY a cache populated by
+  `experiments/glm53_flash_sft_ladder/stage.sh` / `lib/waystone.sh` get (writes `.staged.json` with the source URI).
+- Before launch, the runner must call `experiments/glm53_flash_sft_ladder/lib/hdfs_strict.sh <local_dir>...` (H01 adds
+  it) which fails unless each input dir has a `.staged.json` whose files match the HDFS manifest (size + md5).
+- No ad hoc local copies (e.g. tokenizers copied into `.scratch/.../inputs/`, raw HF downloads, files from other users'
+  dirs). If something is not on HDFS yet, ingest it to HDFS first (`hf_ingest.sh` / `publish.sh`), then stage it.
+- Every run artifact (attempt.json / report) records the HDFS URIs (and manifest md5) of all its inputs.
+- Outputs (checkpoints, adapters, eval, bundles) are published to HDFS with md5 verification, as before.
+- Clarification (user): all HDFS access stays via waystone (`waystone ... put|get --verify-md5`, `layout-profile`,
+  `storage-prefix`, or the repo wrappers built on it). Do not call `hdfs dfs`/`hadoop fs` or other clients directly.
+  No Primus/Forge work is in scope.
