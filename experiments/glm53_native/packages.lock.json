@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "default_rootfs_env": "glm53_ep",
+  "rootfs_store": "/data05/philip.yang/torchtitan-rootfs-store",
+  "hdfs_prefix": "native-wheels",
+  "packages": [
+    {
+      "name": "deepep_v2",
+      "python_distribution": "deep_ep",
+      "description": "DeepEP v2 ElasticBuffer package used by TorchTitan DeepEPTokenDispatcher.",
+      "source": {
+        "type": "git",
+        "repo": "https://github.com/deepseek-ai/DeepEP.git",
+        "commit": "01dc3aaac82068020353dce2c302e38153c0bfaa",
+        "submodules": true
+      },
+      "patch_dir": "patches/deepep_v2",
+      "build_system": "pip_wheel",
+      "build_args": {
+        "CUDA_HOME": "/opt/cuda-synth",
+        "TORCH_CUDA_ARCH_LIST": "10.0",
+        "MAX_JOBS": "16"
+      },
+      "verify_import": "from deep_ep import ElasticBuffer"
+    },
+    {
+      "name": "torchao",
+      "python_distribution": "torchao",
+      "description": "Source-built torchao for MXFP8 MoE training imports on torch 2.16 nightly and Triton 3.9.",
+      "source": {
+        "type": "git",
+        "repo": "https://github.com/pytorch/ao.git",
+        "commit": "9d0c4946b11af5e484f3ac36d61ec970c40c68cf",
+        "submodules": true
+      },
+      "patch_dir": "patches/torchao",
+      "build_system": "pip_wheel",
+      "build_args": {
+        "CUDA_HOME": "/opt/cuda-synth",
+        "TORCH_CUDA_ARCH_LIST": "10.0",
+        "MAX_JOBS": "16"
+      },
+      "verify_import": "import torchao; import torchao.prototype.moe_training"
+    },
+    {
+      "name": "glm53_kernel_examples",
+      "python_distribution": "glm53_kernel_examples",
+      "description": "Experiment-owned C++ torch.library example op for the GLM native package convention; CUDA extension candidates use the same build layer once the L0 assembler accepts sm_100 PTX.",
+      "source": {
+        "type": "path",
+        "path": "torchtitan/experiments/glm53_kernels/native"
+      },
+      "patch_dir": "patches/glm53_kernel_examples",
+      "build_system": "pip_wheel",
+      "build_args": {
+        "CUDA_HOME": "/opt/cuda-synth",
+        "TORCH_CUDA_ARCH_LIST": "10.0",
+        "MAX_JOBS": "16"
+      },
+      "verify_import": "import glm53_kernel_examples"
+    }
+  ]
+}

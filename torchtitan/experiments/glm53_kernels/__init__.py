@@ -6,3 +6,12 @@
 
 """Experiment-owned GLM-5.3 kernel prototypes."""
 
+from .cute_examples import cute_runtime_info, cute_scale_add_convention
+from .triton_examples import triton_scale_add
+
+__all__ = [
+    "cute_runtime_info",
+    "cute_scale_add_convention",
+    "triton_scale_add",
+]
+
