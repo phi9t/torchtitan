@@ -69,3 +69,18 @@ Seq len: 4a-4d run at seq 4096 (KDA/indexer are long-context mechanisms); a seq-
 Analysis: per-cell mean +/- seed std; factorial effects with bootstrap CIs; "effect" requires |delta| > 2x B0 seed std.
 Report val CE at budget, tokens-to-target, tokens/s and memory per cell (shared_gpu), and behavior reads
 (mHC comb matrices / stream usage, indexer selection recall vs dense attention top-k, KDA gate stats).
+
+## Architecture ladder (user 2026-10-14: "run a lot more modded-nanogpt runs: gpt2-style -> qwen3-style -> mini-kimi-k3
+-> mini-glm-53f")
+Complements the factorial ablation. Each rung is the REAL TorchTitan model family at speedrun scale, trained on the S01
+FineWeb harness with the S05 budget (268,435,456 tokens, 262,144 tokens/step, seq 4096 unless a rung needs otherwise),
+validated on the same FineWeb val tokens, GPT-2 tokenizer, Muon (2D hidden) + AdamW.
+- L0 GPT-2 style: S05 B0 (done, val CE 3.9028 +/- 0.0019).
+- L1 Qwen3-style dense: `torchtitan/models/qwen3` mini flavor (GQA, SwiGLU, RMSNorm, QK-norm, RoPE).
+- L2 Qwen3-MoE-style: qwen3 MoE mini flavor (fine-grained experts, top-k, aux-free or aux loss as qwen3 does).
+- L3 mini-Kimi-K3: `torchtitan/models/kimi_k3` mini flavor (KDA + MLA hybrid, MoE w/ shared expert, its routing);
+  reuse `.scratch/mini-kimi-k3-replication` decisions where relevant.
+- L4 mini-GLM-5.3-Flash: `torchtitan/experiments/glm53_flash` mini-style flavor (KDA 3:1 + sparse MLA w/ indexer +
+  IndexPool, 4-stream mHC, MoE w/ shared expert, NoPE, MTP), with the S04/S05 indexer aux loss.
+Matching rule (declare before running): match NON-EMBEDDING ACTIVE params to L0 (~85M) within +/-10%; report total
+params too. 2 seeds per rung (L0 has 3). Report val CE curve, tokens/s, peak memory; pairwise deltas with the 2x seed-std rule.
