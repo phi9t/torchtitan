@@ -1,4 +1,5 @@
 # T18 brief: DeepEP v2 on 8x B200 for GLM-5.3-Flash EP (use TorchTitan's built-in DeepEPTokenDispatcher)
+Blocked by: N01 (DeepEP wheel via build_native.sh/install_native.sh into env glm53_ep). Skip any install step below; use N01's artifacts.
 Read `env-facts.md` (MANDATORY: rootfs for all Python/CUDA, `TORCHTITAN_ROOTFS_ENV=glm53_train`, `unset CC CXX`, HDFS
 inputs only via waystone + `lib/hdfs_strict.sh`), `torchtitan/models/common/token_dispatcher.py` (`DeepEPTokenDispatcher`
 L820, `HybridEPTokenDispatcher` L955, `AllToAllTokenDispatcher`), `torchtitan/distributed/deepep/{deepep.py,hybridep.py}`,

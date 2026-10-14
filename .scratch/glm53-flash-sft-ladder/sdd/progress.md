@@ -54,3 +54,6 @@
   own T08d processes was blocked by the auto-mode permission check -> awaiting user OK.
 - User: GLM work will need many custom kernels -> N01 brief (native toolchain in the EP rootfs variant, kernel package
   convention with torch.library ops, numerics/bench harness), blocked by R01.
+- ~19:55Z user approved three-layer native setup (`sdd/native-layering.md`). R01 rev3 (L0 audit + L1 declared env
+  `glm53_ep`) relaunched; N01 rev2 (L2 build_native.sh + DeepEP first + kernel package convention + wheels on HDFS) blocked
+  by R01; T18 (GLM on DeepEPTokenDispatcher benchmark) blocked by N01. T08e still awaits user OK to stop T08d.
