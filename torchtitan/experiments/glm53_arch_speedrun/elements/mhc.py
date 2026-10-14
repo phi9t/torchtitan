@@ -21,6 +21,8 @@ from torch import nn
 
 from torchtitan.distributed.local_compile import local_compile
 
+from .behavior import record, scalar, should_record
+
 
 def expand_streams(x_BLD: torch.Tensor, *, num_streams: int = 4) -> torch.Tensor:
     return x_BLD.unsqueeze(-2).expand(*x_BLD.shape[:-1], num_streams, x_BLD.shape[-1])
@@ -113,6 +115,8 @@ class HcPre(nn.Module):
         self.hc_fn = nn.Parameter(torch.empty(mix_width, num_streams * hidden_size))
         self.hc_base = nn.Parameter(torch.empty(mix_width))
         self.hc_scale = nn.Parameter(torch.empty(3))
+        self.behavior_tag = "mhc"
+        self._behavior_calls = 0
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -127,7 +131,7 @@ class HcPre(nn.Module):
             raise ValueError(
                 f"expected {self.num_streams} mHC streams, got {x_BLND.shape[-2]}."
             )
-        return mhc_pre_tensor_program(
+        collapsed_BLD, post_BLN, comb_BLNN = mhc_pre_tensor_program(
             x_BLND,
             self.hc_fn,
             self.hc_base,
@@ -137,6 +141,29 @@ class HcPre(nn.Module):
             eps=self.eps,
             norm_eps=self.norm_eps,
         )
+        self._behavior_calls += 1
+        if should_record("mhc", self.behavior_tag, self._behavior_calls):
+            with torch.no_grad():
+                comb_NN = comb_BLNN.detach().float().mean(dim=(0, 1))
+                record(
+                    {
+                        "kind": "mhc",
+                        "tag": self.behavior_tag,
+                        "call_count": self._behavior_calls,
+                        "num_streams": self.num_streams,
+                        "sinkhorn_iters": self.sinkhorn_iters,
+                        "pre_mean": scalar(collapsed_BLD.detach().float().mean()),
+                        "post_mean": scalar(post_BLN.detach().float().mean()),
+                        "comb_matrix_mean": comb_NN.cpu().tolist(),
+                        "comb_row_sum_mean": scalar(
+                            comb_BLNN.detach().float().sum(dim=-1).mean()
+                        ),
+                        "comb_col_sum_mean": scalar(
+                            comb_BLNN.detach().float().sum(dim=-2).mean()
+                        ),
+                    }
+                )
+        return collapsed_BLD, post_BLN, comb_BLNN
 
     def _split_sinkhorn(
         self,
@@ -210,6 +237,9 @@ class MHCResidualBlock(nn.Module):
             self.identity_mix = nn.Parameter(torch.zeros(()))
         else:
             self.register_parameter("identity_mix", None)
+
+    def set_behavior_tag(self, tag: str) -> None:
+        self.pre.behavior_tag = tag
 
     def forward(
         self,

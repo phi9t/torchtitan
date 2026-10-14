@@ -203,6 +203,18 @@ def _env_elements_config(seq_len: int):
             "indexer_aux_loss_weight",
             lambda name: _env_optional_float(name, minimum=0.0),
         ),
+        "GLM53_SPEEDRUN_INDEXER_AUX_QUERY_STRIDE": (
+            "indexer_aux_query_stride",
+            lambda name: _env_optional_int(name, minimum=1),
+        ),
+        "GLM53_SPEEDRUN_INDEXER_AUX_QUERY_SEED": (
+            "indexer_aux_query_seed",
+            lambda name: _env_optional_int(name, minimum=0),
+        ),
+        "GLM53_SPEEDRUN_INDEXER_AUX_COMPILE": (
+            "indexer_aux_compile",
+            _env_optional_bool,
+        ),
         "GLM53_SPEEDRUN_INDEXER_DENSE_WARMUP_STEPS": (
             "indexer_dense_warmup_steps",
             lambda name: _env_optional_int(name, minimum=0),
@@ -234,8 +246,26 @@ def _env_elements_config(seq_len: int):
 
 def _speedrun_model_config(seq_len: int) -> Glm53ArchSpeedrunModel.Config:
     compile_enabled = _env_bool("GLM53_SPEEDRUN_COMPILE", True)
+    elements = _env_elements_config(seq_len)
+    local_compile_regions = []
+    if compile_enabled:
+        local_compile_regions = [
+            "glm53_speedrun_attention",
+            "glm53_speedrun_mlp",
+            "glm53_speedrun_mhc_pre",
+            "glm53_speedrun_mhc_post",
+            "loss",
+        ]
+        if elements.indexer_aux_compile:
+            local_compile_regions.extend(
+                [
+                    "glm53_speedrun_indexer_score",
+                    "glm53_speedrun_indexer_select",
+                    "glm53_speedrun_indexer_aux",
+                ]
+            )
     return Glm53ArchSpeedrunModel.Config(
-        elements=_env_elements_config(seq_len),
+        elements=elements,
         experiment_flavor=os.environ.get("GLM53_SPEEDRUN_ARM", "B0"),
         initializer_std=_env_float("GLM53_SPEEDRUN_INIT_STD", 0.02, minimum=0.0),
         logit_softcap=_env_float("GLM53_SPEEDRUN_LOGIT_SOFTCAP", 30.0, minimum=0.0),
@@ -244,17 +274,7 @@ def _speedrun_model_config(seq_len: int) -> Glm53ArchSpeedrunModel.Config:
             24.0,
             minimum=0.0,
         ),
-        local_compile_regions=(
-            [
-                "glm53_speedrun_attention",
-                "glm53_speedrun_mlp",
-                "glm53_speedrun_mhc_pre",
-                "glm53_speedrun_mhc_post",
-                "loss",
-            ]
-            if compile_enabled
-            else []
-        ),
+        local_compile_regions=local_compile_regions,
     )
 
 

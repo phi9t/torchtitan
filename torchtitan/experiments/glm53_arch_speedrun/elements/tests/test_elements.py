@@ -35,6 +35,7 @@ from torchtitan.experiments.glm53_arch_speedrun.elements import (
     sparse_causal_attention,
     sparse_causal_attention_masked_dense,
     sparse_causal_attention_reference,
+    sparse_causal_attention_triton,
     SpeedrunElementsConfig,
 )
 
@@ -121,6 +122,165 @@ def test_indexer_auxiliary_loss_improves_dense_topk_recall_on_toy_task() -> None
     assert hidden_BLD.grad is None
     assert final_recall > initial_recall + 0.10
     assert final_recall > 0.55
+
+
+def _indexer_grads(
+    indexer: LightningIndexer,
+    hidden_BLD: torch.Tensor,
+    q_BLHK: torch.Tensor,
+    k_BLHK: torch.Tensor,
+    **loss_kwargs: object,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor | None]]:
+    indexer.zero_grad(set_to_none=True)
+    loss = indexer_auxiliary_loss(indexer, hidden_BLD, q_BLHK, k_BLHK, **loss_kwargs)
+    loss.backward()
+    grads = {
+        name: None if param.grad is None else param.grad.detach().clone()
+        for name, param in indexer.named_parameters()
+    }
+    return loss.detach(), grads
+
+
+def _assert_matching_grads(
+    actual: dict[str, torch.Tensor | None],
+    expected: dict[str, torch.Tensor | None],
+    *,
+    atol: float = 1.0e-5,
+    rtol: float = 1.0e-5,
+) -> None:
+    assert actual.keys() == expected.keys()
+    for name in actual:
+        if actual[name] is None or expected[name] is None:
+            assert actual[name] is None and expected[name] is None, name
+            continue
+        torch.testing.assert_close(actual[name], expected[name], atol=atol, rtol=rtol)
+
+
+@pytest.mark.parametrize("target", ("selected", "all"))
+def test_indexer_aux_dense_teacher_matches_legacy_full_rows(target: str) -> None:
+    torch.manual_seed(31)
+    batch_size, seq_len, num_heads, head_dim = 2, 10, 2, 4
+    hidden_size = num_heads * head_dim
+    hidden_BLD = torch.randn(batch_size, seq_len, hidden_size)
+    q_BLHK = torch.randn(batch_size, seq_len, num_heads, head_dim)
+    k_BLHK = torch.randn(batch_size, seq_len, num_heads, head_dim)
+    indexer = LightningIndexer(
+        hidden_size,
+        top_k=4,
+        index_num_heads=num_heads,
+        index_head_dim=head_dim,
+        pool_size=2,
+        query_chunk_size=3,
+    )
+    dense_indexer = LightningIndexer(
+        hidden_size,
+        top_k=4,
+        index_num_heads=num_heads,
+        index_head_dim=head_dim,
+        pool_size=2,
+        query_chunk_size=3,
+    )
+    dense_indexer.load_state_dict(indexer.state_dict())
+
+    legacy_loss, legacy_grads = _indexer_grads(
+        indexer,
+        hidden_BLD,
+        q_BLHK,
+        k_BLHK,
+        target=target,
+        query_chunk_size=3,
+    )
+    dense_loss, dense_grads = _indexer_grads(
+        dense_indexer,
+        hidden_BLD,
+        q_BLHK,
+        k_BLHK,
+        target=target,
+        query_chunk_size=3,
+        use_dense_teacher=True,
+    )
+
+    torch.testing.assert_close(dense_loss, legacy_loss, atol=1.0e-5, rtol=1.0e-5)
+    _assert_matching_grads(dense_grads, legacy_grads, atol=2.0e-5, rtol=2.0e-5)
+
+
+def test_indexer_aux_stride_estimator_matches_full_loss_and_grad_expectation() -> None:
+    torch.manual_seed(32)
+    batch_size, seq_len, num_heads, head_dim = 2, 10, 2, 4
+    hidden_size = num_heads * head_dim
+    stride = 4
+    hidden_BLD = torch.randn(batch_size, seq_len, hidden_size)
+    q_BLHK = torch.randn(batch_size, seq_len, num_heads, head_dim)
+    k_BLHK = torch.randn(batch_size, seq_len, num_heads, head_dim)
+    base_indexer = LightningIndexer(
+        hidden_size,
+        top_k=4,
+        index_num_heads=num_heads,
+        index_head_dim=head_dim,
+        pool_size=2,
+        query_chunk_size=3,
+    )
+    full_indexer = LightningIndexer(
+        hidden_size,
+        top_k=4,
+        index_num_heads=num_heads,
+        index_head_dim=head_dim,
+        pool_size=2,
+        query_chunk_size=3,
+    )
+    full_indexer.load_state_dict(base_indexer.state_dict())
+    full_loss, full_grads = _indexer_grads(
+        full_indexer,
+        hidden_BLD,
+        q_BLHK,
+        k_BLHK,
+        target="selected",
+        query_chunk_size=3,
+        use_dense_teacher=True,
+    )
+
+    estimator_loss = torch.zeros_like(full_loss)
+    estimator_grads = {
+        name: None if grad is None else torch.zeros_like(grad)
+        for name, grad in full_grads.items()
+    }
+    for offset in range(stride):
+        sampled_indexer = LightningIndexer(
+            hidden_size,
+            top_k=4,
+            index_num_heads=num_heads,
+            index_head_dim=head_dim,
+            pool_size=2,
+            query_chunk_size=3,
+        )
+        sampled_indexer.load_state_dict(base_indexer.state_dict())
+        sampled_loss, sampled_grads = _indexer_grads(
+            sampled_indexer,
+            hidden_BLD,
+            q_BLHK,
+            k_BLHK,
+            target="selected",
+            query_chunk_size=3,
+            query_stride=stride,
+            query_seed=offset,
+            train_step=0,
+            use_dense_teacher=True,
+        )
+        estimator_loss = estimator_loss + sampled_loss / stride
+        for name, grad in sampled_grads.items():
+            if estimator_grads[name] is None:
+                assert grad is None
+            else:
+                assert grad is not None, name
+                estimator_grads[name] = estimator_grads[name] + grad / stride
+
+    torch.testing.assert_close(estimator_loss, full_loss, atol=1.0e-5, rtol=1.0e-5)
+    _assert_matching_grads(
+        estimator_grads,
+        full_grads,
+        atol=2.0e-5,
+        rtol=2.0e-5,
+    )
 
 
 @pytest.mark.parametrize("seq_len", LONG_SEQS)
@@ -294,6 +454,76 @@ def test_sparse_masked_dense_matches_gather_reference_for_topk_fwd_bwd(
     )
     masked_dense_out_BLHK.float().square().mean().backward()
     _assert_finite_grads([q_BLHK, k_BLHK, v_BLHK])
+
+
+def test_sparse_triton_matches_masked_dense_for_topk_fwd_bwd_and_compile() -> None:
+    torch.manual_seed(24)
+    device = _device()
+    cfg = b0_config()
+    seq_len = 256
+    top_k = 64
+    dtype = torch.bfloat16
+    q_BLHK = torch.randn(
+        1,
+        seq_len,
+        cfg.num_attention_heads,
+        cfg.head_dim,
+        dtype=dtype,
+        device=device,
+        requires_grad=True,
+    )
+    k_BLHK = torch.randn_like(q_BLHK, requires_grad=True)
+    v_BLHK = torch.randn_like(q_BLHK, requires_grad=True)
+    selected_BLS = causal_token_indices(1, seq_len, device=device)[..., :top_k]
+    grad_BLHK = torch.randn_like(q_BLHK)
+
+    q_ref = q_BLHK.detach().clone().requires_grad_(True)
+    k_ref = k_BLHK.detach().clone().requires_grad_(True)
+    v_ref = v_BLHK.detach().clone().requires_grad_(True)
+    ref_out_BLHK = sparse_causal_attention_masked_dense(
+        q_ref,
+        k_ref,
+        v_ref,
+        selected_BLS,
+    )
+    ref_out_BLHK.backward(grad_BLHK)
+
+    triton_out_BLHK = sparse_causal_attention_triton(
+        q_BLHK,
+        k_BLHK,
+        v_BLHK,
+        selected_BLS,
+    )
+    triton_out_BLHK.backward(grad_BLHK)
+
+    torch.testing.assert_close(
+        triton_out_BLHK,
+        ref_out_BLHK,
+        atol=2.0e-2,
+        rtol=2.0e-2,
+    )
+    torch.testing.assert_close(q_BLHK.grad, q_ref.grad, atol=4.0e-2, rtol=4.0e-2)
+    torch.testing.assert_close(k_BLHK.grad, k_ref.grad, atol=4.0e-2, rtol=4.0e-2)
+    torch.testing.assert_close(v_BLHK.grad, v_ref.grad, atol=4.0e-2, rtol=4.0e-2)
+
+    def _compiled_attention(
+        q_arg: torch.Tensor, k_arg: torch.Tensor, v_arg: torch.Tensor
+    ) -> torch.Tensor:
+        return sparse_causal_attention_triton(q_arg, k_arg, v_arg, selected_BLS)
+
+    compiled_attention = torch.compile(_compiled_attention, fullgraph=True)
+    compiled_q = q_BLHK.detach().clone().requires_grad_(True)
+    compiled_k = k_BLHK.detach().clone().requires_grad_(True)
+    compiled_v = v_BLHK.detach().clone().requires_grad_(True)
+    compiled_out = compiled_attention(compiled_q, compiled_k, compiled_v)
+    compiled_out.backward(grad_BLHK)
+    torch.testing.assert_close(
+        compiled_out,
+        triton_out_BLHK.detach(),
+        atol=2.0e-2,
+        rtol=2.0e-2,
+    )
+    _assert_finite_grads([compiled_q, compiled_k, compiled_v])
 
 
 @pytest.mark.parametrize("seq_len", LONG_SEQS)
@@ -524,6 +754,39 @@ def test_sparse_attention_exposes_indexer_aux_loss_and_dense_warmup() -> None:
     assert warmup_out_BLD.shape == sparse_out_BLD.shape
 
 
+def test_sparse_attention_triton_path_is_opt_in() -> None:
+    torch.manual_seed(25)
+    device = _device()
+    cfg = SpeedrunElementsConfig(
+        hidden_size=16,
+        num_layers=1,
+        num_attention_heads=2,
+        head_dim=8,
+        mlp_hidden_size=64,
+        vocab_size=32,
+        max_seq_len=8,
+        sparse_attention_enabled=True,
+        sparse_attention_impl="triton",
+        sparse_top_k=2,
+        indexer_num_heads=2,
+        indexer_head_dim=8,
+        indexer_aux_loss_weight=0.0,
+    )
+    attention = build_attention(0, cfg).to(device=device, dtype=torch.bfloat16)
+    x_BLD = torch.randn(
+        2,
+        8,
+        cfg.hidden_size,
+        dtype=torch.bfloat16,
+        device=device,
+        requires_grad=True,
+    )
+    out_BLD = attention(x_BLD, train_step=0)
+    assert attention.last_attention_path == "triton"
+    out_BLD.float().square().mean().backward()
+    _assert_finite_grads([x_BLD])
+
+
 def test_arm_configs_are_one_knob_switches() -> None:
     b0 = b0_config()
     a1 = arm_config("A1")
@@ -552,6 +815,9 @@ def test_composed_arms_and_dose_knobs_are_exposed() -> None:
         mhc_init="gated_identity",
         indexer_aux_loss_weight=0.2,
         indexer_aux_target="all",
+        indexer_aux_query_stride=8,
+        indexer_aux_query_seed=3,
+        indexer_aux_compile=True,
         indexer_dense_warmup_steps=7,
         kda_conv_kernel_size=2,
     )
@@ -569,5 +835,8 @@ def test_composed_arms_and_dose_knobs_are_exposed() -> None:
     assert cfg.mhc_identity_at_init
     assert cfg.indexer_aux_loss_weight == 0.2
     assert cfg.indexer_aux_target == "all"
+    assert cfg.indexer_aux_query_stride == 8
+    assert cfg.indexer_aux_query_seed == 3
+    assert cfg.indexer_aux_compile
     assert cfg.indexer_dense_warmup_steps == 7
     assert cfg.kda_conv_kernel_size == 2

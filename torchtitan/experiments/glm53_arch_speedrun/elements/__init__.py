@@ -21,6 +21,7 @@ from .attention import (
     sparse_causal_attention,
     sparse_causal_attention_masked_dense,
     sparse_causal_attention_reference,
+    sparse_causal_attention_triton,
     TopKSparseCausalAttention,
 )
 from .config import arm_config, b0_config, compose_arms, SpeedrunElementsConfig
@@ -59,4 +60,5 @@ __all__ = [
     "sparse_causal_attention",
     "sparse_causal_attention_masked_dense",
     "sparse_causal_attention_reference",
+    "sparse_causal_attention_triton",
 ]

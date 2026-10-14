@@ -251,6 +251,30 @@ def test_config_contract_applies_arm_and_element_env(monkeypatch):
     ]
 
 
+def test_config_contract_exposes_indexer_aux_sampling_and_compile_env(monkeypatch):
+    monkeypatch.setenv("GLM53_SPEEDRUN_SEQ_LEN", "128")
+    monkeypatch.setenv("GLM53_SPEEDRUN_LOCAL_BATCH_SIZE", "2")
+    monkeypatch.setenv("GLM53_SPEEDRUN_TOKENS_PER_STEP", "1024")
+    monkeypatch.setenv("GLM53_SPEEDRUN_TOKEN_BUDGET", "2048")
+    monkeypatch.setenv("GLM53_SPEEDRUN_VAL_TOKENS", "1024")
+    monkeypatch.setenv("GLM53_SPEEDRUN_VAL_FREQ", "1")
+    monkeypatch.setenv("GLM53_SPEEDRUN_ARM", "A4")
+    monkeypatch.setenv("GLM53_SPEEDRUN_INDEXER_AUX_QUERY_STRIDE", "8")
+    monkeypatch.setenv("GLM53_SPEEDRUN_INDEXER_AUX_QUERY_SEED", "17")
+    monkeypatch.setenv("GLM53_SPEEDRUN_INDEXER_AUX_COMPILE", "1")
+
+    config = glm53_arch_speedrun_b0()
+
+    assert config.model.elements.indexer_aux_query_stride == 8
+    assert config.model.elements.indexer_aux_query_seed == 17
+    assert config.model.elements.indexer_aux_compile
+    assert config.model.local_compile_regions[-3:] == [
+        "glm53_speedrun_indexer_score",
+        "glm53_speedrun_indexer_select",
+        "glm53_speedrun_indexer_aux",
+    ]
+
+
 def test_default_microbatch_policy_keeps_expensive_arms_under_cap(monkeypatch):
     monkeypatch.setenv("GLM53_SPEEDRUN_SEQ_LEN", "4096")
     monkeypatch.setenv("GLM53_SPEEDRUN_VAL_TOKENS", "32768")

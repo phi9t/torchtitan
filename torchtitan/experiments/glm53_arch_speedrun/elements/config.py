@@ -45,6 +45,9 @@ class SpeedrunElementsConfig:
     index_pool_always_select_tail: bool = True
     indexer_aux_loss_weight: float = 0.0
     indexer_aux_target: str = "selected"
+    indexer_aux_query_stride: int = 1
+    indexer_aux_query_seed: int = 0
+    indexer_aux_compile: bool = False
     indexer_dense_warmup_steps: int = 0
     mtp_enabled: bool = False
     mtp_aux_loss_weight: float = 0.0
@@ -71,10 +74,15 @@ class SpeedrunElementsConfig:
             )
         if not -5.0 <= self.kda_gate_lower_bound < 0.0:
             raise ValueError("kda_gate_lower_bound must be in [-5, 0).")
-        if self.sparse_attention_impl not in {"masked_dense", "gather", "reference"}:
+        if self.sparse_attention_impl not in {
+            "masked_dense",
+            "gather",
+            "reference",
+            "triton",
+        }:
             raise ValueError(
                 "sparse_attention_impl must be 'masked_dense', 'gather', "
-                "or 'reference'."
+                "'reference', or 'triton'."
             )
         if self.sparse_attention_query_chunk_size < 1:
             raise ValueError("sparse_attention_query_chunk_size must be >= 1.")
@@ -82,6 +90,10 @@ class SpeedrunElementsConfig:
             raise ValueError("indexer_aux_loss_weight must be non-negative.")
         if self.indexer_aux_target not in {"selected", "all"}:
             raise ValueError("indexer_aux_target must be 'selected' or 'all'.")
+        if self.indexer_aux_query_stride < 1:
+            raise ValueError("indexer_aux_query_stride must be >= 1.")
+        if self.indexer_aux_query_seed < 0:
+            raise ValueError("indexer_aux_query_seed must be non-negative.")
         if self.indexer_dense_warmup_steps < 0:
             raise ValueError("indexer_dense_warmup_steps must be non-negative.")
         if self.mtp_aux_loss_weight < 0.0:
@@ -120,6 +132,9 @@ def compose_arms(
     mhc_init: str | None = None,
     indexer_aux_loss_weight: float | None = None,
     indexer_aux_target: str | None = None,
+    indexer_aux_query_stride: int | None = None,
+    indexer_aux_query_seed: int | None = None,
+    indexer_aux_compile: bool | None = None,
     indexer_dense_warmup_steps: int | None = None,
     kda_conv_kernel_size: int | None = None,
 ) -> SpeedrunElementsConfig:
@@ -177,6 +192,12 @@ def compose_arms(
             dose_updates["sparse_attention_enabled"] = True
     if indexer_aux_target is not None:
         dose_updates["indexer_aux_target"] = indexer_aux_target
+    if indexer_aux_query_stride is not None:
+        dose_updates["indexer_aux_query_stride"] = indexer_aux_query_stride
+    if indexer_aux_query_seed is not None:
+        dose_updates["indexer_aux_query_seed"] = indexer_aux_query_seed
+    if indexer_aux_compile is not None:
+        dose_updates["indexer_aux_compile"] = indexer_aux_compile
     if indexer_dense_warmup_steps is not None:
         dose_updates["indexer_dense_warmup_steps"] = indexer_dense_warmup_steps
     if kda_conv_kernel_size is not None:

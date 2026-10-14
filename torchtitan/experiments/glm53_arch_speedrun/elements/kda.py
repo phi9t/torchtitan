@@ -19,6 +19,7 @@ from torch import nn
 
 from torchtitan.models.common import attn_gym as common_attn_gym
 
+from .behavior import record, scalar, should_record
 from .config import SpeedrunElementsConfig
 
 
@@ -312,6 +313,8 @@ class KDALayer(nn.Module):
         self.o_norm = GatedRMSNorm(self.head_dim)
         self.o_proj = nn.Linear(self.qkv_dim, config.hidden_size, bias=False)
         self.last_impl = "uninitialized"
+        self.behavior_tag = "kda"
+        self._behavior_calls = 0
 
     def forward(self, x_BLD: torch.Tensor, *, impl: str | None = None) -> torch.Tensor:
         batch_size, seq_len = x_BLD.shape[:2]
@@ -367,6 +370,26 @@ class KDALayer(nn.Module):
                 f"{effective_impl!r}; expected 'auto', 'attn_gym', "
                 "'chunked', or 'recurrent'."
             )
+        self._behavior_calls += 1
+        if should_record("kda", self.behavior_tag, self._behavior_calls):
+            with torch.no_grad():
+                gate_stats = gate_BLHK.detach().float()
+                beta_stats = beta_BLH.detach().float()
+                record(
+                    {
+                        "kind": "kda",
+                        "tag": self.behavior_tag,
+                        "call_count": self._behavior_calls,
+                        "impl": self.last_impl,
+                        "gate_mean": scalar(gate_stats.mean()),
+                        "gate_min": scalar(gate_stats.min()),
+                        "gate_max": scalar(gate_stats.max()),
+                        "beta_mean": scalar(beta_stats.mean()),
+                        "beta_std": scalar(beta_stats.std()),
+                        "a_log_mean": scalar(self.A_log.detach().float().mean()),
+                        "dt_bias_mean": scalar(self.dt_bias.detach().float().mean()),
+                    }
+                )
         out_gate_BLHK = self.g_b_proj(self.g_a_proj(x_BLD)).view_as(out_BLHK)
         out_BLC = self.o_norm(out_BLHK, out_gate_BLHK).reshape(batch_size, seq_len, -1)
         return self.o_proj(out_BLC)

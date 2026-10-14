@@ -41,6 +41,7 @@ from .aux_loss import SpeedrunIndexerAuxLoss, SpeedrunMtpAuxLoss
 from .elements import maybe_apply_rope, SpeedrunElementsConfig
 from .elements.adapter import collect_element_aux_losses, maybe_build_mtp
 from .elements.attention import IndexPool, TopKSparseCausalAttention
+from .elements.behavior import record, scalar, should_record
 from .elements.config import b0_config as element_b0_config
 from .elements.kda import GatedRMSNorm, KDALayer
 from .elements.mhc import collapse_streams, expand_streams, MHCResidualBlock
@@ -193,9 +194,13 @@ def _build_speedrun_attention(
     norm_eps: float,
 ) -> nn.Module:
     if config.attention_kind(layer_idx) == "kda":
-        return KDALayer(config)
+        attention = KDALayer(config)
+        attention.behavior_tag = f"layer{layer_idx}.attention"
+        return attention
     if config.sparse_attention_enabled:
-        return TopKSparseCausalAttention(config)
+        attention = TopKSparseCausalAttention(config)
+        attention.behavior_tag = f"layer{layer_idx}.attention"
+        return attention
     return SpeedrunAttention(config, norm_eps=norm_eps)
 
 
@@ -266,6 +271,7 @@ class SpeedrunResidualBlock(nn.Module):
                 eps=config.mhc_eps,
                 identity_at_init=config.mhc_init == "gated_identity",
             )
+            self.attention_mhc.set_behavior_tag(f"layer{layer_idx}.attention")
             self.mlp_mhc = MHCResidualBlock(
                 config.hidden_size,
                 nn.Identity(),
@@ -274,6 +280,7 @@ class SpeedrunResidualBlock(nn.Module):
                 eps=config.mhc_eps,
                 identity_at_init=config.mhc_init == "gated_identity",
             )
+            self.mlp_mhc.set_behavior_tag(f"layer{layer_idx}.mlp")
         else:
             self.attention_mhc = None
             self.mlp_mhc = None
@@ -445,6 +452,7 @@ class Glm53ArchSpeedrunModel(BaseModel):
             if cfg.mtp_enabled and cfg.mtp_aux_loss_weight > 0.0
             else None
         )
+        self._behavior_calls = 0
 
     @property
     def lm_head(self) -> nn.Module:
@@ -495,6 +503,18 @@ class Glm53ArchSpeedrunModel(BaseModel):
                 and mtp_labels is not None
             ):
                 mtp_aux = self.mtp_head.aux_loss(x_BLD, mtp_labels)
+                self._behavior_calls += 1
+                if should_record("mtp", "model", self._behavior_calls):
+                    with torch.no_grad():
+                        record(
+                            {
+                                "kind": "mtp",
+                                "tag": "model",
+                                "call_count": self._behavior_calls,
+                                "aux_loss": scalar(mtp_aux),
+                                "aux_loss_weight": self.config.elements.mtp_aux_loss_weight,
+                            }
+                        )
                 x_BLD = self.mtp_aux_loss.inject(
                     mtp_aux * aux_denominator,
                     carrier=x_BLD,
