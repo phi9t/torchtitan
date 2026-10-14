@@ -135,18 +135,40 @@ class GlmClampedSwiGLU:
         )
 
 
+class GlmEPGroupedLinear(GroupedLinear):
+    """GroupedLinear with stable fallback remat names for GLM EP."""
+
+    @dataclass(kw_only=True, slots=True)
+    class Config(GroupedLinear.Config):
+        region_label: str
+
+        def build(self) -> "GlmEPGroupedLinear":
+            return GlmEPGroupedLinear(self)
+
+    def __init__(self, config: Config) -> None:
+        super().__init__(config)
+        self.region_label = config.region_label
+
+    def remat_region_name(self, local_name: str) -> str:
+        if self._remat_module_fqn:
+            return super().remat_region_name(local_name)
+        return f"{self.region_label}.{local_name}"
+
+
 class GlmEPExperts(RoutedExperts):
     """Common routed experts with GLM dimensions and clamp behavior."""
 
     def __init__(self, config: Glm53FlashConfig) -> None:
         routed_config = RoutedExperts.Config(
-            w13=GroupedLinear.Config(
+            w13=GlmEPGroupedLinear.Config(
+                region_label="w13",
                 group_size=config.num_experts,
                 in_features=config.hidden_size,
                 out_features=config.moe_intermediate_size,
                 num_linears=2,
             ),
-            w2=GroupedLinear.Config(
+            w2=GlmEPGroupedLinear.Config(
+                region_label="w2",
                 group_size=config.num_experts,
                 in_features=config.moe_intermediate_size,
                 out_features=config.hidden_size,

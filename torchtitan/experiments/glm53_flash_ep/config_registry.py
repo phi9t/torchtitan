@@ -9,19 +9,27 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 
-from torchtitan.components.loss import CrossEntropyLoss
+from torchtitan.components.loss import ChunkedLossWrapper, CrossEntropyLoss
+from torchtitan.components.tokenizer import HuggingFaceTokenizer
 from torchtitan.config import DebugConfig, ParallelismConfig, TrainingConfig
 from torchtitan.distributed.activation_checkpoint import FullAC
 
 from torchtitan.experiments.glm53_flash.config_registry import (
+    _countdown_data_loader_config,
+    _countdown_hf_assets_path,
+    _env_bool,
     _lora_optim_config,
+    _nonnegative_env_float,
+    _nonnegative_env_int,
     _optim_config,
     _positive_env_int,
     Glm53PretokenizedTokenizer,
     Glm53SyntheticDataLoader,
 )
 from torchtitan.experiments.glm53_flash.flavors import with_lora
+from torchtitan.experiments.glm53_flash_4gpu_lean.trainer import LeanMemoryTrainer
 from torchtitan.models.base.model import BaseModel
 from torchtitan.observability.metrics import MetricsProcessor
 
@@ -129,6 +137,99 @@ def glm53_flash_ep_mini() -> "Trainer.Config":
         "./outputs/glm53_flash_ep_mini",
     )
     return config
+
+
+def glm53_flash_ep_countdown_lora_truncated() -> "LeanMemoryTrainer.Config":
+    """Full-width, first-8-layer GLM EP Countdown LoRA parity config."""
+
+    num_layers = _positive_env_int("GLM53_FLASH_EP_TRUNCATED_NUM_LAYERS", 8)
+    layer_offset = _nonnegative_env_int("GLM53_FLASH_EP_TRUNCATED_LAYER_OFFSET", 0)
+    if layer_offset != 0:
+        raise ValueError(
+            "GLM53_FLASH_EP_TRUNCATED_LAYER_OFFSET must stay 0 for this parity "
+            "config so layers 0-7 are loaded from the released checkpoint."
+        )
+
+    cfg = with_lora(
+        replace(
+            build_model_config("glm53_flash_ep"),
+            num_hidden_layers=num_layers,
+            layer_offset=layer_offset,
+        ),
+        rank=16,
+        alpha=64.0,
+    )
+    cfg.attn_impl = os.environ.get(
+        "GLM53_FLASH_EP_ATTN_IMPL",
+        os.environ.get("GLM53_FLASH_ATTN_IMPL", "fast"),
+    )
+    cfg.sparse_attention_mode = os.environ.get(
+        "GLM53_FLASH_EP_SPARSE_ATTENTION_MODE",
+        os.environ.get("GLM53_FLASH_SPARSE_ATTENTION_MODE", "indexer"),
+    )
+    cfg.validate()
+
+    steps = _positive_env_int("GLM53_FLASH_FULL_STEPS", 3)
+    seq_len = _positive_env_int("GLM53_FLASH_FULL_SEQ_LEN", 512)
+    local_batch_size = _positive_env_int("GLM53_FLASH_FULL_LOCAL_BATCH_SIZE", 1)
+    tokens_per_step = _positive_env_int(
+        "GLM53_FLASH_FULL_TOKENS_PER_STEP",
+        64 * 512,
+    )
+    lr = _nonnegative_env_float("GLM53_FLASH_FULL_LR", 1.0e-4)
+
+    return LeanMemoryTrainer.Config(
+        dump_folder=os.environ.get(
+            "GLM53_FLASH_EP_FULL_DUMP_FOLDER",
+            os.environ.get(
+                "GLM53_FLASH_FULL_DUMP_FOLDER",
+                "./outputs/glm53_flash_ep_countdown_lora_truncated",
+            ),
+        ),
+        hf_assets_path=_countdown_hf_assets_path(),
+        tokenizer=HuggingFaceTokenizer.Config(),
+        model=Glm53FlashEPForCausalLM.Config(
+            glm_config=cfg,
+            experiment_flavor=f"glm53_flash_ep_first_{num_layers}",
+        ),
+        dataloader=_countdown_data_loader_config(
+            seed=_positive_env_int("GLM53_FLASH_COUNTDOWN_SEED", 42)
+        ),
+        metrics=MetricsProcessor.Config(log_freq=1, enable_tensorboard=True),
+        optim=_lora_optim_config(steps=steps, lr=lr),
+        training=TrainingConfig(
+            num_tokens_per_microbatch_per_dp_rank=local_batch_size * seq_len,
+            num_tokens_per_train_step=tokens_per_step,
+            max_context_length=seq_len,
+            steps=steps,
+            dtype="bfloat16",
+            disable_cuda_graphs=True,
+            enable_cpu_offload=False,
+        ),
+        parallelism=_ep_parallelism_config(),
+        debug=DebugConfig(
+            seed=_nonnegative_env_int("GLM53_FLASH_SEED", 42),
+            deterministic=_env_bool("GLM53_FLASH_DETERMINISTIC", True),
+            enable_structured_logging=False,
+        ),
+        checkpointer=Glm53FlashEPLoRACheckpointManager.Config(
+            interval=_positive_env_int("GLM53_FLASH_FULL_CHECKPOINT_INTERVAL", 99),
+            initial_load_model_only=False,
+            initial_load_in_hf=False,
+            last_save_model_only=False,
+            keep_latest_k=_nonnegative_env_int("GLM53_FLASH_FULL_KEEP_LATEST_K", 2),
+            load_only=_env_bool("GLM53_FLASH_FULL_CHECKPOINT_LOAD_ONLY", False),
+            verify_frozen_base_load=_env_bool(
+                "GLM53_FLASH_EP_VERIFY_FROZEN_BASE_LOAD",
+                True,
+            ),
+        ),
+        activation_checkpoint=FullAC.Config(),
+        loss=ChunkedLossWrapper.Config(
+            num_chunks=_positive_env_int("GLM53_FLASH_LOSS_CHUNKS", 8),
+            loss_fn=CrossEntropyLoss.Config(global_vocab_size=cfg.vocab_size),
+        ),
+    )
 
 
 def _ep_parallelism_config() -> ParallelismConfig:

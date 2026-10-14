@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn as nn
 
-from torchtitan.config import TrainingConfig
+from torchtitan.config import TORCH_DTYPE_MAP, TrainingConfig
 from torchtitan.config.parallelism import ParallelismConfig
 from torchtitan.distributed.activation_checkpoint import ActivationCheckpointingConfig
 from torchtitan.distributed.local_compile import apply_local_compile
@@ -86,6 +86,36 @@ class Glm53FlashEPForCausalLM(Glm53FlashForCausalLM):
                 parallelism=parallelism,
             )
         return self
+
+    def _apply_fsdp(
+        self,
+        *,
+        parallelism_context: ParallelismContext,
+        training: TrainingConfig,
+        parallelism: ParallelismConfig,
+    ) -> None:
+        from torchtitan.distributed.fsdp import (
+            apply_fsdp_to_decoder,
+            resolve_fsdp_mesh,
+            resolve_sparse_fsdp_mesh,
+        )
+
+        dp_mesh, dp_mesh_dims = resolve_fsdp_mesh(parallelism_context)
+        edp_mesh, edp_mesh_dims = resolve_sparse_fsdp_mesh(parallelism_context)
+        apply_fsdp_to_decoder(
+            self,
+            dp_mesh,
+            param_dtype=TORCH_DTYPE_MAP[training.mixed_precision_param],
+            reduce_dtype=TORCH_DTYPE_MAP[training.mixed_precision_reduce],
+            pp_enabled=False,
+            cpu_offload=training.enable_cpu_offload,
+            reshard_after_forward_policy=parallelism.fsdp_reshard_after_forward,
+            ep_degree=parallelism_context.ep,
+            edp_mesh=edp_mesh,
+            dp_mesh_dims=dp_mesh_dims,
+            edp_mesh_dims=edp_mesh_dims,
+            symm_mem_scope=parallelism.fsdp_symm_mem_scope,
+        )
 
     def init_states(self, *, buffer_device: torch.device | None = None) -> None:
         del buffer_device

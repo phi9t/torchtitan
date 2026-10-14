@@ -28,6 +28,7 @@ from torchtitan.experiments.glm53_flash.checkpoint import TrainableModelWrapper
 from torchtitan.experiments.glm53_flash.model import GlmMoE, GlmTopKRouter
 
 from torchtitan.experiments.glm53_flash_ep.config_registry import (
+    glm53_flash_ep_countdown_lora_truncated,
     glm53_flash_ep_debugmodel,
     glm53_flash_ep_debugmodel_lora,
     glm53_flash_ep_mini,
@@ -35,6 +36,16 @@ from torchtitan.experiments.glm53_flash_ep.config_registry import (
 from torchtitan.experiments.glm53_flash_ep.flavors import tiny_ep
 from torchtitan.experiments.glm53_flash_ep.model import Glm53FlashEPForCausalLM
 from torchtitan.experiments.glm53_flash_ep.moe import GlmEPMoE, GlmEPRouter
+from torchtitan.experiments.glm53_flash_ep.parity_report import (
+    compare_metric_steps,
+    compare_tensor_maps,
+    GRAD_NORM_TAG,
+    LOSS_TAG,
+    read_memory_summary,
+    STEP_TIME_TAG,
+    summarize_scalar_deltas,
+    THROUGHPUT_TAG,
+)
 from torchtitan.experiments.glm53_flash_ep.sharded_hf_load import (
     load_rank_local_ep_hf_safetensors,
 )
@@ -72,6 +83,44 @@ def test_ep_config_registry_uses_requested_expert_parallel_degree(monkeypatch):
     assert mini_config.parallelism.expert_parallel_degree == 4
     assert debug_config.parallelism.tensor_parallel_degree == 1
     assert debug_config.parallelism.context_parallel_degree == 1
+
+
+def test_truncated_countdown_lora_config_matches_t13_contract(monkeypatch):
+    monkeypatch.setenv("GLM53_FLASH_EP_DEGREE", "4")
+    monkeypatch.setenv("GLM53_FLASH_FULL_SEQ_LEN", "512")
+    monkeypatch.setenv("GLM53_FLASH_FULL_LOCAL_BATCH_SIZE", "1")
+    monkeypatch.setenv("GLM53_FLASH_FULL_TOKENS_PER_STEP", "32768")
+    monkeypatch.setenv("GLM53_FLASH_FULL_STEPS", "3")
+    monkeypatch.setenv("GLM53_FLASH_SEED", "42")
+    monkeypatch.setenv("GLM53_FLASH_DETERMINISTIC", "1")
+
+    config = glm53_flash_ep_countdown_lora_truncated()
+
+    assert isinstance(config.model, Glm53FlashEPForCausalLM.Config)
+    glm_config = config.model.glm_config
+    assert glm_config.num_hidden_layers == 8
+    assert glm_config.layer_offset == 0
+    assert list(glm_config.mlp_layer_types[:8]) == [
+        "dense",
+        "dense",
+        "dense",
+        "sparse",
+        "sparse",
+        "sparse",
+        "sparse",
+        "sparse",
+    ]
+    assert glm_config.lora_rank == 16
+    assert config.parallelism.expert_parallel_degree == 4
+    assert config.training.max_context_length == 512
+    assert config.training.num_tokens_per_microbatch_per_dp_rank == 512
+    assert config.training.num_tokens_per_train_step == 32768
+    assert config.training.steps == 3
+    assert config.training.dtype == "bfloat16"
+    assert config.debug.seed == 42
+    assert config.debug.deterministic
+    assert config.metrics.enable_tensorboard
+    assert config.checkpointer is not None
 
 
 @pytest.mark.parametrize("world_size,valid_eps", [(4, (1, 2, 4)), (8, (1, 2, 4, 8))])
@@ -140,6 +189,13 @@ def test_ep_expert_sharding_uses_sparse_expert_axis_when_enabled():
     assert experts.w13._sharding_config.state_shardings[
         "weight"
     ] == dense_param_placement(tp=spmd.R)
+
+
+def test_ep_grouped_linears_have_distinct_fallback_remat_names():
+    experts = GlmEPMoE(tiny_ep()).experts
+
+    assert experts.w13.remat_region_name("grouped_mm") == "w13.grouped_mm"
+    assert experts.w2.remat_region_name("grouped_mm") == "w2.grouped_mm"
 
 
 def test_glm_ep_router_matches_current_glm_router():
@@ -362,3 +418,86 @@ def test_trainable_only_lora_checkpoint_round_trip(tmp_path):
     assert set(state_dict).isdisjoint(missing)
     for key, value in state_dict.items():
         torch.testing.assert_close(restored.state_dict()[key], value)
+
+
+def test_parity_report_aligns_metrics_and_memory_records(tmp_path):
+    plain_metrics = {
+        LOSS_TAG: [{"step": 1, "value": 1.0, "wall_time": 0.0}],
+        GRAD_NORM_TAG: [{"step": 1, "value": 2.0, "wall_time": 0.0}],
+        THROUGHPUT_TAG: [{"step": 1, "value": 100.0, "wall_time": 0.0}],
+        STEP_TIME_TAG: [{"step": 1, "value": 0.5, "wall_time": 0.0}],
+    }
+    ep_metrics = {
+        LOSS_TAG: [{"step": 1, "value": 1.25, "wall_time": 0.0}],
+        GRAD_NORM_TAG: [{"step": 1, "value": 1.5, "wall_time": 0.0}],
+        THROUGHPUT_TAG: [{"step": 1, "value": 80.0, "wall_time": 0.0}],
+        STEP_TIME_TAG: [{"step": 1, "value": 0.75, "wall_time": 0.0}],
+    }
+
+    rows = compare_metric_steps(plain_metrics, ep_metrics)
+    assert rows == [
+        {
+            "step": 1,
+            "plain_loss": 1.0,
+            "ep_loss": 1.25,
+            "loss_delta": 0.25,
+            "plain_grad_norm": 2.0,
+            "ep_grad_norm": 1.5,
+            "grad_norm_delta": -0.5,
+            "plain_tokens_per_second": 100.0,
+            "ep_tokens_per_second": 80.0,
+            "tokens_per_second_delta": -20.0,
+            "plain_step_time_ms": 500.0,
+            "ep_step_time_ms": 750.0,
+            "step_time_ms_delta": 250.0,
+        }
+    ]
+    assert summarize_scalar_deltas(rows)["max_abs_grad_norm_delta"] == 0.5
+
+    memory_dir = tmp_path / "run" / "lean_memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "rank00000_after_step_0001.json").write_text(
+        json.dumps(
+            {
+                "rank": 0,
+                "local_rank": 0,
+                "device_name": "unit-test",
+                "max_reserved_gib": 3.0,
+                "max_allocated_gib": 2.0,
+            }
+        )
+    )
+    (memory_dir / "rank00000_after_step_0002.json").write_text(
+        json.dumps(
+            {
+                "rank": 0,
+                "local_rank": 0,
+                "device_name": "unit-test",
+                "max_reserved_gib": 4.0,
+                "max_allocated_gib": 2.5,
+            }
+        )
+    )
+
+    summary = read_memory_summary(tmp_path / "run")
+    assert summary["num_records"] == 2
+    assert summary["peak_by_rank"][0]["max_reserved_gib"] == 4.0
+    assert summary["peak_by_rank"][0]["max_allocated_gib"] == 2.5
+
+
+def test_parity_report_compares_tensor_maps():
+    rows = compare_tensor_maps(
+        {
+            "a.lora_a": torch.tensor([1.0, 2.0]),
+            "b.lora_b": torch.tensor([3.0]),
+        },
+        {
+            "a.lora_a": torch.tensor([1.5, 2.0]),
+            "c.lora_b": torch.tensor([3.0]),
+        },
+    )
+
+    by_name = {row["name"]: row for row in rows}
+    assert by_name["a.lora_a"]["max_abs_delta"] == 0.5
+    assert by_name["b.lora_b"]["reason"] == "missing tensor"
+    assert by_name["c.lora_b"]["reason"] == "missing tensor"

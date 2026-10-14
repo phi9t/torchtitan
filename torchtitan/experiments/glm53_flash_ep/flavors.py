@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import replace
 
 from torchtitan.experiments.glm53_flash.flavors import (
+    build_model_config as _build_glm_model_config,
     debugmodel as _debugmodel,
     Glm53FlashConfig,
     mini as _mini,
@@ -42,6 +43,15 @@ def mini_ep() -> Glm53FlashConfig:
 
     cfg = _mini()
     cfg.name = "mini_ep"
+    cfg.validate()
+    return cfg
+
+
+def glm53_flash_ep() -> Glm53FlashConfig:
+    """Full GLM-5.3-Flash flavor with routed experts on the EP adapter."""
+
+    cfg = _build_glm_model_config("glm53_flash")
+    cfg.name = "glm53_flash_ep"
     cfg.validate()
     return cfg
 
@@ -83,6 +93,7 @@ def tiny_ep() -> Glm53FlashConfig:
 MODEL_FLAVORS: dict[str, Callable[[], Glm53FlashConfig]] = {
     "debugmodel_ep": debugmodel_ep,
     "debugmodel_ep_lora": debugmodel_ep_lora,
+    "glm53_flash_ep": glm53_flash_ep,
     "mini_ep": mini_ep,
     "tiny_ep": tiny_ep,
 }
