@@ -25,3 +25,13 @@ Co-run rules: a slow fallback 8-GPU GLM run (~136-155 GiB/GPU) may be live; keep
 foreign processes; `priority_pause.sh` may pause you while T08d waits between legs. Report `sdd/task-18-report.md` with
 install recipe, smoke parity, GLM EP numerics, ms/step and tokens/s for {FSDP-only loop, FSDP grouped, EP all-to-all,
 EP DeepEP}, and a recommendation for rung 4.
+
+## Addendum at launch (after N01b, T13b, T13c)
+- DeepEP v2 is installed in `glm53_ep` from the L2 wheel (N01b; native store rootfs-0239a373...). Launch with
+  `TORCHTITAN_ROOTFS_ENV=glm53_ep scripts/rootfs/enter_rootfs.sh --rootfs-store /data05/philip.yang/torchtitan-rootfs-store`.
+- All-to-all EP8 is now correct and is the baseline (T13b: init-order fix; first-8-layer EP8 5.65 s/step; T13c full depth
+  ~29 s/step, 81 GiB). Rung 4 (T08f) is running full-depth EP8 on all 8 GPUs -- co-run only on the first-8-layer config,
+  <= 30 GiB/process; no full-depth DeepEP runs until T08f finishes.
+- Compare on the first-8-layer config: all-to-all EP8 vs DeepEP EP8 (numerics over 20 steps + ms/step), plus a
+  dispatch/combine microbenchmark at GLM shapes. Also report how much of the full-depth 29 s/step is MoE dispatch vs
+  expert GEMM vs attention/KDA vs FSDP comm (one profiled step on the first-8-layer config is enough).

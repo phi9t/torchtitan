@@ -8,7 +8,9 @@ Training path (from T13c): `TORCHTITAN_ROOTFS_ENV=glm53_ep`, native store rootfs
 (`--rootfs-store /data05/philip.yang/torchtitan-rootfs-store`), `TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST=/data05/philip.yang/
 glm53-ladder-cache`, `torchtitan.experiments.glm53_flash_ep.config_registry` at full depth (45 layers), EP8 + FSDP for
 non-expert params, grouped experts, LoRA r16/alpha64, seq 512, local batch 1, 32,768 tokens/step, deterministic.
-Expect ~29 s/step, ~81 GiB/GPU. GPU gate: >= 100 GiB free on all 8 GPUs, no foreign/exclusive holder; capped side jobs may
+Expect ~29 s/step, ~81 GiB/GPU. GPU gate: >= 100 GiB free on all 8 GPUs and no GPU in Exclusive_Process mode held by another
+process. Foreign processes in Default compute mode are ALLOWED if the memory gate passes (label the leg `shared_gpu` and
+record foreign PIDs/memory); do not wait for them to exit. Capped side jobs may
 co-run. Input roots checked with `lib/hdfs_strict.sh --quick`; record input HDFS URIs + native build keys in attempt.json.
 Gates (all required):
 1. Seed 42, 94 steps: load time, steady throughput over >= 10 steps, per-GPU peak memory, host RSS, full loss curve.
@@ -25,3 +27,6 @@ Gates (all required):
    (`torchtitan/runs/glm53-ladder/rung4/<run_id>/<attempt_id>/`) with md5 + `_COMPLETE`.
 Report `sdd/task-08f-report.md`: every gate PASS/FAIL/NOT RUN with evidence, HDFS URIs, and the campaign done-definition
 checklist from spec.md.
+Relaunch note (21:30Z): a previous T08f worker prepared `run_rung4_glm.sh`/exporter edits and was waiting on a stricter
+foreign-process gate; reuse its edits (inspect `git diff`), do not start over. N01b selected a new native store entry
+(rootfs-0239a373...) and installed deep_ep + torchao into glm53_ep; GLM + EP tests pass there (44 passed). Record the store id.
