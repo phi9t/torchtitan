@@ -84,3 +84,12 @@ validated on the same FineWeb val tokens, GPT-2 tokenizer, Muon (2D hidden) + Ad
   IndexPool, 4-stream mHC, MoE w/ shared expert, NoPE, MTP), with the S04/S05 indexer aux loss.
 Matching rule (declare before running): match NON-EMBEDDING ACTIVE params to L0 (~85M) within +/-10%; report total
 params too. 2 seeds per rung (L0 has 3). Report val CE curve, tokens/s, peak memory; pairwise deltas with the 2x seed-std rule.
+
+## Epoch rule (user decision 2026-10-14)
+"Make sure the modded-nanogpt style speedruns run at least one full epoch through FineWeb-Edu." Resolved scope
+(AskUserQuestion): dataset = HuggingFaceFW/fineweb-edu `sample-10BT` (~10B GPT-2 tokens); full-epoch runs = the
+architecture ladder L0-L4 and the final combined-winner (C1) runs. The 93-cell factorial queue stays at the 268M-token
+FineWeb budget for knob selection (declared as `representative_small`). Epoch runs report val CE on a held-out
+FineWeb-Edu val shard AND the original FineWeb val shard (comparability with S01/S05), plus throughput. Estimated cost:
+~12.6 h per run on one quiet B200 at ~220k tok/s; runs may use 2-4 GPUs (DDP/FSDP, same global batch) when free and
+GLM rung 4 is not training.
