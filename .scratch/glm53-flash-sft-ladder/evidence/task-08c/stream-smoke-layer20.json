@@ -1,0 +1,463 @@
+{
+  "checkpoint": "/project/formal-cache/model-weights/zai-org/GLM-5.3-Flash-BF16",
+  "claim_label": "deterministic_comparison",
+  "comparisons": {
+    "hf_bf16_vs_hf_fp32_truth": {
+      "samples": [
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.23998011648654938,
+            "max_abs": 7.39714241027832,
+            "max_rel": 1656274.5,
+            "mean_abs": 0.48217445611953735,
+            "mean_rel": 3.3864879608154297,
+            "top1_agreement": 0.43421053886413574
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.38542798161506653,
+              "max_rel": 88665.3515625,
+              "mean_abs": 0.011043871752917767,
+              "mean_rel": 2.7011570930480957,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-14-16-49-t47",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.24397028982639313,
+            "max_abs": 7.517648220062256,
+            "max_rel": 310546890752.0,
+            "mean_abs": 0.4816940128803253,
+            "mean_rel": 26386.037109375,
+            "top1_agreement": 0.5131579041481018
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.3893842399120331,
+              "max_rel": 103476.8984375,
+              "mean_abs": 0.01077628880739212,
+              "mean_rel": 2.580171585083008,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-24-8-22-t54",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.2510017454624176,
+            "max_abs": 7.456366062164307,
+            "max_rel": 14784920.0,
+            "mean_abs": 0.5030898451805115,
+            "mean_rel": 5.893986701965332,
+            "top1_agreement": 0.42105263471603394
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.3776490390300751,
+              "max_rel": 368008.84375,
+              "mean_abs": 0.011330288834869862,
+              "mean_rel": 3.1673483848571777,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-17-95-3-t75",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.2557189464569092,
+            "max_abs": 6.789106369018555,
+            "max_rel": 970751.0,
+            "mean_abs": 0.5237246155738831,
+            "mean_rel": 3.633620023727417,
+            "top1_agreement": 0.3552631437778473
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.30010777711868286,
+              "max_rel": 606209.0,
+              "mean_abs": 0.011401507072150707,
+              "mean_rel": 3.3953187465667725,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-24-49-15-t58",
+          "seq_len": 76
+        }
+      ],
+      "summary": {
+        "max_final_abs": 7.517648220062256,
+        "max_kl_truth_to_candidate": 0.2557189464569092,
+        "max_layer_abs": 0.3893842399120331,
+        "max_layer_mean_abs": 0.011401507072150707,
+        "min_top1_agreement": 0.3552631437778473
+      }
+    },
+    "tt_bf16_vs_hf_fp32_truth": {
+      "samples": [
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.23458769917488098,
+            "max_abs": 7.41276741027832,
+            "max_rel": 1537118.125,
+            "mean_abs": 0.47920167446136475,
+            "mean_rel": 3.3038148880004883,
+            "top1_agreement": 0.42105263471603394
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.38567566871643066,
+              "max_rel": 83158.125,
+              "mean_abs": 0.010902359150350094,
+              "mean_rel": 2.619683027267456,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-14-16-49-t47",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.24209682643413544,
+            "max_abs": 7.494699001312256,
+            "max_rel": 314453131264.0,
+            "mean_abs": 0.4801740348339081,
+            "mean_rel": 26717.89453125,
+            "top1_agreement": 0.5
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.3923139274120331,
+              "max_rel": 105776.40625,
+              "mean_abs": 0.010735963471233845,
+              "mean_rel": 2.5748467445373535,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-24-8-22-t54",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.24015258252620697,
+            "max_abs": 6.257143974304199,
+            "max_rel": 14680062.0,
+            "mean_abs": 0.4992857873439789,
+            "mean_rel": 5.810898303985596,
+            "top1_agreement": 0.42105263471603394
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.29961952567100525,
+              "max_rel": 368008.84375,
+              "mean_abs": 0.010941516607999802,
+              "mean_rel": 3.1509337425231934,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-17-95-3-t75",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 0.2543221712112427,
+            "max_abs": 6.812543869018555,
+            "max_rel": 1007615.0,
+            "mean_abs": 0.522715151309967,
+            "mean_rel": 3.629723072052002,
+            "top1_agreement": 0.34210526943206787
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 0.29961949586868286,
+              "max_rel": 622593.0,
+              "mean_abs": 0.011373242363333702,
+              "mean_rel": 3.3980987071990967,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-24-49-15-t58",
+          "seq_len": 76
+        }
+      ],
+      "summary": {
+        "max_final_abs": 7.494699001312256,
+        "max_kl_truth_to_candidate": 0.2543221712112427,
+        "max_layer_abs": 0.3923139274120331,
+        "max_layer_mean_abs": 0.011373242363333702,
+        "min_top1_agreement": 0.34210526943206787
+      }
+    },
+    "tt_fp32_vs_hf_fp32_truth": {
+      "samples": [
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 1.6249115386557378e-09,
+            "max_abs": 3.337860107421875e-06,
+            "max_rel": 1.0,
+            "mean_abs": 2.843904098881467e-07,
+            "mean_rel": 1.9955768948420882e-06,
+            "top1_agreement": 1.0
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 1.1920928955078125e-07,
+              "max_rel": 0.027906976640224457,
+              "mean_abs": 2.0844084236415483e-09,
+              "mean_rel": 5.507885703082138e-07,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-14-16-49-t47",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": -2.0312672432964973e-08,
+            "max_abs": 2.86102294921875e-06,
+            "max_rel": 417232.5,
+            "mean_abs": 2.8472504709498025e-07,
+            "mean_rel": 0.03544817119836807,
+            "top1_agreement": 1.0
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 1.1920928955078125e-07,
+              "max_rel": 0.030701754614710808,
+              "mean_abs": 2.0128176903000394e-09,
+              "mean_rel": 4.824170787287585e-07,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-24-8-22-t54",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 2.4486798699818735e-10,
+            "max_abs": 3.814697265625e-06,
+            "max_rel": 2.5999999046325684,
+            "mean_abs": 3.010249258750264e-07,
+            "mean_rel": 2.8257663871045224e-06,
+            "top1_agreement": 1.0
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 8.940696716308594e-08,
+              "max_rel": 0.03361344709992409,
+              "mean_abs": 2.344386684782762e-09,
+              "mean_rel": 5.493668027156673e-07,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-17-95-3-t75",
+          "seq_len": 76
+        },
+        {
+          "final_logits": {
+            "kl_truth_to_candidate": 9.947484613803681e-09,
+            "max_abs": 3.337860107421875e-06,
+            "max_rel": 1.0,
+            "mean_abs": 2.811681838466029e-07,
+            "mean_rel": 1.7962139509108965e-06,
+            "top1_agreement": 1.0
+          },
+          "layer_stats": [
+            {
+              "candidate_kind": "linear_attention",
+              "layer": 20,
+              "max_abs": 1.1920928955078125e-07,
+              "max_rel": 0.03125,
+              "mean_abs": 1.9086296987325113e-09,
+              "mean_rel": 4.4988183844907326e-07,
+              "truth_kind": "linear_attention"
+            }
+          ],
+          "name": "cd-24-49-15-t58",
+          "seq_len": 76
+        }
+      ],
+      "summary": {
+        "max_final_abs": 3.814697265625e-06,
+        "max_kl_truth_to_candidate": 9.947484613803681e-09,
+        "max_layer_abs": 1.1920928955078125e-07,
+        "max_layer_mean_abs": 2.344386684782762e-09,
+        "min_top1_agreement": 1.0
+      }
+    }
+  },
+  "data_file": "/project/formal-cache/datasets/countdown-sft/v1/train/formatting.jsonl",
+  "device": "cpu",
+  "dtype_truth": "float32",
+  "layer_start": 20,
+  "long_seq_len": null,
+  "memory": [
+    {
+      "label": "start",
+      "maxrss_gib": 0.9736175537109375,
+      "rss_gib": 0.9736175537109375,
+      "time_unix": 1791983725.9244895
+    },
+    {
+      "label": "before_hf_fp32_layer_20_build",
+      "maxrss_gib": 1.3945999145507812,
+      "rss_gib": 1.3265533447265625,
+      "time_unix": 1791983729.6111598
+    },
+    {
+      "label": "after_hf_fp32_layer_20_build",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 33.66957092285156,
+      "time_unix": 1791983792.729158
+    },
+    {
+      "label": "after_hf_fp32_layer_20_forward",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 33.71446990966797,
+      "time_unix": 1791983794.5093718
+    },
+    {
+      "label": "after_hf_fp32_stream_final_logits",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 33.90287780761719,
+      "time_unix": 1791983794.8624144
+    },
+    {
+      "label": "after_hf_fp32_stream_cleanup",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 33.90287780761719,
+      "time_unix": 1791983795.1705852
+    },
+    {
+      "label": "before_tt_fp32_layer_20_build",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 1.5825233459472656,
+      "time_unix": 1791983797.8994052
+    },
+    {
+      "label": "after_tt_fp32_layer_20_build",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 33.903961181640625,
+      "time_unix": 1791983818.1627853
+    },
+    {
+      "label": "after_tt_fp32_layer_20_forward",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 33.90562438964844,
+      "time_unix": 1791983820.2609696
+    },
+    {
+      "label": "after_tt_fp32_final_logits",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 34.08084487915039,
+      "time_unix": 1791983820.8937917
+    },
+    {
+      "label": "after_tt_fp32_cleanup",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 34.08084487915039,
+      "time_unix": 1791983821.1409774
+    },
+    {
+      "label": "before_tt_bf16_layer_20_build",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 1.5850753784179688,
+      "time_unix": 1791983823.6089296
+    },
+    {
+      "label": "after_tt_bf16_layer_20_build",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.47405242919922,
+      "time_unix": 1791983837.7557018
+    },
+    {
+      "label": "after_tt_bf16_layer_20_forward",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.733325958251953,
+      "time_unix": 1791983841.9625828
+    },
+    {
+      "label": "after_tt_bf16_final_logits",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.91257095336914,
+      "time_unix": 1791983842.2643082
+    },
+    {
+      "label": "after_tt_bf16_cleanup",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.91257095336914,
+      "time_unix": 1791983842.5970094
+    },
+    {
+      "label": "before_hf_bf16_layer_20_build",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 1.5949440002441406,
+      "time_unix": 1791983843.8790836
+    },
+    {
+      "label": "after_hf_bf16_layer_20_build",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.540184020996094,
+      "time_unix": 1791983901.3026035
+    },
+    {
+      "label": "after_hf_bf16_layer_20_forward",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.781497955322266,
+      "time_unix": 1791983904.9820292
+    },
+    {
+      "label": "after_hf_bf16_final_logits",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.96025848388672,
+      "time_unix": 1791983905.265974
+    },
+    {
+      "label": "after_hf_bf16_cleanup",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 17.96025848388672,
+      "time_unix": 1791983905.583347
+    },
+    {
+      "label": "end",
+      "maxrss_gib": 112.34434509277344,
+      "rss_gib": 1.5957565307617188,
+      "time_unix": 1791983906.867908
+    }
+  ],
+  "mode": "stream_one_layer_at_a_time",
+  "num_layers": 1,
+  "rendered_prompts": [
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 14, 16, 49\nTarget: 47\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 47<|assistant|><think>",
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 24, 8, 22\nTarget: 54\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 54<|assistant|><think>",
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 17, 95, 3\nTarget: 75\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 75<|assistant|><think>",
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 24, 49, 15\nTarget: 58\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 58<|assistant|><think>"
+  ],
+  "truth_implementation": "hf_fp32"
+}

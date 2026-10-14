@@ -11,3 +11,4 @@
 - T07b rung 3 mini hybrid learnability: complete -- overfit gate PASS (indexer + dense ablation, lr=0 flat, curves differ); seq 4k/8k finite; full-size plan 86.9 GiB/GPU @8 (analytical); found: LoRA path does not freeze base (-> T08 req 0)
 - T07c real-weight parity: complete -- fp32 slices 0-3 (1e-5) and 20-27 (top-1 1.0, KL 2e-4) PASS, selection masks exact; key coverage 0 unknown; GLM chat/mask data path; OPEN: bf16 20-27 top-1 0.43 (-> T08 req 0b)
 - T08 rung 4 attempt 1: BLOCKED -- LoRA freeze fixed+tested; full HF load materializes full model per rank (host RAM incident 12:56Z); bf16 slice drift persists on countdown prompts. -> T08b (sharded loader + trainable-only ckpt + run), T08c (bf16 diag)
+- T08c bf16 diag: complete -- TT-bf16 and HF-bf16 equally far from fp32 truth (top-1 ~0.03-0.09 on the truncated mid slice); not a TT bug; fp32 parity remains the identity gate
