@@ -25,3 +25,14 @@ https://github.com/deepseek-ai/DeepEP, the B200 MXFP8+DeepEP TorchTitan blog, `.
    KDA (check fla first), MoE permute for the chosen dispatcher.
 4. Run artifacts: a helper that writes the installed native build keys into attempt.json for training runners.
 Report `sdd/task-n01-report.md` with keys, HDFS URIs, test results.
+
+## Addendum at launch (after R01b)
+- L1 env `glm53_ep` is green (R01b): launch with `TORCHTITAN_ROOTFS_ENV=glm53_ep scripts/rootfs/enter_rootfs.sh
+  --rootfs-store /data05/philip.yang/torchtitan-rootfs-store -- bash -lc 'unset CC CXX CUDAHOSTCXX; ...'`.
+  Native L0 provides ccache, CUDA 13.2 libs + linker names, CUTLASS v4.8.0 (`/opt/cutlass`).
+- torchao was removed from L1 (0.18.0 wheel fails Triton 3.9 autotune-key validation at import). Add torchao as the
+  SECOND L2 package: build from a source commit compatible with torch 2.16 nightly + Triton 3.9 (check torchao main /
+  nightly), verify `torchao.prototype.moe_training` MXFP8 grouped GEMM imports and a tiny numeric check on 1 GPU, and that
+  TorchTitan's optional quantization imports no longer break. Order: DeepEP v2 first, torchao second.
+- Same pattern may apply later to fla (direct `fla.ops.kda` import fails under Triton 3.9; GLM uses attn_gym's KDA) --
+  note it, do not fix it now.

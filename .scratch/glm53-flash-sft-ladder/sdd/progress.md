@@ -67,3 +67,4 @@
   FSDP baseline, EP8, 20-step curves, full-depth EP8 timing probe (<= 15 steps). T16 (Dist-MoE) waits for T13b.
 - ~19:35Z K01 DONE (kernel correct, slower than masked dense; attention is not the bottleneck). K02 launched: profile-first indexer hot-spot fix (target A4/A5 >= 0.5x B0).
 - ~19:45Z R01 DONE partial (committed): native L0 store entry + glm53_ep declared env; glm53_ep import fails (fla/torchao Triton autotune-key) though glm53_train works -> R01b launched to reproduce glm53_train exactly. N01 waits on R01b.
+- ~20:00Z R01b DONE (committed): glm53_ep green. N01 launched (L2: DeepEP v2, then torchao from source for MXFP8).
