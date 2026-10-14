@@ -57,3 +57,8 @@
 - ~19:55Z user approved three-layer native setup (`sdd/native-layering.md`). R01 rev3 (L0 audit + L1 declared env
   `glm53_ep`) relaunched; N01 rev2 (L2 build_native.sh + DeepEP first + kernel package convention + wheels on HDFS) blocked
   by R01; T18 (GLM on DeepEPTokenDispatcher benchmark) blocked by N01. T08e still awaits user OK to stop T08d.
+- ~20:00Z user: "kill the slow run first; get EP to a good state before a big MoE run". Stopped T08d (worker, runner,
+  8 GLM ranks; loop path reached step 8-10, loss 0.289 at step 8 -- kept as reference curve) and T09a2 (worker + its
+  full-depth 4-GPU stream leg, loop path). priority_hold/priority_pause exited and released. Rung 4 (T08e brief ready) and
+  4-GPU re-measurement are ON HOLD until EP is in a good state: T13 (all-to-all EP parity/timing), R01 -> N01 (DeepEP
+  wheel) -> T18 (DeepEP vs all-to-all), T16 (Dist-MoE).
