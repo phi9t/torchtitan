@@ -392,12 +392,16 @@ def evaluate_vllm(args: argparse.Namespace) -> None:
         "attention_backend": args.attention_backend,
         "enable_flashinfer_autotune": args.enable_flashinfer_autotune,
     }
+    if args.moe_backend is not None:
+        llm_kwargs["moe_backend"] = args.moe_backend
     if args.lora_adapter is not None:
         llm_kwargs["max_lora_rank"] = args.max_lora_rank
     if args.max_model_len is not None:
         llm_kwargs["max_model_len"] = args.max_model_len
     if args.gpu_memory_utilization is not None:
         llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
+    if args.tensor_parallel_size is not None:
+        llm_kwargs["tensor_parallel_size"] = args.tensor_parallel_size
     llm = LLM(**llm_kwargs)
     outputs = llm.generate(
         prompts,
@@ -954,8 +958,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vllm_parser.add_argument("--gpu-memory-utilization", type=float)
     vllm_parser.add_argument(
+        "--tensor-parallel-size",
+        type=int,
+        default=(
+            int(os.environ["COUNTDOWN_VLLM_TENSOR_PARALLEL_SIZE"])
+            if os.environ.get("COUNTDOWN_VLLM_TENSOR_PARALLEL_SIZE")
+            else None
+        ),
+    )
+    vllm_parser.add_argument(
         "--attention-backend",
         default=os.environ.get("COUNTDOWN_VLLM_ATTENTION_BACKEND", "TRITON_ATTN"),
+    )
+    vllm_parser.add_argument(
+        "--moe-backend",
+        default=os.environ.get("COUNTDOWN_VLLM_MOE_BACKEND"),
     )
     vllm_parser.add_argument(
         "--enable-flashinfer-autotune",

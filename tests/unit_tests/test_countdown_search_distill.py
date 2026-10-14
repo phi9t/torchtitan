@@ -38,6 +38,7 @@ from torchtitan.experiments.countdown_search_distill.experiment_registry import 
 )
 from torchtitan.experiments.countdown_search_distill.lora_export import (
     convert_torchtitan_lora_tensors,
+    infer_peft_target_modules,
     peft_adapter_config,
     Qwen3LoRAExportConfig,
     resolve_qwen3_lora_export_config,
@@ -1561,21 +1562,26 @@ def test_glm53_ladder_qwen3_configs_read_env(monkeypatch, tmp_path):
     from torchtitan.experiments.glm53_flash_sft_ladder.config_registry import (
         qwen3_0_6b_countdown_full,
         qwen3_0_6b_countdown_lora,
+        qwen3_30b_a3b_countdown_lora,
         qwen3_8b_countdown_lora,
     )
+    from torchtitan.models.base.module import Module
 
     data_file = tmp_path / "formatting.jsonl"
     dump_root = tmp_path / "runs"
     hf_root = tmp_path / "Qwen3-0.6B"
     hf_8b_root = tmp_path / "Qwen3-8B"
+    hf_30b_root = tmp_path / "Qwen3-30B-A3B"
     monkeypatch.setenv("GLM53_LADDER_DATA_FILE", str(data_file))
     monkeypatch.setenv("GLM53_LADDER_DUMP_ROOT", str(dump_root))
     monkeypatch.setenv("GLM53_LADDER_HF_ASSETS_PATH_0_6B", str(hf_root))
     monkeypatch.setenv("GLM53_LADDER_HF_ASSETS_PATH_8B", str(hf_8b_root))
+    monkeypatch.setenv("GLM53_LADDER_HF_ASSETS_PATH_30B_A3B", str(hf_30b_root))
     monkeypatch.setenv("GLM53_LADDER_SEED", "43")
     monkeypatch.setenv("GLM53_LADDER_DETERMINISTIC", "1")
     monkeypatch.setenv("GLM53_LADDER_STEPS", "7")
     monkeypatch.setenv("GLM53_LADDER_CHECKPOINT_INTERVAL", "3")
+    monkeypatch.setenv("GLM53_LADDER_EP_DEGREE", "4")
 
     lora_config = qwen3_0_6b_countdown_lora()
     full_config = qwen3_0_6b_countdown_full()
@@ -1595,6 +1601,36 @@ def test_glm53_ladder_qwen3_configs_read_env(monkeypatch, tmp_path):
     assert qwen3_8b_config.dump_folder == str(dump_root / "qwen3_8b_countdown_lora")
     assert qwen3_8b_config.hf_assets_path == str(hf_8b_root)
     assert qwen3_8b_config.optim.optimizer.optimizers[0].lr == 1e-4
+
+    qwen3_30b_config = qwen3_30b_a3b_countdown_lora()
+    assert qwen3_30b_config.dump_folder == str(
+        dump_root / "qwen3_30b_a3b_countdown_lora"
+    )
+    assert qwen3_30b_config.hf_assets_path == str(hf_30b_root)
+    assert qwen3_30b_config.parallelism.expert_parallel_degree == 4
+    assert qwen3_30b_config.parallelism.save_parallelism_folder == "parallelism"
+    assert qwen3_30b_config.training.disable_cuda_graphs
+    assert not qwen3_30b_config.training.enable_cpu_offload
+    assert all(
+        not hasattr(cfg, "rank")
+        for fqn, cfg, _, _ in qwen3_30b_config.model.traverse(
+            Module.Config, recurse=True
+        )
+        if ".moe.routed_experts." in fqn
+    )
+
+    monkeypatch.setenv("GLM53_LADDER_LORA_ARM", "B")
+    qwen3_30b_arm_b_config = qwen3_30b_a3b_countdown_lora()
+    lora_moe_fqns = {
+        fqn
+        for fqn, cfg, _, _ in qwen3_30b_arm_b_config.model.traverse(
+            Module.Config, recurse=True
+        )
+        if getattr(cfg, "rank", None) == 16 and ".moe.routed_experts." in fqn
+    }
+    assert "layers.0.moe.routed_experts.w13" in lora_moe_fqns
+    assert "layers.0.moe.routed_experts.w2" in lora_moe_fqns
+    assert not any(".moe.router." in fqn for fqn in lora_moe_fqns)
 
 
 def test_evaluate_vllm_passes_optional_gpu_memory_utilization(
@@ -1784,6 +1820,69 @@ def test_convert_torchtitan_lora_tensors_emits_peft_qwen3_keys():
         exported["base_model.model.model.layers.0.mlp.up_proj.lora_B.weight"],
         tensors["layers.0.feed_forward.w13.lora_b.weight"][1],
     )
+
+
+def test_convert_torchtitan_lora_tensors_emits_qwen3_moe_expert_keys():
+    import torch
+
+    tensors = {
+        "layers.0.moe.routed_experts.w13.lora_a.weight": torch.arange(
+            2 * 3 * 5, dtype=torch.float32
+        ).reshape(2, 3, 5),
+        "layers.0.moe.routed_experts.w13.lora_b.weight": torch.arange(
+            2 * 2 * 7 * 3, dtype=torch.float32
+        ).reshape(2, 2, 7, 3),
+        "layers.0.moe.routed_experts.w2.lora_a.weight": torch.arange(
+            2 * 3 * 7, dtype=torch.float32
+        ).reshape(2, 3, 7),
+        "layers.0.moe.routed_experts.w2.lora_b.weight": torch.arange(
+            2 * 5 * 3, dtype=torch.float32
+        ).reshape(2, 5, 3),
+    }
+
+    exported = convert_torchtitan_lora_tensors(
+        tensors,
+        Qwen3LoRAExportConfig(rank=3, alpha=6),
+    )
+
+    assert exported[
+        "base_model.model.model.layers.0.mlp.experts.0.gate_proj.lora_A.weight"
+    ].shape == (3, 5)
+    assert torch.equal(
+        exported[
+            "base_model.model.model.layers.0.mlp.experts.0.gate_proj.lora_A.weight"
+        ],
+        exported["base_model.model.model.layers.0.mlp.experts.0.up_proj.lora_A.weight"],
+    )
+    assert torch.equal(
+        exported["base_model.model.model.layers.0.mlp.experts.1.up_proj.lora_B.weight"],
+        tensors["layers.0.moe.routed_experts.w13.lora_b.weight"][1, 1],
+    )
+    assert torch.equal(
+        exported[
+            "base_model.model.model.layers.0.mlp.experts.1.down_proj.lora_A.weight"
+        ],
+        tensors["layers.0.moe.routed_experts.w2.lora_a.weight"][1],
+    )
+    assert len(exported) == 12
+
+
+def test_peft_target_modules_follow_exported_lora_tensors():
+    import torch
+
+    exported = {
+        "base_model.model.model.layers.0.self_attn.q_proj.lora_A.weight": torch.ones(
+            2, 5
+        ),
+        "base_model.model.model.layers.0.self_attn.v_proj.lora_B.weight": torch.ones(
+            5, 2
+        ),
+        "base_model.model.model.layers.0.self_attn.o_proj.lora_A.weight": torch.ones(
+            2, 5
+        ),
+    }
+
+    assert infer_peft_target_modules(exported) == ["q_proj", "v_proj", "o_proj"]
 
 
 def test_peft_adapter_config_has_vllm_required_fields():

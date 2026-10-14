@@ -13,6 +13,8 @@ from pathlib import Path
 
 from torchtitan_recipes.models.qwen3 import _qwen3_countdown_lora_sft
 
+from torchtitan.config.transform import apply_transforms, LoRATransform
+
 from torchtitan.trainer import Trainer
 
 
@@ -47,7 +49,10 @@ def _data_file() -> str:
 
 
 def _hf_assets_path(model_name: str) -> str:
-    env_name = f"GLM53_LADDER_HF_ASSETS_PATH_{model_name.upper().replace('.', '_')}"
+    env_name = (
+        f"GLM53_LADDER_HF_ASSETS_PATH_"
+        f"{model_name.upper().replace('.', '_').replace('-', '_')}"
+    )
     return _env_path(env_name, _DEFAULT_MODEL_ROOT / f"Qwen3-{model_name}")
 
 
@@ -61,6 +66,10 @@ def _finish_config(config: Trainer.Config) -> Trainer.Config:
     config.debug.deterministic = _env_bool("GLM53_LADDER_DETERMINISTIC", False)
     config.metrics.enable_tensorboard = True
     return config
+
+
+def _lora_arm() -> str:
+    return os.environ.get("GLM53_LADDER_LORA_ARM", "A").upper()
 
 
 def _countdown_config(
@@ -84,6 +93,51 @@ def _countdown_config(
         initial_load_in_hf=True,
     )
     config.checkpointer.keep_latest_k = _env_int("GLM53_LADDER_KEEP_LATEST_K", 10)
+    return _finish_config(config)
+
+
+def _qwen3_30b_a3b_countdown_config() -> Trainer.Config:
+    arm = _lora_arm()
+    if arm == "A":
+        target_modules = ["wqkv", "wo"]
+    elif arm == "B":
+        target_modules = [
+            "wqkv",
+            "wo",
+            "routed_experts.w13",
+            "routed_experts.w2",
+        ]
+    else:
+        raise ValueError(f"GLM53_LADDER_LORA_ARM must be A or B, got {arm!r}.")
+
+    config = _qwen3_countdown_lora_sft(
+        data_file=_data_file(),
+        dump_folder=_dump_folder("qwen3_30b_a3b_countdown_lora"),
+        steps=_env_int("GLM53_LADDER_STEPS", 94),
+        checkpoint_interval=_env_int("GLM53_LADDER_CHECKPOINT_INTERVAL", 31),
+        lora_rank=16,
+        lora_alpha=64.0,
+        lr=1e-4,
+        use_lora=False,
+        model_flavor="30B-A3B",
+        hf_assets_path=_hf_assets_path("30B-A3B"),
+        initial_load_in_hf=True,
+    )
+    config.parallelism.expert_parallel_degree = _env_int("GLM53_LADDER_EP_DEGREE", 4)
+    config.parallelism.save_parallelism_folder = "parallelism"
+    config.training.disable_cuda_graphs = True
+    config.training.enable_cpu_offload = _env_bool("GLM53_LADDER_CPU_OFFLOAD", False)
+    config.checkpointer.keep_latest_k = _env_int("GLM53_LADDER_KEEP_LATEST_K", 10)
+    config = apply_transforms(
+        config,
+        [
+            LoRATransform(
+                rank=16,
+                alpha=64.0,
+                target_modules=target_modules,
+            )
+        ],
+    )
     return _finish_config(config)
 
 
@@ -112,6 +166,10 @@ def qwen3_8b_countdown_lora() -> Trainer.Config:
         use_lora=True,
         lr=1e-4,
     )
+
+
+def qwen3_30b_a3b_countdown_lora() -> Trainer.Config:
+    return _qwen3_30b_a3b_countdown_config()
 
 
 def qwen3_0_6b_countdown_full() -> Trainer.Config:

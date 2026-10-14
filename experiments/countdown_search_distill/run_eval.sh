@@ -48,6 +48,12 @@ VLLM_MEMORY_ARGS=()
 if [[ -n "${VLLM_GPU_MEMORY_UTILIZATION:-}" ]]; then
   VLLM_MEMORY_ARGS+=(--gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION}")
 fi
+if [[ -n "${VLLM_MOE_BACKEND:-}" ]]; then
+  VLLM_MEMORY_ARGS+=(--moe-backend "${VLLM_MOE_BACKEND}")
+fi
+if [[ -n "${VLLM_TENSOR_PARALLEL_SIZE:-}" ]]; then
+  VLLM_MEMORY_ARGS+=(--tensor-parallel-size "${VLLM_TENSOR_PARALLEL_SIZE}")
+fi
 
 python -m torchtitan.experiments.countdown_search_distill.cli evaluate-vllm \
   --problems "${DATA_DIR}/problems.jsonl" \
