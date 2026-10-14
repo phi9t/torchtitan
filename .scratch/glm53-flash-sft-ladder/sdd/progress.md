@@ -12,3 +12,9 @@
 - T07c real-weight parity: complete -- fp32 slices 0-3 (1e-5) and 20-27 (top-1 1.0, KL 2e-4) PASS, selection masks exact; key coverage 0 unknown; GLM chat/mask data path; OPEN: bf16 20-27 top-1 0.43 (-> T08 req 0b)
 - T08 rung 4 attempt 1: BLOCKED -- LoRA freeze fixed+tested; full HF load materializes full model per rank (host RAM incident 12:56Z); bf16 slice drift persists on countdown prompts. -> T08b (sharded loader + trainable-only ckpt + run), T08c (bf16 diag)
 - T08c bf16 diag: complete -- TT-bf16 and HF-bf16 equally far from fp32 truth (top-1 ~0.03-0.09 on the truncated mid slice); not a TT bug; fp32 parity remains the identity gate
+
+## 14:25Z
+- T08b PARTIAL -> committed db23be429: rank-local sharded HF load (21.7 s, rank RSS 3.75 GiB), trainable-only checkpoint, full 8xB200 one-step LoRA probe (loss 1.676, 131.6 GiB/GPU). claim: smoke.
+- T08d launched: full rung-4 run (seed 42 + resume via HDFS + seed 43), eval base vs 2 adapters, publish. Gated on all 8 GPUs >= 150 GiB free; foreign root proc observed on GPU 3 (~54 GB) at 14:17Z.
+- 14:35Z user asked for all three 4-GPU directions: T09a weight streaming (FSDP2 CPU offload + rank-local loader), T09b FP8 frozen base quantized at load, T09c bf16 overhead cuts. Launched concurrently in separate packages; full-depth launches serialized by flock, yield to T08d.
+- User: next step after T08d/T09 is an expert-parallelism deep dive; capture all work in docs. Launched T10 (campaign doc `docs/research/2026-10-14-glm-5.3-flash-sft-ladder.md`, TODO placeholders for in-flight tickets; refresh after T06/T08d/T09 land) and T11 (EP deep dive phase 1: analysis + design doc `docs/research/2026-10-14-glm-5.3-flash-expert-parallelism.md`, fake-backend only; phase 2 GPU work queued after T08d/T09).
