@@ -25,7 +25,12 @@ from torchtitan.distributed.parallelism_context import (
 )
 from torchtitan.distributed.utils import init_fake_mode
 from torchtitan.experiments.glm53_flash.checkpoint import TrainableModelWrapper
-from torchtitan.experiments.glm53_flash.model import GlmMoE, GlmTopKRouter
+from torchtitan.experiments.glm53_flash.flavors import with_lora
+from torchtitan.experiments.glm53_flash.model import (
+    Glm53FlashForCausalLM,
+    GlmMoE,
+    GlmTopKRouter,
+)
 
 from torchtitan.experiments.glm53_flash_ep.config_registry import (
     glm53_flash_ep_countdown_lora_truncated,
@@ -34,6 +39,10 @@ from torchtitan.experiments.glm53_flash_ep.config_registry import (
     glm53_flash_ep_mini,
 )
 from torchtitan.experiments.glm53_flash_ep.flavors import tiny_ep
+from torchtitan.experiments.glm53_flash_ep.grad_probe import (
+    compare_snapshots,
+    offline_grad_norm,
+)
 from torchtitan.experiments.glm53_flash_ep.model import Glm53FlashEPForCausalLM
 from torchtitan.experiments.glm53_flash_ep.moe import GlmEPMoE, GlmEPRouter
 from torchtitan.experiments.glm53_flash_ep.parity_report import (
@@ -71,6 +80,14 @@ def _copy_glm_moe_to_ep(ref: GlmMoE, ep: GlmEPMoE) -> None:
         ep.experts.w2.weight.copy_(ref.experts.down_proj)
 
 
+def _init_model_with_seed(model: nn.Module, seed: int) -> nn.Module:
+    model.to_empty(device="cpu")
+    torch.manual_seed(seed)
+    with torch.no_grad():
+        model.init_states()
+    return model
+
+
 def test_ep_config_registry_uses_requested_expert_parallel_degree(monkeypatch):
     monkeypatch.setenv("GLM53_FLASH_EP_DEGREE", "4")
 
@@ -83,6 +100,43 @@ def test_ep_config_registry_uses_requested_expert_parallel_degree(monkeypatch):
     assert mini_config.parallelism.expert_parallel_degree == 4
     assert debug_config.parallelism.tensor_parallel_degree == 1
     assert debug_config.parallelism.context_parallel_degree == 1
+
+
+def test_ep_init_preserves_plain_lora_rng_order_after_sparse_layers():
+    seed = 1234
+    plain_cfg = with_lora(tiny_ep(), rank=4, alpha=16.0)
+    ep_cfg = with_lora(tiny_ep(), rank=4, alpha=16.0)
+
+    with torch.device("meta"):
+        plain = Glm53FlashForCausalLM(
+            Glm53FlashForCausalLM.Config(glm_config=plain_cfg)
+        )
+        ep = Glm53FlashEPForCausalLM(Glm53FlashEPForCausalLM.Config(glm_config=ep_cfg))
+
+    _init_model_with_seed(plain, seed)
+    _init_model_with_seed(ep, seed)
+
+    plain_state = plain.state_dict()
+    ep_state = ep.state_dict()
+    lora_keys = sorted(key for key in plain_state if key.endswith(".lora_a"))
+    assert lora_keys
+    for key in lora_keys:
+        torch.testing.assert_close(ep_state[key], plain_state[key], rtol=0, atol=0)
+
+    torch.testing.assert_close(
+        ep.layers["1"].mlp.experts.w13.weight.view_as(
+            plain.layers["1"].mlp.experts.gate_up_proj
+        ),
+        plain.layers["1"].mlp.experts.gate_up_proj,
+        rtol=0,
+        atol=0,
+    )
+    torch.testing.assert_close(
+        ep.layers["1"].mlp.gate.weight,
+        plain.layers["1"].mlp.gate.weight,
+        rtol=0,
+        atol=0,
+    )
 
 
 def test_truncated_countdown_lora_config_matches_t13_contract(monkeypatch):
@@ -501,3 +555,26 @@ def test_parity_report_compares_tensor_maps():
     assert by_name["a.lora_a"]["max_abs_delta"] == 0.5
     assert by_name["b.lora_b"]["reason"] == "missing tensor"
     assert by_name["c.lora_b"]["reason"] == "missing tensor"
+
+
+def test_grad_probe_offline_norm_and_snapshot_comparison():
+    reference = {
+        "parameters": {
+            "a.lora_a": {"gradient": torch.tensor([3.0, 4.0])},
+            "b.lora_b": {"gradient": torch.tensor([0.0])},
+        }
+    }
+    candidate = {
+        "parameters": {
+            "a.lora_a": {"gradient": torch.tensor([3.0, 5.0])},
+            "b.lora_b": {"gradient": torch.tensor([0.0])},
+        }
+    }
+
+    assert offline_grad_norm(reference["parameters"]) == 5.0
+    rows = compare_snapshots(reference, candidate)
+    by_name = {row["name"]: row for row in rows}
+
+    assert by_name["a.lora_a"]["max_abs_gradient_delta"] == 1.0
+    assert by_name["a.lora_a"]["reference_gradient_l2_norm"] == 5.0
+    assert by_name["b.lora_b"]["max_abs_gradient_delta"] == 0.0

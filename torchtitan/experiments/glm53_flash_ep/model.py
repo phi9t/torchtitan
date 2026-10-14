@@ -22,10 +22,16 @@ from torchtitan.distributed.parallelism_context import ParallelismContext
 from torchtitan.distributed.spmd_types import annotate_replicated_parameters
 from torchtitan.experiments.glm53_flash.flavors import Glm53FlashConfig
 from torchtitan.experiments.glm53_flash.model import (
-    _initialize_glm53_flash_weights,
     apply_lora_trainable_policy,
     Glm53FlashDecoderLayer,
     Glm53FlashForCausalLM,
+    GlmExperts,
+    GlmGatedRMSNorm,
+    GlmHyperConnection,
+    GlmIndexPool,
+    GlmKDAAttention,
+    GlmRMSNorm,
+    GlmTopKRouter,
     LoRALinear,
 )
 
@@ -121,7 +127,6 @@ class Glm53FlashEPForCausalLM(Glm53FlashForCausalLM):
         del buffer_device
         if self.enable_weight_tying:
             self.lm_head.weight = self.tok_embeddings.weight
-        _initialize_glm53_flash_weights(self, self.glm_config)
         _initialize_glm53_flash_ep_weights(self, self.glm_config)
 
 
@@ -129,9 +134,43 @@ def _initialize_glm53_flash_ep_weights(
     model: nn.Module,
     config: Glm53FlashConfig,
 ) -> None:
+    """Initialize EP models in the same RNG order as the plain GLM model.
+
+    LoRA B starts at zero, so adapter weights do not affect the first forward
+    loss. The first LoRA B gradient still depends on LoRA A. Keep sparse-layer
+    expert/router draws before shared-expert LoRA draws, matching GlmMoE.
+    """
+
     with torch.no_grad():
         for module in model.modules():
-            if isinstance(module, GlmEPExperts):
+            if isinstance(module, LoRALinear):
+                nn.init.normal_(module.weight, mean=0.0, std=config.initializer_range)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+                if module.rank is not None:
+                    assert module.lora_a is not None and module.lora_b is not None
+                    nn.init.normal_(module.lora_a, mean=0.0, std=0.01)
+                    nn.init.zeros_(module.lora_b)
+            elif isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0.0, std=config.initializer_range)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=config.initializer_range)
+            elif isinstance(module, nn.Conv1d):
+                nn.init.normal_(module.weight, mean=0.0, std=config.initializer_range)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, (GlmRMSNorm, GlmGatedRMSNorm)):
+                nn.init.ones_(module.weight)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
+            elif isinstance(module, GlmHyperConnection):
+                nn.init.normal_(module.fn, mean=0.0, std=0.02)
+                nn.init.zeros_(module.base)
+                nn.init.ones_(module.scale)
+            elif isinstance(module, GlmEPExperts):
                 nn.init.normal_(
                     module.w13.weight,
                     mean=0.0,
@@ -142,6 +181,13 @@ def _initialize_glm53_flash_ep_weights(
                     mean=0.0,
                     std=config.initializer_range,
                 )
+            elif isinstance(module, GlmExperts):
+                nn.init.normal_(
+                    module.gate_up_proj, mean=0.0, std=config.initializer_range
+                )
+                nn.init.normal_(
+                    module.down_proj, mean=0.0, std=config.initializer_range
+                )
             elif isinstance(module, GlmEPRouter):
                 nn.init.normal_(
                     module.weight,
@@ -150,9 +196,16 @@ def _initialize_glm53_flash_ep_weights(
                 )
                 module.e_score_correction_bias.zero_()
                 module.reset_tokens_per_expert(device=module.weight.device)
-            elif isinstance(module, LoRALinear):
-                # The base GLM initializer already handled LoRA modules.
-                continue
+            elif isinstance(module, GlmTopKRouter):
+                nn.init.normal_(module.weight, mean=0.0, std=config.initializer_range)
+                module.e_score_correction_bias.zero_()
+            elif isinstance(module, GlmIndexPool):
+                nn.init.zeros_(module.index_kpool_compress_ape)
+                nn.init.ones_(module.index_kpool_compress_gate)
+            elif isinstance(module, GlmKDAAttention):
+                nn.init.zeros_(module.A_log)
+                dt = torch.empty_like(module.dt_bias).uniform_(1.0e-3, 1.0e-1)
+                module.dt_bias.copy_(dt + torch.log(-torch.expm1(-dt)))
 
 
 from .state_dict_adapter import Glm53FlashEPStateDictAdapter

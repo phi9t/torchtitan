@@ -354,9 +354,7 @@ def compare_grad_probe_dirs(plain_dir: Path, ep_dir: Path) -> dict[str, Any]:
             "ep_dir": str(ep_dir),
         }
 
-    from torchtitan.experiments.glm53_flash_4gpu_stream.grad_probe import (
-        compare_probe_dirs,
-    )
+    from torchtitan.experiments.glm53_flash_ep.grad_probe import compare_probe_dirs
 
     comparison = compare_probe_dirs(plain_dir, ep_dir)
     comparison["available"] = True
