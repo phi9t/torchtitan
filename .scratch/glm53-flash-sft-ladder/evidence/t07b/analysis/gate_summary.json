@@ -1,0 +1,77 @@
+{
+  "claim_label": "learnability_smoke",
+  "falcon_silent_collapse_rule": {
+    "dense_causal_final_loss": 0.00114,
+    "dense_causal_step50_loss": 0.01071,
+    "indexer_final_loss": 0.0083,
+    "indexer_step50_loss": 0.01419,
+    "status": "pass_non_identical_curves"
+  },
+  "fast_vs_reference_debug": {
+    "comparison": [
+      {
+        "abs_delta": 0.00025999999999992696,
+        "fast_loss": 6.27455,
+        "reference_loss": 6.27429,
+        "relative_delta_vs_reference": 4.143895165826364e-05,
+        "step": 1
+      },
+      {
+        "abs_delta": 0.007479999999999265,
+        "fast_loss": 4.67531,
+        "reference_loss": 4.66783,
+        "relative_delta_vs_reference": 0.001602457673051346,
+        "step": 5
+      },
+      {
+        "abs_delta": 0.018850000000000477,
+        "fast_loss": 4.95564,
+        "reference_loss": 4.97449,
+        "relative_delta_vs_reference": 0.0037893331778736062,
+        "step": 10
+      },
+      {
+        "abs_delta": 0.04176000000000002,
+        "fast_loss": 2.22864,
+        "reference_loss": 2.18688,
+        "relative_delta_vs_reference": 0.01909569798068482,
+        "step": 20
+      }
+    ],
+    "max_abs_delta": 0.04176000000000002,
+    "max_relative_delta_vs_reference": 0.01909569798068482,
+    "status": "pass_close_not_bitwise_identical"
+  },
+  "overfit_dense_causal": {
+    "drop_fraction": 0.9999065485681028,
+    "final_loss_lt_0_1": true,
+    "status": "pass"
+  },
+  "overfit_dense_causal_lr0": {
+    "final_minus_first_loss": 0.004889999999999617,
+    "status": "pass_flat"
+  },
+  "overfit_indexer": {
+    "drop_fraction": 0.9993194367231945,
+    "final_loss_lt_0_1": true,
+    "status": "pass"
+  },
+  "overfit_indexer_lr0": {
+    "final_minus_first_loss": 0.0,
+    "status": "pass_flat"
+  },
+  "seq_probes": {
+    "seq4096": {
+      "mean_tps_after_step1": 2130,
+      "peak_memory_gib": 21.08,
+      "status": "pass_finite_grad_memory_probe",
+      "throughput_label": "exclusive_foreign_free_shared_host"
+    },
+    "seq8192": {
+      "mean_tps_after_step1": 3894.5,
+      "peak_memory_gib": 22.61,
+      "status": "pass_finite_grad_memory_probe",
+      "throughput_label": "exclusive_foreign_free_shared_host"
+    }
+  }
+}

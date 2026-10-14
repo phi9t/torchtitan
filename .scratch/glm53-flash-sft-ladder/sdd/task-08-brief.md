@@ -11,10 +11,15 @@ Read first: `.scratch/glm53-flash-sft-ladder/sdd/env-facts.md` (MANDATORY, incl.
 - GLM BF16 checkpoint fully staged: `/data05/philip.yang/glm53-ladder-cache/model-weights/zai-org/GLM-5.3-Flash-BF16/.staged.json`
   exists (HDFS `hdfs://harunava/user/tiger/waystone/torchtitan/model-weights/zai-org/GLM-5.3-Flash-BF16/a5b45eb41df6402735dedc900be14a42e8d5e538`
   has `_COMPLETE`). Verify MD5 of 3 random shards against MANIFEST.jsonl.
-- `nvidia-smi`: decide mode. If all 8 GPUs have >170 GiB free -> mode A: FSDP8 BF16 frozen base on GPU (no offload).
+- `nvidia-smi`: decide mode. If all 8 GPUs have >150 GiB free (T07b analytical floor 86.9 GiB/GPU incl. largest all-gather, before activations) -> mode A: FSDP8 BF16 frozen base on GPU (no offload).
   Otherwise -> mode B: FSDP8 + `training.enable_cpu_offload` (host RAM 3.9 TB). Record the mode.
 
 ## Requirements
+0. BLOCKER FIX FIRST (found by T07b): the glm53_flash experiment LoRA path adds LoRA modules but does NOT freeze every
+   non-LoRA parameter. Fix it in the experiment seam so that ONLY LoRA A/B params have requires_grad=True (embeddings,
+   norms, router, indexer, experts, mHC params all frozen), the optimizer only receives trainable params, and FSDP does not
+   allocate grads for frozen params. Add a unit test asserting the trainable-param set == LoRA params for the debug flavor
+   and that the count for the full flavor equals 67,190,784 (T07b count) computed on meta device.
 1. Config `glm53_flash_countdown_lora` (exists from T07a/T07c): LoRA rank 16, alpha 64 (campaign knobs; targets as declared in
    T07a), lr 1e-4, FullAC, seq 512 first (task data is short), tokens/step 64x512 (same as all rungs), 94 steps, indexer frozen,
    MTP off, sparse attention fast path, HF BF16 initial load via the experiment adapter, `debug.seed` from env.

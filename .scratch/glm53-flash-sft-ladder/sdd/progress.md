@@ -8,6 +8,6 @@
 - T05 rung 1 Qwen3 8B: complete -- PASS; parity top-1 1.0; resume PASS; dev pass@1 base 0.028 -> 0.474/0.488 (replicated_eval)
 - T06 rung 2 Qwen3 30B-A3B MoE: in-progress (traecli)
 - T07a GLM-5.3-Flash model seam: complete (bf5b4e8c5) -- 11 oracle tests, debug+LoRA 2-GPU smoke; gaps: EP dispatch, TP/CP, real-weight parity (-> T07c)
-- T07b rung 3 mini hybrid learnability (overfit gate) on countdown: in-progress (traecli)
+- T07b rung 3 mini hybrid learnability: complete -- overfit gate PASS (indexer + dense ablation, lr=0 flat, curves differ); seq 4k/8k finite; full-size plan 86.9 GiB/GPU @8 (analytical); found: LoRA path does not freeze base (-> T08 req 0)
 - T07c real-weight truncated parity vs executable HF oracle + GLM tokenizer/data: in-progress (traecli, waits on T03 GLM)
 - T08 rung 4 GLM-5.3-Flash LoRA: blocked by T06, T07b, T03(GLM), exclusive GPUs
