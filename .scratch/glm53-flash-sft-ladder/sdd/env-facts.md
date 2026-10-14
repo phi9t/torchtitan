@@ -32,3 +32,8 @@
 - Verified: `deepseek_v4_debugmodel` 2-GPU trains 10 steps in glm53_train env (loss 4.24 -> 3.65).
 - pre-commit: run only the relevant hooks on changed files (flake8, ufmt, pydoclint, codespell); the pyrefly hook currently fails
   repo-wide (52 pre-existing errors) AND auto-edits unrelated core files -- if you run it, `git checkout` those files afterwards.
+
+## GPU UPDATE 2026-10-14 09:44Z
+- The other user's `pretrain_commq.py` job has ENDED; GPUs are free apart from campaign workers. Always check `nvidia-smi`
+  before launching (it may restart). Coordinate: T02 uses GPUs 0-3, T07b uses 4-5, T07c/T05 use 6-7 unless free otherwise.
+  Throughput taken while no foreign job is present is labelled `exclusive_foreign_free` (still shared between our workers).

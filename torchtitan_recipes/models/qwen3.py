@@ -56,6 +56,9 @@ def _qwen3_countdown_lora_sft(
     steps: int = 94,
     lora_rank: int = 32,
     lora_alpha: float = 64.0,
+    lr: float = 1e-4,
+    use_lora: bool = True,
+    checkpoint_interval: int | None = None,
     model_flavor: str = "1.7B",
     hf_assets_path: str = "./assets/hf/Qwen3-1.7B",
     initial_load_in_hf: bool = True,
@@ -73,7 +76,7 @@ def _qwen3_countdown_lora_sft(
         model=model_config,
         optim=Optim.Config(
             optimizer=OptimizersContainer.Config(
-                optimizers=[AdamW.Config(pattern=r".*", lr=1e-4)]
+                optimizers=[AdamW.Config(pattern=r".*", lr=lr)]
             ),
             lr_scheduler=LRSchedulersContainer.Config(
                 warmup_steps=max(1, steps // 20),
@@ -90,6 +93,7 @@ def _qwen3_countdown_lora_sft(
             dtype="bfloat16",
         ),
         dataloader=GrainDataLoader.Config(
+            max_num_documents=64,
             dataset=FirstFitPackingConfig(
                 dataset=SingleDatasetConfig(
                     source=HuggingFaceRandomAccessSource.Config(
@@ -105,13 +109,15 @@ def _qwen3_countdown_lora_sft(
             ),
         ),
         checkpointer=CheckpointManager.Config(
-            interval=max(1, steps // 3),
+            interval=checkpoint_interval or max(1, steps // 3),
             initial_load_in_hf=initial_load_in_hf,
             last_save_model_only=False,
             export_dtype="bfloat16",
         ),
         activation_checkpoint=SelectiveAC.Config(),
     )
+    if not use_lora:
+        return config
     return apply_transforms(
         config,
         [

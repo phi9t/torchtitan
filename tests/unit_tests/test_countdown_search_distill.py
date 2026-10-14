@@ -1525,9 +1525,7 @@ def test_qwen3_countdown_smoke_config_uses_chat_lora():
 
     from torchtitan.components.data import FirstFitPackingConfig, GrainDataLoader
     from torchtitan.components.data.text_datasets import ChatProcessor
-    from torchtitan_recipes.models.qwen3 import (
-        qwen3_debugmodel_countdown_lora_smoke,
-    )
+    from torchtitan_recipes.models.qwen3 import qwen3_debugmodel_countdown_lora_smoke
 
     config = qwen3_debugmodel_countdown_lora_smoke()
 
@@ -1545,9 +1543,7 @@ def test_qwen3_countdown_smoke_config_uses_chat_lora():
 def test_qwen3_countdown_formatting_config_uses_formatting_dataset():
     pytest.importorskip("spmd_types")
 
-    from torchtitan_recipes.models.qwen3 import (
-        qwen3_1_7b_countdown_lora_formatting,
-    )
+    from torchtitan_recipes.models.qwen3 import qwen3_1_7b_countdown_lora_formatting
 
     config = qwen3_1_7b_countdown_lora_formatting()
 
@@ -1556,6 +1552,98 @@ def test_qwen3_countdown_formatting_config_uses_formatting_dataset():
         "data/train/formatting.jsonl"
     )
     assert config.dump_folder.endswith("results/train/formatting")
+
+
+def test_glm53_ladder_qwen3_configs_read_env(monkeypatch, tmp_path):
+    pytest.importorskip("spmd_types")
+
+    from torchtitan.experiments.glm53_flash_sft_ladder.config_registry import (
+        qwen3_0_6b_countdown_full,
+        qwen3_0_6b_countdown_lora,
+    )
+
+    data_file = tmp_path / "formatting.jsonl"
+    dump_root = tmp_path / "runs"
+    hf_root = tmp_path / "Qwen3-0.6B"
+    monkeypatch.setenv("GLM53_LADDER_DATA_FILE", str(data_file))
+    monkeypatch.setenv("GLM53_LADDER_DUMP_ROOT", str(dump_root))
+    monkeypatch.setenv("GLM53_LADDER_HF_ASSETS_PATH_0_6B", str(hf_root))
+    monkeypatch.setenv("GLM53_LADDER_SEED", "43")
+    monkeypatch.setenv("GLM53_LADDER_DETERMINISTIC", "1")
+    monkeypatch.setenv("GLM53_LADDER_STEPS", "7")
+    monkeypatch.setenv("GLM53_LADDER_CHECKPOINT_INTERVAL", "3")
+
+    lora_config = qwen3_0_6b_countdown_lora()
+    full_config = qwen3_0_6b_countdown_full()
+
+    source = lora_config.dataloader.dataset.dataset.source
+    assert source.load_dataset_kwargs["data_files"] == str(data_file)
+    assert lora_config.dump_folder == str(dump_root / "qwen3_0_6b_countdown_lora")
+    assert lora_config.hf_assets_path == str(hf_root)
+    assert lora_config.debug.seed == 43
+    assert lora_config.debug.deterministic
+    assert lora_config.training.steps == 7
+    assert lora_config.checkpointer.interval == 3
+    assert full_config.optim.optimizer.optimizers[0].lr == 1e-5
+    assert full_config.dump_folder == str(dump_root / "qwen3_0_6b_countdown_full")
+
+
+def test_evaluate_vllm_passes_optional_gpu_memory_utilization(
+    monkeypatch,
+    tmp_path,
+):
+    from torchtitan.experiments.countdown_search_distill.cli import main
+
+    captured = {}
+
+    class _FakeSamplingParams:
+        def __init__(self, **kwargs):
+            captured["sampling"] = kwargs
+
+    class _FakeLLM:
+        def __init__(self, **kwargs):
+            captured["llm"] = kwargs
+
+        def generate(self, prompts, sampling_params, *, lora_request=None):
+            del prompts, sampling_params, lora_request
+            return [
+                types.SimpleNamespace(
+                    outputs=[types.SimpleNamespace(text="2 + 3 = 5\nFINAL: 5")]
+                )
+            ]
+
+    fake_vllm = types.ModuleType("vllm")
+    fake_vllm.LLM = _FakeLLM
+    fake_vllm.SamplingParams = _FakeSamplingParams
+    monkeypatch.setitem(sys.modules, "vllm", fake_vllm)
+
+    problems = tmp_path / "problems.jsonl"
+    output = tmp_path / "evaluations.jsonl"
+    summary = tmp_path / "summary.json"
+    problems.write_text(json.dumps({"numbers": [2, 3], "target": 5}) + "\n")
+    old_argv = sys.argv
+    sys.argv = [
+        "countdown",
+        "evaluate-vllm",
+        "--problems",
+        str(problems),
+        "--model",
+        "/tmp/model",
+        "--output",
+        str(output),
+        "--summary",
+        str(summary),
+        "--gpu-memory-utilization",
+        "0.35",
+    ]
+    try:
+        main()
+    finally:
+        sys.argv = old_argv
+
+    assert captured["llm"]["gpu_memory_utilization"] == 0.35
+    assert captured["llm"]["model"] == "/tmp/model"
+    assert json.loads(summary.read_text())["pass_at_k"]["1"] == 1.0
 
 
 def test_replication_sweep_runner_supports_isolated_sweep_groups():

@@ -24,3 +24,7 @@
 - Storage perf: HF ~70-116 MB/s, HDFS put/get ~20-25 MB/s per stream. Decision D6: large models ingest with
   `--keep-local` (one HF download feeds HDFS + local cache); HDFS remains system of record, local is the training copy.
 - Env: training needs torch nightly (rootfs env `glm53_train`); vLLM eval stays on system torch 2.13.
+- D7 (2026-10-14 09:15Z): rung 4 under shared GPUs runs FSDP8 + training.enable_cpu_offload (host RAM 3.9 TB) + LoRA +
+  FullAC: only one gathered layer (~14 GB bf16 for an MoE layer) per GPU at a time, fits next to the other user's 84 GiB.
+  Throughput from this setup is not performance evidence. Exclusive-GPU FSDP-only (73 GiB/GPU sharded) or FP8 frozen base
+  are the performance follow-ups. EP token dispatch is not implemented in the seam (gap from T07a).

@@ -44,6 +44,11 @@ if [[ -n "${LORA_ADAPTER:-}" ]]; then
   )
 fi
 
+VLLM_MEMORY_ARGS=()
+if [[ -n "${VLLM_GPU_MEMORY_UTILIZATION:-}" ]]; then
+  VLLM_MEMORY_ARGS+=(--gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION}")
+fi
+
 python -m torchtitan.experiments.countdown_search_distill.cli evaluate-vllm \
   --problems "${DATA_DIR}/problems.jsonl" \
   --model "${MODEL}" \
@@ -56,4 +61,5 @@ python -m torchtitan.experiments.countdown_search_distill.cli evaluate-vllm \
   --top-p "${TOP_P:-0.95}" \
   --max-new-tokens "${MAX_NEW_TOKENS:-192}" \
   --prompt-variant "${PROMPT_VARIANT}" \
+  "${VLLM_MEMORY_ARGS[@]}" \
   "${LORA_ARGS[@]}"
