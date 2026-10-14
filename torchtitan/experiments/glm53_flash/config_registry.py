@@ -410,6 +410,9 @@ def glm53_flash_countdown_lora() -> "Trainer.Config":
         "GLM53_FLASH_FULL_TOKENS_PER_STEP", 64 * 512
     )
     config.training.steps = _positive_env_int("GLM53_FLASH_FULL_STEPS", 94)
+    config.debug.seed = _nonnegative_env_int("GLM53_FLASH_SEED", 42)
+    config.debug.deterministic = _env_bool("GLM53_FLASH_DETERMINISTIC", False)
+    config.metrics.enable_tensorboard = True
     if _env_bool("GLM53_FLASH_FULL_CPU_OFFLOAD", False):
         raise ValueError(
             "GLM53_FLASH_FULL_CPU_OFFLOAD is disabled for the full GLM rung. "

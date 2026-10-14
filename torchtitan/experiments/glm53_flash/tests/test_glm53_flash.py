@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
 import torch.nn.functional as F
+from safetensors.torch import save_file
 
 from torchtitan.components.data import (
     FirstFitPackingConfig,
@@ -47,6 +49,13 @@ from torchtitan.experiments.glm53_flash.model import (
     GlmKDAAttention,
     GlmSparseIndexer,
     GlmSparseMLAAttention,
+)
+from torchtitan.experiments.glm53_flash.sharded_hf_load import (
+    _copy_grouped_gate_up,
+    load_rank_local_hf_safetensors,
+    SafetensorsSliceReader,
+    ShardedLoadStats,
+    TensorSliceTarget,
 )
 from torchtitan.experiments.glm53_flash.state_dict_adapter import (
     Glm53FlashStateDictAdapter,
@@ -585,6 +594,9 @@ def test_full_countdown_lora_config_uses_campaign_defaults(monkeypatch, tmp_path
     assert config.training.max_context_length == 512
     assert config.training.num_tokens_per_train_step == 64 * 512
     assert config.training.steps == 94
+    assert config.debug.seed == 42
+    assert not config.debug.deterministic
+    assert config.metrics.enable_tensorboard
     assert isinstance(config.checkpointer, Glm53FlashLoRACheckpointManager.Config)
     assert config.checkpointer.load_frozen_base_from_hf
     assert config.checkpointer.trainable_model_only
@@ -595,6 +607,12 @@ def test_full_countdown_lora_config_uses_campaign_defaults(monkeypatch, tmp_path
     assert config.checkpointer.interval == 31
     assert config.optim.optimizer.optimizers[0].pattern == r".*\.lora_[ab]$"
     assert config.optim.optimizer.optimizers[0].lr == 1.0e-4
+
+    monkeypatch.setenv("GLM53_FLASH_SEED", "43")
+    monkeypatch.setenv("GLM53_FLASH_DETERMINISTIC", "1")
+    seeded_config = glm53_flash_countdown_lora()
+    assert seeded_config.debug.seed == 43
+    assert seeded_config.debug.deterministic
 
     monkeypatch.setenv("GLM53_FLASH_FULL_CHECKPOINT_LOAD_ONLY", "1")
     load_only_config = glm53_flash_countdown_lora()
@@ -618,6 +636,146 @@ def test_trainable_model_wrapper_exposes_only_lora_tensors():
     assert set(state_dict) == {
         name for name, param in model.named_parameters() if param.requires_grad
     }
+
+
+class _TinyAdapter:
+    glm_config = SimpleNamespace(moe_intermediate_size=2)
+
+    @staticmethod
+    def _map_native_key(native_key: str) -> str | None:
+        return {
+            "tok_embeddings.weight": "model.language_model.embed_tokens.weight",
+            "layers.0.self_attn.q_proj.weight": (
+                "model.language_model.layers.0.self_attn.q_proj.weight"
+            ),
+        }.get(native_key)
+
+
+class _TinySelfAttention(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.q_proj = torch.nn.Linear(3, 2, bias=False)
+
+
+class _TinyExperts(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.gate_up_proj = torch.nn.Parameter(torch.empty(2, 4, 3))
+        self.down_proj = torch.nn.Parameter(torch.empty(2, 3, 2))
+
+
+class _TinyMLP(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.experts = _TinyExperts()
+
+
+class _TinyLayer(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.self_attn = _TinySelfAttention()
+        self.mlp = _TinyMLP()
+
+
+class _TinyHfLoadModel(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.tok_embeddings = torch.nn.Embedding(4, 3)
+        self.layers = torch.nn.ModuleDict({"0": _TinyLayer()})
+        self.adapter = torch.nn.Module()
+        self.adapter.lora_a = torch.nn.Parameter(torch.full((1, 3), -7.0))
+
+
+def _write_tiny_hf_checkpoint(root: Path) -> None:
+    tensors = {
+        "model.language_model.embed_tokens.weight": torch.arange(
+            12, dtype=torch.float32
+        ).view(4, 3),
+        "model.language_model.layers.0.self_attn.q_proj.weight": torch.arange(
+            6, dtype=torch.float32
+        ).view(2, 3)
+        + 100,
+    }
+    for expert in range(2):
+        tensors[
+            f"model.language_model.layers.0.mlp.experts.{expert}.gate_proj.weight"
+        ] = torch.full((2, 3), float(expert + 1))
+        tensors[
+            f"model.language_model.layers.0.mlp.experts.{expert}.up_proj.weight"
+        ] = torch.full((2, 3), float(expert + 11))
+        tensors[
+            f"model.language_model.layers.0.mlp.experts.{expert}.down_proj.weight"
+        ] = torch.full((3, 2), float(expert + 21))
+    shard = root / "model-00001-of-00001.safetensors"
+    save_file(tensors, shard)
+    (root / "model.safetensors.index.json").write_text(
+        json.dumps(
+            {
+                "metadata": {},
+                "weight_map": {key: shard.name for key in tensors},
+            }
+        )
+    )
+
+
+def test_rank_local_hf_loader_loads_tiny_model_and_keeps_lora_init(tmp_path):
+    _write_tiny_hf_checkpoint(tmp_path)
+    model = _TinyHfLoadModel()
+    model.to_empty(device="cpu")
+    lora_before = model.adapter.lora_a.detach().clone()
+
+    stats = load_rank_local_hf_safetensors(
+        model,
+        _TinyAdapter(),
+        tmp_path,
+        verify=True,
+    )
+
+    torch.testing.assert_close(
+        model.tok_embeddings.weight,
+        torch.arange(12, dtype=torch.float32).view(4, 3),
+    )
+    torch.testing.assert_close(
+        model.layers["0"].self_attn.q_proj.weight,
+        torch.arange(6, dtype=torch.float32).view(2, 3) + 100,
+    )
+    torch.testing.assert_close(
+        model.layers["0"].mlp.experts.gate_up_proj[1],
+        torch.cat([torch.full((2, 3), 2.0), torch.full((2, 3), 12.0)]),
+    )
+    torch.testing.assert_close(
+        model.layers["0"].mlp.experts.down_proj[0],
+        torch.full((3, 2), 21.0),
+    )
+    torch.testing.assert_close(model.adapter.lora_a, lora_before)
+    assert stats.tensors_skipped_lora == 1
+    assert stats.tensors_loaded == 4
+    assert stats.verified_keys == [
+        "tok_embeddings.weight",
+        "layers.0.self_attn.q_proj.weight",
+        "layers.0.mlp.experts.gate_up_proj",
+    ]
+
+
+def test_grouped_expert_loader_reads_only_target_local_slice(tmp_path):
+    _write_tiny_hf_checkpoint(tmp_path)
+    target = torch.empty(1, 2, 2)
+    slice_target = TensorSliceTarget(
+        tensor=target,
+        global_shape=(2, 4, 3),
+        global_offset=(1, 2, 1),
+    )
+
+    with SafetensorsSliceReader(tmp_path) as reader:
+        _copy_grouped_gate_up(
+            _TinyAdapter(),
+            reader,
+            "layers.0.mlp.experts.gate_up_proj",
+            slice_target,
+            ShardedLoadStats(verified_keys=[]),
+        )
+
+    torch.testing.assert_close(target, torch.full((1, 2, 2), 12.0))
 
 
 def test_state_dict_adapter_round_trip_uses_real_bf16_index_schema():
