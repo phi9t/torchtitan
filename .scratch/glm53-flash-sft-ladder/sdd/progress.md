@@ -49,3 +49,8 @@
   `glm53_ep` with DeepEP v2 @01dc3aa (SM100), hybrid-ep if supported, torchao MXFP8, NVSHMEM; no live-rootfs rebuild;
   insula repo untouched (its AGENTS.md excludes ML framework builds). T18 (GLM on DeepEPTokenDispatcher) re-queued after R01.
 - ~19:25Z user: DeepEP must be in the rootfs image via torchtitan's Insula builder (build_rootfs.sh). R01 rev2 relaunched: build_rootfs.sh --variant ep (torch nightly + DeepEP v2 SM100 + torchao MXFP8 + fla + NVSHMEM), publish to store /data05/philip.yang/torchtitan-rootfs-store, select per-run; legacy rootfs/glm53_train untouched.
+- ~19:45Z T17 DONE (23e39799e): grouped experts 39.5x on a full-width MoE layer; parity fp32 <=7e-8. T08d loop-path seed42
+  at step 8 / 44 min (loss 0.289). Plan: stop T08d, relaunch rung 4 as T08e on grouped path (brief written). Stopping our
+  own T08d processes was blocked by the auto-mode permission check -> awaiting user OK.
+- User: GLM work will need many custom kernels -> N01 brief (native toolchain in the EP rootfs variant, kernel package
+  convention with torch.library ops, numerics/bench harness), blocked by R01.
