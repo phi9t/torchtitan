@@ -68,3 +68,4 @@
 - ~19:35Z K01 DONE (kernel correct, slower than masked dense; attention is not the bottleneck). K02 launched: profile-first indexer hot-spot fix (target A4/A5 >= 0.5x B0).
 - ~19:45Z R01 DONE partial (committed): native L0 store entry + glm53_ep declared env; glm53_ep import fails (fla/torchao Triton autotune-key) though glm53_train works -> R01b launched to reproduce glm53_train exactly. N01 waits on R01b.
 - ~20:00Z R01b DONE (committed): glm53_ep green. N01 launched (L2: DeepEP v2, then torchao from source for MXFP8).
+- ~20:15Z N01 partial (f20d2d9db): L2 layer + kernel convention done; DeepEP/torchao blocked by mixed CUDA pip toolchain (nvvm/crt 13.4 vs nvcc/ptxas 13.2). N01b launched to pin one CUDA release in native L0, rebuild store entry, then build DeepEP + torchao.
