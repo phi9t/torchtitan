@@ -70,3 +70,4 @@
 - ~20:00Z R01b DONE (committed): glm53_ep green. N01 launched (L2: DeepEP v2, then torchao from source for MXFP8).
 - ~20:15Z N01 partial (f20d2d9db): L2 layer + kernel convention done; DeepEP/torchao blocked by mixed CUDA pip toolchain (nvvm/crt 13.4 vs nvcc/ptxas 13.2). N01b launched to pin one CUDA release in native L0, rebuild store entry, then build DeepEP + torchao.
 - ~20:30Z K02 DONE: aux-loss teacher ~75% of sparse-arm time; host syncs fixed (1.1-1.3x). K03 launched: aux query subsampling knob + compiled indexer region + batched teacher (+ DeepGEMM indexer-logits check).
+- ~20:50Z T13b DONE (committed): grad-norm gap = EP init RNG order bug (fixed); EP8 == FSDP within bf16 over 20 steps; 5.2x faster, 1/4 memory. T13c launched: full-depth EP8 15-step probe + EP trainable-only checkpoint/HDFS resume + adapter export -> go/no-go for rung 4.
