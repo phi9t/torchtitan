@@ -137,6 +137,7 @@ stage_inputs() {
   "${script_dir}/stage.sh" "${DATASET_URI}" "${HOST_DATA_ROOT}" | tee "${RUNG_LOG_DIR}/stage_dataset.log"
   "${script_dir}/stage.sh" "${MODEL_URI}" "${HOST_MODEL_ROOT}" | tee "${RUNG_LOG_DIR}/stage_${MODEL_KEY}.log"
   mirror_inputs
+  verify_hdfs_inputs
 }
 
 mirror_one() {
@@ -154,10 +155,22 @@ mirror_inputs() {
   mirror_one "${HOST_MODEL_ROOT}" "${HOST_MODEL_ROOTFS_MIRROR}"
 }
 
+verify_hdfs_inputs() {
+  "${script_dir}/lib/hdfs_strict.sh" --quick \
+    "${HOST_DATA_ROOTFS_MIRROR}" \
+    "${HOST_MODEL_ROOTFS_MIRROR}"
+}
+
 ensure_inputs_visible() {
-  if [[ ! -f "${HOST_DATA_ROOTFS_MIRROR}/train/formatting.jsonl" || ! -d "${HOST_MODEL_ROOTFS_MIRROR}" ]]; then
+  if [[ ! -f "${HOST_DATA_ROOTFS_MIRROR}/train/formatting.jsonl" \
+    || ! -f "${HOST_DATA_ROOTFS_MIRROR}/MANIFEST.jsonl" \
+    || ! -f "${HOST_DATA_ROOTFS_MIRROR}/.staged.json" \
+    || ! -d "${HOST_MODEL_ROOTFS_MIRROR}" \
+    || ! -f "${HOST_MODEL_ROOTFS_MIRROR}/MANIFEST.jsonl" \
+    || ! -f "${HOST_MODEL_ROOTFS_MIRROR}/.staged.json" ]]; then
     mirror_inputs
   fi
+  verify_hdfs_inputs
 }
 
 rootfs_train() {
@@ -304,6 +317,7 @@ resume_gate() {
     "hdfs://harunava/user/tiger/waystone/torchtitan/checkpoints/glm53-ladder/${RUN_ID}/${ATTEMPT_ID}/resume_stop62_${RUN_VARIANT}_step62" \
     "${RESULT_ROOT}/train/${resume_stop_name}/checkpoint/step-62" \
     | tee "${RUNG_LOG_DIR}/stage_resume_step62.log"
+  "${script_dir}/lib/hdfs_strict.sh" --quick "${RESULT_ROOT}/train/${resume_stop_name}/checkpoint/step-62"
   if [[ -d "${RESULT_ROOT}/train/${resume_stop_name}/run_evidence" ]]; then
     rm -rf "${RESULT_ROOT}/train/${resume_stop_name}/run_evidence_stop_after_62"
     mv "${RESULT_ROOT}/train/${resume_stop_name}/run_evidence" \
@@ -509,7 +523,7 @@ case "${cmd}" in
     prune_checkpoints
     ;;
   stage) stage_inputs ;;
-  mirror) mirror_inputs ;;
+  mirror) mirror_inputs; verify_hdfs_inputs ;;
   dry-run) dry_run_configs ;;
   parity) run_parity ;;
   train) train_gate_runs ;;

@@ -35,6 +35,8 @@ manifest_tmp="$(mktemp)"
 "${WAYSTONE_BIN}" --error-format json \
   --command-timeout-secs "${WAYSTONE_METADATA_TIMEOUT_SECS}" \
   cat "$(ws_join_uri "${hdfs_uri}" "MANIFEST.jsonl")" > "${manifest_tmp}"
+manifest_md5="$(ws_md5_file "${manifest_tmp}")"
+file_count="$(grep -c . "${manifest_tmp}")"
 
 while IFS= read -r line; do
   [[ -n "${line}" ]] || continue
@@ -57,6 +59,13 @@ rm -f "${manifest_tmp}"
 "${WAYSTONE_BIN}" --error-format json \
   --command-timeout-secs "${WAYSTONE_METADATA_TIMEOUT_SECS}" \
   cat "$(ws_join_uri "${hdfs_uri}" "_COMPLETE")" > "${local_dir}/_COMPLETE"
+jq -n \
+  --arg source_uri "${hdfs_uri}" \
+  --arg manifest_md5 "${manifest_md5}" \
+  --arg staged_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson file_count "${file_count}" \
+  '{source_uri:$source_uri, manifest_md5:$manifest_md5, file_count:$file_count, staged_at:$staged_at}' \
+  > "${local_dir}/.staged.json"
 
 printf 'LOCAL_DIR=%s\n' "${local_dir}"
 

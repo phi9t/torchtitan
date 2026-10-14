@@ -145,6 +145,7 @@ if (( failed != 0 )); then
 fi
 
 staged_json="${local_dir%/}/.staged.json"
+cp "$manifest_local" "${local_dir%/}/MANIFEST.jsonl"
 jq -n \
   --arg source_uri "$hdfs_dir" \
   --arg manifest_md5 "$manifest_md5" \
