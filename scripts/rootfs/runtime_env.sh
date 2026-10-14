@@ -6,10 +6,18 @@
 
 ROOTFS_RUNTIME_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOTFS_RUNTIME_REPO_ROOT="$(cd -- "${ROOTFS_RUNTIME_SCRIPT_DIR}/../.." && pwd)"
+ROOTFS_RUNTIME_PROJECT="/workspace/torchtitan"
 ROOTFS_RUNTIME_ENV_NAME="${TORCHTITAN_ROOTFS_ENV:-modded_nanogpt_b200}"
 ROOTFS_RUNTIME_STORE_ID="${TORCHTITAN_ROOTFS_STORE_ID:-legacy-rootfs}"
-ROOTFS_RUNTIME_PROJECT="/workspace/torchtitan"
-ROOTFS_RUNTIME_CONFIG="${ROOTFS_RUNTIME_PROJECT}/experiments/modded_nanogpt_b200/runtime"
+
+rootfs_runtime_config_for_env() {
+  case "$1" in
+    glm53_ep) printf '%s\n' "${ROOTFS_RUNTIME_PROJECT}/experiments/glm53_flash_sft_ladder/runtime" ;;
+    *) printf '%s\n' "${ROOTFS_RUNTIME_PROJECT}/experiments/modded_nanogpt_b200/runtime" ;;
+  esac
+}
+
+ROOTFS_RUNTIME_CONFIG="${TORCHTITAN_ROOTFS_RUNTIME_CONFIG:-$(rootfs_runtime_config_for_env "${ROOTFS_RUNTIME_ENV_NAME}")}"
 ROOTFS_RUNTIME_VENV="/project/venvs/b200-runtime"
 ROOTFS_RUNTIME_PATH="${ROOTFS_RUNTIME_VENV}/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin"
 ROOTFS_RUNTIME_STATE_ROOT="${TORCHTITAN_ROOTFS_HOST_STATE:-${ROOTFS_RUNTIME_REPO_ROOT}/.cache/torchtitan-rootfs/${ROOTFS_RUNTIME_ENV_NAME}}"
@@ -88,19 +96,31 @@ rootfs_runtime_path_for() {
 }
 
 rootfs_runtime_env_json() {
-  python3 - "$ROOTFS_RUNTIME_STATE_ROOT" <<'PY'
+  python3 - \
+    "$ROOTFS_RUNTIME_STATE_ROOT" \
+    "$ROOTFS_RUNTIME_PATH" \
+    "$ROOTFS_RUNTIME_ENV_NAME" \
+    "$ROOTFS_RUNTIME_STORE_ID" \
+    "$ROOTFS_RUNTIME_CONFIG" \
+    "$ROOTFS_RUNTIME_VENV" \
+    "$ROOTFS_RUNTIME_PROJECT" <<'PY'
 import json
 import sys
 
 host_state = sys.argv[1]
-workspace = "/workspace/torchtitan"
+runtime_path = sys.argv[2]
+env_name = sys.argv[3]
+store_id = sys.argv[4]
+runtime_config = sys.argv[5]
+venv = sys.argv[6]
+workspace = sys.argv[7]
 env = {
-    "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
+    "PATH": runtime_path,
     "CUDA_HOME": "/opt/cuda-synth",
     "CUDA_PATH": "/opt/cuda-synth",
     "TORCHTITAN_IN_ROOTFS": "1",
-    "TORCHTITAN_ROOTFS_ENV": "modded_nanogpt_b200",
-    "TORCHTITAN_ROOTFS_STORE_ID": "legacy-rootfs",
+    "TORCHTITAN_ROOTFS_ENV": env_name,
+    "TORCHTITAN_ROOTFS_STORE_ID": store_id,
     "TORCHTITAN_ROOTFS_HOST_STATE": host_state,
     "TORCHTITAN_ROOTFS_PROJECT": workspace,
     "TORCHTITAN_ROOTFS_LOG_DIR": "/project/logs",
@@ -110,8 +130,8 @@ env = {
     "PIP_CACHE_DIR": "/project/pip-cache",
     "MISE_DATA_DIR": "/project/mise/data",
     "MISE_CACHE_DIR": "/project/mise/cache",
-    "MISE_CONFIG_DIR": f"{workspace}/experiments/modded_nanogpt_b200/runtime",
-    "PYTHON": "/project/venvs/b200-runtime/bin/python",
+    "MISE_CONFIG_DIR": runtime_config,
+    "PYTHON": f"{venv}/bin/python",
     "TMPDIR": "/project/tmp",
     "TEMP": "/project/tmp",
     "TMP": "/project/tmp",

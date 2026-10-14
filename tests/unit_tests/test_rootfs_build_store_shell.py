@@ -82,6 +82,42 @@ def test_build_rootfs_can_publish_and_select_managed_store(tmp_path: Path):
     assert emitted["rootfs"]["store_id"] == store_id
 
 
+def test_build_rootfs_native_variant_records_pinned_manifest(tmp_path: Path):
+    store = tmp_path / "managed-store"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(BUILD_ROOTFS),
+            "--variant",
+            "native",
+            "--store",
+            str(store),
+            "--test-staged-rootfs",
+        ],
+        cwd=REPO_ROOT,
+        env={"PATH": "/usr/bin:/bin"},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    store_id = json.loads((store / "selected.json").read_text())["store_id"]
+    manifest = json.loads(
+        (store / "content" / store_id / "build_manifest.json").read_text()
+    )
+    assert manifest["variant"] == "native"
+    assert manifest["image_tag"] == "torchtitan-rootfs:native"
+    assert manifest["native_packages"]["apt"]["ccache"] == "4.9.1-1"
+    assert "nvidia-cuda-runtime==13.2.86" in manifest["native_packages"]["pip"]
+    assert manifest["native_packages"]["cutlass"] == {
+        "version": "v4.8.0",
+        "url": "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.8.0.tar.gz",
+        "sha256": "b7bb2ba0473a5a5d699c62e5feb42caa11cb109ec58ba82ca458af9cd139f39b",
+    }
+
+
 def test_build_rootfs_rejects_store_destination_under_existing_file(tmp_path: Path):
     store = tmp_path / "not-a-store"
     store.write_text("not a directory\n")

@@ -39,14 +39,19 @@ CANONICAL_PATH = ":".join(
 )
 
 
-def _canonical_environment(host_state: Path) -> dict[str, str]:
+def _canonical_environment(
+    host_state: Path,
+    *,
+    env_name: str = "modded_nanogpt_b200",
+    runtime_config: str = "/workspace/torchtitan/experiments/modded_nanogpt_b200/runtime",
+) -> dict[str, str]:
     return {
         "PATH": CANONICAL_PATH,
         "CUDA_HOME": "/opt/cuda-synth",
         "CUDA_PATH": "/opt/cuda-synth",
         "LD_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu:/opt/cuda-synth/lib64",
         "TORCHTITAN_IN_ROOTFS": "1",
-        "TORCHTITAN_ROOTFS_ENV": "modded_nanogpt_b200",
+        "TORCHTITAN_ROOTFS_ENV": env_name,
         "TORCHTITAN_ROOTFS_STORE_ID": "legacy-rootfs",
         "TORCHTITAN_ROOTFS_HOST_STATE": str(host_state),
         "TORCHTITAN_ROOTFS_PROJECT": "/workspace/torchtitan",
@@ -57,7 +62,7 @@ def _canonical_environment(host_state: Path) -> dict[str, str]:
         "PIP_CACHE_DIR": "/project/pip-cache",
         "MISE_DATA_DIR": "/project/mise/data",
         "MISE_CACHE_DIR": "/project/mise/cache",
-        "MISE_CONFIG_DIR": "/workspace/torchtitan/experiments/modded_nanogpt_b200/runtime",
+        "MISE_CONFIG_DIR": runtime_config,
         "PYTHON": "/project/venvs/b200-runtime/bin/python",
         "TMPDIR": "/project/tmp",
         "TEMP": "/project/tmp",
@@ -815,6 +820,45 @@ def test_enter_rootfs_plan_exports_canonical_runtime_environment(tmp_path: Path)
     for key, value in expected.items():
         assert environment.get(key) == value
     assert "/project/venvs/b200-runtime/bin" in environment["PATH"].split(":")
+
+
+def test_enter_rootfs_plan_exports_glm53_ep_runtime_environment(tmp_path: Path):
+    rootfs = _minimal_rootfs(tmp_path)
+    output = tmp_path / "bwrap_plan.json"
+    host_state = REPO_ROOT / ".cache" / "pytest-rootfs-state-glm53-ep"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(ENTER_ROOTFS),
+            "--rootfs",
+            str(rootfs),
+            "--",
+            "/bin/true",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "TORCHTITAN_ROOTFS_ENV": "glm53_ep",
+            "TORCHTITAN_ROOTFS_EMIT_PLAN_ONLY": "1",
+            "TORCHTITAN_ROOTFS_PLAN_OUTPUT": str(output),
+            "TORCHTITAN_ROOTFS_HOST_STATE": str(host_state),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    environment = json.loads(output.read_text())["environment"]
+    expected = _canonical_environment(
+        host_state,
+        env_name="glm53_ep",
+        runtime_config="/workspace/torchtitan/experiments/glm53_flash_sft_ladder/runtime",
+    )
+    for key, value in expected.items():
+        assert environment.get(key) == value
+    assert validate_bwrap_plan(json.loads(output.read_text()))["ok"] is True
 
 
 def test_enter_rootfs_emit_plan_stdout_when_no_output_path(tmp_path: Path):

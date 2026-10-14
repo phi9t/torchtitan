@@ -10,13 +10,17 @@ ROOTFS_DIR="$REPO_ROOT/scripts/rootfs"
 # shellcheck source=scripts/rootfs/rootfs_target.sh
 source "$ROOTFS_DIR/rootfs_target.sh"
 
-TAG="torchtitan-rootfs:local"
+DEFAULT_TAG="torchtitan-rootfs:local"
+TAG="${DEFAULT_TAG}"
+TAG_EXPLICIT=0
 DEST="$ROOTFS_DIR/rootfs"
 STORE_ROOT=""
 REBUILD=0
 BASE_IMAGE="ghcr.io/pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
 MISE_VERSION="2025.8.16"
 TEST_STAGED_ROOTFS=0
+VARIANT="default"
+NATIVE_LOCK="$ROOTFS_DIR/native_variant.lock"
 
 usage() {
   cat <<'EOF'
@@ -32,6 +36,9 @@ Options:
                   (default: scripts/rootfs/rootfs).
   --store DIR     Publish the exported rootfs under DIR/content/<store_id> and
                   atomically select it with DIR/selected.json.
+  --variant NAME  Rootfs recipe variant: default or native. The native variant
+                  adds pinned ccache, CUDA linker libs, and CUTLASS headers for
+                  building C++/CUDA extensions. Defaults to default.
   -h, --help      Show this help and exit.
 EOF
 }
@@ -44,10 +51,12 @@ while [[ $# -gt 0 ]]; do
       ;;
     --tag)
       TAG="${2:?--tag requires a value}"
+      TAG_EXPLICIT=1
       shift 2
       ;;
     --tag=*)
       TAG="${1#*=}"
+      TAG_EXPLICIT=1
       shift
       ;;
     --dest)
@@ -70,6 +79,14 @@ while [[ $# -gt 0 ]]; do
       TEST_STAGED_ROOTFS=1
       shift
       ;;
+    --variant)
+      VARIANT="${2:?--variant requires a value}"
+      shift 2
+      ;;
+    --variant=*)
+      VARIANT="${1#*=}"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -88,12 +105,36 @@ die() {
   exit 1
 }
 
+case "${VARIANT}" in
+  default|native) ;;
+  *) die "unknown rootfs variant: ${VARIANT}" ;;
+esac
+
+if [[ "${VARIANT}" == "native" ]]; then
+  [[ -f "${NATIVE_LOCK}" ]] || die "native rootfs lock is missing: ${NATIVE_LOCK}"
+  # shellcheck source=scripts/rootfs/native_variant.lock
+  source "${NATIVE_LOCK}"
+  if [[ "${TAG_EXPLICIT}" -eq 0 ]]; then
+    TAG="torchtitan-rootfs:native"
+  fi
+fi
+
 json_escape() {
   python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
 }
 
 sha256_file() {
   sha256sum "$1" | awk '{print $1}'
+}
+
+sha256_rootfs_tree() {
+  tar --sort=name \
+    --mtime='UTC 1970-01-01' \
+    --owner=0 \
+    --group=0 \
+    --numeric-owner \
+    -C "$1" \
+    -cf - . | sha256sum | awk '{print $1}'
 }
 
 write_build_manifest() {
@@ -108,6 +149,47 @@ write_build_manifest() {
   image_json="$(json_escape "${image_id}")"
   digest_json="$(json_escape "${exported_digest}")"
   mise_json="$(json_escape "${MISE_VERSION}")"
+  if [[ "${VARIANT}" == "native" ]]; then
+    local variant_json native_lock_json native_lock_sha_json cuda_pip_json ccache_json cutlass_version_json cutlass_url_json cutlass_sha_json
+    variant_json="$(json_escape "${VARIANT}")"
+    native_lock_json="$(json_escape "${NATIVE_LOCK}")"
+    native_lock_sha_json="$(json_escape "$(sha256_file "${NATIVE_LOCK}")")"
+    cuda_pip_json="$(json_escape "${ROOTFS_NATIVE_CUDA_PIP_PACKAGES}")"
+    ccache_json="$(json_escape "${ROOTFS_NATIVE_CCACHE_APT_VERSION}")"
+    cutlass_version_json="$(json_escape "${ROOTFS_NATIVE_CUTLASS_VERSION}")"
+    cutlass_url_json="$(json_escape "${ROOTFS_NATIVE_CUTLASS_URL}")"
+    cutlass_sha_json="$(json_escape "${ROOTFS_NATIVE_CUTLASS_SHA256}")"
+    cat > "$(rootfs_manifest_path "${rootfs}")" <<EOF
+{
+  "schema_version": 1,
+  "kind": "rootfs_build_manifest",
+  "store_id": ${store_id_json},
+  "base_image": ${base_image_json},
+  "image_tag": ${tag_json},
+  "image_id": ${image_json},
+  "exported_rootfs_digest": ${digest_json},
+  "mise_version": "${MISE_VERSION}",
+  "mutable_rootfs_allowed": false,
+  "variant": ${variant_json},
+  "native_lock": {
+    "path": ${native_lock_json},
+    "sha256": ${native_lock_sha_json}
+  },
+  "native_packages": {
+    "apt": {
+      "ccache": ${ccache_json}
+    },
+    "pip": ${cuda_pip_json},
+    "cutlass": {
+      "version": ${cutlass_version_json},
+      "url": ${cutlass_url_json},
+      "sha256": ${cutlass_sha_json}
+    }
+  }
+}
+EOF
+    return
+  fi
   cat > "$(rootfs_manifest_path "${rootfs}")" <<EOF
 {
   "schema_version": 1,
@@ -121,6 +203,127 @@ write_build_manifest() {
   "mutable_rootfs_allowed": false
 }
 EOF
+}
+
+build_default_image() {
+  docker build -t "$TAG" \
+    --build-arg BASE_IMAGE="$BASE_IMAGE" \
+    --build-arg MISE_VERSION="$MISE_VERSION" \
+    -f - "$ROOTFS_DIR" <<'DOCKERFILE'
+ARG BASE_IMAGE
+ARG MISE_VERSION
+FROM ${BASE_IMAGE}
+SHELL ["/bin/bash", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        bash build-essential g++ clang libclang-dev llvm-dev \
+        git curl ca-certificates rsync pkg-config \
+        libaio-dev libibverbs-dev librdmacm-dev libnuma-dev \
+        libssl-dev libffi-dev libgl1 libglib2.0-0 \
+        ninja-build cmake && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+RUN curl -fsSL -o /tmp/mise.tar.gz \
+        "https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/mise-v${MISE_VERSION}-linux-x64.tar.gz" && \
+    tar -C /usr/local/bin -xzf /tmp/mise.tar.gz mise && \
+    rm -f /tmp/mise.tar.gz && \
+    /usr/local/bin/mise --version
+
+RUN pip install --break-system-packages --no-cache-dir \
+        nvidia-cuda-nvcc nvidia-cuda-cccl
+RUN set -euo pipefail; \
+    site="$(python -c 'import site;print(site.getsitepackages()[0])')"; \
+    cu="$site/nvidia/cu13"; \
+    test -x "$cu/bin/nvcc" || { echo "nvcc missing at $cu/bin/nvcc" >&2; exit 1; }; \
+    test -f "$cu/include/cuda_runtime.h" || { echo "cuda headers missing" >&2; exit 1; }; \
+    ln -sfn lib "$cu/lib64"; \
+    ln -sfn "$cu" /opt/cuda-synth; \
+    /opt/cuda-synth/bin/nvcc --version
+
+ENV CUDA_HOME=/opt/cuda-synth CUDA_PATH=/opt/cuda-synth
+ENV PATH=/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin
+DOCKERFILE
+}
+
+build_native_image() {
+  docker build -t "$TAG" \
+    --build-arg BASE_IMAGE="$BASE_IMAGE" \
+    --build-arg MISE_VERSION="$MISE_VERSION" \
+    --build-arg ROOTFS_NATIVE_CCACHE_APT_VERSION="$ROOTFS_NATIVE_CCACHE_APT_VERSION" \
+    --build-arg ROOTFS_NATIVE_CUDA_PIP_PACKAGES="$ROOTFS_NATIVE_CUDA_PIP_PACKAGES" \
+    --build-arg ROOTFS_NATIVE_CUTLASS_URL="$ROOTFS_NATIVE_CUTLASS_URL" \
+    --build-arg ROOTFS_NATIVE_CUTLASS_SHA256="$ROOTFS_NATIVE_CUTLASS_SHA256" \
+    -f - "$ROOTFS_DIR" <<'DOCKERFILE'
+ARG BASE_IMAGE
+ARG MISE_VERSION
+ARG ROOTFS_NATIVE_CCACHE_APT_VERSION
+ARG ROOTFS_NATIVE_CUDA_PIP_PACKAGES
+ARG ROOTFS_NATIVE_CUTLASS_URL
+ARG ROOTFS_NATIVE_CUTLASS_SHA256
+FROM ${BASE_IMAGE}
+ARG MISE_VERSION
+ARG ROOTFS_NATIVE_CCACHE_APT_VERSION
+ARG ROOTFS_NATIVE_CUDA_PIP_PACKAGES
+ARG ROOTFS_NATIVE_CUTLASS_URL
+ARG ROOTFS_NATIVE_CUTLASS_SHA256
+SHELL ["/bin/bash", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        bash build-essential g++ clang libclang-dev llvm-dev \
+        git curl ca-certificates rsync pkg-config \
+        libaio-dev libibverbs-dev librdmacm-dev libnuma-dev \
+        libssl-dev libffi-dev libgl1 libglib2.0-0 \
+        ninja-build cmake \
+        ccache=${ROOTFS_NATIVE_CCACHE_APT_VERSION} && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+RUN curl -fsSL -o /tmp/mise.tar.gz \
+        "https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/mise-v${MISE_VERSION}-linux-x64.tar.gz" && \
+    mkdir -p /tmp/mise-extract && \
+    tar -C /tmp/mise-extract -xzf /tmp/mise.tar.gz mise && \
+    install -m 0755 /tmp/mise-extract/mise/bin/mise /usr/local/bin/mise && \
+    rm -rf /tmp/mise.tar.gz /tmp/mise-extract && \
+    /usr/local/bin/mise --version
+
+RUN pip install --break-system-packages --no-cache-dir \
+        ${ROOTFS_NATIVE_CUDA_PIP_PACKAGES}
+RUN set -euo pipefail; \
+    site="$(python -c 'import site;print(site.getsitepackages()[0])')"; \
+    cu="$site/nvidia/cu13"; \
+    test -x "$cu/bin/nvcc" || { echo "nvcc missing at $cu/bin/nvcc" >&2; exit 1; }; \
+    test -f "$cu/include/cuda_runtime.h" || { echo "cuda headers missing" >&2; exit 1; }; \
+    test -f "$cu/include/cublas_v2.h" || { echo "cuBLAS headers missing" >&2; exit 1; }; \
+    test -f "$cu/include/nvrtc.h" || { echo "NVRTC headers missing" >&2; exit 1; }; \
+    ln -sfn lib "$cu/lib64"; \
+    ln -sfn "$cu" /opt/cuda-synth; \
+    for soname in libcublas.so libcublasLt.so libcudart.so libnvrtc.so; do \
+      target="$(find "$cu/lib" -maxdepth 1 -type f -name "${soname}.*" | sort -V | tail -n 1)"; \
+      test -n "$target" || { echo "${soname} versioned library missing" >&2; exit 1; }; \
+      ln -sfn "$(basename "$target")" "$cu/lib/${soname}"; \
+    done; \
+    /opt/cuda-synth/bin/nvcc --version
+
+RUN curl -fsSL -o /tmp/cutlass.tar.gz "${ROOTFS_NATIVE_CUTLASS_URL}" && \
+    printf '%s  /tmp/cutlass.tar.gz\n' "${ROOTFS_NATIVE_CUTLASS_SHA256}" | sha256sum -c - && \
+    mkdir -p /opt/cutlass && \
+    tar -C /opt/cutlass --strip-components=1 -xzf /tmp/cutlass.tar.gz && \
+    rm -f /tmp/cutlass.tar.gz && \
+    test -f /opt/cutlass/include/cutlass/cutlass.h && \
+    site="$(python -c 'import site;print(site.getsitepackages()[0])')" && \
+    ln -sfn /opt/cutlass/include/cutlass "$site/nvidia/cu13/include/cutlass" && \
+    test -f "$site/nvidia/cu13/include/cutlass/cutlass.h"
+
+ENV CUDA_HOME=/opt/cuda-synth CUDA_PATH=/opt/cuda-synth
+ENV PATH=/opt/cuda-synth/bin:/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin
+DOCKERFILE
 }
 
 create_test_staged_rootfs() {
@@ -191,48 +394,12 @@ if [[ "${TEST_STAGED_ROOTFS}" -eq 1 ]]; then
 elif image_exists && [[ "$REBUILD" -eq 0 ]]; then
   log "image $TAG already exists (use --rebuild to force)"
 else
-  log "building $TAG from $BASE_IMAGE"
-  docker build -t "$TAG" \
-    --build-arg BASE_IMAGE="$BASE_IMAGE" \
-    --build-arg MISE_VERSION="$MISE_VERSION" \
-    -f - "$ROOTFS_DIR" <<'DOCKERFILE'
-ARG BASE_IMAGE
-ARG MISE_VERSION
-FROM ${BASE_IMAGE}
-SHELL ["/bin/bash", "-c"]
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-        bash build-essential g++ clang libclang-dev llvm-dev \
-        git curl ca-certificates rsync pkg-config \
-        libaio-dev libibverbs-dev librdmacm-dev libnuma-dev \
-        libssl-dev libffi-dev libgl1 libglib2.0-0 \
-        ninja-build cmake && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-
-RUN curl -fsSL -o /tmp/mise.tar.gz \
-        "https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/mise-v${MISE_VERSION}-linux-x64.tar.gz" && \
-    tar -C /usr/local/bin -xzf /tmp/mise.tar.gz mise && \
-    rm -f /tmp/mise.tar.gz && \
-    /usr/local/bin/mise --version
-
-RUN pip install --break-system-packages --no-cache-dir \
-        nvidia-cuda-nvcc nvidia-cuda-cccl
-RUN set -euo pipefail; \
-    site="$(python -c 'import site;print(site.getsitepackages()[0])')"; \
-    cu="$site/nvidia/cu13"; \
-    test -x "$cu/bin/nvcc" || { echo "nvcc missing at $cu/bin/nvcc" >&2; exit 1; }; \
-    test -f "$cu/include/cuda_runtime.h" || { echo "cuda headers missing" >&2; exit 1; }; \
-    ln -sfn lib "$cu/lib64"; \
-    ln -sfn "$cu" /opt/cuda-synth; \
-    /opt/cuda-synth/bin/nvcc --version
-
-ENV CUDA_HOME=/opt/cuda-synth CUDA_PATH=/opt/cuda-synth
-ENV PATH=/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin
-DOCKERFILE
+  log "building $TAG ($VARIANT variant) from $BASE_IMAGE"
+  if [[ "${VARIANT}" == "native" ]]; then
+    build_native_image
+  else
+    build_default_image
+  fi
 fi
 
 if [[ -n "${STORE_ROOT}" ]]; then
@@ -256,9 +423,10 @@ fi
 # Mark the staged tree as builder-owned before it can replace the destination,
 # so a later rebuild can prove the target is a managed rootfs.
 rootfs_write_ownership_marker "$STAGE"
-STORE_ID="rootfs-$(sha256_file "$STAGE/bin/bash")"
+ROOTFS_TREE_DIGEST="$(sha256_rootfs_tree "$STAGE")"
+STORE_ID="rootfs-${ROOTFS_TREE_DIGEST}"
 IMAGE_ID="${TAG}"
-EXPORTED_DIGEST="sha256:$(sha256_file "$STAGE/bin/bash")"
+EXPORTED_DIGEST="sha256:${ROOTFS_TREE_DIGEST}"
 write_build_manifest "$STAGE" "$STORE_ID" "$IMAGE_ID" "$EXPORTED_DIGEST"
 if [[ -n "${STORE_ROOT}" ]]; then
   TARGET="$(publish_store_entry "$STAGE" "$STORE_ROOT" "$STORE_ID")"

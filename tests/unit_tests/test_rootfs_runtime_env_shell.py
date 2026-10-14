@@ -61,6 +61,27 @@ def test_runtime_env_exports_canonical_json(tmp_path: Path):
     ]
 
 
+def test_runtime_env_exports_glm53_ep_config_json(tmp_path: Path):
+    host_state = REPO_ROOT / ".cache" / "pytest-rootfs-state-glm53-ep"
+    result = _run(
+        "rootfs_runtime_init && rootfs_runtime_env_json",
+        env={
+            "TORCHTITAN_ROOTFS_ENV": "glm53_ep",
+            "TORCHTITAN_ROOTFS_HOST_STATE": str(host_state),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    environment = json.loads(result.stdout)
+    assert environment["TORCHTITAN_ROOTFS_ENV"] == "glm53_ep"
+    assert environment["TORCHTITAN_ROOTFS_HOST_STATE"] == str(host_state)
+    assert (
+        environment["MISE_CONFIG_DIR"]
+        == "/workspace/torchtitan/experiments/glm53_flash_sft_ladder/runtime"
+    )
+    assert environment["PYTHON"] == "/project/venvs/b200-runtime/bin/python"
+
+
 def test_runtime_env_rejects_host_state_outside_repo(tmp_path: Path):
     result = _run(
         "rootfs_runtime_init",

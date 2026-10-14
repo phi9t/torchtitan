@@ -33,6 +33,25 @@
 - pre-commit: run only the relevant hooks on changed files (flake8, ufmt, pydoclint, codespell); the pyrefly hook currently fails
   repo-wide (52 pre-existing errors) AND auto-edits unrelated core files -- if you run it, `git checkout` those files afterwards.
 
+## GLM53_EP RUNTIME (R01, verified 2026-10-14)
+- `glm53_ep` is the declared GLM Flash native-extension/post-DeepEP L1 env. It is separate from live `glm53_train` and lives under
+  the env-specific rootfs state `.cache/torchtitan-rootfs/glm53_ep/venvs/b200-runtime`.
+- Select the opt-in native L0 rootfs from the managed store, not the live legacy rootfs:
+  `--rootfs-store /data05/philip.yang/torchtitan-rootfs-store`.
+  Current selected native store id:
+  `rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5`.
+- Sync command:
+  `experiments/glm53_flash_sft_ladder/runtime/sync_python_env.sh --rootfs-store /data05/philip.yang/torchtitan-rootfs-store`.
+- Launch command pattern:
+  `TORCHTITAN_ROOTFS_ENV=glm53_ep scripts/rootfs/enter_rootfs.sh --rootfs-store /data05/philip.yang/torchtitan-rootfs-store -- bash -lc 'unset CC CXX CUDAHOSTCXX; cd /workspace/torchtitan && ...'`
+- R01 evidence: `.scratch/glm53-flash-sft-ladder/evidence/r01/`.
+  Runtime passes torch/CUDA/sm_100, Triton import, torchao MXFP8 import, NVSHMEM wheel presence, CUDA headers/libs, ccache,
+  CUTLASS, RDMA/NUMA, Nsight CLI visibility, and linker probes.
+- Current blocker: `fla.ops.kda` import fails before KDA on `fla.ops.cp.chunk_delta_h` because Triton 3.9 rejects an autotune key
+  containing `BT` when the kernel args omit `BT`. GLM Flash tests and the 2-step debug train also fail during import on a
+  second Triton 3.9 autotune-key mismatch in `torchao.prototype.moe_training.kernels.float8_rowwise` (`num_elements` is not
+  a kernel argument). See `task-r01-report.md` before treating `glm53_ep` as train-ready.
+
 ## GPU UPDATE 2026-10-14 09:44Z
 - The other user's `pretrain_commq.py` job has ENDED; GPUs are free apart from campaign workers. Always check `nvidia-smi`
   before launching (it may restart). Coordinate: T02 uses GPUs 0-3, T07b uses 4-5, T07c/T05 use 6-7 unless free otherwise.

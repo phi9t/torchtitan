@@ -1,0 +1,52 @@
+--index-url https://pypi.org/simple
+
+# Torch/CUDA overlay matching the captured glm53_train environment.
+torch @ https://download-r2.pytorch.org/whl/nightly/cu132/torch-2.16.0.dev20261013%2Bcu132-cp312-cp312-manylinux_2_28_x86_64.whl#sha256=3f082790fdeff0ce5bb6f2c2b412764d303e6161ceb8cd2fc0bee6bbb2efc0eb
+triton @ https://download-r2.pytorch.org/whl/nightly/triton-3.9.0%2Bgitfc8d31a5-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=c1ad85df07b3fa3209b8cec00ff24589e656ff13336d1aea1befd99e9bb0acfb
+cuda-bindings==13.4.3
+cuda-pathfinder==1.8.3
+cuda-toolkit==13.2.2
+nvidia-cublas==13.4.1.3
+nvidia-cuda-cccl==13.3.4.3.1
+nvidia-cuda-cupti==13.2.86
+nvidia-cuda-nvcc==13.2.86
+nvidia-cuda-nvrtc==13.2.86
+nvidia-cuda-runtime==13.2.86
+nvidia-cudnn-cu13==9.26.0.51
+nvidia-cufft==12.2.0.57
+nvidia-cufile==1.17.1.22
+nvidia-curand==10.4.2.55
+nvidia-cusolver==12.2.0.11
+nvidia-cusparse==12.7.10.12
+nvidia-cusparselt-cu13==0.8.1
+nvidia-nccl-cu13==2.30.7
+nvidia-nvjitlink==13.4.92
+nvidia-nvshmem-cu13==3.7.2
+nvidia-nvtx==13.2.86
+
+# Repo training/test requirements pinned to the known-good glm53_train versions.
+attn-gym[linear,cudnn]==0.0.16
+datasets==4.7.0
+einops==0.8.2
+fla-core==0.5.2
+flash-attn==2.8.3.post1
+grain==0.2.18
+huggingface-hub==1.27.0
+numpy==2.3.5
+pillow==12.2.0
+pytest==7.3.2
+renderers==0.1.11
+safetensors==0.8.0
+tensorboard==2.21.0
+tiktoken==0.13.0
+tokenizers==0.22.2
+torchao==0.18.0
+tqdm==4.70.0
+transformers==5.15.0
+wandb==0.28.1
+
+# Repo requirements that were VCS refs in glm53_train, converted to immutable
+# commit tarballs so the lock can run under --require-hashes.
+spmd_types @ https://github.com/meta-pytorch/spmd_types/archive/2ae49fce3e0175b76aa55361e415fa1be0aabebb.tar.gz#sha256=dc10005eda624ebe5cda9803607ee77d13765b32a857e22c4db98f56308b4acb
+torch_remat @ https://github.com/meta-pytorch/remat/archive/4fd000acba6dc66762b7f3217ecadb8e07243dd4.tar.gz#sha256=3cd06ba955072e3aff8c4f21d8b8d428cd1c3dfda11f458ec582ca56b24e8619
+torch_checkpointing @ https://github.com/meta-pytorch/torch_checkpointing/archive/dcbb3a59cfad1cbeb95994f0d6cb1802c1d91825.tar.gz#sha256=70c62260176d902aecbc4371961245debace72f5a3d7f51c2efa5b776ccd4090

@@ -1,0 +1,12 @@
+[project]
+name = "torchtitan-glm53-flash-sft-ladder-runtime"
+version = "0.0.0"
+requires-python = ">=3.12"
+
+[tool.glm53-flash-sft-ladder-runtime]
+env_name = "glm53_ep"
+torch = "2.16.0.dev20261013+cu132"
+triton = "3.9.0+gitfc8d31a5"
+cuda = "13.2"
+nvshmem = "3.7.2"
+torch_stack_policy = "Install only through requirements.lock in the rootfs; do not mutate glm53_train."

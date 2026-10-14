@@ -28,29 +28,10 @@ REQUIRED_PATH = ":".join(
         "/bin",
     )
 )
-REQUIRED_ENV = {
-    "PATH": REQUIRED_PATH,
-    "CUDA_HOME": "/opt/cuda-synth",
-    "CUDA_PATH": "/opt/cuda-synth",
-    "TORCHTITAN_IN_ROOTFS": "1",
-    "TORCHTITAN_ROOTFS_ENV": "modded_nanogpt_b200",
-    "TORCHTITAN_ROOTFS_PROJECT": WORKSPACE,
-    "TORCHTITAN_ROOTFS_LOG_DIR": "/project/logs",
-    "HOME": "/project/home",
-    "XDG_CACHE_HOME": "/project/xdg-cache",
-    "UV_CACHE_DIR": "/project/uv-cache",
-    "PIP_CACHE_DIR": "/project/pip-cache",
-    "MISE_DATA_DIR": "/project/mise/data",
-    "MISE_CACHE_DIR": "/project/mise/cache",
-    "MISE_CONFIG_DIR": f"{WORKSPACE}/experiments/modded_nanogpt_b200/runtime",
-    "PYTHON": "/project/venvs/b200-runtime/bin/python",
-    "TMPDIR": "/project/tmp",
-    "TEMP": "/project/tmp",
-    "TMP": "/project/tmp",
-    "HF_HOME": f"{WORKSPACE}/.cache/huggingface",
-    "HF_HUB_CACHE": f"{WORKSPACE}/.cache/huggingface/hub",
-    "TORCH_HOME": f"{WORKSPACE}/.cache/torch",
-    "MPLCONFIGDIR": "/project/xdg-cache/matplotlib",
+DEFAULT_RUNTIME_ENV_NAME = "modded_nanogpt_b200"
+DEFAULT_RUNTIME_CONFIG = f"{WORKSPACE}/experiments/modded_nanogpt_b200/runtime"
+RUNTIME_CONFIG_BY_ENV = {
+    "glm53_ep": f"{WORKSPACE}/experiments/glm53_flash_sft_ladder/runtime",
 }
 
 
@@ -81,6 +62,37 @@ def _mount_targets(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
         _require(bool(isinstance(target, str) and target), "mount target is required")
         mounts[target] = item
     return mounts
+
+
+def _runtime_config_for_env(env_name: str) -> str:
+    return RUNTIME_CONFIG_BY_ENV.get(env_name, DEFAULT_RUNTIME_CONFIG)
+
+
+def _required_env(env_name: str) -> dict[str, str]:
+    return {
+        "PATH": REQUIRED_PATH,
+        "CUDA_HOME": "/opt/cuda-synth",
+        "CUDA_PATH": "/opt/cuda-synth",
+        "TORCHTITAN_IN_ROOTFS": "1",
+        "TORCHTITAN_ROOTFS_ENV": env_name,
+        "TORCHTITAN_ROOTFS_PROJECT": WORKSPACE,
+        "TORCHTITAN_ROOTFS_LOG_DIR": "/project/logs",
+        "HOME": "/project/home",
+        "XDG_CACHE_HOME": "/project/xdg-cache",
+        "UV_CACHE_DIR": "/project/uv-cache",
+        "PIP_CACHE_DIR": "/project/pip-cache",
+        "MISE_DATA_DIR": "/project/mise/data",
+        "MISE_CACHE_DIR": "/project/mise/cache",
+        "MISE_CONFIG_DIR": _runtime_config_for_env(env_name),
+        "PYTHON": "/project/venvs/b200-runtime/bin/python",
+        "TMPDIR": "/project/tmp",
+        "TEMP": "/project/tmp",
+        "TMP": "/project/tmp",
+        "HF_HOME": f"{WORKSPACE}/.cache/huggingface",
+        "HF_HUB_CACHE": f"{WORKSPACE}/.cache/huggingface/hub",
+        "TORCH_HOME": f"{WORKSPACE}/.cache/torch",
+        "MPLCONFIGDIR": "/project/xdg-cache/matplotlib",
+    }
 
 
 def _validate_required_mount(
@@ -134,7 +146,13 @@ def validate_bwrap_plan(plan: dict[str, Any]) -> dict[str, Any]:
     _validate_required_mount(mounts, target="/dev", kind="dev")
 
     environment = _as_mapping(plan.get("environment"), "environment")
-    for key, expected in REQUIRED_ENV.items():
+    env_name_value = environment.get("TORCHTITAN_ROOTFS_ENV")
+    env_name = (
+        env_name_value
+        if isinstance(env_name_value, str) and env_name_value
+        else DEFAULT_RUNTIME_ENV_NAME
+    )
+    for key, expected in _required_env(env_name).items():
         _require(
             environment.get(key) == expected,
             f"{key} expected {expected!r}, found {environment.get(key)!r}",
