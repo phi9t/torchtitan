@@ -29,3 +29,17 @@
 - ~18:05Z user: all training uses HDFS strictly. env-facts gains HDFS-STRICT INPUT RULE; H01 launched (hdfs_strict.sh guard + audit + patches for in-flight tickets).
 - 18:10Z user clarified: pasted Primus text was a wrong paste; HDFS access remains via waystone only (added to env-facts).
 - 17:50Z T08d gate requires ZERO GPU processes; our speedrun jobs starve it. Started priority_pause.sh: SIGSTOPs S06/S07/S09 traecli workers while T08d gates, SIGCONT when GLM is up.
+- ~18:20Z H01 DONE (committed): hdfs_strict.sh + test; wired into run_rung0/run_rung; all /data05 canonical inputs strict-PASS; T07b evidence inputs re-ingested to HDFS.
+  PENDING PATCHES (apply when owner ticket lands; text in task-h01-report.md "Patches For Active Ticket Files"):
+  T08d run_rung4_glm.sh; S06 experiments/glm53_arch_speedrun/run_arm.sh; S07 experiments/glm53_arch_ladder/run_rung.sh;
+  T09 direct-launch preflight snippet. S08 patch applied. Backfilling .staged.json for FineWeb + FineWeb-Edu data dirs.
+- 18:40Z T08d seed42 full leg running since ~18:00Z but ~250 s/step (6 steps/25 min; loss 1.678 -> 0.715). py-spy: ranks
+  CPU-bound in GlmExperts.forward per-expert Python loop (nonzero/where host syncs). Likely also explains T09c/T09b
+  slowness (correcting earlier "prefetch/dequant" attribution). T17 launched: grouped-GEMM experts behind
+  GLM53_FLASH_EXPERTS_IMPL (default loop). Decision pending T17: keep T08d legs on loop path (~6.6 h/leg) or restart with
+  grouped after parity. Current seed42 leg serves as the loop-path reference curve.
+- 18:50Z user: "do something like DeepEP / smarter EP, not FSDP for experts". EP moved onto rung-4 critical path.
+  Launched T13 (EP truncated parity + timing, grouped local experts) and T18 (DeepEP-class dispatch eval: DeepEP SM100
+  support, all-to-all vs DeepEP vs Dist-MoE microbench at GLM shapes, dispatcher adapter). T16 (Dist-MoE) queued after T13.
+  T17 (grouped experts) continues as the local-compute prerequisite. T08d loop-path run kept as fallback.
+  priority_pause.sh restarted to also cover task-13..18 workers.

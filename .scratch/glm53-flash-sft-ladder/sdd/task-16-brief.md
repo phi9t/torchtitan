@@ -149,3 +149,14 @@ scripts/rootfs/enter_rootfs.sh -- bash -lc "
 Report: write `.scratch/glm53-flash-sft-ladder/sdd/task-16-report.md` with installed package revision, SM capability,
 BF16 correctness result, scratch/VMM capacity table, memory evidence, and a recommendation on whether to continue toward
 MXFP8.
+
+## Addendum 2026-10-14 18:50Z (binding; overrides conflicting text above)
+- User direction: replace the per-expert-loop + FSDP-over-experts MoE with real expert parallelism (token all-to-all,
+  DeepEP-class dispatch). EP is now on the critical path for rung 4, not optional.
+- Local expert compute must be grouped GEMM (T17 adds `GLM53_FLASH_EXPERTS_IMPL=grouped`; the common
+  GroupedLinear path in `glm53_flash_ep` is equivalent) -- never the per-expert Python loop.
+- A slow 8-GPU T08d GLM run (~136-155 GiB/GPU) is live as a fallback. Co-run only: <= 30 GiB per process via
+  `torch.cuda.set_per_process_memory_fraction`, truncated-depth (e.g. first 8 layers) configs, never kill it or foreign
+  processes. `experiments/glm53_flash_sft_ladder/priority_pause.sh` may pause you while T08d waits between legs.
+- Inputs strictly from waystone HDFS staged roots verified by `experiments/glm53_flash_sft_ladder/lib/hdfs_strict.sh`.
+- Report step time (ms) and tokens/s per config alongside numerics; that is the point of this work.

@@ -6,7 +6,7 @@
 # touches this user's traecli worker processes. Exits when the T08d worker exits.
 set -uo pipefail
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-PAT='^traecli exec.*glm53-arch-speedrun/sdd/s(06|07|09|1[0-9])-brief'
+PAT='^traecli exec.*(glm53-arch-speedrun/sdd/s(06|07|09|1[0-9])-brief|glm53-flash-sft-ladder/sdd/task-1[3-8]-brief)'
 log() { echo "$(date -u +%FT%TZ) $*"; }
 state=running
 while ps -eo args= | grep -q "^traecli exec.*task-08d-brief"; do
