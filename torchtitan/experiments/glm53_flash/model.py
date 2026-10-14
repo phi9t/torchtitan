@@ -251,6 +251,27 @@ class GlmMLP(nn.Module):
         return self.down_proj(F.silu(gate_BLF) * up_BLF)
 
 
+def _glm53_grouped_linear(
+    input_RI: torch.Tensor,
+    weight_EOI: torch.Tensor,
+    offsets_E: torch.Tensor,
+    expert_ids_R: torch.Tensor,
+) -> torch.Tensor:
+    weight_EOI = (
+        weight_EOI
+        if weight_EOI.dtype == input_RI.dtype
+        else weight_EOI.to(input_RI.dtype)
+    )
+    if input_RI.is_cuda and input_RI.dtype in (torch.bfloat16, torch.float16):
+        return torch._grouped_mm(
+            input_RI,
+            weight_EOI.transpose(-2, -1),
+            offs=offsets_E,
+        )
+    weight_RIO = weight_EOI[expert_ids_R].transpose(-2, -1)
+    return torch.bmm(input_RI.unsqueeze(1), weight_RIO).squeeze(1)
+
+
 class GlmExperts(nn.Module):
     def __init__(self, config: Glm53FlashConfig) -> None:
         super().__init__()
@@ -258,6 +279,9 @@ class GlmExperts(nn.Module):
         self.hidden_dim = config.hidden_size
         self.intermediate_dim = config.moe_intermediate_size
         self.swiglu_limit = config.swiglu_limit
+        self.experts_impl = config.experts_impl
+        if self.experts_impl not in {"loop", "grouped"}:
+            raise ValueError("experts_impl must be 'loop' or 'grouped'")
         self.gate_up_proj = nn.Parameter(
             torch.empty(
                 config.num_experts, 2 * config.moe_intermediate_size, config.hidden_size
@@ -270,6 +294,16 @@ class GlmExperts(nn.Module):
         )
 
     def forward(
+        self,
+        x_TD: torch.Tensor,
+        topk_index_TK: torch.Tensor,
+        topk_weights_TK: torch.Tensor,
+    ) -> torch.Tensor:
+        if self.experts_impl == "grouped":
+            return self._forward_grouped(x_TD, topk_index_TK, topk_weights_TK)
+        return self._forward_loop(x_TD, topk_index_TK, topk_weights_TK)
+
+    def _forward_loop(
         self,
         x_TD: torch.Tensor,
         topk_index_TK: torch.Tensor,
@@ -292,6 +326,59 @@ class GlmExperts(nn.Module):
             contrib_TD = F.linear(hidden_TF, self.down_proj[expert_idx])
             contrib_TD = contrib_TD * topk_weights_TK[token_T, slot_T, None]
             out_TD.index_add_(0, token_T, contrib_TD.to(out_TD.dtype))
+        return out_TD
+
+    def _forward_grouped(
+        self,
+        x_TD: torch.Tensor,
+        topk_index_TK: torch.Tensor,
+        topk_weights_TK: torch.Tensor,
+    ) -> torch.Tensor:
+        expert_ids_N = topk_index_TK.reshape(-1)
+        token_slot_order_N = torch.argsort(expert_ids_N, stable=True)
+        expert_ids_N = expert_ids_N[token_slot_order_N]
+        token_indices_N = torch.div(
+            token_slot_order_N,
+            topk_index_TK.shape[-1],
+            rounding_mode="floor",
+        )
+        topk_weights_N = topk_weights_TK.reshape(-1)[token_slot_order_N]
+        valid_N = expert_ids_N < self.num_experts
+        expert_ids_N = expert_ids_N[valid_N]
+        token_indices_N = token_indices_N[valid_N]
+        topk_weights_N = topk_weights_N[valid_N]
+        if expert_ids_N.numel() == 0:
+            return torch.zeros_like(x_TD)
+        expert_range_E = torch.arange(
+            self.num_experts,
+            device=expert_ids_N.device,
+            dtype=expert_ids_N.dtype,
+        )
+        offsets_E = torch.searchsorted(
+            expert_ids_N,
+            expert_range_E,
+            right=True,
+        ).to(torch.int32)
+        routed_input_ND = x_TD[token_indices_N]
+        gate_up_NF2 = _glm53_grouped_linear(
+            routed_input_ND,
+            self.gate_up_proj,
+            offsets_E,
+            expert_ids_N,
+        )
+        gate_NF, up_NF = gate_up_NF2.chunk(2, dim=-1)
+        hidden_NF = F.silu(gate_NF.clamp(max=self.swiglu_limit)) * up_NF.clamp(
+            min=-self.swiglu_limit, max=self.swiglu_limit
+        )
+        routed_output_ND = _glm53_grouped_linear(
+            hidden_NF,
+            self.down_proj,
+            offsets_E,
+            expert_ids_N,
+        )
+        contrib_ND = routed_output_ND * topk_weights_N[:, None].to(torch.float32)
+        out_TD = torch.zeros_like(x_TD)
+        out_TD.index_add_(0, token_indices_N, contrib_ND.to(out_TD.dtype))
         return out_TD
 
 

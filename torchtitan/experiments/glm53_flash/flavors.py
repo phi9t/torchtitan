@@ -14,8 +14,10 @@ Shape suffixes:
 
 from __future__ import annotations
 
+import os
+
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 
 GLM53_FLASH_SPECIAL_TOKENS = {
@@ -24,6 +26,10 @@ GLM53_FLASH_SPECIAL_TOKENS = {
     "image_token_id": 154854,
     "video_token_id": 154855,
 }
+
+
+def _experts_impl_from_env() -> str:
+    return os.environ.get("GLM53_FLASH_EXPERTS_IMPL", "loop")
 
 
 @dataclass(kw_only=True, slots=True)
@@ -68,6 +74,7 @@ class Glm53FlashConfig:
     attn_impl: str = "reference"
     sparse_attention_mode: str = "indexer"
     use_mtp: bool = False
+    experts_impl: str = field(default_factory=_experts_impl_from_env)
     lora_rank: int | None = None
     lora_alpha: float = 64.0
     lora_target_modules: tuple[str, ...] = ()
@@ -120,6 +127,8 @@ class Glm53FlashConfig:
             raise ValueError(
                 "sparse_attention_mode must be 'indexer' or 'dense_causal'"
             )
+        if self.experts_impl not in {"loop", "grouped"}:
+            raise ValueError("experts_impl must be 'loop' or 'grouped'")
 
 
 def glm53_flash() -> Glm53FlashConfig:

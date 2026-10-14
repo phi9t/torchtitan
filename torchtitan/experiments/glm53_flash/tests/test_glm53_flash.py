@@ -45,8 +45,10 @@ from torchtitan.experiments.glm53_flash.model import (
     _l2norm,
     Glm53FlashForCausalLM,
     glm_hc_post_mix,
+    GlmExperts,
     GlmIndexPool,
     GlmKDAAttention,
+    GlmMoE,
     GlmSparseIndexer,
     GlmSparseMLAAttention,
 )
@@ -300,6 +302,185 @@ def _manual_debug_forward(model: Glm53FlashForCausalLM, tokens: torch.Tensor):
         h_BLND = glm_hc_post_mix(h_BLD, residual_BLND, post_BLN, comb_BLNN)
     h_BLD = model.norm(h_BLND.mean(dim=2))
     return model.lm_head(h_BLD.reshape(-1, h_BLD.shape[-1]))
+
+
+def _tiny_top8_moe_config(*, experts_impl: str):
+    cfg = debugmodel()
+    cfg.hidden_size = 16
+    cfg.intermediate_size = 32
+    cfg.num_experts = 11
+    cfg.num_experts_per_tok = 8
+    cfg.moe_intermediate_size = 16
+    cfg.n_shared_experts = 1
+    cfg.experts_impl = experts_impl
+    cfg.lora_rank = None
+    return cfg
+
+
+def _top8_indices_with_empty_experts(
+    *,
+    num_tokens: int,
+    top_k: int,
+    num_used_experts: int,
+    device: torch.device,
+) -> torch.Tensor:
+    token_T1 = torch.arange(num_tokens, device=device).view(-1, 1)
+    slot_1K = torch.arange(top_k, device=device).view(1, -1)
+    return (token_T1 + slot_1K).remainder(num_used_experts)
+
+
+def _compare_experts_with_dtype(
+    *,
+    dtype: torch.dtype,
+    device: torch.device,
+    atol: float,
+    rtol: float,
+) -> None:
+    torch.manual_seed(31)
+    cfg_loop = _tiny_top8_moe_config(experts_impl="loop")
+    cfg_grouped = _tiny_top8_moe_config(experts_impl="grouped")
+    loop = GlmExperts(cfg_loop)
+    grouped = GlmExperts(cfg_grouped)
+    with torch.no_grad():
+        loop.gate_up_proj.normal_(mean=0.0, std=0.1)
+        loop.down_proj.normal_(mean=0.0, std=0.1)
+    grouped.load_state_dict(loop.state_dict())
+    loop = loop.to(device=device, dtype=dtype)
+    grouped = grouped.to(device=device, dtype=dtype)
+
+    num_tokens = 13
+    topk_index_TK = _top8_indices_with_empty_experts(
+        num_tokens=num_tokens,
+        top_k=cfg_loop.num_experts_per_tok,
+        num_used_experts=9,
+        device=device,
+    )
+    assert not topk_index_TK.eq(9).any()
+    assert not topk_index_TK.eq(10).any()
+    topk_weights_TK = torch.rand(
+        num_tokens,
+        cfg_loop.num_experts_per_tok,
+        device=device,
+        dtype=torch.float32,
+    )
+    topk_weights_TK = topk_weights_TK / topk_weights_TK.sum(dim=-1, keepdim=True)
+    x_loop_TD = torch.randn(
+        num_tokens,
+        cfg_loop.hidden_size,
+        device=device,
+        dtype=dtype,
+        requires_grad=True,
+    )
+    x_grouped_TD = x_loop_TD.detach().clone().requires_grad_(True)
+    grad_TD = torch.randn(
+        num_tokens,
+        cfg_loop.hidden_size,
+        device=device,
+        dtype=torch.float32,
+    )
+
+    loop_out_TD = loop(x_loop_TD, topk_index_TK, topk_weights_TK)
+    grouped_out_TD = grouped(x_grouped_TD, topk_index_TK, topk_weights_TK)
+    torch.testing.assert_close(
+        grouped_out_TD.float(),
+        loop_out_TD.float(),
+        atol=atol,
+        rtol=rtol,
+    )
+
+    (loop_out_TD.float() * grad_TD).sum().backward()
+    (grouped_out_TD.float() * grad_TD).sum().backward()
+
+    torch.testing.assert_close(
+        x_grouped_TD.grad.float(),
+        x_loop_TD.grad.float(),
+        atol=atol,
+        rtol=rtol,
+    )
+    torch.testing.assert_close(
+        grouped.gate_up_proj.grad.float(),
+        loop.gate_up_proj.grad.float(),
+        atol=atol,
+        rtol=rtol,
+    )
+    torch.testing.assert_close(
+        grouped.down_proj.grad.float(),
+        loop.down_proj.grad.float(),
+        atol=atol,
+        rtol=rtol,
+    )
+    assert grouped.gate_up_proj.grad[9:].abs().max().item() == 0.0
+    assert grouped.down_proj.grad[9:].abs().max().item() == 0.0
+
+
+def test_glm_experts_impl_defaults_to_loop_and_reads_env(monkeypatch):
+    monkeypatch.delenv("GLM53_FLASH_EXPERTS_IMPL", raising=False)
+    assert debugmodel().experts_impl == "loop"
+
+    monkeypatch.setenv("GLM53_FLASH_EXPERTS_IMPL", "grouped")
+    cfg = debugmodel()
+    assert cfg.experts_impl == "grouped"
+    assert GlmExperts(cfg).experts_impl == "grouped"
+
+    monkeypatch.setenv("GLM53_FLASH_EXPERTS_IMPL", "invalid")
+    with pytest.raises(ValueError, match="experts_impl"):
+        debugmodel()
+
+
+def test_grouped_experts_match_loop_fp32_forward_backward_with_empty_experts():
+    _compare_experts_with_dtype(
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+        atol=1.0e-5,
+        rtol=1.0e-5,
+    )
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+def test_grouped_experts_match_loop_bf16_forward_backward_on_gpu():
+    _compare_experts_with_dtype(
+        dtype=torch.bfloat16,
+        device=torch.device("cuda"),
+        atol=8.0e-2,
+        rtol=8.0e-2,
+    )
+
+
+def test_grouped_moe_matches_loop_and_preserves_router_shared_expert_grads():
+    torch.manual_seed(32)
+    cfg_loop = _tiny_top8_moe_config(experts_impl="loop")
+    cfg_grouped = _tiny_top8_moe_config(experts_impl="grouped")
+    loop = GlmMoE(cfg_loop).float()
+    grouped = GlmMoE(cfg_grouped).float()
+    _initialize_glm53_flash_weights(loop, cfg_loop)
+    grouped.load_state_dict(loop.state_dict())
+
+    x_loop_BLD = torch.randn(2, 7, cfg_loop.hidden_size, requires_grad=True)
+    x_grouped_BLD = x_loop_BLD.detach().clone().requires_grad_(True)
+    grad_BLD = torch.randn(2, 7, cfg_loop.hidden_size)
+
+    loop_out_BLD = loop(x_loop_BLD)
+    grouped_out_BLD = grouped(x_grouped_BLD)
+    torch.testing.assert_close(grouped_out_BLD, loop_out_BLD, atol=1.0e-5, rtol=1.0e-5)
+
+    (loop_out_BLD * grad_BLD).sum().backward()
+    (grouped_out_BLD * grad_BLD).sum().backward()
+
+    torch.testing.assert_close(
+        x_grouped_BLD.grad,
+        x_loop_BLD.grad,
+        atol=1.0e-5,
+        rtol=1.0e-5,
+    )
+    for name, grouped_param in grouped.named_parameters():
+        loop_param = dict(loop.named_parameters())[name]
+        torch.testing.assert_close(
+            grouped_param.grad,
+            loop_param.grad,
+            atol=1.0e-5,
+            rtol=1.0e-5,
+            msg=name,
+        )
 
 
 def test_mhc_post_mix_uses_comb_transpose_oracle():
