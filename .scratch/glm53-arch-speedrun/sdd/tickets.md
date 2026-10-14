@@ -11,9 +11,10 @@ Each ticket has `sN-brief.md` (what to do, blockers, verification) and `sN-repor
 | S04 | trainable indexer objective, fast KDA/sparse paths, GLM mHC init | S02 | small | done (51f3008d2) |
 | S05 | B0 recalibration (268M tok, CE 3.9028 +/- 0.0019), elements wired | S01, S04 | 1 GPU | done (04497f671) |
 | S06 | Step-3 overfit gate all arms + speed fixes (mHC, indexer) | S05 | 1 GPU | done PASS (ad0e5c58b); slow A4,A5,G |
-| S07 | model-family ladder L1-L4 configs, gates, 268M comparison | S05 | 1 GPU x3 | running |
+| S07 | model-family ladder L1-L4 configs, gates, 268M comparison | S05 | 1 GPU x3 | done; L1 beats L0, L2 suspicious, L3/L4 reduced |
+| S07b | L2 MoE diagnosis, L3/L4 speed, full-budget reruns | S07, K03 | 1 GPU x3 | running |
 | S08 | FineWeb-Edu sample-10BT -> GPT-2 shards on HDFS | -- | none | done (9.95B tok, 87f0914-v1) |
-| S09 | ladder epoch runs L0-L4 x2 seeds on FineWeb-Edu 10BT | S07, S08, H01 | 1-4 GPU, <= 6 total | queued |
+| S09 | ladder epoch runs L0-L4 x2 seeds on FineWeb-Edu 10BT | S07b, S08, H01 | 1-4 GPU, <= 6 total | queued |
 | S10 | slice 4a add-one (30 cells) | S06 PASS, H01 | 1 GPU/cell | running (sparse arms reduced budget until K01) |
 | S11 | slice 4b leave-one-out (15 cells) | S10 | 1 GPU/cell | queued |
 | S12 | slice 4c fractional factorial (48 cells) | S11 | 1 GPU/cell | queued |
