@@ -132,7 +132,11 @@ class Glm53FlashStateDictAdapter(StateDictAdapter):
     def _skip_reason(hf_key: str) -> str | None:
         if hf_key.endswith("weight_scale_inv") or ".weight_scale_inv" in hf_key:
             return "weight_scale_inv"
-        if hf_key.startswith("model.vision") or hf_key.startswith("vision_tower"):
+        if (
+            hf_key.startswith("model.vision")
+            or hf_key.startswith("model.visual")
+            or hf_key.startswith("vision_tower")
+        ):
             return "vision_tower"
         if "mm_projector" in hf_key:
             return "vision_tower"

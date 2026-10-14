@@ -66,14 +66,20 @@ class Glm53FlashConfig:
     tie_word_embeddings: bool = False
     initializer_range: float = 0.02
     attn_impl: str = "reference"
+    sparse_attention_mode: str = "indexer"
     use_mtp: bool = False
     lora_rank: int | None = None
     lora_alpha: float = 64.0
     lora_target_modules: tuple[str, ...] = ()
+    layer_offset: int = 0
 
     @property
     def sparse_layers(self) -> tuple[int, ...]:
-        return tuple(i for i in range(self.num_hidden_layers) if (i + 1) % 4 == 0)
+        return tuple(
+            i
+            for i in range(self.num_hidden_layers)
+            if (i + self.layer_offset + 1) % 4 == 0
+        )
 
     @property
     def kda_layers(self) -> tuple[int, ...]:
@@ -91,11 +97,13 @@ class Glm53FlashConfig:
     @property
     def mlp_layer_types(self) -> tuple[str, ...]:
         return tuple(
-            "dense" if i < self.first_k_dense_replace else "sparse"
+            "dense" if i + self.layer_offset < self.first_k_dense_replace else "sparse"
             for i in range(self.num_hidden_layers)
         )
 
     def validate(self) -> None:
+        if self.layer_offset < 0:
+            raise ValueError("layer_offset must be non-negative")
         if self.hidden_size % self.num_attention_heads != 0:
             raise ValueError("hidden_size must be divisible by num_attention_heads")
         if self.index_topk % self.index_kpool != 0:
@@ -108,6 +116,10 @@ class Glm53FlashConfig:
             raise ValueError("MTP is intentionally skipped for SFT in this seam")
         if self.attn_impl not in {"reference", "fast"}:
             raise ValueError("attn_impl must be 'reference' or 'fast'")
+        if self.sparse_attention_mode not in {"indexer", "dense_causal"}:
+            raise ValueError(
+                "sparse_attention_mode must be 'indexer' or 'dense_causal'"
+            )
 
 
 def glm53_flash() -> Glm53FlashConfig:

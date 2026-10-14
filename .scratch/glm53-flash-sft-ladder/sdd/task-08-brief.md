@@ -15,6 +15,12 @@ Read first: `.scratch/glm53-flash-sft-ladder/sdd/env-facts.md` (MANDATORY, incl.
   Otherwise -> mode B: FSDP8 + `training.enable_cpu_offload` (host RAM 3.9 TB). Record the mode.
 
 ## Requirements
+0b. bf16 numerics check (open item from T07c): T07c's bf16 20-27 slice had top-1 0.43 / KL 0.27 vs the HF bf16 oracle
+   (fp32 matched). Using `torchtitan/experiments/glm53_flash/hf_parity.py`, rerun the 20-27 bf16 slice on the 4 COUNTDOWN
+   prompts only (exclude the synthetic 4096 sequence) and report per-sample top-1/KL. Then check the dtype each of these runs in,
+   for TT vs HF: router scores/top-k, indexer scores, KDA gates/beta/recurrence state, mHC Sinkhorn, RMSNorm. If HF upcasts
+   any of them to fp32 and TT does not, upcast in TT (experiment seam) and show the bf16 slice improves. Time-box to 45 min; if
+   unresolved, record it as an OPEN item with numbers and continue to training (fp32 parity is the identity gate).
 0. BLOCKER FIX FIRST (found by T07b): the glm53_flash experiment LoRA path adds LoRA modules but does NOT freeze every
    non-LoRA parameter. Fix it in the experiment seam so that ONLY LoRA A/B params have requires_grad=True (embeddings,
    norms, router, indexer, experts, mHC params all frozen), the optimizer only receives trainable params, and FSDP does not

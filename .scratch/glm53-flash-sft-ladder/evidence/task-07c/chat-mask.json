@@ -1,0 +1,1381 @@
+{
+  "claim_label": "deterministic_comparison",
+  "samples": [
+    {
+      "alignment": [
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 0,
+          "token": "",
+          "token_id": 154822
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 1,
+          "token": "",
+          "token_id": 154824
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 2,
+          "token": "",
+          "token_id": 154826
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 3,
+          "token": "Reason",
+          "token_id": 25062
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 4,
+          "token": "ing",
+          "token_id": 287
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 5,
+          "token": " Eff",
+          "token_id": 29905
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 6,
+          "token": "ort",
+          "token_id": 371
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 7,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 8,
+          "token": " Max",
+          "token_id": 7487
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 9,
+          "token": "",
+          "token_id": 154827
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 10,
+          "token": "Numbers",
+          "token_id": 27148
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 11,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 12,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 13,
+          "token": "14",
+          "token_id": 99367
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 14,
+          "token": ",",
+          "token_id": 11
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 15,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 16,
+          "token": "16",
+          "token_id": 99317
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 17,
+          "token": ",",
+          "token_id": 11
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 18,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 19,
+          "token": "49",
+          "token_id": 101474
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 20,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 21,
+          "token": "Target",
+          "token_id": 6397
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 22,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 23,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 24,
+          "token": "47",
+          "token_id": 101655
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 25,
+          "token": "\n\n",
+          "token_id": 271
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 26,
+          "token": "Return",
+          "token_id": 5598
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 27,
+          "token": " a",
+          "token_id": 264
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 28,
+          "token": " sequence",
+          "token_id": 8499
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 29,
+          "token": " of",
+          "token_id": 315
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 30,
+          "token": " operations",
+          "token_id": 7525
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 31,
+          "token": ".",
+          "token_id": 13
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 32,
+          "token": " Each",
+          "token_id": 8884
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 33,
+          "token": " operation",
+          "token_id": 5666
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 34,
+          "token": " must",
+          "token_id": 1969
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 35,
+          "token": " consume",
+          "token_id": 23989
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 36,
+          "token": " two",
+          "token_id": 1378
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 37,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 38,
+          "token": "currently",
+          "token_id": 57805
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 39,
+          "token": " available",
+          "token_id": 2500
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 40,
+          "token": " numbers",
+          "token_id": 5109
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 41,
+          "token": " and",
+          "token_id": 323
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 42,
+          "token": " produce",
+          "token_id": 8192
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 43,
+          "token": " one",
+          "token_id": 825
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 44,
+          "token": " new",
+          "token_id": 501
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 45,
+          "token": " positive",
+          "token_id": 6785
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 46,
+          "token": " integer",
+          "token_id": 7546
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 47,
+          "token": ".\n",
+          "token_id": 624
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 48,
+          "token": "Use",
+          "token_id": 10248
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 49,
+          "token": " each",
+          "token_id": 1817
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 50,
+          "token": " input",
+          "token_id": 1946
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 51,
+          "token": " number",
+          "token_id": 1372
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 52,
+          "token": " at",
+          "token_id": 518
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 53,
+          "token": " most",
+          "token_id": 1429
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 54,
+          "token": " once",
+          "token_id": 3055
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 55,
+          "token": ".",
+          "token_id": 13
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 56,
+          "token": " Division",
+          "token_id": 14479
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 57,
+          "token": " must",
+          "token_id": 1969
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 58,
+          "token": " be",
+          "token_id": 387
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 59,
+          "token": " exact",
+          "token_id": 4734
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 60,
+          "token": ".\n",
+          "token_id": 624
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 61,
+          "token": "Format",
+          "token_id": 4061
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 62,
+          "token": ":\n",
+          "token_id": 510
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 63,
+          "token": "a",
+          "token_id": 64
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 64,
+          "token": " +",
+          "token_id": 488
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 65,
+          "token": " b",
+          "token_id": 293
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 66,
+          "token": " =",
+          "token_id": 284
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 67,
+          "token": " c",
+          "token_id": 272
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 68,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 69,
+          "token": "...\n",
+          "token_id": 9335
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 70,
+          "token": "FINAL",
+          "token_id": 98009
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 71,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 72,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 73,
+          "token": "47",
+          "token_id": 101655
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 74,
+          "token": "",
+          "token_id": 154828
+        },
+        {
+          "label": "</think>",
+          "label_id": 154842,
+          "pos": 75,
+          "token": "<think>",
+          "token_id": 154841
+        },
+        {
+          "label": "14",
+          "label_id": 99367,
+          "pos": 76,
+          "token": "</think>",
+          "token_id": 154842
+        },
+        {
+          "label": " +",
+          "label_id": 488,
+          "pos": 77,
+          "token": "14",
+          "token_id": 99367
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 78,
+          "token": " +",
+          "token_id": 488
+        },
+        {
+          "label": "49",
+          "label_id": 101474,
+          "pos": 79,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": " =",
+          "label_id": 284,
+          "pos": 80,
+          "token": "49",
+          "token_id": 101474
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 81,
+          "token": " =",
+          "token_id": 284
+        },
+        {
+          "label": "63",
+          "label_id": 103302,
+          "pos": 82,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": "\n",
+          "label_id": 198,
+          "pos": 83,
+          "token": "63",
+          "token_id": 103302
+        },
+        {
+          "label": "63",
+          "label_id": 103302,
+          "pos": 84,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": " -",
+          "label_id": 481,
+          "pos": 85,
+          "token": "63",
+          "token_id": 103302
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 86,
+          "token": " -",
+          "token_id": 481
+        },
+        {
+          "label": "16",
+          "label_id": 99317,
+          "pos": 87,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": " =",
+          "label_id": 284,
+          "pos": 88,
+          "token": "16",
+          "token_id": 99317
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 89,
+          "token": " =",
+          "token_id": 284
+        },
+        {
+          "label": "47",
+          "label_id": 101655,
+          "pos": 90,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": "\n",
+          "label_id": 198,
+          "pos": 91,
+          "token": "47",
+          "token_id": 101655
+        },
+        {
+          "label": "FINAL",
+          "label_id": 98009,
+          "pos": 92,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": ":",
+          "label_id": 25,
+          "pos": 93,
+          "token": "FINAL",
+          "token_id": 98009
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 94,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": "47",
+          "label_id": 101655,
+          "pos": 95,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": "",
+          "label_id": 154820,
+          "pos": 96,
+          "token": "47",
+          "token_id": 101655
+        }
+      ],
+      "full_text": "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 14, 16, 49\nTarget: 47\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 47<|assistant|><think></think>14 + 49 = 63\n63 - 16 = 47\nFINAL: 47",
+      "num_supervised_labels": 22,
+      "num_tokens": 98,
+      "problem_id": "cd-14-16-49-t47",
+      "prompt_text": "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 14, 16, 49\nTarget: 47\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 47<|assistant|><think>"
+    },
+    {
+      "alignment": [
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 0,
+          "token": "",
+          "token_id": 154822
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 1,
+          "token": "",
+          "token_id": 154824
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 2,
+          "token": "",
+          "token_id": 154826
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 3,
+          "token": "Reason",
+          "token_id": 25062
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 4,
+          "token": "ing",
+          "token_id": 287
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 5,
+          "token": " Eff",
+          "token_id": 29905
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 6,
+          "token": "ort",
+          "token_id": 371
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 7,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 8,
+          "token": " Max",
+          "token_id": 7487
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 9,
+          "token": "",
+          "token_id": 154827
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 10,
+          "token": "Numbers",
+          "token_id": 27148
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 11,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 12,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 13,
+          "token": "24",
+          "token_id": 99590
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 14,
+          "token": ",",
+          "token_id": 11
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 15,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 16,
+          "token": "8",
+          "token_id": 23
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 17,
+          "token": ",",
+          "token_id": 11
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 18,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 19,
+          "token": "22",
+          "token_id": 99241
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 20,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 21,
+          "token": "Target",
+          "token_id": 6397
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 22,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 23,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 24,
+          "token": "54",
+          "token_id": 102856
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 25,
+          "token": "\n\n",
+          "token_id": 271
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 26,
+          "token": "Return",
+          "token_id": 5598
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 27,
+          "token": " a",
+          "token_id": 264
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 28,
+          "token": " sequence",
+          "token_id": 8499
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 29,
+          "token": " of",
+          "token_id": 315
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 30,
+          "token": " operations",
+          "token_id": 7525
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 31,
+          "token": ".",
+          "token_id": 13
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 32,
+          "token": " Each",
+          "token_id": 8884
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 33,
+          "token": " operation",
+          "token_id": 5666
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 34,
+          "token": " must",
+          "token_id": 1969
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 35,
+          "token": " consume",
+          "token_id": 23989
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 36,
+          "token": " two",
+          "token_id": 1378
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 37,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 38,
+          "token": "currently",
+          "token_id": 57805
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 39,
+          "token": " available",
+          "token_id": 2500
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 40,
+          "token": " numbers",
+          "token_id": 5109
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 41,
+          "token": " and",
+          "token_id": 323
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 42,
+          "token": " produce",
+          "token_id": 8192
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 43,
+          "token": " one",
+          "token_id": 825
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 44,
+          "token": " new",
+          "token_id": 501
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 45,
+          "token": " positive",
+          "token_id": 6785
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 46,
+          "token": " integer",
+          "token_id": 7546
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 47,
+          "token": ".\n",
+          "token_id": 624
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 48,
+          "token": "Use",
+          "token_id": 10248
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 49,
+          "token": " each",
+          "token_id": 1817
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 50,
+          "token": " input",
+          "token_id": 1946
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 51,
+          "token": " number",
+          "token_id": 1372
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 52,
+          "token": " at",
+          "token_id": 518
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 53,
+          "token": " most",
+          "token_id": 1429
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 54,
+          "token": " once",
+          "token_id": 3055
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 55,
+          "token": ".",
+          "token_id": 13
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 56,
+          "token": " Division",
+          "token_id": 14479
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 57,
+          "token": " must",
+          "token_id": 1969
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 58,
+          "token": " be",
+          "token_id": 387
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 59,
+          "token": " exact",
+          "token_id": 4734
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 60,
+          "token": ".\n",
+          "token_id": 624
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 61,
+          "token": "Format",
+          "token_id": 4061
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 62,
+          "token": ":\n",
+          "token_id": 510
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 63,
+          "token": "a",
+          "token_id": 64
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 64,
+          "token": " +",
+          "token_id": 488
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 65,
+          "token": " b",
+          "token_id": 293
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 66,
+          "token": " =",
+          "token_id": 284
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 67,
+          "token": " c",
+          "token_id": 272
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 68,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 69,
+          "token": "...\n",
+          "token_id": 9335
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 70,
+          "token": "FINAL",
+          "token_id": 98009
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 71,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 72,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 73,
+          "token": "54",
+          "token_id": 102856
+        },
+        {
+          "label": null,
+          "label_id": null,
+          "pos": 74,
+          "token": "",
+          "token_id": 154828
+        },
+        {
+          "label": "</think>",
+          "label_id": 154842,
+          "pos": 75,
+          "token": "<think>",
+          "token_id": 154841
+        },
+        {
+          "label": "24",
+          "label_id": 99590,
+          "pos": 76,
+          "token": "</think>",
+          "token_id": 154842
+        },
+        {
+          "label": " +",
+          "label_id": 488,
+          "pos": 77,
+          "token": "24",
+          "token_id": 99590
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 78,
+          "token": " +",
+          "token_id": 488
+        },
+        {
+          "label": "8",
+          "label_id": 23,
+          "pos": 79,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": " =",
+          "label_id": 284,
+          "pos": 80,
+          "token": "8",
+          "token_id": 23
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 81,
+          "token": " =",
+          "token_id": 284
+        },
+        {
+          "label": "32",
+          "label_id": 101175,
+          "pos": 82,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": "\n",
+          "label_id": 198,
+          "pos": 83,
+          "token": "32",
+          "token_id": 101175
+        },
+        {
+          "label": "32",
+          "label_id": 101175,
+          "pos": 84,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": " +",
+          "label_id": 488,
+          "pos": 85,
+          "token": "32",
+          "token_id": 101175
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 86,
+          "token": " +",
+          "token_id": 488
+        },
+        {
+          "label": "22",
+          "label_id": 99241,
+          "pos": 87,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": " =",
+          "label_id": 284,
+          "pos": 88,
+          "token": "22",
+          "token_id": 99241
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 89,
+          "token": " =",
+          "token_id": 284
+        },
+        {
+          "label": "54",
+          "label_id": 102856,
+          "pos": 90,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": "\n",
+          "label_id": 198,
+          "pos": 91,
+          "token": "54",
+          "token_id": 102856
+        },
+        {
+          "label": "FINAL",
+          "label_id": 98009,
+          "pos": 92,
+          "token": "\n",
+          "token_id": 198
+        },
+        {
+          "label": ":",
+          "label_id": 25,
+          "pos": 93,
+          "token": "FINAL",
+          "token_id": 98009
+        },
+        {
+          "label": " ",
+          "label_id": 220,
+          "pos": 94,
+          "token": ":",
+          "token_id": 25
+        },
+        {
+          "label": "54",
+          "label_id": 102856,
+          "pos": 95,
+          "token": " ",
+          "token_id": 220
+        },
+        {
+          "label": "",
+          "label_id": 154820,
+          "pos": 96,
+          "token": "54",
+          "token_id": 102856
+        }
+      ],
+      "full_text": "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 24, 8, 22\nTarget: 54\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 54<|assistant|><think></think>24 + 8 = 32\n32 + 22 = 54\nFINAL: 54",
+      "num_supervised_labels": 22,
+      "num_tokens": 98,
+      "problem_id": "cd-24-8-22-t54",
+      "prompt_text": "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 24, 8, 22\nTarget: 54\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 54<|assistant|><think>"
+    }
+  ]
+}

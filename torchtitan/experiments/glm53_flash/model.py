@@ -47,10 +47,10 @@ def _rms_norm(x_BLD: torch.Tensor, weight_D: torch.Tensor, eps: float) -> torch.
 
 def _l2norm(x_BLHK: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
     x_float_BLHK = x_BLHK.float()
-    return (
-        x_float_BLHK
-        * torch.rsqrt(x_float_BLHK.square().sum(dim=-1, keepdim=True) + eps)
-    ).to(x_BLHK.dtype)
+    norm_BLH1 = torch.sqrt(
+        (x_float_BLHK * x_float_BLHK).sum(dim=-1, keepdim=True) + eps
+    )
+    return (x_float_BLHK / norm_BLH1).to(x_BLHK.dtype)
 
 
 class GlmRMSNorm(nn.Module):
@@ -267,11 +267,14 @@ class GlmExperts(nn.Module):
         topk_weights_TK: torch.Tensor,
     ) -> torch.Tensor:
         out_TD = torch.zeros_like(x_TD)
-        routing_map_ETK = F.one_hot(
-            topk_index_TK, num_classes=self.num_experts
-        ).permute(2, 0, 1)
-        for expert_idx in routing_map_ETK.sum(dim=(1, 2)).nonzero().flatten():
-            token_T, slot_T = torch.where(routing_map_ETK[expert_idx])
+        routing_map_EKT = F.one_hot(
+            topk_index_TK, num_classes=self.num_experts + 1
+        ).permute(2, 1, 0)
+        for expert_idx in torch.greater(routing_map_EKT.sum(dim=(-1, -2)), 0).nonzero():
+            expert_idx = expert_idx[0]
+            if expert_idx == self.num_experts:
+                continue
+            slot_T, token_T = torch.where(routing_map_EKT[expert_idx])
             gate_up_TF2 = F.linear(x_TD[token_T], self.gate_up_proj[expert_idx])
             gate_TF, up_TF = gate_up_TF2.chunk(2, dim=-1)
             hidden_TF = F.silu(gate_TF.clamp(max=self.swiglu_limit)) * up_TF.clamp(
@@ -703,7 +706,7 @@ class GlmKDAAttention(nn.Module):
         raw_gate_BLHK = self.f_b_proj(self.f_a_proj(hidden_states_BLD)).view_as(q_BLHK)
         beta_BLH = torch.sigmoid(self.b_proj(hidden_states_BLD))
 
-        if hidden_states_BLD.is_cuda:
+        if self.config.attn_impl == "fast" and hidden_states_BLD.is_cuda:
             try:
                 out_BLHK = self._fast_kda(
                     q_BLHK, k_BLHK, v_BLHK, raw_gate_BLHK, beta_BLH
@@ -782,31 +785,112 @@ class GlmKDAAttention(nn.Module):
         beta_BLH: torch.Tensor,
     ) -> torch.Tensor:
         output_dtype = v_BLHK.dtype
-        q_BLHK = _l2norm(q_BLHK).float()
-        k_BLHK = _l2norm(k_BLHK).float()
-        v_BLHK = v_BLHK.float()
-        gate_BLHK = self._prepare_gate(raw_gate_BLHK)
-        beta_BLH = beta_BLH.float()
+        chunk_size = 64
+        q_BHLK, k_BHLK, v_BHLK, beta_BHL, gate_BHLK = [
+            tensor.transpose(1, 2).contiguous().to(torch.float32)
+            for tensor in (
+                q_BLHK,
+                k_BLHK,
+                v_BLHK,
+                beta_BLH,
+                self._prepare_gate(raw_gate_BLHK),
+            )
+        ]
+        q_BHLK = _l2norm(q_BHLK)
+        k_BHLK = _l2norm(k_BHLK)
+        batch_size, num_heads, seq_len, k_head_dim = k_BHLK.shape
+        v_head_dim = v_BHLK.shape[-1]
+        scale = 1 / (q_BHLK.shape[-1] ** 0.5)
+        pad_size = (chunk_size - seq_len % chunk_size) % chunk_size
+        total_seq_len = seq_len + pad_size
+
+        q_BHLK = (F.pad(q_BHLK, (0, 0, 0, pad_size)) * scale).reshape(
+            batch_size, num_heads, -1, chunk_size, k_head_dim
+        )
+        k_BHLK = F.pad(k_BHLK, (0, 0, 0, pad_size)).reshape(
+            batch_size, num_heads, -1, chunk_size, k_head_dim
+        )
+        v_BHLK = F.pad(v_BHLK, (0, 0, 0, pad_size)).reshape(
+            batch_size, num_heads, -1, chunk_size, v_head_dim
+        )
+        gate_BHLK = F.pad(gate_BHLK, (0, 0, 0, pad_size)).reshape(
+            batch_size, num_heads, -1, chunk_size, k_head_dim
+        )
+        beta_BHL = F.pad(beta_BHL, (0, pad_size)).reshape(
+            batch_size, num_heads, -1, chunk_size
+        )
+        v_beta_BHCLK = v_BHLK * beta_BHL.unsqueeze(-1)
+        k_beta_BHCLK = k_BHLK * beta_BHL.unsqueeze(-1)
+
+        gate_BHCLK = gate_BHLK.cumsum(dim=-2)
+        full_mask_TT = torch.triu(
+            torch.ones(chunk_size, chunk_size, dtype=torch.bool, device=q_BLHK.device),
+            diagonal=0,
+        )
+        strict_mask_TT = torch.triu(
+            torch.ones(chunk_size, chunk_size, dtype=torch.bool, device=q_BLHK.device),
+            diagonal=1,
+        )
+        decay_mask_BHCTTK = (
+            gate_BHCLK.unsqueeze(-2) - gate_BHCLK.unsqueeze(-3)
+        ).masked_fill(strict_mask_TT[..., None], float("-inf"))
+        decay_mask_BHCTTK = decay_mask_BHCTTK.exp().float()
+        attn_BHCTT = -(
+            k_beta_BHCLK.unsqueeze(-2) * k_BHLK.unsqueeze(-3) * decay_mask_BHCTTK
+        ).sum(dim=-1)
+        attn_BHCTT = attn_BHCTT.masked_fill(full_mask_TT, 0)
+        for i in range(1, chunk_size):
+            row_BHCT = attn_BHCTT[..., i, :i].clone()
+            sub_BHCUT = attn_BHCTT[..., :i, :i].clone()
+            attn_BHCTT[..., i, :i] = row_BHCT + (
+                row_BHCT.unsqueeze(-1) * sub_BHCUT
+            ).sum(dim=-2)
+        attn_BHCTT = attn_BHCTT + torch.eye(
+            chunk_size, dtype=attn_BHCTT.dtype, device=attn_BHCTT.device
+        )
+
+        value_BHCLK = attn_BHCTT @ v_beta_BHCLK
+        k_cumdecay_BHCLK = attn_BHCTT @ (k_beta_BHCLK * gate_BHCLK.exp())
         state_BHKK = torch.zeros(
-            q_BLHK.shape[0],
-            self.num_heads,
-            self.head_dim,
-            self.head_dim,
+            batch_size,
+            num_heads,
+            k_head_dim,
+            v_head_dim,
             dtype=torch.float32,
             device=q_BLHK.device,
         )
-        outs: list[torch.Tensor] = []
-        scale = self.head_dim**-0.5
-        for t in range(q_BLHK.shape[1]):
-            decay_BHK = torch.exp(gate_BLHK[:, t])
-            state_BHKK = decay_BHK.unsqueeze(-1) * state_BHKK
-            k_BHK = k_BLHK[:, t]
-            v_BHV = v_BLHK[:, t]
-            old_BHV = torch.einsum("bhkv,bhk->bhv", state_BHKK, k_BHK)
-            delta_BHV = beta_BLH[:, t].unsqueeze(-1) * (v_BHV - old_BHV)
-            state_BHKK = state_BHKK + torch.einsum("bhk,bhv->bhkv", k_BHK, delta_BHV)
-            outs.append(torch.einsum("bhkv,bhk->bhv", state_BHKK, q_BLHK[:, t] * scale))
-        return torch.stack(outs, dim=1).to(output_dtype)
+        out_BHCLK = torch.zeros_like(value_BHCLK)
+        upper_mask_TT = torch.triu(
+            torch.ones(chunk_size, chunk_size, dtype=torch.bool, device=q_BLHK.device),
+            diagonal=1,
+        )
+        for chunk_idx in range(total_seq_len // chunk_size):
+            q_BHTK = q_BHLK[:, :, chunk_idx]
+            k_BHTK = k_BHLK[:, :, chunk_idx]
+            v_BHTK = value_BHCLK[:, :, chunk_idx]
+            gate_BHTK = gate_BHCLK[:, :, chunk_idx]
+            attn_inter_BHTK = (q_BHTK * gate_BHTK.exp()) @ state_BHKK
+            attn_intra_BHTT = (
+                q_BHTK.unsqueeze(-2)
+                * k_BHTK.unsqueeze(-3)
+                * decay_mask_BHCTTK[:, :, chunk_idx]
+            ).sum(dim=-1)
+            attn_intra_BHTT = attn_intra_BHTT.masked_fill(upper_mask_TT, 0)
+            v_prime_BHTK = k_cumdecay_BHCLK[:, :, chunk_idx] @ state_BHKK
+            v_new_BHTK = v_BHTK - v_prime_BHTK
+            out_BHCLK[:, :, chunk_idx] = attn_inter_BHTK + (
+                attn_intra_BHTT @ v_new_BHTK
+            )
+            state_BHKK = state_BHKK * gate_BHTK[:, :, -1].exp().unsqueeze(-1)
+            state_BHKK = (
+                state_BHKK
+                + (k_BHTK * (gate_BHTK[:, :, -1:] - gate_BHTK).exp()).transpose(-1, -2)
+                @ v_new_BHTK
+            )
+
+        out_BHLK = out_BHCLK.reshape(batch_size, num_heads, total_seq_len, v_head_dim)
+        out_BHLK = out_BHLK[:, :, :seq_len]
+        return out_BHLK.transpose(1, 2).contiguous().to(output_dtype)
 
 
 class GlmSparseMLAAttention(nn.Module):
@@ -864,11 +948,6 @@ class GlmSparseMLAAttention(nn.Module):
             batch_size, seq_len, self.num_heads, self.qk_nope_head_dim
         )
         kv_latent_BLR = self.kv_a_layernorm(self.kv_a_proj_with_mqa(hidden_states_BLD))
-        topk_BLS = self.indexer(
-            hidden_states_BLD.detach(),
-            q_resid_BLR.detach(),
-            attention_mask_BL,
-        )
 
         kv_weight_HXR = self.kv_b_proj.weight.view(
             self.num_heads,
@@ -878,29 +957,62 @@ class GlmSparseMLAAttention(nn.Module):
         k_weight_HKR = kv_weight_HXR[:, : self.qk_nope_head_dim]
         v_weight_HVR = kv_weight_HXR[:, self.qk_nope_head_dim :]
         q_latent_BLHR = torch.einsum("blhk,hkr->blhr", q_nope_BLHK, k_weight_HKR)
-        if (
-            self.config.attn_impl == "fast"
-            and hidden_states_BLD.is_cuda
-            and self.kv_lora_rank == 512
-        ):
-            try:
-                out_latent_BLHR, path = self._fast_gather_attention(
-                    q_latent_BLHR, kv_latent_BLR, topk_BLS
-                )
-                self.last_attention_path = path
-            except Exception as exc:  # pragma: no cover - hardware/package dependent
-                logger.warning("falling back to reference sparse MLA: %s", exc)
+        if self.config.sparse_attention_mode == "dense_causal":
+            out_latent_BLHR = self._dense_causal_attention(
+                q_latent_BLHR, kv_latent_BLR, attention_mask_BL
+            )
+            self.last_attention_path = "dense_causal"
+        else:
+            topk_BLS = self.indexer(
+                hidden_states_BLD.detach(),
+                q_resid_BLR.detach(),
+                attention_mask_BL,
+            )
+            if (
+                self.config.attn_impl == "fast"
+                and hidden_states_BLD.is_cuda
+                and self.kv_lora_rank == 512
+            ):
+                try:
+                    out_latent_BLHR, path = self._fast_gather_attention(
+                        q_latent_BLHR, kv_latent_BLR, topk_BLS
+                    )
+                    self.last_attention_path = path
+                except Exception as exc:  # pragma: no cover - hardware/package dependent
+                    logger.warning("falling back to reference sparse MLA: %s", exc)
+                    out_latent_BLHR = self._reference_attention(
+                        q_latent_BLHR, kv_latent_BLR, topk_BLS
+                    )
+                    self.last_attention_path = "reference"
+            else:
                 out_latent_BLHR = self._reference_attention(
                     q_latent_BLHR, kv_latent_BLR, topk_BLS
                 )
                 self.last_attention_path = "reference"
-        else:
-            out_latent_BLHR = self._reference_attention(
-                q_latent_BLHR, kv_latent_BLR, topk_BLS
-            )
-            self.last_attention_path = "reference"
         out_BLHV = torch.einsum("blhr,hvr->blhv", out_latent_BLHR, v_weight_HVR)
         return self.o_proj(out_BLHV.reshape(batch_size, seq_len, -1))
+
+    def _dense_causal_attention(
+        self,
+        q_latent_BLHR: torch.Tensor,
+        kv_latent_BLR: torch.Tensor,
+        attention_mask_BL: torch.Tensor,
+    ) -> torch.Tensor:
+        seq_len = attention_mask_BL.shape[-1]
+        positions_L = torch.arange(seq_len, device=attention_mask_BL.device)
+        causal_BLL = positions_L[None, :, None] >= positions_L[None, None, :]
+        visible_BLL = causal_BLL & attention_mask_BL[:, None, :]
+        scores_BHLL = torch.einsum(
+            "blhr,bsr->bhls", q_latent_BLHR.float(), kv_latent_BLR.float()
+        )
+        scores_BHLL = scores_BHLL * self.scaling
+        scores_BHLL = scores_BHLL.masked_fill(~visible_BLL[:, None], float("-inf"))
+        probs_BHLL = torch.softmax(scores_BHLL, dim=-1, dtype=torch.float32).to(
+            q_latent_BLHR.dtype
+        )
+        probs_BHLL = torch.nan_to_num(probs_BHLL)
+        out_BLHR = torch.einsum("bhls,bsr->blhr", probs_BHLL, kv_latent_BLR)
+        return out_BLHR * attention_mask_BL[..., None, None].to(out_BLHR.dtype)
 
     def _reference_attention(
         self,
@@ -909,6 +1021,7 @@ class GlmSparseMLAAttention(nn.Module):
         topk_BLS: torch.Tensor,
     ) -> torch.Tensor:
         batch_size, seq_len, num_heads, _ = q_latent_BLHR.shape
+        topk_BLS = topk_BLS.to(device=q_latent_BLHR.device)
         valid_BLS = topk_BLS.ge(0) & topk_BLS.lt(seq_len)
         safe_BLS = topk_BLS.clamp(0, max(seq_len - 1, 0)).long()
         selected_counts_BLL = torch.zeros(
@@ -1135,6 +1248,15 @@ class Glm53FlashForCausalLM(BaseModel):
         positions: torch.Tensor | None = None,
     ) -> torch.Tensor:
         del positions
+        if tokens.ndim == 1:
+            tokens = tokens.unsqueeze(0)
+            if attention_mask is not None:
+                attention_mask = attention_mask.unsqueeze(0)
+        elif tokens.ndim != 2:
+            raise ValueError(
+                "GLM-5.3-Flash expects token input with shape [L] or [B, L], "
+                f"got {tuple(tokens.shape)}"
+            )
         if attention_mask is None:
             attention_mask = torch.ones_like(tokens, dtype=torch.bool)
         h_BLD = self.tok_embeddings(tokens)

@@ -1,0 +1,17 @@
+{
+  "adapter_error": null,
+  "claim_label": "deterministic_comparison",
+  "mapped_hf_keys": 37534,
+  "missing_native_keys": [],
+  "native_keys": 1330,
+  "restored_native_keys": 1330,
+  "restored_shape_mismatches": [],
+  "shape_mismatches": [],
+  "skip_counts": {
+    "mtp": 889,
+    "vision_tower": 347
+  },
+  "total_hf_keys": 38770,
+  "unexpected_native_keys": [],
+  "unknown_hf_keys": []
+}

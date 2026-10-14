@@ -1,0 +1,362 @@
+{
+  "claim_label": "deterministic_comparison",
+  "device": "cpu",
+  "dtype": "float32",
+  "layer_start": 0,
+  "long_seq_len": 4096,
+  "num_layers": 4,
+  "rendered_prompts": [
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 14, 16, 49\nTarget: 47\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 47<|assistant|><think>",
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 24, 8, 22\nTarget: 54\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 54<|assistant|><think>",
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 17, 95, 3\nTarget: 75\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 75<|assistant|><think>",
+    "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 24, 49, 15\nTarget: 58\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 58<|assistant|><think>"
+  ],
+  "samples": [
+    {
+      "final_logits": {
+        "kl_hf_to_tt": -4.1162479647027794e-08,
+        "max_abs": 5.0067901611328125e-06,
+        "max_rel": 2.200000047683716,
+        "mean_abs": 4.41926061967024e-07,
+        "mean_rel": 3.1153535928751808e-06,
+        "top1_agreement": 1.0
+      },
+      "index_stats": [
+        {
+          "hf_shape": [
+            1,
+            76,
+            2051
+          ],
+          "layer": 3,
+          "match": true,
+          "mismatch_count": 0,
+          "selection_mask_match": true,
+          "selection_mask_mismatch_count": 0,
+          "tt_shape": [
+            1,
+            76,
+            2051
+          ]
+        }
+      ],
+      "layer_stats": [
+        {
+          "hf_kind": "linear_attention",
+          "layer": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 1,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 2,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "indexed_attention",
+          "layer": 3,
+          "max_abs": 5.7220458984375e-06,
+          "max_rel": 0.21078431606292725,
+          "mean_abs": 8.689323927058012e-09,
+          "mean_rel": 1.612529899830406e-06,
+          "tt_kind": "deepseek_sparse_attention"
+        }
+      ],
+      "name": "cd-14-16-49-t47",
+      "seq_len": 76
+    },
+    {
+      "final_logits": {
+        "kl_hf_to_tt": -2.177854696583381e-08,
+        "max_abs": 4.887580871582031e-06,
+        "max_rel": 0.7857142686843872,
+        "mean_abs": 4.4526169062919507e-07,
+        "mean_rel": 3.1525671602139482e-06,
+        "top1_agreement": 1.0
+      },
+      "index_stats": [
+        {
+          "hf_shape": [
+            1,
+            76,
+            2051
+          ],
+          "layer": 3,
+          "match": true,
+          "mismatch_count": 0,
+          "selection_mask_match": true,
+          "selection_mask_mismatch_count": 0,
+          "tt_shape": [
+            1,
+            76,
+            2051
+          ]
+        }
+      ],
+      "layer_stats": [
+        {
+          "hf_kind": "linear_attention",
+          "layer": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 1,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 2,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "indexed_attention",
+          "layer": 3,
+          "max_abs": 5.7220458984375e-06,
+          "max_rel": 0.21078431606292725,
+          "mean_abs": 8.664228445809385e-09,
+          "mean_rel": 1.5538777233814471e-06,
+          "tt_kind": "deepseek_sparse_attention"
+        }
+      ],
+      "name": "cd-24-8-22-t54",
+      "seq_len": 76
+    },
+    {
+      "final_logits": {
+        "kl_hf_to_tt": -8.025005548972786e-09,
+        "max_abs": 5.0067901611328125e-06,
+        "max_rel": 59604.64453125,
+        "mean_abs": 4.4571035573426343e-07,
+        "mean_rel": 0.005066943354904652,
+        "top1_agreement": 1.0
+      },
+      "index_stats": [
+        {
+          "hf_shape": [
+            1,
+            76,
+            2051
+          ],
+          "layer": 3,
+          "match": true,
+          "mismatch_count": 0,
+          "selection_mask_match": true,
+          "selection_mask_mismatch_count": 0,
+          "tt_shape": [
+            1,
+            76,
+            2051
+          ]
+        }
+      ],
+      "layer_stats": [
+        {
+          "hf_kind": "linear_attention",
+          "layer": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 1,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 2,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "indexed_attention",
+          "layer": 3,
+          "max_abs": 5.7220458984375e-06,
+          "max_rel": 0.2913816571235657,
+          "mean_abs": 8.622675906622135e-09,
+          "mean_rel": 1.8517451962907217e-06,
+          "tt_kind": "deepseek_sparse_attention"
+        }
+      ],
+      "name": "cd-17-95-3-t75",
+      "seq_len": 76
+    },
+    {
+      "final_logits": {
+        "kl_hf_to_tt": -3.8704250471255364e-08,
+        "max_abs": 5.4836273193359375e-06,
+        "max_rel": 21.5,
+        "mean_abs": 4.444701460215583e-07,
+        "mean_rel": 5.379279173212126e-06,
+        "top1_agreement": 1.0
+      },
+      "index_stats": [
+        {
+          "hf_shape": [
+            1,
+            76,
+            2051
+          ],
+          "layer": 3,
+          "match": true,
+          "mismatch_count": 0,
+          "selection_mask_match": true,
+          "selection_mask_mismatch_count": 0,
+          "tt_shape": [
+            1,
+            76,
+            2051
+          ]
+        }
+      ],
+      "layer_stats": [
+        {
+          "hf_kind": "linear_attention",
+          "layer": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 1,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 2,
+          "max_abs": 0.0,
+          "max_rel": 0.0,
+          "mean_abs": 0.0,
+          "mean_rel": 0.0,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "indexed_attention",
+          "layer": 3,
+          "max_abs": 5.7220458984375e-06,
+          "max_rel": 0.21078431606292725,
+          "mean_abs": 8.742855328591759e-09,
+          "mean_rel": 1.5443055190189625e-06,
+          "tt_kind": "deepseek_sparse_attention"
+        }
+      ],
+      "name": "cd-24-49-15-t58",
+      "seq_len": 76
+    },
+    {
+      "final_logits": {
+        "kl_hf_to_tt": -3.0586821964107003e-09,
+        "max_abs": 1.0013580322265625e-05,
+        "max_rel": 1132488.25,
+        "mean_abs": 6.75222736390424e-07,
+        "mean_rel": 0.005032981280237436,
+        "top1_agreement": 1.0
+      },
+      "index_stats": [
+        {
+          "hf_shape": [
+            1,
+            4096,
+            2051
+          ],
+          "layer": 3,
+          "match": false,
+          "mismatch_count": 1472,
+          "selection_mask_match": true,
+          "selection_mask_mismatch_count": 0,
+          "tt_shape": [
+            1,
+            4096,
+            2051
+          ]
+        }
+      ],
+      "layer_stats": [
+        {
+          "hf_kind": "linear_attention",
+          "layer": 0,
+          "max_abs": 1.6763806343078613e-08,
+          "max_rel": 0.0476190485060215,
+          "mean_abs": 4.617356844094367e-12,
+          "mean_rel": 6.7384631208256e-09,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 1,
+          "max_abs": 2.8870999813079834e-08,
+          "max_rel": 2.0,
+          "mean_abs": 7.385945188786991e-10,
+          "mean_rel": 1.5167520359682385e-06,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "linear_attention",
+          "layer": 2,
+          "max_abs": 1.7881393432617188e-07,
+          "max_rel": 11.837621688842773,
+          "mean_abs": 3.7240042161101883e-09,
+          "mean_rel": 2.3436475657945266e-06,
+          "tt_kind": "linear_attention"
+        },
+        {
+          "hf_kind": "indexed_attention",
+          "layer": 3,
+          "max_abs": 8.940696716308594e-07,
+          "max_rel": 57.95833206176758,
+          "mean_abs": 1.0460644794818563e-08,
+          "mean_rel": 4.3823451960633975e-06,
+          "tt_kind": "deepseek_sparse_attention"
+        }
+      ],
+      "name": "random_4096",
+      "seq_len": 4096
+    }
+  ],
+  "transformers_commit": "e0eb2810ac1b2caf6d082f247d8d37162ecf67a0"
+}

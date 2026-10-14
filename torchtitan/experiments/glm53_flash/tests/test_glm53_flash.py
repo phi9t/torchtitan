@@ -13,7 +13,21 @@ import pytest
 import torch
 import torch.nn.functional as F
 
+from torchtitan.components.data import (
+    FirstFitPackingConfig,
+    GrainDataLoader,
+    HuggingFaceRandomAccessSource,
+    SingleDatasetConfig,
+)
+from torchtitan.components.data.text_datasets import ChatProcessor
+from torchtitan.components.loss import ChunkedLossWrapper
+from torchtitan.components.tokenizer import HuggingFaceTokenizer
+from torchtitan.experiments.glm53_flash.config_registry import (
+    glm53_flash_mini_countdown_full,
+    glm53_flash_mini_countdown_lora,
+)
 from torchtitan.experiments.glm53_flash.flavors import debugmodel
+from torchtitan.experiments.glm53_flash.hf_parity import run_key_coverage
 from torchtitan.experiments.glm53_flash.model import (
     _initialize_glm53_flash_weights,
     _l2norm,
@@ -345,6 +359,25 @@ def test_sparse_reference_matches_dense_causal_when_topk_covers_all_tokens():
     torch.testing.assert_close(actual, expected, atol=1e-5, rtol=1e-5)
 
 
+def test_sparse_dense_causal_ablation_path_is_finite():
+    torch.manual_seed(4)
+    cfg = debugmodel()
+    cfg.sparse_attention_mode = "dense_causal"
+    sparse = _init(GlmSparseMLAAttention(cfg)).float()
+    x_BLD = torch.randn(2, 7, cfg.hidden_size, requires_grad=True)
+    mask_BL = torch.ones(2, 7, dtype=torch.bool)
+    mask_BL[1, :2] = False
+
+    actual = sparse(x_BLD, attention_mask_BL=mask_BL)
+    loss = actual.square().mean()
+    loss.backward()
+
+    assert sparse.last_attention_path == "dense_causal"
+    assert torch.isfinite(actual).all()
+    assert torch.isfinite(x_BLD.grad).all()
+    assert actual[1, :2].abs().max().item() == 0.0
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
 def test_sparse_fast_path_matches_reference_on_gpu_bf16():
     torch.manual_seed(5)
@@ -397,6 +430,22 @@ def test_whole_debug_model_forward_matches_manual_reference_oracle():
     torch.testing.assert_close(actual, expected, atol=1e-5, rtol=1e-5)
 
 
+def test_model_forward_accepts_flat_packed_text_tokens():
+    torch.manual_seed(7)
+    cfg = debugmodel()
+    model = Glm53FlashForCausalLM.Config(glm_config=cfg).build()
+    model.to_empty(device="cpu")
+    model.init_weights()
+    tokens_L = torch.arange(10) % cfg.vocab_size
+    mask_L = torch.ones_like(tokens_L, dtype=torch.bool)
+
+    actual = model(tokens_L, attention_mask=mask_L)
+    expected = model(tokens_L.unsqueeze(0), attention_mask=mask_L.unsqueeze(0))
+
+    assert actual.shape == (10, cfg.vocab_size)
+    torch.testing.assert_close(actual, expected)
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
 @pytest.mark.parametrize("seq_len", [512, 4096])
 def test_debug_model_forward_backward_is_finite_on_gpu(seq_len):
@@ -440,6 +489,45 @@ def test_meta_to_empty_init_has_nonzero_norms_and_distinct_layers():
     assert not torch.allclose(layer_outputs[0], layer_outputs[-1])
 
 
+def test_mini_countdown_configs_use_chat_data_qwen_vocab_and_fast_path(
+    monkeypatch, tmp_path
+):
+    data_file = tmp_path / "formatting.jsonl"
+    data_file.write_text(
+        '{"question":"Numbers: 1, 2\\nTarget: 3","answer":"1 + 2 = 3\\nFINAL: 3"}\n'
+    )
+    monkeypatch.setenv("GLM53_FLASH_COUNTDOWN_DATA_FILE", str(data_file))
+    monkeypatch.setenv(
+        "GLM53_FLASH_COUNTDOWN_HF_ASSETS_PATH", str(tmp_path / "tokenizer")
+    )
+
+    lora_config = glm53_flash_mini_countdown_lora()
+    full_config = glm53_flash_mini_countdown_full()
+
+    assert lora_config.hf_assets_path == str(tmp_path / "tokenizer")
+    assert isinstance(lora_config.tokenizer, HuggingFaceTokenizer.Config)
+    assert isinstance(lora_config.dataloader, GrainDataLoader.Config)
+    assert isinstance(lora_config.dataloader.dataset, FirstFitPackingConfig)
+    dataset = lora_config.dataloader.dataset.dataset
+    assert isinstance(dataset, SingleDatasetConfig)
+    assert isinstance(dataset.source, HuggingFaceRandomAccessSource.Config)
+    assert dataset.source.load_dataset_kwargs["data_files"] == str(data_file)
+    assert dataset.source.split == "train[:64]"
+    assert isinstance(dataset.processor, ChatProcessor.Config)
+    assert dataset.processor.messages_fn({"question": "q", "answer": "a"}) == [
+        {"role": "user", "content": "q"},
+        {"role": "assistant", "content": "a"},
+    ]
+    assert lora_config.training.max_context_length == 512
+    assert lora_config.training.num_tokens_per_train_step == 64 * 512
+    assert lora_config.model.glm_config.vocab_size == 151_936
+    assert lora_config.model.glm_config.attn_impl == "fast"
+    assert lora_config.model.glm_config.sparse_attention_mode == "indexer"
+    assert lora_config.model.glm_config.lora_rank == 16
+    assert full_config.model.glm_config.lora_rank is None
+    assert isinstance(full_config.loss, ChunkedLossWrapper.Config)
+
+
 def test_state_dict_adapter_round_trip_uses_real_bf16_index_schema():
     torch.manual_seed(10)
     cfg = debugmodel()
@@ -463,6 +551,7 @@ def test_state_dict_adapter_round_trip_uses_real_bf16_index_schema():
 
     hf["model.language_model.layers.45.self_attn.q_a_proj.weight"] = torch.zeros(1)
     hf["vision_tower.patch_embed.proj.weight"] = torch.zeros(1)
+    hf["model.visual.patch_embed.proj.weight"] = torch.zeros(1)
     hf["model.language_model.layers.0.self_attn.q_proj.weight_scale_inv"] = torch.zeros(
         1
     )
@@ -470,9 +559,32 @@ def test_state_dict_adapter_round_trip_uses_real_bf16_index_schema():
 
     assert adapter.last_skip_counts == {
         "mtp": 1,
-        "vision_tower": 1,
+        "vision_tower": 2,
         "weight_scale_inv": 1,
     }
     assert restored.keys() == native.keys()
     for key in native:
         torch.testing.assert_close(restored[key], native[key])
+
+
+def test_real_glm53_flash_checkpoint_key_coverage_when_present():
+    checkpoint = Path("/project/formal-cache/model-weights/zai-org/GLM-5.3-Flash-BF16")
+    if not (checkpoint / "model.safetensors.index.json").exists():
+        pytest.skip("GLM-5.3-Flash BF16 checkpoint is not staged in the rootfs")
+    result = run_key_coverage(
+        type(
+            "Args",
+            (),
+            {
+                "checkpoint": checkpoint,
+                "index_json": None,
+                "validate_shard_shapes": False,
+            },
+        )()
+    )
+
+    assert result["unknown_hf_keys"] == []
+    assert result["adapter_error"] is None
+    assert result["missing_native_keys"] == []
+    assert result["unexpected_native_keys"] == []
+    assert result["restored_shape_mismatches"] == []

@@ -11,23 +11,31 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import torch
 
+from torchtitan.components.data import (
+    FirstFitPackingConfig,
+    GrainDataLoader,
+    HuggingFaceRandomAccessSource,
+    SingleDatasetConfig,
+)
 from torchtitan.components.data.loader import BaseDataLoader
+from torchtitan.components.data.text_datasets import ChatProcessor
 from torchtitan.components.data.types import (
     TokenizedTrainingMicrobatch,
     TrainingMicrobatch,
 )
-from torchtitan.components.loss import CrossEntropyLoss
+from torchtitan.components.loss import ChunkedLossWrapper, CrossEntropyLoss
 from torchtitan.components.optim import (
     AdamW,
     LRSchedulersContainer,
     Optim,
     OptimizersContainer,
 )
-from torchtitan.components.tokenizer import BaseTokenizer
+from torchtitan.components.tokenizer import BaseTokenizer, HuggingFaceTokenizer
 from torchtitan.config import DebugConfig, ParallelismConfig, TrainingConfig
 from torchtitan.distributed.activation_checkpoint import FullAC
 from torchtitan.models.base.model import BaseModel
@@ -152,6 +160,127 @@ class Glm53SyntheticDataLoader(BaseDataLoader):
         self.sample_offset = state_dict["sample_offset"]
 
 
+def _countdown_sft_process_sample(sample: dict[str, Any]) -> list[dict[str, str]]:
+    return [
+        {"role": "user", "content": sample["question"]},
+        {"role": "assistant", "content": sample["answer"]},
+    ]
+
+
+def _countdown_data_file() -> str:
+    data_root = Path(
+        os.environ.get(
+            "GLM53_FLASH_COUNTDOWN_DATA_ROOT",
+            "/project/formal-cache/datasets/countdown-sft/v1",
+        )
+    )
+    return os.environ.get(
+        "GLM53_FLASH_COUNTDOWN_DATA_FILE",
+        str(data_root / "train" / "formatting.jsonl"),
+    )
+
+
+def _countdown_hf_assets_path() -> str:
+    return os.environ.get(
+        "GLM53_FLASH_COUNTDOWN_HF_ASSETS_PATH",
+        os.environ.get(
+            "GLM53_FLASH_HF_ASSETS_PATH",
+            "/project/formal-cache/model-weights/zai-org/GLM-5.3-Flash-BF16",
+        ),
+    )
+
+
+def _countdown_data_loader_config(*, seed: int = 42) -> GrainDataLoader.Config:
+    return GrainDataLoader.Config(
+        max_num_documents=_positive_env_int("GLM53_FLASH_COUNTDOWN_MAX_DOCS", 64),
+        dataset=FirstFitPackingConfig(
+            dataset=SingleDatasetConfig(
+                source=HuggingFaceRandomAccessSource.Config(
+                    path="json",
+                    split=os.environ.get("GLM53_FLASH_COUNTDOWN_SPLIT", "train[:64]"),
+                    load_dataset_kwargs={"data_files": _countdown_data_file()},
+                ),
+                processor=ChatProcessor.Config(
+                    messages_fn=_countdown_sft_process_sample
+                ),
+                post_filters=(lambda sample: sample is not None,),
+            ),
+        ),
+        seed=seed,
+        shuffle=_env_bool("GLM53_FLASH_COUNTDOWN_SHUFFLE", False),
+        repeat=True,
+    )
+
+
+def _apply_attention_env(cfg) -> None:
+    cfg.attn_impl = os.environ.get("GLM53_FLASH_ATTN_IMPL", "fast")
+    cfg.sparse_attention_mode = os.environ.get(
+        "GLM53_FLASH_SPARSE_ATTENTION_MODE", "indexer"
+    )
+    cfg.validate()
+
+
+def _mini_countdown_model_config(*, use_lora: bool):
+    cfg = build_model_config("mini")
+    cfg.vocab_size = _positive_env_int("GLM53_FLASH_COUNTDOWN_VOCAB_SIZE", 151_936)
+    _apply_attention_env(cfg)
+    if use_lora:
+        return with_lora(cfg, rank=16, alpha=64.0)
+    return cfg
+
+
+def _mini_countdown_trainer_config(
+    cfg,
+    *,
+    dump_folder: str,
+    steps: int,
+    lr: float,
+) -> "Trainer.Config":
+    from torchtitan.trainer import Trainer
+
+    seq_len = _positive_env_int("GLM53_FLASH_MINI_SEQ_LEN", 512)
+    local_batch_size = _positive_env_int("GLM53_FLASH_MINI_LOCAL_BATCH_SIZE", 1)
+    tokens_per_step = _positive_env_int("GLM53_FLASH_MINI_TOKENS_PER_STEP", 64 * 512)
+    return Trainer.Config(
+        dump_folder=dump_folder,
+        hf_assets_path=_countdown_hf_assets_path(),
+        tokenizer=HuggingFaceTokenizer.Config(),
+        model=Glm53FlashForCausalLM.Config(
+            glm_config=cfg,
+            experiment_flavor="mini",
+        ),
+        dataloader=_countdown_data_loader_config(
+            seed=_positive_env_int("GLM53_FLASH_COUNTDOWN_SEED", 42)
+        ),
+        metrics=MetricsProcessor.Config(log_freq=1),
+        optim=_optim_config(steps=steps, lr=lr),
+        training=TrainingConfig(
+            num_tokens_per_microbatch_per_dp_rank=local_batch_size * seq_len,
+            num_tokens_per_train_step=tokens_per_step,
+            max_context_length=seq_len,
+            steps=steps,
+            dtype="bfloat16",
+            disable_cuda_graphs=True,
+        ),
+        parallelism=ParallelismConfig(
+            data_parallel_shard_degree=-1,
+            expert_parallel_degree=1,
+            tensor_parallel_degree=1,
+            context_parallel_degree=1,
+            enable_sequence_parallel=False,
+        ),
+        debug=DebugConfig(
+            seed=42, deterministic=False, enable_structured_logging=False
+        ),
+        checkpointer=None,
+        activation_checkpoint=FullAC.Config(),
+        loss=ChunkedLossWrapper.Config(
+            num_chunks=_positive_env_int("GLM53_FLASH_LOSS_CHUNKS", 8),
+            loss_fn=CrossEntropyLoss.Config(global_vocab_size=cfg.vocab_size),
+        ),
+    )
+
+
 def model_registry(flavor: str) -> BaseModel.Config:
     return Glm53FlashForCausalLM.Config(
         glm_config=build_model_config(flavor),
@@ -163,6 +292,7 @@ def glm53_flash_debugmodel() -> "Trainer.Config":
     from torchtitan.trainer import Trainer
 
     cfg = build_model_config("debugmodel")
+    _apply_attention_env(cfg)
     seq_len = _positive_env_int("GLM53_FLASH_DEBUG_SEQ_LEN", 128)
     local_batch_size = _positive_env_int("GLM53_FLASH_DEBUG_LOCAL_BATCH_SIZE", 1)
     steps = _positive_env_int("GLM53_FLASH_DEBUG_STEPS", 20)
@@ -217,52 +347,28 @@ def glm53_flash_debugmodel_lora() -> "Trainer.Config":
 
 
 def glm53_flash_mini_countdown_lora() -> "Trainer.Config":
-    from torchtitan.trainer import Trainer
-
-    cfg = with_lora(build_model_config("mini"), rank=16, alpha=64.0)
-    seq_len = _positive_env_int("GLM53_FLASH_MINI_SEQ_LEN", 512)
-    local_batch_size = _positive_env_int("GLM53_FLASH_MINI_LOCAL_BATCH_SIZE", 1)
-    steps = _positive_env_int("GLM53_FLASH_MINI_STEPS", 20)
-    data_path = os.environ.get("GLM53_FLASH_COUNTDOWN_TOKENS")
-    return Trainer.Config(
+    cfg = _mini_countdown_model_config(use_lora=True)
+    return _mini_countdown_trainer_config(
+        cfg,
         dump_folder=os.environ.get(
             "GLM53_FLASH_MINI_DUMP_FOLDER",
             "./outputs/glm53_flash_mini_countdown_lora",
         ),
-        hf_assets_path=os.environ.get(
-            "GLM53_FLASH_HF_ASSETS_PATH", "./tests/assets/tokenizer"
+        steps=_positive_env_int("GLM53_FLASH_MINI_STEPS", 20),
+        lr=_nonnegative_env_float("GLM53_FLASH_MINI_LR", 2.0e-4),
+    )
+
+
+def glm53_flash_mini_countdown_full() -> "Trainer.Config":
+    cfg = _mini_countdown_model_config(use_lora=False)
+    return _mini_countdown_trainer_config(
+        cfg,
+        dump_folder=os.environ.get(
+            "GLM53_FLASH_MINI_FULL_DUMP_FOLDER",
+            "./outputs/glm53_flash_mini_countdown_full",
         ),
-        tokenizer=Glm53PretokenizedTokenizer.Config(vocab_size=cfg.vocab_size),
-        model=Glm53FlashForCausalLM.Config(
-            glm_config=cfg,
-            experiment_flavor="mini",
-        ),
-        dataloader=Glm53SyntheticDataLoader.Config(
-            vocab_size=cfg.vocab_size,
-            countdown_tokens_path=data_path,
-        ),
-        metrics=MetricsProcessor.Config(log_freq=1),
-        optim=_optim_config(steps=steps, lr=2.0e-4),
-        training=TrainingConfig(
-            num_tokens_per_microbatch_per_dp_rank=local_batch_size * seq_len,
-            max_context_length=seq_len,
-            steps=steps,
-            dtype="bfloat16",
-            disable_cuda_graphs=True,
-        ),
-        parallelism=ParallelismConfig(
-            data_parallel_shard_degree=-1,
-            expert_parallel_degree=1,
-            tensor_parallel_degree=1,
-            context_parallel_degree=1,
-            enable_sequence_parallel=False,
-        ),
-        debug=DebugConfig(
-            seed=42, deterministic=False, enable_structured_logging=False
-        ),
-        checkpointer=None,
-        activation_checkpoint=FullAC.Config(),
-        loss=CrossEntropyLoss.Config(global_vocab_size=cfg.vocab_size),
+        steps=_positive_env_int("GLM53_FLASH_MINI_STEPS", 300),
+        lr=_nonnegative_env_float("GLM53_FLASH_MINI_LR", 1.0e-3),
     )
 
 
@@ -270,16 +376,18 @@ def glm53_flash_countdown_lora() -> "Trainer.Config":
     config = glm53_flash_mini_countdown_lora()
     assert isinstance(config.model, Glm53FlashForCausalLM.Config)
     full_cfg = with_lora(build_model_config("glm53_flash"), rank=16, alpha=64.0)
+    _apply_attention_env(full_cfg)
     config.model = Glm53FlashForCausalLM.Config(
         glm_config=full_cfg,
         experiment_flavor="glm53_flash",
     )
-    config.tokenizer = Glm53PretokenizedTokenizer.Config(vocab_size=full_cfg.vocab_size)
-    config.dataloader = Glm53SyntheticDataLoader.Config(
-        vocab_size=full_cfg.vocab_size,
-        countdown_tokens_path=os.environ.get("GLM53_FLASH_COUNTDOWN_TOKENS"),
+    config.tokenizer = HuggingFaceTokenizer.Config()
+    config.hf_assets_path = _countdown_hf_assets_path()
+    config.dataloader = _countdown_data_loader_config()
+    config.loss = ChunkedLossWrapper.Config(
+        num_chunks=_positive_env_int("GLM53_FLASH_LOSS_CHUNKS", 8),
+        loss_fn=CrossEntropyLoss.Config(global_vocab_size=full_cfg.vocab_size),
     )
-    config.loss = CrossEntropyLoss.Config(global_vocab_size=full_cfg.vocab_size)
     config.dump_folder = os.environ.get(
         "GLM53_FLASH_FULL_DUMP_FOLDER",
         "./outputs/glm53_flash_countdown_lora",
@@ -291,7 +399,14 @@ def glm53_flash_countdown_lora() -> "Trainer.Config":
         _positive_env_int("GLM53_FLASH_FULL_LOCAL_BATCH_SIZE", 1)
         * config.training.max_context_length
     )
+    config.training.num_tokens_per_train_step = _positive_env_int(
+        "GLM53_FLASH_FULL_TOKENS_PER_STEP", 64 * 512
+    )
     config.training.steps = _positive_env_int("GLM53_FLASH_FULL_STEPS", 20)
+    config.optim = _optim_config(
+        steps=config.training.steps,
+        lr=_nonnegative_env_float("GLM53_FLASH_FULL_LR", 2.0e-4),
+    )
     return config
 
 
@@ -336,3 +451,28 @@ def _positive_env_int(name: str, default: int) -> int:
     if value <= 0:
         raise ValueError(f"{name} must be > 0, got {value}")
     return value
+
+
+def _nonnegative_env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a float, got {raw!r}") from exc
+    if value < 0:
+        raise ValueError(f"{name} must be >= 0, got {value}")
+    return value
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "y", "on"}:
+        return True
+    if value in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean, got {raw!r}")
