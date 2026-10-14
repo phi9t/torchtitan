@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -232,7 +233,7 @@ refresh_running_states() {
           --arg finished_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --argjson exit_code 0 \
           '.status="done" | .exit_code=$exit_code | .finished_at=$finished_at'
-        log_decision done "cell=${cell_id}" "exit_code=0"
+        log_decision "done" "cell=${cell_id}" "exit_code=0"
         publish_cell "${cell_id}" || true
       else
         failure_class="$(classify_failure "${path}")"

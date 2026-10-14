@@ -118,7 +118,11 @@ class HcPost(nn.Module):
         post_BLN: torch.Tensor,
         comb_BLNN: torch.Tensor,
     ) -> torch.Tensor:
-        mixed_BLND = torch.einsum("...ij,...id->...jd", comb_BLNN, residual_BLND)
+        mixed_BLND = torch.einsum(
+            "...ij,...id->...jd",
+            comb_BLNN.to(residual_BLND.dtype),
+            residual_BLND,
+        )
         return post_BLN.to(update_BLD.dtype).unsqueeze(-1) * update_BLD.unsqueeze(
             -2
         ) + mixed_BLND.to(update_BLD.dtype)

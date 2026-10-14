@@ -28,7 +28,8 @@ from pathlib import Path
 
 
 QUEUE_DIR = Path("experiments/glm53_arch_speedrun/queue")
-TOKEN_BUDGET = 500_000_000
+TOKEN_BUDGET = 268_435_456
+TOKENS_PER_STEP = 262_144
 SEED_PAIR = (0, 1)
 SEED_TRIPLE = (0, 1, 2)
 SCIENCE_SEQ_LEN = 4096
@@ -132,6 +133,7 @@ def _config_overrides(
         "debug.seed": seed,
         "training.seq_len": seq_len,
         "training.token_budget": token_budget,
+        "training.tokens_per_step": TOKENS_PER_STEP,
         "model.elements.rope_enabled": levels["positions"] == "rope",
         "model.elements.mhc_enabled": levels["mhc"] == "on",
         "model.elements.mhc_streams": dose_knobs["mhc_num_streams"],
@@ -141,6 +143,9 @@ def _config_overrides(
         "model.elements.sparse_attention_enabled": levels["sparse"] != "dense",
         "model.elements.sparse_top_k": dose_knobs["sparse_top_k"],
         "model.elements.index_pool_size": dose_knobs["index_pool_size"],
+        "model.elements.indexer_aux_loss_weight": (
+            0.01 if levels["sparse"] != "dense" else 0.0
+        ),
         "model.elements.mtp_enabled": levels["mtp"] == "on",
         "model.elements.mtp_aux_loss_weight": dose_knobs["mtp_aux_loss_weight"],
     }

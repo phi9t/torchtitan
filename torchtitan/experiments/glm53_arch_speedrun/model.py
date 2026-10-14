@@ -35,9 +35,15 @@ from torchtitan.distributed.fsdp import (
 from torchtitan.distributed.local_compile import apply_local_compile, local_compile
 from torchtitan.distributed.parallelism_context import ParallelismContext
 from torchtitan.models.base import BaseModel
+from torchtitan.models.common.aux_loss import register_aux_loss_zero_hook
 
+from .aux_loss import SpeedrunIndexerAuxLoss, SpeedrunMtpAuxLoss
 from .elements import maybe_apply_rope, SpeedrunElementsConfig
+from .elements.adapter import collect_element_aux_losses, maybe_build_mtp
+from .elements.attention import IndexPool, TopKSparseCausalAttention
 from .elements.config import b0_config as element_b0_config
+from .elements.kda import GatedRMSNorm, KDALayer
+from .elements.mhc import collapse_streams, expand_streams, MHCResidualBlock
 
 
 def b0_elements_config(*, seq_len: int = 1024, vocab_size: int = 50257):
@@ -140,12 +146,10 @@ def speedrun_squared_relu_mlp(
 
 
 class SpeedrunAttention(nn.Module):
-    """B0 softmax self-attention with QK norm and RoPE."""
+    """Softmax self-attention with QK norm and optional RoPE."""
 
     def __init__(self, config: SpeedrunElementsConfig, *, norm_eps: float) -> None:
         super().__init__()
-        if config.attention_kind(0) != "softmax":
-            raise NotImplementedError("S01 B0 supports only softmax attention.")
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = config.head_dim
@@ -182,6 +186,37 @@ class SpeedrunAttention(nn.Module):
         return self.out_proj(out_BLHK.flatten(-2))
 
 
+def _build_speedrun_attention(
+    config: SpeedrunElementsConfig,
+    *,
+    layer_idx: int,
+    norm_eps: float,
+) -> nn.Module:
+    if config.attention_kind(layer_idx) == "kda":
+        return KDALayer(config)
+    if config.sparse_attention_enabled:
+        return TopKSparseCausalAttention(config)
+    return SpeedrunAttention(config, norm_eps=norm_eps)
+
+
+def _call_attention(
+    attention: nn.Module,
+    x_BLD: torch.Tensor,
+    *,
+    positions: torch.Tensor | None,
+    attention_mask_BL: torch.Tensor | None,
+) -> torch.Tensor:
+    if isinstance(attention, KDALayer):
+        return attention(x_BLD)
+    if isinstance(attention, TopKSparseCausalAttention):
+        return attention(
+            x_BLD,
+            positions=positions,
+            attention_mask_BL=attention_mask_BL,
+        )
+    return attention(x_BLD, positions=positions)
+
+
 class SpeedrunMLP(nn.Module):
     """ReLU^2 feed-forward block from the classic speedrun recipe."""
 
@@ -213,30 +248,86 @@ class SpeedrunResidualBlock(nn.Module):
         norm_eps: float,
     ) -> None:
         super().__init__()
-        if config.mhc_enabled:
-            raise NotImplementedError(
-                "mHC is owned by the S02 elements path; B0 uses plain residuals."
-            )
-        if config.attention_kind(layer_idx) != "softmax":
-            raise NotImplementedError(
-                "KDA and sparse/indexed attention are owned by the S02 elements path."
-            )
-        if config.mtp_enabled:
-            raise NotImplementedError("MTP is owned by the S02 elements path.")
+        self.mhc_enabled = config.mhc_enabled
         self.attention_norm = SpeedrunRMSNorm(config.hidden_size, eps=norm_eps)
-        self.attention = SpeedrunAttention(config, norm_eps=norm_eps)
+        self.attention = _build_speedrun_attention(
+            config,
+            layer_idx=layer_idx,
+            norm_eps=norm_eps,
+        )
         self.mlp_norm = SpeedrunRMSNorm(config.hidden_size, eps=norm_eps)
         self.mlp = SpeedrunMLP(config)
+        if config.mhc_enabled:
+            self.attention_mhc = MHCResidualBlock(
+                config.hidden_size,
+                nn.Identity(),
+                num_streams=config.mhc_streams,
+                sinkhorn_iters=config.mhc_sinkhorn_iters,
+                eps=config.mhc_eps,
+                identity_at_init=config.mhc_init == "gated_identity",
+            )
+            self.mlp_mhc = MHCResidualBlock(
+                config.hidden_size,
+                nn.Identity(),
+                num_streams=config.mhc_streams,
+                sinkhorn_iters=config.mhc_sinkhorn_iters,
+                eps=config.mhc_eps,
+                identity_at_init=config.mhc_init == "gated_identity",
+            )
+        else:
+            self.attention_mhc = None
+            self.mlp_mhc = None
 
-    def forward(
+    def _attention_update(
         self,
         x_BLD: torch.Tensor,
         *,
         positions: torch.Tensor | None,
+        attention_mask_BL: torch.Tensor | None,
     ) -> torch.Tensor:
-        x_BLD = x_BLD + self.attention(self.attention_norm(x_BLD), positions=positions)
-        x_BLD = x_BLD + self.mlp(self.mlp_norm(x_BLD))
-        return x_BLD
+        return _call_attention(
+            self.attention,
+            self.attention_norm(x_BLD),
+            positions=positions,
+            attention_mask_BL=attention_mask_BL,
+        )
+
+    def _mlp_update(self, x_BLD: torch.Tensor) -> torch.Tensor:
+        return self.mlp(self.mlp_norm(x_BLD))
+
+    def forward(
+        self,
+        x_BLD_or_BLND: torch.Tensor,
+        *,
+        positions: torch.Tensor | None,
+        attention_mask_BL: torch.Tensor | None,
+    ) -> torch.Tensor:
+        if not self.mhc_enabled:
+            x_BLD = x_BLD_or_BLND
+            x_BLD = x_BLD + self._attention_update(
+                x_BLD,
+                positions=positions,
+                attention_mask_BL=attention_mask_BL,
+            )
+            x_BLD = x_BLD + self._mlp_update(x_BLD)
+            return x_BLD
+
+        assert self.attention_mhc is not None
+        assert self.mlp_mhc is not None
+        streams_BLND = x_BLD_or_BLND
+        streams_BLND = self.attention_mhc(
+            streams_BLND,
+            lambda collapsed_BLD: self._attention_update(
+                collapsed_BLD,
+                positions=positions,
+                attention_mask_BL=attention_mask_BL,
+            ),
+        )
+        streams_BLND = self.mlp_mhc(
+            streams_BLND,
+            lambda collapsed_BLD: self._mlp_update(collapsed_BLD),
+        )
+        return streams_BLND
 
 
 class SpeedrunHead(nn.Module):
@@ -275,6 +366,7 @@ class Glm53ArchSpeedrunModel(BaseModel):
             default_factory=lambda: [
                 "glm53_speedrun_attention",
                 "glm53_speedrun_mlp",
+                "loss",
             ]
         )
 
@@ -332,6 +424,27 @@ class Glm53ArchSpeedrunModel(BaseModel):
         )
         self.norm = SpeedrunRMSNorm(cfg.hidden_size, eps=config.norm_eps)
         self.head = SpeedrunHead(cfg, logit_softcap=config.logit_softcap)
+        self.mtp_head = maybe_build_mtp(cfg)
+        self.indexer_aux_loss = (
+            SpeedrunIndexerAuxLoss(
+                SpeedrunIndexerAuxLoss.Config(
+                    coeff=1.0,
+                    reduce_mesh="loss",
+                )
+            )
+            if cfg.indexer_aux_loss_weight > 0.0
+            else None
+        )
+        self.mtp_aux_loss = (
+            SpeedrunMtpAuxLoss(
+                SpeedrunMtpAuxLoss.Config(
+                    coeff=1.0,
+                    reduce_mesh="loss",
+                )
+            )
+            if cfg.mtp_enabled and cfg.mtp_aux_loss_weight > 0.0
+            else None
+        )
 
     @property
     def lm_head(self) -> nn.Module:
@@ -342,12 +455,51 @@ class Glm53ArchSpeedrunModel(BaseModel):
         tokens: torch.Tensor,
         positions: torch.Tensor | None = None,
         attention_masks: object | None = None,
+        mtp_labels: torch.Tensor | None = None,
+        aux_loss_denominators: torch.Tensor | None = None,
     ) -> torch.Tensor:
         del attention_masks
         x_BLD = self.token_embeddings(tokens)
+        if self.config.elements.mhc_enabled:
+            x_BLD_or_BLND = expand_streams(
+                x_BLD,
+                num_streams=self.config.elements.mhc_streams,
+            )
+        else:
+            x_BLD_or_BLND = x_BLD
         for block in self.blocks:
-            x_BLD = block(x_BLD, positions=positions)
+            x_BLD_or_BLND = block(
+                x_BLD_or_BLND,
+                positions=positions,
+                attention_mask_BL=None,
+            )
+        x_BLD = (
+            collapse_streams(x_BLD_or_BLND)
+            if self.config.elements.mhc_enabled
+            else x_BLD_or_BLND
+        )
         x_BLD = self.norm(x_BLD)
+        if self.training and aux_loss_denominators is not None:
+            aux_denominator = aux_loss_denominators.reshape(-1)[0]
+            if self.indexer_aux_loss is not None:
+                indexer_aux = collect_element_aux_losses(self)
+                if indexer_aux is not None:
+                    x_BLD = self.indexer_aux_loss.inject(
+                        indexer_aux * aux_denominator,
+                        carrier=x_BLD,
+                        denominator=aux_denominator,
+                    )
+            if (
+                self.mtp_aux_loss is not None
+                and self.mtp_head is not None
+                and mtp_labels is not None
+            ):
+                mtp_aux = self.mtp_head.aux_loss(x_BLD, mtp_labels)
+                x_BLD = self.mtp_aux_loss.inject(
+                    mtp_aux * aux_denominator,
+                    carrier=x_BLD,
+                    denominator=aux_denominator,
+                )
         if self._skip_lm_head:
             return x_BLD.reshape(-1, x_BLD.shape[-1]).clone()
         logits_BLV = self.head(x_BLD)
@@ -362,6 +514,12 @@ class Glm53ArchSpeedrunModel(BaseModel):
         labels = input_dict.pop("labels")
         tokens = input_dict.pop("input")
         input_dict.pop("padding_mask", None)
+        if self.training and (
+            self.indexer_aux_loss is not None or self.mtp_aux_loss is not None
+        ):
+            input_dict["aux_loss_denominators"] = torch.empty(0)
+        if self.config.elements.mtp_enabled:
+            input_dict["mtp_labels"] = labels
         return tokens, labels.reshape(-1), input_dict
 
     def parallelize(
@@ -422,8 +580,16 @@ class Glm53ArchSpeedrunModel(BaseModel):
     def verify_module_protocol(self) -> None:
         return
 
+    @classmethod
+    def _register_optimizer_hooks(
+        cls,
+        optimizers,
+        model_parts,
+        parallelism_context,
+    ) -> None:
+        register_aux_loss_zero_hook(optimizers, model_parts, parallelism_context)
+
     def init_states(self, *, buffer_device: torch.device | None = None) -> None:
-        del buffer_device
         cfg = self.config
         residual_std = cfg.initializer_std / math.sqrt(2 * cfg.elements.num_layers)
         with torch.no_grad():
@@ -439,7 +605,24 @@ class Glm53ArchSpeedrunModel(BaseModel):
                     nn.init.normal_(module.weight, mean=0.0, std=std)
                     if module.bias is not None:
                         nn.init.zeros_(module.bias)
+                elif isinstance(module, nn.Conv1d):
+                    nn.init.normal_(module.weight, mean=0.0, std=cfg.initializer_std)
+                    if module.bias is not None:
+                        nn.init.zeros_(module.bias)
                 elif isinstance(module, (SpeedrunRMSNorm, PerHeadRMSNorm)):
+                    module.reset_parameters()
+                elif isinstance(module, nn.LayerNorm):
+                    module.reset_parameters()
+                elif isinstance(module, GatedRMSNorm):
+                    nn.init.ones_(module.weight)
+                elif isinstance(module, IndexPool):
+                    nn.init.zeros_(module.slot_bias)
+                elif isinstance(module, KDALayer):
+                    nn.init.zeros_(module.dt_bias)
+                    nn.init.zeros_(module.A_log)
+                elif isinstance(module, (SpeedrunIndexerAuxLoss, SpeedrunMtpAuxLoss)):
+                    module._init_self_buffers(buffer_device=buffer_device)
+                elif hasattr(module, "reset_parameters") and module is not self:
                     module.reset_parameters()
 
 
@@ -463,6 +646,7 @@ def muon_parameter_names(model: nn.Module) -> set[str]:
         ".attention.k_proj.weight",
         ".attention.v_proj.weight",
         ".attention.out_proj.weight",
+        ".attention.o_proj.weight",
         ".mlp.up_proj.weight",
         ".mlp.down_proj.weight",
     )

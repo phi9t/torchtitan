@@ -45,6 +45,7 @@ class FineWebBinDataLoader(BaseDataLoader):
         bin_glob: str
         vocab_size: int = 50257
         repeat: bool = True
+        num_mtp_layers: int = 0
 
         def build(
             self,
@@ -74,6 +75,7 @@ class FineWebBinDataLoader(BaseDataLoader):
                 dp_world_size=dp_world_size,
                 dp_rank=dp_rank,
                 repeat=self.repeat,
+                num_mtp_layers=self.num_mtp_layers,
             )
 
     def __init__(
@@ -86,6 +88,7 @@ class FineWebBinDataLoader(BaseDataLoader):
         dp_world_size: int,
         dp_rank: int,
         repeat: bool,
+        num_mtp_layers: int = 0,
     ) -> None:
         if not shard_paths:
             raise ValueError("shard_paths must be non-empty")
@@ -97,6 +100,8 @@ class FineWebBinDataLoader(BaseDataLoader):
             raise ValueError("dp_world_size must be >= 1")
         if not 0 <= dp_rank < dp_world_size:
             raise ValueError(f"dp_rank must be in [0, {dp_world_size}), got {dp_rank}")
+        if num_mtp_layers < 0:
+            raise ValueError("num_mtp_layers must be non-negative")
         self.shard_paths = [Path(path) for path in shard_paths]
         self.seq_len = seq_len
         self.local_batch_size = local_batch_size
@@ -104,6 +109,7 @@ class FineWebBinDataLoader(BaseDataLoader):
         self.dp_world_size = dp_world_size
         self.dp_rank = dp_rank
         self.repeat = repeat
+        self.num_mtp_layers = num_mtp_layers
         self._rank_stride = local_batch_size * seq_len
         self._rank_window = self._rank_stride + 1
         self._global_stride = self._rank_stride * dp_world_size

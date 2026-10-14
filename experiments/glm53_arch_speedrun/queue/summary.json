@@ -1,0 +1,13 @@
+{
+  "deferred_4d_templates": 36,
+  "deferred_c1_templates": 3,
+  "four_c_generator_attempts": 828,
+  "four_c_model_columns": 21,
+  "four_c_model_rank": 21,
+  "runnable_cells": 93,
+  "slice_counts": {
+    "4a": 30,
+    "4b": 15,
+    "4c": 48
+  }
+}

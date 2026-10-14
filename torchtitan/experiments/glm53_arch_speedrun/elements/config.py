@@ -139,12 +139,17 @@ def compose_arms(
     if "A3" in requested:
         cfg = replace(cfg, kda_enabled=True, kda_hybrid_3_to_1=True)
     if "A4" in requested:
-        cfg = replace(cfg, sparse_attention_enabled=True)
+        cfg = replace(
+            cfg,
+            sparse_attention_enabled=True,
+            indexer_aux_loss_weight=0.01,
+        )
     if "A5" in requested:
         cfg = replace(
             cfg,
             sparse_attention_enabled=True,
             index_pool_size=4,
+            indexer_aux_loss_weight=0.01,
         )
     if "A6" in requested:
         cfg = replace(cfg, mtp_enabled=True, mtp_aux_loss_weight=0.1)

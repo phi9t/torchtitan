@@ -29,6 +29,7 @@ from torchtitan.observability.metrics import MetricsProcessor
 from torchtitan.trainer import Trainer
 
 from .data import FineWebBinDataLoader
+from .elements.config import compose_arms
 from .model import b0_elements_config, Glm53ArchSpeedrunModel
 
 
@@ -41,6 +42,9 @@ FALLBACK_DATA_DIR = (
     "data/fineweb10B"
 )
 GPT2_VOCAB_SIZE = 50257
+DEFAULT_TOKENS_PER_STEP = 262_144
+DEFAULT_TOKEN_BUDGET = 268_435_456
+DEFAULT_INDEXER_AUX_LOSS_WEIGHT = 0.01
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -68,6 +72,24 @@ def _env_float(name: str, default: float, *, minimum: float | None = None) -> fl
     return value
 
 
+def _env_optional_bool(name: str) -> bool | None:
+    if name not in os.environ:
+        return None
+    return _env_bool(name, False)
+
+
+def _env_optional_int(name: str, *, minimum: int | None = None) -> int | None:
+    if name not in os.environ:
+        return None
+    return _env_int(name, 0, minimum=minimum)
+
+
+def _env_optional_float(name: str, *, minimum: float | None = None) -> float | None:
+    if name not in os.environ:
+        return None
+    return _env_float(name, 0.0, minimum=minimum)
+
+
 def _data_dir() -> str:
     configured = os.environ.get("GLM53_SPEEDRUN_DATA_DIR")
     if configured is not None:
@@ -86,14 +108,132 @@ def _val_glob(data_dir: str) -> str:
     return str(Path(data_dir) / "fineweb_val_000000.bin")
 
 
-def _default_local_batch_size(seq_len: int) -> int:
-    return 1 if seq_len >= 4096 else 4
+def _default_local_batch_size(seq_len: int, model: Glm53ArchSpeedrunModel.Config) -> int:
+    cfg = model.elements
+    expensive_elements = sum(
+        (
+            cfg.mhc_enabled,
+            cfg.kda_enabled,
+            cfg.sparse_attention_enabled,
+            cfg.mtp_enabled,
+        )
+    )
+    if expensive_elements > 1 or cfg.sparse_attention_enabled:
+        target_microbatch_tokens = 8_192
+    elif expensive_elements == 1:
+        target_microbatch_tokens = 16_384
+    else:
+        target_microbatch_tokens = 32_768
+    return max(1, target_microbatch_tokens // seq_len)
+
+
+def _base_elements_for_arm(arm: str, *, seq_len: int):
+    canonical = arm.upper()
+    aliases = {
+        "A1_MHC": "A1",
+        "A2_NOPE": "A2",
+        "A3_KDA": "A3",
+        "A4_INDEXER": "A4",
+        "A5_INDEXPOOL": "A5",
+        "A6_MTP": "A6",
+    }
+    canonical = aliases.get(canonical, canonical)
+    if canonical == "B0":
+        cfg = b0_elements_config(seq_len=seq_len, vocab_size=GPT2_VOCAB_SIZE)
+    elif canonical in {"A1", "A2", "A3", "A4", "A5", "A6"}:
+        cfg = compose_arms(canonical)
+    elif canonical == "G":
+        cfg = compose_arms("A1", "A2", "A3", "A5", "A6")
+    else:
+        cfg = b0_elements_config(seq_len=seq_len, vocab_size=GPT2_VOCAB_SIZE)
+    cfg = replace(cfg, max_seq_len=seq_len, vocab_size=GPT2_VOCAB_SIZE)
+    if cfg.sparse_attention_enabled:
+        cfg = replace(cfg, sparse_top_k=max(1, seq_len // 8))
+    if cfg.sparse_attention_enabled and cfg.indexer_aux_loss_weight == 0.0:
+        cfg = replace(cfg, indexer_aux_loss_weight=DEFAULT_INDEXER_AUX_LOSS_WEIGHT)
+    cfg.validate()
+    return cfg
+
+
+def _env_elements_config(seq_len: int):
+    cfg = _base_elements_for_arm(
+        os.environ.get("GLM53_SPEEDRUN_ARM", "B0"),
+        seq_len=seq_len,
+    )
+    updates = {}
+    env_map = {
+        "GLM53_SPEEDRUN_ROPE_ENABLED": ("rope_enabled", _env_optional_bool),
+        "GLM53_SPEEDRUN_MHC_ENABLED": ("mhc_enabled", _env_optional_bool),
+        "GLM53_SPEEDRUN_MHC_STREAMS": (
+            "mhc_streams",
+            lambda name: _env_optional_int(name, minimum=1),
+        ),
+        "GLM53_SPEEDRUN_MHC_SINKHORN_ITERS": (
+            "mhc_sinkhorn_iters",
+            lambda name: _env_optional_int(name, minimum=0),
+        ),
+        "GLM53_SPEEDRUN_KDA_ENABLED": ("kda_enabled", _env_optional_bool),
+        "GLM53_SPEEDRUN_KDA_HYBRID_3_TO_1": (
+            "kda_hybrid_3_to_1",
+            _env_optional_bool,
+        ),
+        "GLM53_SPEEDRUN_KDA_CONV_KERNEL_SIZE": (
+            "kda_conv_kernel_size",
+            lambda name: _env_optional_int(name, minimum=1),
+        ),
+        "GLM53_SPEEDRUN_SPARSE_ATTENTION_ENABLED": (
+            "sparse_attention_enabled",
+            _env_optional_bool,
+        ),
+        "GLM53_SPEEDRUN_SPARSE_TOP_K": (
+            "sparse_top_k",
+            lambda name: _env_optional_int(name, minimum=1),
+        ),
+        "GLM53_SPEEDRUN_SPARSE_ATTENTION_QUERY_CHUNK_SIZE": (
+            "sparse_attention_query_chunk_size",
+            lambda name: _env_optional_int(name, minimum=1),
+        ),
+        "GLM53_SPEEDRUN_INDEX_POOL_SIZE": (
+            "index_pool_size",
+            lambda name: _env_optional_int(name, minimum=1),
+        ),
+        "GLM53_SPEEDRUN_INDEXER_AUX_LOSS_WEIGHT": (
+            "indexer_aux_loss_weight",
+            lambda name: _env_optional_float(name, minimum=0.0),
+        ),
+        "GLM53_SPEEDRUN_INDEXER_DENSE_WARMUP_STEPS": (
+            "indexer_dense_warmup_steps",
+            lambda name: _env_optional_int(name, minimum=0),
+        ),
+        "GLM53_SPEEDRUN_MTP_ENABLED": ("mtp_enabled", _env_optional_bool),
+        "GLM53_SPEEDRUN_MTP_AUX_LOSS_WEIGHT": (
+            "mtp_aux_loss_weight",
+            lambda name: _env_optional_float(name, minimum=0.0),
+        ),
+    }
+    for env_name, (field_name, reader) in env_map.items():
+        value = reader(env_name)
+        if value is not None:
+            updates[field_name] = value
+    string_updates = {
+        "GLM53_SPEEDRUN_MHC_INIT": "mhc_init",
+        "GLM53_SPEEDRUN_KDA_IMPL": "kda_impl",
+        "GLM53_SPEEDRUN_SPARSE_ATTENTION_IMPL": "sparse_attention_impl",
+        "GLM53_SPEEDRUN_INDEXER_AUX_TARGET": "indexer_aux_target",
+    }
+    for env_name, field_name in string_updates.items():
+        if env_name in os.environ:
+            updates[field_name] = os.environ[env_name]
+    if updates:
+        cfg = replace(cfg, **updates)
+    cfg.validate()
+    return cfg
 
 
 def _speedrun_model_config(seq_len: int) -> Glm53ArchSpeedrunModel.Config:
     compile_enabled = _env_bool("GLM53_SPEEDRUN_COMPILE", True)
     return Glm53ArchSpeedrunModel.Config(
-        elements=b0_elements_config(seq_len=seq_len, vocab_size=GPT2_VOCAB_SIZE),
+        elements=_env_elements_config(seq_len),
         experiment_flavor=os.environ.get("GLM53_SPEEDRUN_ARM", "B0"),
         initializer_std=_env_float("GLM53_SPEEDRUN_INIT_STD", 0.02, minimum=0.0),
         logit_softcap=_env_float("GLM53_SPEEDRUN_LOGIT_SOFTCAP", 30.0, minimum=0.0),
@@ -103,7 +243,7 @@ def _speedrun_model_config(seq_len: int) -> Glm53ArchSpeedrunModel.Config:
             minimum=0.0,
         ),
         local_compile_regions=(
-            ["glm53_speedrun_attention", "glm53_speedrun_mlp"]
+            ["glm53_speedrun_attention", "glm53_speedrun_mlp", "loss"]
             if compile_enabled
             else []
         ),
@@ -119,20 +259,24 @@ def _owned_layout() -> ComputeLayout:
 
 
 def _muon_fqns(model_config: Glm53ArchSpeedrunModel.Config) -> list[str]:
-    num_layers = model_config.elements.num_layers
-    projections = (
-        "attention.q_proj.weight",
-        "attention.k_proj.weight",
-        "attention.v_proj.weight",
-        "attention.out_proj.weight",
-        "mlp.up_proj.weight",
-        "mlp.down_proj.weight",
-    )
-    return [
-        f"blocks.{layer_idx}.{projection}"
-        for layer_idx in range(num_layers)
-        for projection in projections
-    ]
+    cfg = model_config.elements
+    fqns = []
+    for layer_idx in range(cfg.num_layers):
+        attention_out = (
+            "attention.o_proj.weight"
+            if cfg.attention_kind(layer_idx) == "kda" or cfg.sparse_attention_enabled
+            else "attention.out_proj.weight"
+        )
+        for projection in (
+            "attention.q_proj.weight",
+            "attention.k_proj.weight",
+            "attention.v_proj.weight",
+            attention_out,
+            "mlp.up_proj.weight",
+            "mlp.down_proj.weight",
+        ):
+            fqns.append(f"blocks.{layer_idx}.{projection}")
+    return fqns
 
 
 def speedrun_optimizer_config(
@@ -154,7 +298,7 @@ def speedrun_optimizer_config(
             DistMuon.Config(
                 pattern=(
                     r"^blocks\.[0-9]+\."
-                    r"(?:attention\.(?:q_proj|k_proj|v_proj|out_proj)|"
+                    r"(?:attention\.(?:q_proj|k_proj|v_proj|out_proj|o_proj)|"
                     r"mlp\.(?:up_proj|down_proj))\.weight$"
                 ),
                 compute_sharding_by_fqn=compute_layouts,
@@ -196,15 +340,16 @@ def glm53_arch_speedrun_b0() -> Trainer.Config:
     """B0 speedrun config over FineWeb10B GPT-2 nanogpt-bin shards."""
 
     seq_len = _env_int("GLM53_SPEEDRUN_SEQ_LEN", 1024, minimum=1)
+    model = _speedrun_model_config(seq_len)
     local_batch_size = _env_int(
         "GLM53_SPEEDRUN_LOCAL_BATCH_SIZE",
-        _default_local_batch_size(seq_len),
+        _default_local_batch_size(seq_len, model),
         minimum=1,
     )
     microbatch_tokens = local_batch_size * seq_len
     tokens_per_step = _env_int(
         "GLM53_SPEEDRUN_TOKENS_PER_STEP",
-        512 * 1024,
+        DEFAULT_TOKENS_PER_STEP,
         minimum=microbatch_tokens,
     )
     if tokens_per_step % microbatch_tokens != 0:
@@ -214,7 +359,7 @@ def glm53_arch_speedrun_b0() -> Trainer.Config:
         )
     token_budget = _env_int(
         "GLM53_SPEEDRUN_TOKEN_BUDGET",
-        500_000_000,
+        DEFAULT_TOKEN_BUDGET,
         minimum=1,
     )
     steps = _training_steps(token_budget=token_budget, tokens_per_step=tokens_per_step)
@@ -225,7 +370,6 @@ def glm53_arch_speedrun_b0() -> Trainer.Config:
     )
     val_steps = max(1, math.ceil(val_tokens / microbatch_tokens))
     data_dir = _data_dir()
-    model = _speedrun_model_config(seq_len)
     warmup_steps = _env_int(
         "GLM53_SPEEDRUN_WARMUP_STEPS",
         max(1, min(200, steps // 10)),
@@ -247,6 +391,7 @@ def glm53_arch_speedrun_b0() -> Trainer.Config:
             bin_glob=_train_glob(data_dir),
             vocab_size=GPT2_VOCAB_SIZE,
             repeat=True,
+            num_mtp_layers=1 if model.elements.mtp_enabled else 0,
         ),
         validator=Validator.Config(
             freq=_env_int("GLM53_SPEEDRUN_VAL_FREQ", 100, minimum=1),
@@ -255,6 +400,7 @@ def glm53_arch_speedrun_b0() -> Trainer.Config:
                 bin_glob=_val_glob(data_dir),
                 vocab_size=GPT2_VOCAB_SIZE,
                 repeat=True,
+                num_mtp_layers=0,
             ),
         ),
         optim=Optim.Config(

@@ -5,7 +5,7 @@ All Python generation and analysis is intended to run inside the `glm53_train` r
 
 ## Runnable Queue
 
-- Token budget per run: `500000000` tokens.
+- Token budget per run: `268435456` tokens.
 - Science sequence length: `4096`; 4a also has the required `1024` replicate.
 - Seeds: B0 and G use seeds `0,1,2`; all other runnable cells use seeds `0,1`.
 - Each run requests one GPU, with the scheduler enforcing a 24 GiB process cap through the runner contract and requiring at least 30 GiB free before launch.
