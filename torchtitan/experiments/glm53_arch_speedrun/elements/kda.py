@@ -17,6 +17,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from torchtitan.models.common import attn_gym as common_attn_gym
+
 from .config import SpeedrunElementsConfig
 
 
@@ -218,6 +220,38 @@ def kda_chunked_reference(
     return out_BHLK[:, :, :seq_len].transpose(1, 2).contiguous().to(output_dtype)
 
 
+def kda_attention_gym(
+    q_BLHK: torch.Tensor,
+    k_BLHK: torch.Tensor,
+    v_BLHK: torch.Tensor,
+    raw_gate_BLHK: torch.Tensor,
+    raw_beta_BLH: torch.Tensor,
+    A_log_H: torch.Tensor,
+    dt_bias_HK: torch.Tensor,
+    *,
+    lower_bound: float = -5.0,
+) -> torch.Tensor:
+    """Run the KDA recurrence through the shared Attention Gym chunk kernel."""
+
+    output_dtype = v_BLHK.dtype
+    gate_BLHK = common_attn_gym.bound_gate(
+        raw_gate_BLHK,
+        A_log_H.float(),
+        dt_bias_HK.float(),
+        lower_bound=lower_bound,
+        impl="fused",
+    )
+    out_BLHK, _ = common_attn_gym.chunk_kda(
+        common_attn_gym.l2norm(q_BLHK),
+        common_attn_gym.l2norm(k_BLHK),
+        v_BLHK,
+        gate_BLHK,
+        raw_beta_BLH.float().sigmoid(),
+        autotune=not torch.are_deterministic_algorithms_enabled(),
+    )
+    return out_BLHK.to(output_dtype)
+
+
 class GatedRMSNorm(nn.Module):
     def __init__(self, head_dim: int, *, eps: float = 1.0e-5) -> None:
         super().__init__()
@@ -277,8 +311,9 @@ class KDALayer(nn.Module):
         self.g_b_proj = nn.Linear(self.head_dim, self.qkv_dim, bias=False)
         self.o_norm = GatedRMSNorm(self.head_dim)
         self.o_proj = nn.Linear(self.qkv_dim, config.hidden_size, bias=False)
+        self.last_impl = "uninitialized"
 
-    def forward(self, x_BLD: torch.Tensor, *, impl: str = "chunked") -> torch.Tensor:
+    def forward(self, x_BLD: torch.Tensor, *, impl: str | None = None) -> torch.Tensor:
         batch_size, seq_len = x_BLD.shape[:2]
         q_BLC = self._causal_conv(self.q_proj(x_BLD), self.q_conv1d.weight)
         k_BLC = self._causal_conv(self.k_proj(x_BLD), self.k_conv1d.weight)
@@ -293,16 +328,44 @@ class KDALayer(nn.Module):
             self.dt_bias,
             lower_bound=self.config.kda_gate_lower_bound,
         )
-        beta_BLH = torch.sigmoid(self.b_proj(x_BLD))
-        if impl == "recurrent":
+        raw_beta_BLH = self.b_proj(x_BLD)
+        beta_BLH = torch.sigmoid(raw_beta_BLH)
+        effective_impl = self.config.kda_impl if impl is None else impl
+        if effective_impl == "auto":
+            effective_impl = "attn_gym" if x_BLD.is_cuda else "chunked"
+        if effective_impl == "recurrent":
             out_BLHK, _ = kda_recurrent(q_BLHK, k_BLHK, v_BLHK, gate_BLHK, beta_BLH)
-        elif impl == "chunked":
+            self.last_impl = "recurrent"
+        elif effective_impl == "chunked":
             out_BLHK = kda_chunked_reference(
                 q_BLHK, k_BLHK, v_BLHK, gate_BLHK, beta_BLH
             )
+            self.last_impl = "chunked"
+        elif effective_impl == "attn_gym":
+            try:
+                out_BLHK = kda_attention_gym(
+                    q_BLHK,
+                    k_BLHK,
+                    v_BLHK,
+                    raw_gate_BLHK,
+                    raw_beta_BLH,
+                    self.A_log,
+                    self.dt_bias,
+                    lower_bound=self.config.kda_gate_lower_bound,
+                )
+                self.last_impl = "attn_gym"
+            except (ImportError, RuntimeError):
+                if impl == "attn_gym" or self.config.kda_impl == "attn_gym":
+                    raise
+                out_BLHK = kda_chunked_reference(
+                    q_BLHK, k_BLHK, v_BLHK, gate_BLHK, beta_BLH
+                )
+                self.last_impl = "chunked_fallback"
         else:
             raise ValueError(
-                f"unknown KDA impl {impl!r}; expected 'chunked' or 'recurrent'."
+                "unknown KDA impl "
+                f"{effective_impl!r}; expected 'auto', 'attn_gym', "
+                "'chunked', or 'recurrent'."
             )
         out_gate_BLHK = self.g_b_proj(self.g_a_proj(x_BLD)).view_as(out_BLHK)
         out_BLC = self.o_norm(out_BLHK, out_gate_BLHK).reshape(batch_size, seq_len, -1)

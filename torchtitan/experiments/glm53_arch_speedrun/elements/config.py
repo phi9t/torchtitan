@@ -28,17 +28,24 @@ class SpeedrunElementsConfig:
     mhc_streams: int = 4
     mhc_sinkhorn_iters: int = 20
     mhc_eps: float = 1.0e-6
-    mhc_identity_at_init: bool = True
+    mhc_init: str = "glm"
+    mhc_identity_at_init: bool = False
     kda_enabled: bool = False
     kda_hybrid_3_to_1: bool = False
+    kda_impl: str = "auto"
     kda_conv_kernel_size: int = 4
     kda_gate_lower_bound: float = -5.0
     sparse_attention_enabled: bool = False
+    sparse_attention_impl: str = "gather"
+    sparse_attention_query_chunk_size: int = 64
     sparse_top_k: int = 2048
     indexer_num_heads: int = 6
     indexer_head_dim: int = 128
     index_pool_size: int = 1
     index_pool_always_select_tail: bool = True
+    indexer_aux_loss_weight: float = 0.0
+    indexer_aux_target: str = "selected"
+    indexer_dense_warmup_steps: int = 0
     mtp_enabled: bool = False
     mtp_aux_loss_weight: float = 0.0
 
@@ -56,8 +63,24 @@ class SpeedrunElementsConfig:
             raise ValueError("sparse_top_k must be >= 1.")
         if self.mhc_streams < 1:
             raise ValueError("mhc_streams must be >= 1.")
+        if self.mhc_init not in {"glm", "gated_identity"}:
+            raise ValueError("mhc_init must be 'glm' or 'gated_identity'.")
+        if self.kda_impl not in {"auto", "attn_gym", "chunked", "recurrent"}:
+            raise ValueError(
+                "kda_impl must be 'auto', 'attn_gym', 'chunked', or 'recurrent'."
+            )
         if not -5.0 <= self.kda_gate_lower_bound < 0.0:
             raise ValueError("kda_gate_lower_bound must be in [-5, 0).")
+        if self.sparse_attention_impl not in {"gather", "reference"}:
+            raise ValueError("sparse_attention_impl must be 'gather' or 'reference'.")
+        if self.sparse_attention_query_chunk_size < 1:
+            raise ValueError("sparse_attention_query_chunk_size must be >= 1.")
+        if self.indexer_aux_loss_weight < 0.0:
+            raise ValueError("indexer_aux_loss_weight must be non-negative.")
+        if self.indexer_aux_target not in {"selected", "all"}:
+            raise ValueError("indexer_aux_target must be 'selected' or 'all'.")
+        if self.indexer_dense_warmup_steps < 0:
+            raise ValueError("indexer_dense_warmup_steps must be non-negative.")
         if self.mtp_aux_loss_weight < 0.0:
             raise ValueError("mtp_aux_loss_weight must be non-negative.")
 
@@ -91,6 +114,10 @@ def compose_arms(
     index_pool_size: int | None = None,
     mtp_aux_loss_weight: float | None = None,
     mhc_sinkhorn_iters: int | None = None,
+    mhc_init: str | None = None,
+    indexer_aux_loss_weight: float | None = None,
+    indexer_aux_target: str | None = None,
+    indexer_dense_warmup_steps: int | None = None,
     kda_conv_kernel_size: int | None = None,
 ) -> SpeedrunElementsConfig:
     """Compose GLM element factors and optional dose knobs for S03 ablations."""
@@ -101,7 +128,12 @@ def compose_arms(
     if unknown:
         raise ValueError(f"unknown GLM-5.3 speedrun arms: {sorted(unknown)}")
     if "A1" in requested:
-        cfg = replace(cfg, mhc_enabled=True, mhc_identity_at_init=True)
+        cfg = replace(
+            cfg,
+            mhc_enabled=True,
+            mhc_init="glm",
+            mhc_identity_at_init=False,
+        )
     if "A2" in requested:
         cfg = replace(cfg, rope_enabled=False)
     if "A3" in requested:
@@ -128,6 +160,17 @@ def compose_arms(
         dose_updates["mtp_enabled"] = mtp_aux_loss_weight > 0.0
     if mhc_sinkhorn_iters is not None:
         dose_updates["mhc_sinkhorn_iters"] = mhc_sinkhorn_iters
+    if mhc_init is not None:
+        dose_updates["mhc_init"] = mhc_init
+        dose_updates["mhc_identity_at_init"] = mhc_init == "gated_identity"
+    if indexer_aux_loss_weight is not None:
+        dose_updates["indexer_aux_loss_weight"] = indexer_aux_loss_weight
+        if indexer_aux_loss_weight > 0.0:
+            dose_updates["sparse_attention_enabled"] = True
+    if indexer_aux_target is not None:
+        dose_updates["indexer_aux_target"] = indexer_aux_target
+    if indexer_dense_warmup_steps is not None:
+        dose_updates["indexer_dense_warmup_steps"] = indexer_dense_warmup_steps
     if kda_conv_kernel_size is not None:
         dose_updates["kda_conv_kernel_size"] = kda_conv_kernel_size
     if dose_updates:

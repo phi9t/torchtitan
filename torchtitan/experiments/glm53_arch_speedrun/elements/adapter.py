@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import torch
 from torch import nn
 
 from .attention import TopKSparseCausalAttention
@@ -38,7 +39,7 @@ def maybe_wrap_mhc(
         num_streams=config.mhc_streams,
         sinkhorn_iters=config.mhc_sinkhorn_iters,
         eps=config.mhc_eps,
-        identity_at_init=config.mhc_identity_at_init,
+        identity_at_init=config.mhc_init == "gated_identity",
     )
 
 
@@ -50,3 +51,20 @@ def maybe_build_mtp(config: SpeedrunElementsConfig) -> MTPHead | None:
         config.vocab_size,
         aux_loss_weight=config.mtp_aux_loss_weight,
     )
+
+
+def collect_element_aux_losses(module: nn.Module) -> torch.Tensor | None:
+    """Sum cached element auxiliary losses exposed by element adapters."""
+
+    losses = [
+        loss
+        for child in module.modules()
+        for loss in (getattr(child, "last_indexer_aux_loss", None),)
+        if loss is not None
+    ]
+    if not losses:
+        return None
+    total = losses[0]
+    for loss in losses[1:]:
+        total = total + loss.to(device=total.device, dtype=total.dtype)
+    return total

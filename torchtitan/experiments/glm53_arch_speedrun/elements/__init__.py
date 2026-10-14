@@ -6,17 +6,24 @@
 
 """Switchable GLM-5.3-Flash architecture elements for speedrun ablations."""
 
-from .adapter import build_attention, maybe_build_mtp, maybe_wrap_mhc
+from .adapter import (
+    build_attention,
+    collect_element_aux_losses,
+    maybe_build_mtp,
+    maybe_wrap_mhc,
+)
 from .attention import (
     causal_token_indices,
     dense_causal_attention,
+    indexer_auxiliary_loss,
     IndexPool,
     LightningIndexer,
     sparse_causal_attention,
+    sparse_causal_attention_reference,
     TopKSparseCausalAttention,
 )
 from .config import arm_config, b0_config, compose_arms, SpeedrunElementsConfig
-from .kda import kda_chunked_reference, kda_recurrent, KDALayer
+from .kda import kda_attention_gym, kda_chunked_reference, kda_recurrent, KDALayer
 from .mhc import collapse_streams, expand_streams, HcPost, HcPre, MHCResidualBlock
 from .mtp import MTPHead
 from .positional import apply_rope, maybe_apply_rope
@@ -37,13 +44,17 @@ __all__ = [
     "build_attention",
     "causal_token_indices",
     "collapse_streams",
+    "collect_element_aux_losses",
     "compose_arms",
     "dense_causal_attention",
     "expand_streams",
+    "indexer_auxiliary_loss",
+    "kda_attention_gym",
     "kda_chunked_reference",
     "kda_recurrent",
     "maybe_build_mtp",
     "maybe_apply_rope",
     "maybe_wrap_mhc",
     "sparse_causal_attention",
+    "sparse_causal_attention_reference",
 ]
