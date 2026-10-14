@@ -36,7 +36,7 @@ class SpeedrunElementsConfig:
     kda_conv_kernel_size: int = 4
     kda_gate_lower_bound: float = -5.0
     sparse_attention_enabled: bool = False
-    sparse_attention_impl: str = "gather"
+    sparse_attention_impl: str = "masked_dense"
     sparse_attention_query_chunk_size: int = 64
     sparse_top_k: int = 2048
     indexer_num_heads: int = 6
@@ -71,8 +71,11 @@ class SpeedrunElementsConfig:
             )
         if not -5.0 <= self.kda_gate_lower_bound < 0.0:
             raise ValueError("kda_gate_lower_bound must be in [-5, 0).")
-        if self.sparse_attention_impl not in {"gather", "reference"}:
-            raise ValueError("sparse_attention_impl must be 'gather' or 'reference'.")
+        if self.sparse_attention_impl not in {"masked_dense", "gather", "reference"}:
+            raise ValueError(
+                "sparse_attention_impl must be 'masked_dense', 'gather', "
+                "or 'reference'."
+            )
         if self.sparse_attention_query_chunk_size < 1:
             raise ValueError("sparse_attention_query_chunk_size must be >= 1.")
         if self.indexer_aux_loss_weight < 0.0:

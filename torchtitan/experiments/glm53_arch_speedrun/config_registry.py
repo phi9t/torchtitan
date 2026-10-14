@@ -108,7 +108,9 @@ def _val_glob(data_dir: str) -> str:
     return str(Path(data_dir) / "fineweb_val_000000.bin")
 
 
-def _default_local_batch_size(seq_len: int, model: Glm53ArchSpeedrunModel.Config) -> int:
+def _default_local_batch_size(
+    seq_len: int, model: Glm53ArchSpeedrunModel.Config
+) -> int:
     cfg = model.elements
     expensive_elements = sum(
         (
@@ -243,7 +245,13 @@ def _speedrun_model_config(seq_len: int) -> Glm53ArchSpeedrunModel.Config:
             minimum=0.0,
         ),
         local_compile_regions=(
-            ["glm53_speedrun_attention", "glm53_speedrun_mlp", "loss"]
+            [
+                "glm53_speedrun_attention",
+                "glm53_speedrun_mlp",
+                "glm53_speedrun_mhc_pre",
+                "glm53_speedrun_mhc_post",
+                "loss",
+            ]
             if compile_enabled
             else []
         ),

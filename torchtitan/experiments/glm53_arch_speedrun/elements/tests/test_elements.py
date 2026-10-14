@@ -33,6 +33,7 @@ from torchtitan.experiments.glm53_arch_speedrun.elements import (
     MHCResidualBlock,
     MTPHead,
     sparse_causal_attention,
+    sparse_causal_attention_masked_dense,
     sparse_causal_attention_reference,
     SpeedrunElementsConfig,
 )
@@ -251,6 +252,51 @@ def test_sparse_gather_matches_reference_for_topk_fwd_bwd(seq_len: int) -> None:
 
 
 @pytest.mark.parametrize("seq_len", LONG_SEQS)
+def test_sparse_masked_dense_matches_gather_reference_for_topk_fwd_bwd(
+    seq_len: int,
+) -> None:
+    torch.manual_seed(23)
+    device = _device()
+    cfg = b0_config()
+    top_k = 64
+    q_BLHK = torch.randn(
+        1,
+        seq_len,
+        cfg.num_attention_heads,
+        cfg.head_dim,
+        device=device,
+        requires_grad=True,
+    )
+    k_BLHK = torch.randn_like(q_BLHK, requires_grad=True)
+    v_BLHK = torch.randn_like(q_BLHK, requires_grad=True)
+    selected_BLS = causal_token_indices(1, seq_len, device=device)[..., :top_k]
+
+    with torch.no_grad():
+        gather_out_BLHK = sparse_causal_attention(
+            q_BLHK,
+            k_BLHK,
+            v_BLHK,
+            selected_BLS,
+            query_chunk_size=16,
+        )
+    masked_dense_out_BLHK = sparse_causal_attention_masked_dense(
+        q_BLHK,
+        k_BLHK,
+        v_BLHK,
+        selected_BLS,
+    )
+
+    torch.testing.assert_close(
+        masked_dense_out_BLHK,
+        gather_out_BLHK,
+        atol=1.0e-5,
+        rtol=1.0e-5,
+    )
+    masked_dense_out_BLHK.float().square().mean().backward()
+    _assert_finite_grads([q_BLHK, k_BLHK, v_BLHK])
+
+
+@pytest.mark.parametrize("seq_len", LONG_SEQS)
 def test_index_pool_size_one_reduces_to_a4_fwd_bwd(seq_len: int) -> None:
     torch.manual_seed(3)
     device = _device()
@@ -462,7 +508,7 @@ def test_sparse_attention_exposes_indexer_aux_loss_and_dense_warmup() -> None:
     assert torch.isfinite(warmup_loss)
 
     sparse_out_BLD = attention(x_BLD, train_step=2)
-    assert attention.last_attention_path == "gather"
+    assert attention.last_attention_path == "masked_dense"
     loss = sparse_out_BLD.float().square().mean()
     aux_loss = collect_element_aux_losses(attention)
     assert aux_loss is not None

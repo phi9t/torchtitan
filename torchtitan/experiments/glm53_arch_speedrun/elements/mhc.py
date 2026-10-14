@@ -19,6 +19,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from torchtitan.distributed.local_compile import local_compile
+
 
 def expand_streams(x_BLD: torch.Tensor, *, num_streams: int = 4) -> torch.Tensor:
     return x_BLD.unsqueeze(-2).expand(*x_BLD.shape[:-1], num_streams, x_BLD.shape[-1])
@@ -32,6 +34,63 @@ def _unweighted_rms_norm(x: torch.Tensor, *, eps: float) -> torch.Tensor:
     x_float = x.float()
     out = x_float * torch.rsqrt(x_float.square().mean(dim=-1, keepdim=True) + eps)
     return out.to(x.dtype)
+
+
+@local_compile("glm53_speedrun_mhc_pre", batch_invariant=True)
+def mhc_pre_tensor_program(
+    x_BLND: torch.Tensor,
+    hc_fn_WD: torch.Tensor,
+    hc_base_W: torch.Tensor,
+    hc_scale_3: torch.Tensor,
+    *,
+    num_streams: int,
+    sinkhorn_iters: int,
+    eps: float,
+    norm_eps: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    input_dtype = x_BLND.dtype
+    flat_BLD = _unweighted_rms_norm(
+        x_BLND.flatten(-2),
+        eps=norm_eps,
+    )
+    mixes_BLW = F.linear(flat_BLD.float(), hc_fn_WD.float())
+    n = num_streams
+    pre_BLN, post_BLN, comb_BLNN = mixes_BLW.split([n, n, n * n], dim=-1)
+    comb_BLNN = comb_BLNN.unflatten(-1, (n, n))
+    pre_base_N, post_base_N, comb_base_NN = hc_base_W.float().split([n, n, n * n])
+    comb_base_NN = comb_base_NN.view(n, n)
+
+    pre_BLN = torch.sigmoid(pre_BLN * hc_scale_3.float()[0] + pre_base_N) + eps
+    post_BLN = 2.0 * torch.sigmoid(post_BLN * hc_scale_3.float()[1] + post_base_N)
+    comb_BLNN = (
+        torch.softmax(
+            comb_BLNN * hc_scale_3.float()[2] + comb_base_NN,
+            dim=-1,
+        )
+        + eps
+    )
+    comb_BLNN = comb_BLNN / (comb_BLNN.sum(dim=-2, keepdim=True) + eps)
+    for _ in range(sinkhorn_iters - 1):
+        comb_BLNN = comb_BLNN / (comb_BLNN.sum(dim=-1, keepdim=True) + eps)
+        comb_BLNN = comb_BLNN / (comb_BLNN.sum(dim=-2, keepdim=True) + eps)
+    collapsed_BLD = torch.sum(pre_BLN.unsqueeze(-1) * x_BLND, dim=-2)
+    return collapsed_BLD.to(input_dtype), post_BLN, comb_BLNN
+
+
+@local_compile("glm53_speedrun_mhc_post", batch_invariant=True)
+def mhc_post_tensor_program(
+    update_BLD: torch.Tensor,
+    residual_BLND: torch.Tensor,
+    post_BLN: torch.Tensor,
+    comb_BLNN: torch.Tensor,
+) -> torch.Tensor:
+    mixed_BLND = torch.matmul(
+        comb_BLNN.to(residual_BLND.dtype).transpose(-1, -2),
+        residual_BLND,
+    )
+    return post_BLN.to(update_BLD.dtype).unsqueeze(-1) * update_BLD.unsqueeze(
+        -2
+    ) + mixed_BLND.to(update_BLD.dtype)
 
 
 class HcPre(nn.Module):
@@ -68,15 +127,16 @@ class HcPre(nn.Module):
             raise ValueError(
                 f"expected {self.num_streams} mHC streams, got {x_BLND.shape[-2]}."
             )
-        input_dtype = x_BLND.dtype
-        flat_BLD = _unweighted_rms_norm(
-            x_BLND.flatten(-2),
-            eps=self.norm_eps,
+        return mhc_pre_tensor_program(
+            x_BLND,
+            self.hc_fn,
+            self.hc_base,
+            self.hc_scale,
+            num_streams=self.num_streams,
+            sinkhorn_iters=self.sinkhorn_iters,
+            eps=self.eps,
+            norm_eps=self.norm_eps,
         )
-        mixes_BLW = F.linear(flat_BLD.float(), self.hc_fn.float())
-        pre_BLN, post_BLN, comb_BLNN = self._split_sinkhorn(mixes_BLW)
-        collapsed_BLD = torch.sum(pre_BLN.unsqueeze(-1) * x_BLND, dim=-2)
-        return collapsed_BLD.to(input_dtype), post_BLN, comb_BLNN
 
     def _split_sinkhorn(
         self,
@@ -118,14 +178,7 @@ class HcPost(nn.Module):
         post_BLN: torch.Tensor,
         comb_BLNN: torch.Tensor,
     ) -> torch.Tensor:
-        mixed_BLND = torch.einsum(
-            "...ij,...id->...jd",
-            comb_BLNN.to(residual_BLND.dtype),
-            residual_BLND,
-        )
-        return post_BLN.to(update_BLD.dtype).unsqueeze(-1) * update_BLD.unsqueeze(
-            -2
-        ) + mixed_BLND.to(update_BLD.dtype)
+        return mhc_post_tensor_program(update_BLD, residual_BLND, post_BLN, comb_BLNN)
 
 
 class MHCResidualBlock(nn.Module):

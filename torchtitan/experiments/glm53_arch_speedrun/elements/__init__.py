@@ -19,6 +19,7 @@ from .attention import (
     IndexPool,
     LightningIndexer,
     sparse_causal_attention,
+    sparse_causal_attention_masked_dense,
     sparse_causal_attention_reference,
     TopKSparseCausalAttention,
 )
@@ -56,5 +57,6 @@ __all__ = [
     "maybe_apply_rope",
     "maybe_wrap_mhc",
     "sparse_causal_attention",
+    "sparse_causal_attention_masked_dense",
     "sparse_causal_attention_reference",
 ]

@@ -145,6 +145,9 @@ rootfs_staged_data_dir="${GLM53_SPEEDRUN_ROOTFS_DATA_DIR:-${staged_data_rel}}"
 source_data_dir="${GLM53_SPEEDRUN_SOURCE_DATA_DIR:-${host_staged_data_dir}}"
 hdfs_data_uri="${GLM53_SPEEDRUN_DATA_HDFS_URI:-}"
 export GLM53_SPEEDRUN_DATA_DIR="$rootfs_staged_data_dir"
+staged_from_hdfs=0
+data_manifest_md5=""
+data_file_count=""
 
 publish_dataset_if_needed() {
   ensure_waystone_loaded
@@ -189,14 +192,70 @@ stage_dataset_from_hdfs() {
   done < "$manifest_tmp"
   cp "$manifest_tmp" "${host_staged_data_dir}/MANIFEST.jsonl"
   rm -f "$manifest_tmp"
+  staged_from_hdfs=1
 }
 
-if [[ "${GLM53_SPEEDRUN_SKIP_PUBLISH:-0}" == "1" && -f "${host_staged_data_dir}/MANIFEST.jsonl" ]]; then
+write_staged_sidecar() {
+  ensure_waystone_loaded
+  data_manifest_md5="$(ws_md5_file "${host_staged_data_dir}/MANIFEST.jsonl")"
+  data_file_count="$(wc -l < "${host_staged_data_dir}/MANIFEST.jsonl" | tr -d '[:space:]')"
+  jq -n \
+    --arg source_uri "$hdfs_data_uri" \
+    --arg manifest_md5 "$data_manifest_md5" \
+    --arg staged_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson file_count "$data_file_count" \
+    '{source_uri:$source_uri, manifest_md5:$manifest_md5, file_count:$file_count, staged_at:$staged_at}' \
+    > "${host_staged_data_dir}/.staged.json"
+}
+
+verify_hdfs_input_cache() {
+  if [[ "${GLM53_SPEEDRUN_HDFS_STRICT:-1}" != "1" ]]; then
+    return 0
+  fi
+  case "$hdfs_data_uri" in
+    hdfs://*) ;;
+    *)
+      printf 'HDFS strict input mode requires GLM53_SPEEDRUN_DATA_HDFS_URI or a staged HDFS cache, got: %s\n' "$hdfs_data_uri" >&2
+      exit 1
+      ;;
+  esac
+  if (( staged_from_hdfs == 1 )); then
+    write_staged_sidecar
+  fi
+  if [[ ! -f "${host_staged_data_dir}/.staged.json" ]]; then
+    printf 'HDFS strict input mode requires %s/.staged.json\n' "$host_staged_data_dir" >&2
+    exit 1
+  fi
+  "${repo_root}/experiments/glm53_flash_sft_ladder/lib/hdfs_strict.sh" \
+    --quick "$host_staged_data_dir"
+  ensure_waystone_loaded
+  data_manifest_md5="$(ws_md5_file "${host_staged_data_dir}/MANIFEST.jsonl")"
+  data_file_count="$(wc -l < "${host_staged_data_dir}/MANIFEST.jsonl" | tr -d '[:space:]')"
+}
+
+use_existing_hdfs_cache=0
+if [[ -f "${host_staged_data_dir}/.staged.json" && -f "${host_staged_data_dir}/MANIFEST.jsonl" ]]; then
+  staged_source_uri="$(jq -r '.source_uri' "${host_staged_data_dir}/.staged.json")"
+  if [[ -z "$hdfs_data_uri" ]]; then
+    hdfs_data_uri="$staged_source_uri"
+    use_existing_hdfs_cache=1
+  elif [[ "$hdfs_data_uri" == "$staged_source_uri" ]]; then
+    use_existing_hdfs_cache=1
+  fi
+fi
+
+if (( use_existing_hdfs_cache == 1 )); then
+  :
+elif [[ "${GLM53_SPEEDRUN_SKIP_PUBLISH:-0}" == "1" && -f "${host_staged_data_dir}/MANIFEST.jsonl" ]]; then
+  if [[ -z "$hdfs_data_uri" && -f "${host_staged_data_dir}/.staged.json" ]]; then
+    hdfs_data_uri="$(jq -r '.source_uri' "${host_staged_data_dir}/.staged.json")"
+  fi
   : "${hdfs_data_uri:=local:${staged_data_rel}}"
 else
   publish_dataset_if_needed
   stage_dataset_from_hdfs
 fi
+verify_hdfs_input_cache
 
 run_id="${TORCHTITAN_RUN_ID:-glm53-speedrun-$(date -u +%Y%m%dT%H%M%SZ)-${arm,,}-seed${GLM53_SPEEDRUN_SEED:-0}-seq${GLM53_SPEEDRUN_SEQ_LEN:-1024}}"
 attempt_id="${TORCHTITAN_ATTEMPT_ID:-attempt-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
@@ -233,6 +292,8 @@ cat > "$metadata_file" <<EOF
   "token_budget": ${GLM53_SPEEDRUN_TOKEN_BUDGET:-268435456},
   "gpu_memory_cap_gib": ${GLM53_SPEEDRUN_GPU_MEMORY_CAP_GIB:-24},
   "data_hdfs_uri": "${hdfs_data_uri}",
+  "data_manifest_md5": "${data_manifest_md5}",
+  "data_file_count": ${data_file_count:-0},
   "data_host_dir": "${host_staged_data_dir}",
   "data_rootfs_dir": "${rootfs_staged_data_dir}",
   "ngpu": ${ngpu}

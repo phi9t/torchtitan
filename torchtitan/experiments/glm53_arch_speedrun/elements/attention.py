@@ -115,6 +115,63 @@ def sparse_causal_attention_reference(
     return out_BLHK * valid_BL[:, :, None, None].to(out_BLHK.dtype)
 
 
+def _selected_token_mask(
+    selected_BLS: torch.Tensor,
+    valid_BL: torch.Tensor,
+    *,
+    seq_len: int,
+) -> torch.Tensor:
+    batch_size = selected_BLS.shape[0]
+    selected_BLS = selected_BLS.to(device=valid_BL.device)
+    valid_BLS = selected_BLS.ge(0) & selected_BLS.lt(seq_len)
+    safe_BLS = selected_BLS.masked_fill(~valid_BLS, seq_len).long()
+    selected_BLLX = torch.zeros(
+        batch_size,
+        seq_len,
+        seq_len + 1,
+        dtype=torch.bool,
+        device=valid_BL.device,
+    )
+    selected_BLLX.scatter_(-1, safe_BLS, valid_BLS)
+    selected_BLL = selected_BLLX[..., :seq_len]
+    positions_L = torch.arange(seq_len, device=valid_BL.device)
+    causal_LL = positions_L[:, None] >= positions_L[None, :]
+    return selected_BLL & causal_LL.unsqueeze(0) & valid_BL[:, None, :]
+
+
+def sparse_causal_attention_masked_dense(
+    q_BLHK: torch.Tensor,
+    k_BLHK: torch.Tensor,
+    v_BLHK: torch.Tensor,
+    selected_BLS: torch.Tensor,
+    *,
+    attention_mask_BL: torch.Tensor | None = None,
+    scale: float | None = None,
+) -> torch.Tensor:
+    """Sparse causal attention through SDPA with a selected-key bool mask."""
+
+    batch_size, seq_len = q_BLHK.shape[:2]
+    if selected_BLS.shape[:2] != (batch_size, seq_len):
+        raise ValueError(
+            "selected_BLS must have shape [B, L, S], "
+            f"got {tuple(selected_BLS.shape)} for q {tuple(q_BLHK.shape)}."
+        )
+    valid_BL = _default_mask(q_BLHK.flatten(-2), attention_mask_BL)
+    selected_BLL = _selected_token_mask(selected_BLS, valid_BL, seq_len=seq_len)
+    default_scale = q_BLHK.shape[-1] ** -0.5
+    if scale is not None and scale != default_scale:
+        q_BLHK = q_BLHK * (scale / default_scale)
+    out_BHLK = F.scaled_dot_product_attention(
+        q_BLHK.transpose(1, 2),
+        k_BLHK.transpose(1, 2),
+        v_BLHK.transpose(1, 2),
+        attn_mask=selected_BLL[:, None],
+        dropout_p=0.0,
+    )
+    out_BLHK = torch.nan_to_num(out_BHLK.transpose(1, 2).contiguous())
+    return out_BLHK * valid_BL[:, :, None, None].to(out_BLHK.dtype)
+
+
 def sparse_causal_attention(
     q_BLHK: torch.Tensor,
     k_BLHK: torch.Tensor,
@@ -226,34 +283,48 @@ class IndexPool(nn.Module):
             )
 
         num_pools = math.ceil(seq_len / self.pool_size)
-        pooled_keys = []
-        pooled_indices = []
-        pooled_valid = []
         offsets_PR = torch.arange(
             num_pools * self.pool_size,
             device=keys_BLK.device,
         ).view(num_pools, self.pool_size)
-        for batch_idx in range(batch_size):
-            first_key = (
-                int(valid_BL[batch_idx].long().argmax().item())
-                if valid_BL[batch_idx].any()
-                else seq_len
-            )
-            raw_indices_PR = first_key + offsets_PR
-            safe_indices_PR = raw_indices_PR.clamp(0, max(seq_len - 1, 0))
-            valid_PR = (raw_indices_PR < seq_len) & valid_BL[batch_idx, safe_indices_PR]
-            grouped_keys_PRK = keys_BLK[batch_idx, safe_indices_PR]
-            grouped_gate_PRK = gate_BLK[batch_idx, safe_indices_PR]
-            logits_PRK = grouped_gate_PRK.float() + self.slot_bias.float()
-            logits_PRK = logits_PRK.masked_fill(~valid_PR[..., None], float("-inf"))
-            probs_PRK = torch.nan_to_num(logits_PRK.softmax(dim=1)).to(keys_BLK.dtype)
-            pooled_keys.append((probs_PRK * grouped_keys_PRK).sum(dim=1))
-            pooled_indices.append(raw_indices_PR.masked_fill(~valid_PR, -1))
-            pooled_valid.append(valid_PR.all(dim=1))
+        first_key_B = torch.where(
+            valid_BL.any(dim=-1),
+            valid_BL.long().argmax(dim=-1),
+            torch.full((batch_size,), seq_len, dtype=torch.long, device=keys_BLK.device),
+        )
+        raw_indices_BPR = first_key_B[:, None, None] + offsets_PR[None]
+        safe_indices_BPR = raw_indices_BPR.clamp(0, max(seq_len - 1, 0))
+        flat_safe_BP_R = safe_indices_BPR.flatten(1)
+        flat_valid_BP_R = valid_BL.gather(1, flat_safe_BP_R)
+        valid_BPR = (
+            raw_indices_BPR.lt(seq_len)
+            & flat_valid_BP_R.view(batch_size, num_pools, self.pool_size)
+        )
+        gather_index_BPRK = safe_indices_BPR[..., None].expand(
+            batch_size,
+            num_pools,
+            self.pool_size,
+            self.head_dim,
+        )
+        grouped_keys_BPRK = keys_BLK[:, None].expand(
+            batch_size,
+            num_pools,
+            seq_len,
+            self.head_dim,
+        ).gather(2, gather_index_BPRK)
+        grouped_gate_BPRK = gate_BLK[:, None].expand(
+            batch_size,
+            num_pools,
+            seq_len,
+            self.head_dim,
+        ).gather(2, gather_index_BPRK)
+        logits_BPRK = grouped_gate_BPRK.float() + self.slot_bias.float()
+        logits_BPRK = logits_BPRK.masked_fill(~valid_BPR[..., None], float("-inf"))
+        probs_BPRK = torch.nan_to_num(logits_BPRK.softmax(dim=2)).to(keys_BLK.dtype)
         return (
-            torch.stack(pooled_keys),
-            torch.stack(pooled_indices),
-            torch.stack(pooled_valid),
+            (probs_BPRK * grouped_keys_BPRK).sum(dim=2),
+            raw_indices_BPR.masked_fill(~valid_BPR, -1),
+            valid_BPR.all(dim=2),
         )
 
 
@@ -281,14 +352,18 @@ class LightningIndexer(nn.Module):
         index_head_dim: int,
         pool_size: int = 1,
         always_select_tail: bool = True,
+        query_chunk_size: int = 64,
     ) -> None:
         super().__init__()
+        if query_chunk_size < 1:
+            raise ValueError("query_chunk_size must be >= 1.")
         self.hidden_size = hidden_size
         self.top_k = top_k
         self.index_num_heads = index_num_heads
         self.index_head_dim = index_head_dim
         self.pool_size = pool_size
         self.always_select_tail = always_select_tail
+        self.query_chunk_size = query_chunk_size
         self.softmax_scale = index_head_dim**-0.5
         self.q_proj = nn.Linear(
             hidden_size, index_num_heads * index_head_dim, bias=False
@@ -340,15 +415,25 @@ class LightningIndexer(nn.Module):
                 valid_queries=valid_BL,
             )
 
-        scores_BLHP = torch.einsum(
-            "blhk,bpk->blhp",
-            q_BLHK.float(),
-            pool_keys_BPK.float(),
-        )
-        scores_BLHP = F.relu(scores_BLHP * self.softmax_scale)
         head_weights_BLH = self.weights_proj(hidden_BLD).float()
         head_weights_BLH = head_weights_BLH * (self.index_num_heads**-0.5)
-        scores_BLP = torch.einsum("blh,blhp->blp", head_weights_BLH, scores_BLHP)
+        scores_chunks = []
+        for start in range(0, seq_len, self.query_chunk_size):
+            end = min(start + self.query_chunk_size, seq_len)
+            scores_BCHP = torch.einsum(
+                "bchk,bpk->bchp",
+                q_BLHK[:, start:end].float(),
+                pool_keys_BPK.float(),
+            )
+            scores_BCHP = F.relu(scores_BCHP * self.softmax_scale)
+            scores_chunks.append(
+                torch.einsum(
+                    "bch,bchp->bcp",
+                    head_weights_BLH[:, start:end],
+                    scores_BCHP,
+                )
+            )
+        scores_BLP = torch.cat(scores_chunks, dim=1)
 
         pool_last_BP = pool_indices_BPR[..., -1].clamp(0, max(seq_len - 1, 0))
         query_positions_L = torch.arange(seq_len, device=hidden_BLD.device)
@@ -448,6 +533,7 @@ def indexer_auxiliary_loss(
     target: str = "selected",
     query_chunk_size: int = 64,
     scale: float | None = None,
+    state: IndexerScoreState | None = None,
 ) -> torch.Tensor:
     """KL from dense-attention teacher mass to differentiable indexer scores.
 
@@ -465,8 +551,11 @@ def indexer_auxiliary_loss(
     hidden_BLD = hidden_BLD.detach()
     q_teacher_BLHK = q_BLHK.detach().float()
     k_teacher_BLHK = k_BLHK.detach().float()
-    valid_BL = _default_mask(hidden_BLD, attention_mask_BL)
-    state = indexer.score_pools(hidden_BLD, valid_BL)
+    if state is None:
+        valid_BL = _default_mask(hidden_BLD, attention_mask_BL)
+        state = indexer.score_pools(hidden_BLD, valid_BL)
+    else:
+        valid_BL = state.valid_queries
     batch_size, seq_len, num_pools = state.scores.shape
     if num_pools == 0:
         return state.scores.sum() * 0.0
@@ -487,96 +576,159 @@ def indexer_auxiliary_loss(
         ).view(1, 1, num_pools)
         candidate_pools_BLC = candidate_pools_BLC.expand(batch_size, seq_len, num_pools)
 
+    positions_L = torch.arange(seq_len, device=hidden_BLD.device)
     pool_width = state.pool_indices.shape[-1]
     num_heads = q_BLHK.shape[2]
-    positions_L = torch.arange(seq_len, device=hidden_BLD.device)
-    batch_idx_B111 = torch.arange(batch_size, device=hidden_BLD.device).view(
+    batch_idx_B11 = torch.arange(batch_size, device=hidden_BLD.device).view(
         batch_size,
         1,
         1,
-        1,
     )
-    batch_idx_B11 = batch_idx_B111[..., 0]
-    losses = []
-    for start in range(0, seq_len, query_chunk_size):
-        end = min(start + query_chunk_size, seq_len)
-        chunk_size = end - start
-        candidate_pools_BCP = candidate_pools_BLC[:, start:end]
-        safe_pools_BCP = candidate_pools_BCP.clamp(0, num_pools - 1)
-        candidate_logits_BCP = state.scores[:, start:end].gather(
-            -1,
-            safe_pools_BCP,
-        )
-        candidate_mask_BCP = state.valid_candidates[:, start:end].gather(
-            -1,
-            safe_pools_BCP,
-        )
+    if target == "selected":
+        losses = []
+        batch_idx_B111 = batch_idx_B11[..., None]
+        for start in range(0, seq_len, query_chunk_size):
+            end = min(start + query_chunk_size, seq_len)
+            chunk_size = end - start
+            candidate_pools_BCP = candidate_pools_BLC[:, start:end]
+            safe_pools_BCP = candidate_pools_BCP.clamp(0, num_pools - 1)
+            candidate_logits_BCP = state.scores[:, start:end].gather(
+                -1,
+                safe_pools_BCP,
+            )
+            candidate_mask_BCP = state.valid_candidates[:, start:end].gather(
+                -1,
+                safe_pools_BCP,
+            )
+            pool_tokens_BCPR = state.pool_indices[batch_idx_B11, safe_pools_BCP]
+            safe_tokens_BCPR = pool_tokens_BCPR.clamp(0, max(seq_len - 1, 0)).long()
+            flat_safe_BC_PR = safe_tokens_BCPR.flatten(1)
+            key_valid_BCPR = valid_BL.gather(1, flat_safe_BC_PR).view_as(
+                safe_tokens_BCPR
+            )
+            query_positions_C = positions_L[start:end]
+            token_mask_BCPR = (
+                pool_tokens_BCPR.ge(0)
+                & pool_tokens_BCPR.lt(seq_len)
+                & key_valid_BCPR
+                & (pool_tokens_BCPR <= query_positions_C[None, :, None, None])
+            )
+            gathered_k_BCPRHK = k_teacher_BLHK[batch_idx_B111, safe_tokens_BCPR]
+            scores_BHCPR = torch.einsum(
+                "bchk,bcprhk->bhcpr",
+                q_teacher_BLHK[:, start:end],
+                gathered_k_BCPRHK,
+            )
+            scores_BHCPR = (scores_BHCPR * scale).masked_fill(
+                ~token_mask_BCPR[:, None],
+                float("-inf"),
+            )
+            probs_BHCM = torch.nan_to_num(
+                torch.softmax(
+                    scores_BHCPR.flatten(-2),
+                    dim=-1,
+                    dtype=torch.float32,
+                )
+            ).detach()
+            target_BCP = (
+                probs_BHCM.view(
+                    batch_size,
+                    num_heads,
+                    chunk_size,
+                    safe_tokens_BCPR.shape[-2],
+                    pool_width,
+                )
+                * token_mask_BCPR[:, None].to(probs_BHCM.dtype)
+            ).sum(dim=(1, -1))
+            target_BCP = target_BCP.masked_fill(~candidate_mask_BCP, 0.0)
+            target_sum_BC1 = target_BCP.sum(dim=-1, keepdim=True)
+            row_mask_BC = (
+                state.valid_queries[:, start:end]
+                & candidate_mask_BCP.any(dim=-1)
+                & target_sum_BC1.squeeze(-1).gt(0.0)
+            )
+            target_BCP = target_BCP / target_sum_BC1.clamp_min(1.0e-12)
+            log_probs_BCP = candidate_logits_BCP.float().masked_fill(
+                ~candidate_mask_BCP,
+                torch.finfo(torch.float32).min,
+            )
+            log_probs_BCP = torch.log_softmax(log_probs_BCP, dim=-1)
+            loss_BC = torch.where(
+                target_BCP > 0,
+                target_BCP * (target_BCP.clamp_min(1.0e-12).log() - log_probs_BCP),
+                torch.zeros_like(target_BCP),
+            ).sum(dim=-1)
+            if row_mask_BC.any():
+                losses.append(loss_BC[row_mask_BC])
 
-        pool_tokens_BCPR = state.pool_indices[batch_idx_B11, safe_pools_BCP]
-        safe_tokens_BCPR = pool_tokens_BCPR.clamp(0, max(seq_len - 1, 0)).long()
-        query_positions_C = positions_L[start:end]
-        key_valid_BCPR = valid_BL[batch_idx_B111, safe_tokens_BCPR]
-        token_mask_BCPR = (
-            pool_tokens_BCPR.ge(0)
-            & pool_tokens_BCPR.lt(seq_len)
-            & key_valid_BCPR
-            & (pool_tokens_BCPR <= query_positions_C[None, :, None, None])
-        )
+        if not losses:
+            return state.scores.sum() * 0.0
+        return torch.cat(losses).mean()
 
-        dense_scores_BHCL = torch.einsum(
-            "bchk,bshk->bhcs",
-            q_teacher_BLHK[:, start:end],
-            k_teacher_BLHK,
-        )
-        visible_BCL = (
-            positions_L[None, None, :] <= query_positions_C[None, :, None]
-        ) & valid_BL[:, None, :]
-        dense_scores_BHCL = (dense_scores_BHCL * scale).masked_fill(
-            ~visible_BCL[:, None],
-            float("-inf"),
-        )
-        dense_probs_BHCL = torch.nan_to_num(
-            torch.softmax(dense_scores_BHCL, dim=-1, dtype=torch.float32)
-        ).detach()
-        gather_index_BHCPR = safe_tokens_BCPR[:, None].expand(
-            batch_size,
-            num_heads,
-            chunk_size,
-            safe_tokens_BCPR.shape[-2],
-            pool_width,
-        )
-        token_probs_BHCPR = (
-            dense_probs_BHCL[:, :, :, None, :]
-            .expand(-1, -1, -1, safe_tokens_BCPR.shape[-2], -1)
-            .gather(-1, gather_index_BHCPR)
-        )
-        target_BCP = (
-            token_probs_BHCPR * token_mask_BCPR[:, None].to(token_probs_BHCPR.dtype)
-        ).sum(dim=(1, -1))
-        target_BCP = target_BCP.masked_fill(~candidate_mask_BCP, 0.0)
-        target_sum_BC1 = target_BCP.sum(dim=-1, keepdim=True)
-        row_mask_BC = (
-            state.valid_queries[:, start:end]
-            & candidate_mask_BCP.any(dim=-1)
-            & target_sum_BC1.squeeze(-1).gt(0.0)
-        )
-        target_BCP = target_BCP / target_sum_BC1.clamp_min(1.0e-12)
-        log_probs_BCP = candidate_logits_BCP.float().masked_fill(
-            ~candidate_mask_BCP,
-            torch.finfo(torch.float32).min,
-        )
-        log_probs_BCP = torch.log_softmax(log_probs_BCP, dim=-1)
-        loss_BC = torch.where(
-            target_BCP > 0,
-            target_BCP * (target_BCP.clamp_min(1.0e-12).log() - log_probs_BCP),
-            torch.zeros_like(target_BCP),
-        ).sum(dim=-1)
-        if row_mask_BC.any():
-            losses.append(loss_BC[row_mask_BC])
+    safe_pools_BLC = candidate_pools_BLC.clamp(0, num_pools - 1)
+    candidate_logits_BLC = state.scores.gather(-1, safe_pools_BLC)
+    candidate_mask_BLC = state.valid_candidates.gather(-1, safe_pools_BLC)
+    pool_tokens_BLCR = state.pool_indices[batch_idx_B11, safe_pools_BLC]
+    safe_tokens_BLCR = pool_tokens_BLCR.clamp(0, max(seq_len - 1, 0)).long()
+    flat_safe_BLC_R = safe_tokens_BLCR.flatten(1)
+    key_valid_BLCR = valid_BL.gather(1, flat_safe_BLC_R).view_as(safe_tokens_BLCR)
+    token_mask_BLCR = (
+        pool_tokens_BLCR.ge(0)
+        & pool_tokens_BLCR.lt(seq_len)
+        & key_valid_BLCR
+        & (pool_tokens_BLCR <= positions_L[None, :, None, None])
+    )
 
-    if not losses:
+    dense_scores_BHLL = torch.einsum(
+        "blhk,bshk->bhls",
+        q_teacher_BLHK,
+        k_teacher_BLHK,
+    )
+    visible_BLL = positions_L[None, :, None] >= positions_L[None, None, :]
+    visible_BLL = visible_BLL & valid_BL[:, None, :]
+    dense_scores_BHLL = (dense_scores_BHLL * scale).masked_fill(
+        ~visible_BLL[:, None],
+        float("-inf"),
+    )
+    dense_probs_BHLL = torch.nan_to_num(
+        torch.softmax(dense_scores_BHLL, dim=-1, dtype=torch.float32)
+    ).detach()
+    gather_index_BHLCR = safe_tokens_BLCR[:, None].expand(
+        batch_size,
+        q_BLHK.shape[2],
+        seq_len,
+        safe_tokens_BLCR.shape[-2],
+        safe_tokens_BLCR.shape[-1],
+    )
+    token_probs_BHLCR = (
+        dense_probs_BHLL[:, :, :, None]
+        .expand(-1, -1, -1, safe_tokens_BLCR.shape[-2], -1)
+        .gather(-1, gather_index_BHLCR)
+    )
+    target_BLC = (
+        token_probs_BHLCR * token_mask_BLCR[:, None].to(token_probs_BHLCR.dtype)
+    ).sum(dim=(1, -1))
+    target_BLC = target_BLC.masked_fill(~candidate_mask_BLC, 0.0)
+    target_sum_BL1 = target_BLC.sum(dim=-1, keepdim=True)
+    row_mask_BL = (
+        state.valid_queries
+        & candidate_mask_BLC.any(dim=-1)
+        & target_sum_BL1.squeeze(-1).gt(0.0)
+    )
+    if not row_mask_BL.any():
         return state.scores.sum() * 0.0
-    return torch.cat(losses).mean()
+    target_BLC = target_BLC / target_sum_BL1.clamp_min(1.0e-12)
+    log_probs_BLC = candidate_logits_BLC.float().masked_fill(
+        ~candidate_mask_BLC,
+        torch.finfo(torch.float32).min,
+    )
+    log_probs_BLC = torch.log_softmax(log_probs_BLC, dim=-1)
+    loss_BL = torch.where(
+        target_BLC > 0,
+        target_BLC * (target_BLC.clamp_min(1.0e-12).log() - log_probs_BLC),
+        torch.zeros_like(target_BLC),
+    ).sum(dim=-1)
+    return loss_BL[row_mask_BL].mean()
 
 
 class TopKSparseCausalAttention(nn.Module):
@@ -598,6 +750,7 @@ class TopKSparseCausalAttention(nn.Module):
             index_head_dim=config.indexer_head_dim,
             pool_size=config.index_pool_size,
             always_select_tail=config.index_pool_always_select_tail,
+            query_chunk_size=config.sparse_attention_query_chunk_size,
         )
         self.train_step: int | None = None
         self.last_attention_path = "uninitialized"
@@ -616,6 +769,7 @@ class TopKSparseCausalAttention(nn.Module):
     ) -> torch.Tensor:
         batch_size, seq_len = x_BLD.shape[:2]
         self.last_indexer_aux_loss = x_BLD.new_zeros(())
+        selection_state: IndexerScoreState | None = None
         q_BLHK = self.q_proj(x_BLD).view(
             batch_size, seq_len, self.num_heads, self.head_dim
         )
@@ -633,6 +787,7 @@ class TopKSparseCausalAttention(nn.Module):
             positions=positions,
         )
         if self.config.indexer_aux_loss_weight > 0.0:
+            selection_state = self.indexer.score_pools(x_BLD.detach(), attention_mask_BL)
             aux_loss = indexer_auxiliary_loss(
                 self.indexer,
                 x_BLD,
@@ -641,6 +796,7 @@ class TopKSparseCausalAttention(nn.Module):
                 attention_mask_BL=attention_mask_BL,
                 target=self.config.indexer_aux_target,
                 query_chunk_size=self.config.sparse_attention_query_chunk_size,
+                state=selection_state,
             )
             self.last_indexer_aux_loss = self.config.indexer_aux_loss_weight * aux_loss
         active_step = self.train_step if train_step is None else train_step
@@ -661,7 +817,13 @@ class TopKSparseCausalAttention(nn.Module):
             )
             self.last_attention_path = "dense_warmup" if dense_warmup else "dense"
         else:
-            selected_BLS = self.indexer(x_BLD.detach(), attention_mask_BL)
+            with torch.no_grad():
+                if selection_state is None:
+                    selection_state = self.indexer.score_pools(
+                        x_BLD.detach(),
+                        attention_mask_BL,
+                    )
+                selected_BLS = self.indexer.select_from_scores(selection_state)
             if self.config.sparse_attention_impl == "reference":
                 out_BLHK = sparse_causal_attention_reference(
                     q_BLHK,
@@ -671,7 +833,7 @@ class TopKSparseCausalAttention(nn.Module):
                     attention_mask_BL=attention_mask_BL,
                 )
                 self.last_attention_path = "reference"
-            else:
+            elif self.config.sparse_attention_impl == "gather":
                 out_BLHK = sparse_causal_attention(
                     q_BLHK,
                     k_BLHK,
@@ -681,4 +843,13 @@ class TopKSparseCausalAttention(nn.Module):
                     query_chunk_size=self.config.sparse_attention_query_chunk_size,
                 )
                 self.last_attention_path = "gather"
+            else:
+                out_BLHK = sparse_causal_attention_masked_dense(
+                    q_BLHK,
+                    k_BLHK,
+                    v_BLHK,
+                    selected_BLS,
+                    attention_mask_BL=attention_mask_BL,
+                )
+                self.last_attention_path = "masked_dense"
         return self.o_proj(out_BLHK.reshape(batch_size, seq_len, self.hidden_size))

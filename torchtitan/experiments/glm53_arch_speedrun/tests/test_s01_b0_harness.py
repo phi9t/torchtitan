@@ -245,6 +245,8 @@ def test_config_contract_applies_arm_and_element_env(monkeypatch):
     assert config.model.local_compile_regions == [
         "glm53_speedrun_attention",
         "glm53_speedrun_mlp",
+        "glm53_speedrun_mhc_pre",
+        "glm53_speedrun_mhc_post",
         "loss",
     ]
 
