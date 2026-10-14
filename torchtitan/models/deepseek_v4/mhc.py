@@ -139,8 +139,11 @@ class HcPost(Module):
         Returns:
             Hidden states of shape ``[T, hc_mult, D]``.
         """
+        # comb[..., i, j] routes source stream i into target stream j, so sum
+        # over the source axis (-3). The DeepSeek-V4 reference writes dim=2 for
+        # its batched [B, S, ...] layout; that is the target axis for [T, ...].
         y = post.unsqueeze(-1) * x.unsqueeze(-2) + torch.sum(
-            comb.unsqueeze(-1) * residual.unsqueeze(-2), dim=2
+            comb.unsqueeze(-1) * residual.unsqueeze(-2), dim=-3
         )
         return y.type_as(x)
 
