@@ -65,3 +65,4 @@
 - ~19:20Z T13 DONE (3aa4f8048): first-8-layer EP4 on 8 GPUs 5.3 s/step (vs ~110 s loop FSDP), 21.6 GiB/rank; step-1 loss
   delta 8e-5; grad norm +3.4% (same symptom as T09a/b). T13b launched: per-param grad dumps to root-cause, fair grouped
   FSDP baseline, EP8, 20-step curves, full-depth EP8 timing probe (<= 15 steps). T16 (Dist-MoE) waits for T13b.
+- ~19:35Z K01 DONE (kernel correct, slower than masked dense; attention is not the bottleneck). K02 launched: profile-first indexer hot-spot fix (target A4/A5 >= 0.5x B0).
