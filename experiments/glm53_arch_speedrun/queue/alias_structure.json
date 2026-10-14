@@ -1,0 +1,259 @@
+{
+  "alias_structure": {
+    "interpretation": "No exact aliases inside the registered main+two-way model; higher-order effects are pooled into residual error.",
+    "registered_main_and_two_way_exact_aliases": []
+  },
+  "attempts": 828,
+  "effect_coding": {
+    "mhc": {
+      "off": -1,
+      "on": 1
+    },
+    "mixer": {
+      "kda_3_to_1": 1,
+      "softmax": -1
+    },
+    "mtp": {
+      "off": -1,
+      "on": 1
+    },
+    "positions": {
+      "nope": 1,
+      "rope": -1
+    },
+    "sparse": {
+      "dense": [
+        1,
+        0
+      ],
+      "indexer_topk": [
+        -1,
+        1
+      ],
+      "indexer_topk_indexpool": [
+        0,
+        -1
+      ]
+    }
+  },
+  "fractional_seed": 5303,
+  "model_columns": 21,
+  "model_rank": 21,
+  "registered_terms": [
+    "I",
+    "mhc",
+    "positions",
+    "mixer",
+    "mtp",
+    "sparse_c1",
+    "sparse_c2",
+    "mhc:positions",
+    "mhc:mixer",
+    "mhc:mtp",
+    "positions:mixer",
+    "positions:mtp",
+    "mixer:mtp",
+    "mhc:sparse_c1",
+    "mhc:sparse_c2",
+    "positions:sparse_c1",
+    "positions:sparse_c2",
+    "mixer:sparse_c1",
+    "mixer:sparse_c2",
+    "mtp:sparse_c1",
+    "mtp:sparse_c2"
+  ],
+  "rows": [
+    {
+      "mhc": "off",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "nope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "off",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "nope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "off",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "rope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "on",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "nope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "on",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "nope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "on",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "rope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "on",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "rope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "on",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "rope",
+      "sparse": "dense"
+    },
+    {
+      "mhc": "off",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "nope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "off",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "nope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "off",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "rope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "off",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "rope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "on",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "nope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "on",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "rope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "on",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "rope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "on",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "rope",
+      "sparse": "indexer_topk"
+    },
+    {
+      "mhc": "off",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "nope",
+      "sparse": "indexer_topk_indexpool"
+    },
+    {
+      "mhc": "off",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "nope",
+      "sparse": "indexer_topk_indexpool"
+    },
+    {
+      "mhc": "off",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "nope",
+      "sparse": "indexer_topk_indexpool"
+    },
+    {
+      "mhc": "off",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "rope",
+      "sparse": "indexer_topk_indexpool"
+    },
+    {
+      "mhc": "off",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "rope",
+      "sparse": "indexer_topk_indexpool"
+    },
+    {
+      "mhc": "on",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "nope",
+      "sparse": "indexer_topk_indexpool"
+    },
+    {
+      "mhc": "on",
+      "mixer": "softmax",
+      "moe": "off",
+      "mtp": "off",
+      "positions": "nope",
+      "sparse": "indexer_topk_indexpool"
+    },
+    {
+      "mhc": "on",
+      "mixer": "kda_3_to_1",
+      "moe": "off",
+      "mtp": "on",
+      "positions": "rope",
+      "sparse": "indexer_topk_indexpool"
+    }
+  ]
+}
