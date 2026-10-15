@@ -248,6 +248,21 @@ DeepEP import/config probe
 
 All passed.
 
+Narrow pre-commit hooks on the changed T18 files also passed after `ufmt`
+formatted `config_registry.py`, `dispatch_microbench.py`, and
+`dispatch_summary.py`:
+
+```text
+trailing-whitespace
+end-of-file-fixer
+check-ast
+insert-license
+ufmt
+flake8
+pydoclint
+codespell
+```
+
 ## Remaining work
 
 1. Rerun `RUN_ID=<new-id> bash experiments/glm53_flash_ep_dispatch/run_t18_first8.sh both`

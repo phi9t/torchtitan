@@ -39,7 +39,9 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
     steady_ms = [event["value"] * 1000.0 for event in step_time if event["step"] >= 2]
     return {
         "run_dir": str(run_dir),
-        "steps": sorted({int(row["step"]) for series in (loss, grad) for row in series}),
+        "steps": sorted(
+            {int(row["step"]) for series in (loss, grad) for row in series}
+        ),
         "final_loss": loss[-1]["value"] if loss else None,
         "final_grad_norm": grad[-1]["value"] if grad else None,
         "mean_ms_per_step_steps_2_plus": _mean(steady_ms),
@@ -76,13 +78,25 @@ def summarize_microbench(path: Path) -> dict[str, Any]:
         "by_name": {
             name: {
                 "mean_dispatch_ms": _mean(
-                    [float(row["mean_dispatch_ms"]) for row in rows if row["name"] == name]
+                    [
+                        float(row["mean_dispatch_ms"])
+                        for row in rows
+                        if row["name"] == name
+                    ]
                 ),
                 "mean_combine_ms": _mean(
-                    [float(row["mean_combine_ms"]) for row in rows if row["name"] == name]
+                    [
+                        float(row["mean_combine_ms"])
+                        for row in rows
+                        if row["name"] == name
+                    ]
                 ),
                 "mean_roundtrip_ms": _mean(
-                    [float(row["mean_roundtrip_ms"]) for row in rows if row["name"] == name]
+                    [
+                        float(row["mean_roundtrip_ms"])
+                        for row in rows
+                        if row["name"] == name
+                    ]
                 ),
             }
             for name in sorted({str(row["name"]) for row in rows})

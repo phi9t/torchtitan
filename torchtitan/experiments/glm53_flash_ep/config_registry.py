@@ -15,7 +15,6 @@ from torchtitan.components.loss import ChunkedLossWrapper, CrossEntropyLoss
 from torchtitan.components.tokenizer import HuggingFaceTokenizer
 from torchtitan.config import DebugConfig, ParallelismConfig, TrainingConfig
 from torchtitan.distributed.activation_checkpoint import FullAC
-from torchtitan.models.common.token_dispatcher import DeepEPTokenDispatcher
 
 from torchtitan.experiments.glm53_flash.config_registry import (
     _countdown_data_loader_config,
@@ -32,6 +31,7 @@ from torchtitan.experiments.glm53_flash.config_registry import (
 from torchtitan.experiments.glm53_flash.flavors import with_lora
 from torchtitan.experiments.glm53_flash_4gpu_lean.trainer import LeanMemoryTrainer
 from torchtitan.models.base.model import BaseModel
+from torchtitan.models.common.token_dispatcher import DeepEPTokenDispatcher
 from torchtitan.observability.metrics import MetricsProcessor
 
 from .checkpoint import Glm53FlashEPLoRACheckpointManager
@@ -240,9 +240,7 @@ def glm53_flash_ep_countdown_lora_truncated_deepep() -> "LeanMemoryTrainer.Confi
     if "GLM53_FLASH_EP_DEGREE" not in os.environ:
         config.parallelism.expert_parallel_degree = 8
     assert isinstance(config.model, Glm53FlashEPForCausalLM.Config)
-    config.model.experiment_flavor = (
-        f"{config.model.experiment_flavor}_deepep"
-    )
+    config.model.experiment_flavor = f"{config.model.experiment_flavor}_deepep"
     config.model.token_dispatcher = _deepep_dispatcher_config(config)
     config.dump_folder = os.environ.get(
         "GLM53_FLASH_DEEPEP_DUMP_FOLDER",

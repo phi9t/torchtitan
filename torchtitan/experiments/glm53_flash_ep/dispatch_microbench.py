@@ -105,8 +105,7 @@ def _benchmark_dispatcher(
         "mean_dispatch_ms": _mean(row["dispatch_ms"] for row in measurements),
         "mean_combine_ms": _mean(row["combine_ms"] for row in measurements),
         "mean_roundtrip_ms": _mean(row["roundtrip_ms"] for row in measurements),
-        "max_memory_reserved_gib": torch.cuda.max_memory_reserved()
-        / float(1024**3),
+        "max_memory_reserved_gib": torch.cuda.max_memory_reserved() / float(1024**3),
     }
 
 
