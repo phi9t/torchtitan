@@ -1,0 +1,30 @@
+{
+  "plain_text_ce_nats": 1.1326205730438232,
+  "france_top5": [
+    [
+      " Paris",
+      0.4674
+    ],
+    [
+      " known",
+      0.0717
+    ],
+    [
+      " one",
+      0.0717
+    ],
+    [
+      " a",
+      0.0673
+    ],
+    [
+      " famous",
+      0.0558
+    ]
+  ],
+  "greedy_plain": " Paris. In French, Paris is spelled \"Paris\", but the pronunciation is different, with a silent \"s\". As",
+  "chat_prompt_tail": "tion must consume two\ncurrently available numbers and produce one new positive integer.\nUse each input number at most once. Division must be exact.\nFormat:\na + b = c\n...\nFINAL: 39\n<|assistant|><think>",
+  "greedy_countdown": "We need answer to puzzle. Need produce sequence operations using numbers 14,37,12 target 39. Each operation consumes two currently available numbers and produce one new positive integer. Use each input at most once. Division exact. Need format lines a + b = c ... FINAL: 39. Need find expression.\n\nWe need use numbers at most once, not necessarily all? Usually Countdown use all? Prompt says use each input at most once, target. Need sequence. We",
+  "padded_vs_single_max_abs_logit_diff": 1.109375,
+  "padded_vs_single_same_top1": true
+}

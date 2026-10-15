@@ -14,6 +14,7 @@ import pytest
 import torch
 import torch.nn.functional as F
 from safetensors.torch import save_file
+from torch.distributed.checkpoint import save
 
 from torchtitan.components.data import (
     FirstFitPackingConfig,
@@ -33,6 +34,9 @@ from torchtitan.experiments.glm53_flash.config_registry import (
     glm53_flash_debugmodel_lora,
     glm53_flash_mini_countdown_full,
     glm53_flash_mini_countdown_lora,
+)
+from torchtitan.experiments.glm53_flash.export_glm_lora import (
+    _read_torchtitan_lora_tensors,
 )
 from torchtitan.experiments.glm53_flash.flavors import (
     build_model_config,
@@ -817,6 +821,32 @@ def test_trainable_model_wrapper_exposes_only_lora_tensors():
     assert set(state_dict) == {
         name for name, param in model.named_parameters() if param.requires_grad
     }
+
+
+def test_exporter_reads_only_exact_lora_model_keys(tmp_path):
+    checkpoint_dir = tmp_path / "checkpoint"
+    state = {
+        "layers.0.self_attn.q_proj.lora_a": torch.ones(2, 3),
+        "layers.0.self_attn.q_proj.lora_b": torch.ones(4, 2),
+        "optimizer.state.layers.0.self_attn.q_proj.lora_a.exp_avg": torch.full(
+            (2, 3), 9.0
+        ),
+        "optimizer.state.layers.0.self_attn.q_proj.lora_b.exp_avg_sq": torch.full(
+            (4, 2), 11.0
+        ),
+    }
+    save(state, checkpoint_id=str(checkpoint_dir))
+
+    tensors = _read_torchtitan_lora_tensors(checkpoint_dir)
+
+    assert set(tensors) == {
+        "layers.0.self_attn.q_proj.lora_a",
+        "layers.0.self_attn.q_proj.lora_b",
+    }
+    torch.testing.assert_close(
+        tensors["layers.0.self_attn.q_proj.lora_a"],
+        torch.ones(2, 3),
+    )
 
 
 class _TinyAdapter:

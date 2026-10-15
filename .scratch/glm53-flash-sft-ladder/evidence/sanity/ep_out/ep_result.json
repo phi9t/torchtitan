@@ -1,0 +1,61 @@
+{
+  "logits_shape": [
+    1,
+    36,
+    154880
+  ],
+  "plain_text_ce_nats": 1.1952813863754272,
+  "france_top5": [
+    [
+      " Paris",
+      0.5177
+    ],
+    [
+      " known",
+      0.0658
+    ],
+    [
+      " one",
+      0.0658
+    ],
+    [
+      " a",
+      0.0618
+    ],
+    [
+      " famous",
+      0.0581
+    ]
+  ],
+  "tt_prompt_ids_head": [
+    154822,
+    154824,
+    154826,
+    25062,
+    287,
+    29905,
+    371,
+    25,
+    7487,
+    154827,
+    27148,
+    25
+  ],
+  "hf_prompt_ids_head": [
+    154822,
+    154824,
+    154826,
+    25062,
+    287,
+    29905,
+    371,
+    25,
+    7487,
+    154827,
+    27148,
+    25
+  ],
+  "tt_vs_hf_prompt_equal": true,
+  "tt_prompt_decoded_head": "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Numbers: 14, 37, 12\nTarget: 39\n\nReturn a sequence of operations. Each operation must consume two\ncurrently available",
+  "tt_eos_id": 154820
+}

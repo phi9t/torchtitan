@@ -74,3 +74,11 @@
 - ~21:20Z T13c GO (committed): full-depth EP8 29 s/step, 81 GiB/GPU, exact HDFS resume, 36 experts/rank load. T08f launched: RUNG 4 on EP8 (seed42 94 + resume via HDFS + seed43 + export fix + eval + publish). T08e superseded.
 - ~21:35Z N01b DONE (3fca80581): single CUDA 13.2 toolchain, new native store rootfs-0239a373; DeepEP v2 + torchao 0.19 L2 wheels on HDFS, installed in glm53_ep; GLM+EP tests 44 passed there. T08f relaunched with relaxed foreign-process gate (Default-mode foreign jobs allowed if memory ok); orphan runner stopped. T18 launched (DeepEP vs all-to-all on GLM, first-8-layer, + step-time breakdown).
 - ~22:00Z K03 DONE (d4f4fa0a2): compiled indexer region -> A4/A5/G 0.36-0.46x B0; stride 1 kept (exact objective). T18 NO-GO yet (bug fixed: DeepEP buffer init after GLM init; comparison blocked by T08f); T18b queued after T08f. T08f seed42 full EP8 run training since ~21:50Z.
+- ~04:40Z (10-15) T08f eval INVALIDATED + fixed: first base eval (00:51-04:05Z) gave pass@1 0.000 with token-salad output.
+  Root cause: training_engine sets model._skip_lm_head=True for ChunkedLossWrapper, so generate.py sampled from hidden
+  states [T, D] not logits [T, V]. Training unaffected (chunked loss applies lm_head). Standalone sanity
+  (evidence/sanity/glm_infer_sanity.py, plain TT model + HF safetensors, 8-GPU layer slices): CE 1.13 nats, "Paris" top-1
+  0.47, coherent greedy Countdown reasoning. EP path after fix (glm_ep_sanity.py): logits [1,36,154880], CE 1.20, Paris 0.52,
+  TT chat prompt == HF chat prompt. Fix in generate.py (reset _skip_lm_head, assert vocab width). Invalid outputs kept in
+  attempt-01/eval_invalid_skip_lm_head/. Eval gate relaunched 04:39Z (base -> seed42 -> seed43, ~3 h/leg, no KV cache).
+  Note: base emits long "Reasoning Effort: Max" reasoning, so base pass@1 at max_new_tokens=192 is format-limited.

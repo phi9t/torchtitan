@@ -8,7 +8,7 @@ Training path (from T13c): `TORCHTITAN_ROOTFS_ENV=glm53_ep`, native store rootfs
 (`--rootfs-store /data05/philip.yang/torchtitan-rootfs-store`), `TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST=/data05/philip.yang/
 glm53-ladder-cache`, `torchtitan.experiments.glm53_flash_ep.config_registry` at full depth (45 layers), EP8 + FSDP for
 non-expert params, grouped experts, LoRA r16/alpha64, seq 512, local batch 1, 32,768 tokens/step, deterministic.
-Expect ~29 s/step, ~81 GiB/GPU. GPU gate: >= 100 GiB free on all 8 GPUs and no GPU in Exclusive_Process mode held by another
+Expect ~29 s/step, ~81 GiB/GPU. GPU gate: >= 90 GiB free on all 8 GPUs (GLM EP8 peak ~81.5 GiB; a foreign hcfactory job holds ~87 GB on GPUs 1 and 7) and no GPU in Exclusive_Process mode held by another
 process. Foreign processes in Default compute mode are ALLOWED if the memory gate passes (label the leg `shared_gpu` and
 record foreign PIDs/memory); do not wait for them to exit. Capped side jobs may
 co-run. Input roots checked with `lib/hdfs_strict.sh --quick`; record input HDFS URIs + native build keys in attempt.json.
