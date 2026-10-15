@@ -89,3 +89,5 @@
   reasoning and hits the 192-token cap: format-limited, caveat for the report). Compact evidence:
   `evidence/t08f-reference-eval/`. Next: EP-path eval agreement check with the fixed generator, then T08f close-out
   (HDFS publish + MD5, report, ladder doc).
+- ~16:20Z T08g launched (close-out of T08f): gate-5 sampled eval (100x4, T 0.8) via reference_eval.py on GPUs 0-6, greedy
+  EP-path agreement check (20 problems) when GPU 7 frees, HDFS publish + MD5, task-08f/08g reports.
