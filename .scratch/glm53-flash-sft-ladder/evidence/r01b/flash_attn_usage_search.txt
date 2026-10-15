@@ -1,0 +1,4 @@
+experiments/glm53_flash_sft_ladder/runtime/README.md:29:and installs `flash-attn==2.8.3.post1` with
+experiments/glm53_flash_sft_ladder/runtime/README.md:31:with this torch nightly, the upstream flash-attn source build hardcodes
+experiments/glm53_flash_sft_ladder/runtime/README.md:33:`glm53_train` flash-attn CUDA extension is not importable either.
+experiments/glm53_flash_sft_ladder/runtime/verify_runtime.py:34:EXCLUDED_PACKAGES = ("flash-attn", "torchao")

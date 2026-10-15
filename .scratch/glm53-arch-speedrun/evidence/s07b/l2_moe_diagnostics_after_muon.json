@@ -1,0 +1,2053 @@
+{
+  "diagnostic": "l2_qwen3_moe",
+  "initialization_stats": {
+    "layers.0.moe.routed_experts.w13.weight": {
+      "abs_max": 0.109375,
+      "abs_mean": 0.015956632792949677,
+      "mean": -9.755965947988443e-06,
+      "std": 0.019998058676719666
+    },
+    "layers.0.moe.routed_experts.w2.weight": {
+      "abs_max": 0.019775390625,
+      "abs_mean": 0.0030154387932270765,
+      "mean": -1.0270664319023126e-07,
+      "std": 0.0037789640482515097
+    },
+    "layers.0.moe.router.gate.weight": {
+      "abs_max": 0.06787109375,
+      "abs_mean": 0.01568487286567688,
+      "mean": 0.00014844868564978242,
+      "std": 0.019719330593943596
+    },
+    "layers.1.moe.routed_experts.w13.weight": {
+      "abs_max": 0.1064453125,
+      "abs_mean": 0.015961475670337677,
+      "mean": -1.9561757653718814e-06,
+      "std": 0.02000240981578827
+    },
+    "layers.1.moe.routed_experts.w2.weight": {
+      "abs_max": 0.02001953125,
+      "abs_mean": 0.003015846014022827,
+      "mean": 1.3941902352598845e-06,
+      "std": 0.0037803275045007467
+    },
+    "layers.1.moe.router.gate.weight": {
+      "abs_max": 0.07275390625,
+      "abs_mean": 0.01606987789273262,
+      "mean": -0.0002121238794643432,
+      "std": 0.02012590318918228
+    },
+    "layers.10.moe.routed_experts.w13.weight": {
+      "abs_max": 0.107421875,
+      "abs_mean": 0.015953145921230316,
+      "mean": 9.311306712334044e-06,
+      "std": 0.019993869587779045
+    },
+    "layers.10.moe.routed_experts.w2.weight": {
+      "abs_max": 0.0196533203125,
+      "abs_mean": 0.0030157703440636396,
+      "mean": -2.5577031692591845e-07,
+      "std": 0.00377942668274045
+    },
+    "layers.10.moe.router.gate.weight": {
+      "abs_max": 0.07958984375,
+      "abs_mean": 0.01588897407054901,
+      "mean": -0.00012116059951949865,
+      "std": 0.019831107929348946
+    },
+    "layers.11.moe.routed_experts.w13.weight": {
+      "abs_max": 0.1103515625,
+      "abs_mean": 0.015957577154040337,
+      "mean": -1.558302983539761e-06,
+      "std": 0.0200008824467659
+    },
+    "layers.11.moe.routed_experts.w2.weight": {
+      "abs_max": 0.0201416015625,
+      "abs_mean": 0.0030155989807099104,
+      "mean": -1.4444367479882203e-06,
+      "std": 0.0037795633543282747
+    },
+    "layers.11.moe.router.gate.weight": {
+      "abs_max": 0.07861328125,
+      "abs_mean": 0.01602100022137165,
+      "mean": 1.580392381583806e-05,
+      "std": 0.020140070468187332
+    },
+    "layers.12.moe.routed_experts.w13.weight": {
+      "abs_max": 0.10791015625,
+      "abs_mean": 0.0159568153321743,
+      "mean": -1.4267469623518991e-06,
+      "std": 0.01999896578490734
+    },
+    "layers.12.moe.routed_experts.w2.weight": {
+      "abs_max": 0.019775390625,
+      "abs_mean": 0.0030159312300384045,
+      "mean": -1.2382631666696398e-06,
+      "std": 0.0037796844262629747
+    },
+    "layers.12.moe.router.gate.weight": {
+      "abs_max": 0.08642578125,
+      "abs_mean": 0.015799207612872124,
+      "mean": 0.0001884766243165359,
+      "std": 0.019917018711566925
+    },
+    "layers.13.moe.routed_experts.w13.weight": {
+      "abs_max": 0.11376953125,
+      "abs_mean": 0.015958312898874283,
+      "mean": 1.6305409644701285e-06,
+      "std": 0.019999444484710693
+    },
+    "layers.13.moe.routed_experts.w2.weight": {
+      "abs_max": 0.01953125,
+      "abs_mean": 0.0030156332068145275,
+      "mean": 3.2050988920673262e-06,
+      "std": 0.003779376158490777
+    },
+    "layers.13.moe.router.gate.weight": {
+      "abs_max": 0.072265625,
+      "abs_mean": 0.01577669009566307,
+      "mean": 0.0007220847764983773,
+      "std": 0.019700782373547554
+    },
+    "layers.2.moe.routed_experts.w13.weight": {
+      "abs_max": 0.109375,
+      "abs_mean": 0.01595991663634777,
+      "mean": -1.1992958661721786e-06,
+      "std": 0.02000017650425434
+    },
+    "layers.2.moe.routed_experts.w2.weight": {
+      "abs_max": 0.019287109375,
+      "abs_mean": 0.0030126783531159163,
+      "mean": -2.2911212909093592e-06,
+      "std": 0.0037756948731839657
+    },
+    "layers.2.moe.router.gate.weight": {
+      "abs_max": 0.07568359375,
+      "abs_mean": 0.01593364030122757,
+      "mean": 0.00011433057807153091,
+      "std": 0.01996234804391861
+    },
+    "layers.3.moe.routed_experts.w13.weight": {
+      "abs_max": 0.1103515625,
+      "abs_mean": 0.015960242599248886,
+      "mean": -8.953944416134618e-06,
+      "std": 0.02000286616384983
+    },
+    "layers.3.moe.routed_experts.w2.weight": {
+      "abs_max": 0.0205078125,
+      "abs_mean": 0.003014953574165702,
+      "mean": -2.707939074753085e-06,
+      "std": 0.0037790352944284678
+    },
+    "layers.3.moe.router.gate.weight": {
+      "abs_max": 0.07861328125,
+      "abs_mean": 0.0162583626806736,
+      "mean": -0.00034703718847595155,
+      "std": 0.020303290337324142
+    },
+    "layers.4.moe.routed_experts.w13.weight": {
+      "abs_max": 0.10595703125,
+      "abs_mean": 0.01595962606370449,
+      "mean": 1.0578240107861347e-05,
+      "std": 0.020003588870167732
+    },
+    "layers.4.moe.routed_experts.w2.weight": {
+      "abs_max": 0.0198974609375,
+      "abs_mean": 0.003017513081431389,
+      "mean": -5.962205591458769e-07,
+      "std": 0.003781035542488098
+    },
+    "layers.4.moe.router.gate.weight": {
+      "abs_max": 0.07275390625,
+      "abs_mean": 0.016158413141965866,
+      "mean": 0.0002898898674175143,
+      "std": 0.02019103430211544
+    },
+    "layers.5.moe.routed_experts.w13.weight": {
+      "abs_max": 0.1064453125,
+      "abs_mean": 0.015959782525897026,
+      "mean": 8.972601790446788e-07,
+      "std": 0.020002925768494606
+    },
+    "layers.5.moe.routed_experts.w2.weight": {
+      "abs_max": 0.0189208984375,
+      "abs_mean": 0.0030151326209306717,
+      "mean": -1.0028551287177834e-06,
+      "std": 0.0037786513566970825
+    },
+    "layers.5.moe.router.gate.weight": {
+      "abs_max": 0.07568359375,
+      "abs_mean": 0.01591932773590088,
+      "mean": 2.585737638582941e-05,
+      "std": 0.020045945420861244
+    },
+    "layers.6.moe.routed_experts.w13.weight": {
+      "abs_max": 0.11328125,
+      "abs_mean": 0.015958696603775024,
+      "mean": 1.7939237295649946e-06,
+      "std": 0.02000146359205246
+    },
+    "layers.6.moe.routed_experts.w2.weight": {
+      "abs_max": 0.0205078125,
+      "abs_mean": 0.003015141934156418,
+      "mean": -7.889483413237031e-07,
+      "std": 0.0037795579992234707
+    },
+    "layers.6.moe.router.gate.weight": {
+      "abs_max": 0.08203125,
+      "abs_mean": 0.01592418923974037,
+      "mean": 1.412699930369854e-06,
+      "std": 0.01987370476126671
+    },
+    "layers.7.moe.routed_experts.w13.weight": {
+      "abs_max": 0.11572265625,
+      "abs_mean": 0.015955433249473572,
+      "mean": -3.2624343475617934e-06,
+      "std": 0.019997574388980865
+    },
+    "layers.7.moe.routed_experts.w2.weight": {
+      "abs_max": 0.0194091796875,
+      "abs_mean": 0.0030151742976158857,
+      "mean": -8.845262300383183e-07,
+      "std": 0.0037790623027831316
+    },
+    "layers.7.moe.router.gate.weight": {
+      "abs_max": 0.0791015625,
+      "abs_mean": 0.015931835398077965,
+      "mean": 5.713955033570528e-06,
+      "std": 0.01996714435517788
+    },
+    "layers.8.moe.routed_experts.w13.weight": {
+      "abs_max": 0.10986328125,
+      "abs_mean": 0.015960613265633583,
+      "mean": 1.322382377111353e-05,
+      "std": 0.020003879442811012
+    },
+    "layers.8.moe.routed_experts.w2.weight": {
+      "abs_max": 0.019775390625,
+      "abs_mean": 0.003017992479726672,
+      "mean": 1.1687549061889513e-07,
+      "std": 0.003782666753977537
+    },
+    "layers.8.moe.router.gate.weight": {
+      "abs_max": 0.0859375,
+      "abs_mean": 0.016207881271839142,
+      "mean": -1.4757155440747738e-05,
+      "std": 0.020237095654010773
+    },
+    "layers.9.moe.routed_experts.w13.weight": {
+      "abs_max": 0.1044921875,
+      "abs_mean": 0.0159621462225914,
+      "mean": -2.9670168260054197e-06,
+      "std": 0.020003408193588257
+    },
+    "layers.9.moe.routed_experts.w2.weight": {
+      "abs_max": 0.01953125,
+      "abs_mean": 0.0030170357786118984,
+      "mean": 3.0356372349160665e-07,
+      "std": 0.0037806096952408552
+    },
+    "layers.9.moe.router.gate.weight": {
+      "abs_max": 0.07763671875,
+      "abs_mean": 0.015887152403593063,
+      "mean": 0.00016678994870744646,
+      "std": 0.020027142018079758
+    }
+  },
+  "local_batch_size": 1,
+  "moe_contract": {
+    "capacity": "dropless token-choice routing",
+    "dropped_tokens": 0,
+    "has_shared_experts": false,
+    "load_balance_coeff": 0.001,
+    "num_experts": 8,
+    "num_layers": 14,
+    "route_norm": true,
+    "top_k": 2
+  },
+  "optimizer_assignment": {
+    "adamw_parameter_count": 59,
+    "moe_parameters": [
+      {
+        "name": "layers.0.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.0.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.0.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.1.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.1.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.1.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.2.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.2.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.2.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.3.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.3.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.3.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.4.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.4.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.4.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.5.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.5.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.5.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.6.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.6.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.6.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.7.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.7.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.7.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.8.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.8.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.8.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.9.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.9.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.9.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.10.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.10.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.10.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.11.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.11.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.11.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.12.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.12.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.12.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      },
+      {
+        "name": "layers.13.moe.routed_experts.w13.weight",
+        "numel": 12582912,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          2,
+          1024,
+          768
+        ]
+      },
+      {
+        "name": "layers.13.moe.routed_experts.w2.weight",
+        "numel": 6291456,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768,
+          1024
+        ]
+      },
+      {
+        "name": "layers.13.moe.router.gate.weight",
+        "numel": 6144,
+        "optimizer": "DistMuon",
+        "shape": [
+          8,
+          768
+        ]
+      }
+    ],
+    "muon_parameter_count": 70,
+    "muon_regex": "^(?:layers\\.0\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.0\\.attention\\.wo\\.weight|layers\\.0\\.moe\\.routed_experts\\.w13\\.weight|layers\\.0\\.moe\\.routed_experts\\.w2\\.weight|layers\\.0\\.moe\\.router\\.gate\\.weight|layers\\.1\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.1\\.attention\\.wo\\.weight|layers\\.1\\.moe\\.routed_experts\\.w13\\.weight|layers\\.1\\.moe\\.routed_experts\\.w2\\.weight|layers\\.1\\.moe\\.router\\.gate\\.weight|layers\\.10\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.10\\.attention\\.wo\\.weight|layers\\.10\\.moe\\.routed_experts\\.w13\\.weight|layers\\.10\\.moe\\.routed_experts\\.w2\\.weight|layers\\.10\\.moe\\.router\\.gate\\.weight|layers\\.11\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.11\\.attention\\.wo\\.weight|layers\\.11\\.moe\\.routed_experts\\.w13\\.weight|layers\\.11\\.moe\\.routed_experts\\.w2\\.weight|layers\\.11\\.moe\\.router\\.gate\\.weight|layers\\.12\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.12\\.attention\\.wo\\.weight|layers\\.12\\.moe\\.routed_experts\\.w13\\.weight|layers\\.12\\.moe\\.routed_experts\\.w2\\.weight|layers\\.12\\.moe\\.router\\.gate\\.weight|layers\\.13\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.13\\.attention\\.wo\\.weight|layers\\.13\\.moe\\.routed_experts\\.w13\\.weight|layers\\.13\\.moe\\.routed_experts\\.w2\\.weight|layers\\.13\\.moe\\.router\\.gate\\.weight|layers\\.2\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.2\\.attention\\.wo\\.weight|layers\\.2\\.moe\\.routed_experts\\.w13\\.weight|layers\\.2\\.moe\\.routed_experts\\.w2\\.weight|layers\\.2\\.moe\\.router\\.gate\\.weight|layers\\.3\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.3\\.attention\\.wo\\.weight|layers\\.3\\.moe\\.routed_experts\\.w13\\.weight|layers\\.3\\.moe\\.routed_experts\\.w2\\.weight|layers\\.3\\.moe\\.router\\.gate\\.weight|layers\\.4\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.4\\.attention\\.wo\\.weight|layers\\.4\\.moe\\.routed_experts\\.w13\\.weight|layers\\.4\\.moe\\.routed_experts\\.w2\\.weight|layers\\.4\\.moe\\.router\\.gate\\.weight|layers\\.5\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.5\\.attention\\.wo\\.weight|layers\\.5\\.moe\\.routed_experts\\.w13\\.weight|layers\\.5\\.moe\\.routed_experts\\.w2\\.weight|layers\\.5\\.moe\\.router\\.gate\\.weight|layers\\.6\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.6\\.attention\\.wo\\.weight|layers\\.6\\.moe\\.routed_experts\\.w13\\.weight|layers\\.6\\.moe\\.routed_experts\\.w2\\.weight|layers\\.6\\.moe\\.router\\.gate\\.weight|layers\\.7\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.7\\.attention\\.wo\\.weight|layers\\.7\\.moe\\.routed_experts\\.w13\\.weight|layers\\.7\\.moe\\.routed_experts\\.w2\\.weight|layers\\.7\\.moe\\.router\\.gate\\.weight|layers\\.8\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.8\\.attention\\.wo\\.weight|layers\\.8\\.moe\\.routed_experts\\.w13\\.weight|layers\\.8\\.moe\\.routed_experts\\.w2\\.weight|layers\\.8\\.moe\\.router\\.gate\\.weight|layers\\.9\\.attention\\.qkv_linear\\.wqkv\\.weight|layers\\.9\\.attention\\.wo\\.weight|layers\\.9\\.moe\\.routed_experts\\.w13\\.weight|layers\\.9\\.moe\\.routed_experts\\.w2\\.weight|layers\\.9\\.moe\\.router\\.gate\\.weight)$"
+  },
+  "parameter_counts": {
+    "active_non_embedding": 88192256,
+    "non_embedding": 286373120,
+    "total": 363567872
+  },
+  "seed": 0,
+  "seq_len": 1024,
+  "steps": 4,
+  "steps_summary": [
+    {
+      "bias_updates": [
+        {
+          "bias_abs_max_after": 0.001251220703125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.0.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00099945068359375,
+          "delta_abs_max": 0.00099945068359375,
+          "module": "layers.1.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00099945068359375,
+          "delta_abs_max": 0.00099945068359375,
+          "module": "layers.2.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00150299072265625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.3.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00150299072265625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.4.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00150299072265625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.5.moe"
+        },
+        {
+          "bias_abs_max_after": 0.001251220703125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.6.moe"
+        },
+        {
+          "bias_abs_max_after": 0.001251220703125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.7.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00150299072265625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.8.moe"
+        },
+        {
+          "bias_abs_max_after": 0.001251220703125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.9.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00150299072265625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.10.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00150299072265625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.11.moe"
+        },
+        {
+          "bias_abs_max_after": 0.001251220703125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.12.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00150299072265625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.13.moe"
+        }
+      ],
+      "grad_norms": {
+        "attention": 30.889007902412185,
+        "embedding_or_head": 3.84906773117068,
+        "norm": 0.13039167898591922,
+        "routed_experts": 6.31011897979702,
+        "router": 0.3923365684522394
+      },
+      "loss": 10.896807670593262,
+      "router_before_bias_update": [
+        {
+          "entropy_normalized": 0.97426956369715,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.11799122393131256,
+            0.11652852594852448,
+            0.06338371336460114,
+            0.19697707891464233,
+            0.0765480250120163,
+            0.15407118201255798,
+            0.1521209180355072,
+            0.12237932533025742
+          ],
+          "max_fraction": 0.19697707891464233,
+          "min_fraction": 0.06338371336460114,
+          "module": "layers.0.moe",
+          "total_assignments": 2051.0
+        },
+        {
+          "entropy_normalized": 0.9375426686053973,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.06734992563724518,
+            0.05222059413790703,
+            0.14641287922859192,
+            0.20107369124889374,
+            0.16983895003795624,
+            0.07076622545719147,
+            0.07076622545719147,
+            0.22157150506973267
+          ],
+          "max_fraction": 0.22157150506973267,
+          "min_fraction": 0.05222059413790703,
+          "module": "layers.1.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.7450956301337721,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.26171875,
+            0.1416015625,
+            0.0,
+            0.0,
+            0.158203125,
+            0.333984375,
+            0.0966796875,
+            0.0078125
+          ],
+          "max_fraction": 0.333984375,
+          "min_fraction": 0.0,
+          "module": "layers.2.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.7034842557748647,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.052734375,
+            0.10595703125,
+            0.0205078125,
+            0.04736328125,
+            0.265625,
+            0.0244140625,
+            0.47265625,
+            0.0107421875
+          ],
+          "max_fraction": 0.47265625,
+          "min_fraction": 0.0107421875,
+          "module": "layers.3.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.4850356189396939,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.46461689472198486,
+            0.0029282576870173216,
+            0.007320644333958626,
+            0.0,
+            0.43728646636009216,
+            0.00683260103687644,
+            0.0,
+            0.08101513236761093
+          ],
+          "max_fraction": 0.46461689472198486,
+          "min_fraction": 0.0,
+          "module": "layers.4.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.5234157259266405,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.3900536298751831,
+            0.004388103261590004,
+            0.46416381001472473,
+            0.1238420307636261,
+            0.0,
+            0.011214042082428932,
+            0.0,
+            0.006338371429592371
+          ],
+          "max_fraction": 0.46416381001472473,
+          "min_fraction": 0.0,
+          "module": "layers.5.moe",
+          "total_assignments": 2051.0
+        },
+        {
+          "entropy_normalized": 0.5901690720325311,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.046341463923454285,
+            0.0,
+            0.0039024390280246735,
+            0.002439024392515421,
+            0.46439024806022644,
+            0.0009756097570061684,
+            0.2487804889678955,
+            0.23317073285579681
+          ],
+          "max_fraction": 0.46439024806022644,
+          "min_fraction": 0.0,
+          "module": "layers.6.moe",
+          "total_assignments": 2050.0
+        },
+        {
+          "entropy_normalized": 0.608707827227187,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.0024425990413874388,
+            0.0,
+            0.0029311187099665403,
+            0.20029310882091522,
+            0.19931606948375702,
+            0.5002442598342896,
+            0.08939912170171738,
+            0.005373717751353979
+          ],
+          "max_fraction": 0.5002442598342896,
+          "min_fraction": 0.0,
+          "module": "layers.7.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.5291973813557962,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.0,
+            0.39667806029319763,
+            0.037127502262592316,
+            0.49438202381134033,
+            0.021983390673995018,
+            0.0,
+            0.014167074114084244,
+            0.03566194325685501
+          ],
+          "max_fraction": 0.49438202381134033,
+          "min_fraction": 0.0,
+          "module": "layers.8.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.6249518752389307,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.021994134411215782,
+            0.002443792764097452,
+            0.49266862869262695,
+            0.0004887585528194904,
+            0.24633431434631348,
+            0.054252199828624725,
+            0.17302052676677704,
+            0.008797653950750828
+          ],
+          "max_fraction": 0.49266862869262695,
+          "min_fraction": 0.0004887585528194904,
+          "module": "layers.9.moe",
+          "total_assignments": 2046.0
+        },
+        {
+          "entropy_normalized": 0.538120701195813,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.0009770395699888468,
+            0.46311676502227783,
+            0.02589154802262783,
+            0.005862237419933081,
+            0.3849535882472992,
+            0.0,
+            0.11724475026130676,
+            0.0019540791399776936
+          ],
+          "max_fraction": 0.46311676502227783,
+          "min_fraction": 0.0,
+          "module": "layers.10.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.6160146821317443,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.07425500452518463,
+            0.013678554445505142,
+            0.0,
+            0.0004885197849944234,
+            0.47288715839385986,
+            0.027845628559589386,
+            0.08255984634160995,
+            0.3282853066921234
+          ],
+          "max_fraction": 0.47288715839385986,
+          "min_fraction": 0.0,
+          "module": "layers.11.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.518910583059739,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.0,
+            0.19140625,
+            0.0,
+            0.0,
+            0.0009765625,
+            0.5,
+            0.296875,
+            0.0107421875
+          ],
+          "max_fraction": 0.5,
+          "min_fraction": 0.0,
+          "module": "layers.12.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.42380159739284284,
+          "expert_bias_abs_max": 0.0,
+          "fractions": [
+            0.46221354603767395,
+            0.013651876710355282,
+            0.0,
+            0.008288639597594738,
+            0.008776206523180008,
+            0.007801072672009468,
+            0.0,
+            0.49926865100860596
+          ],
+          "max_fraction": 0.49926865100860596,
+          "min_fraction": 0.0,
+          "module": "layers.13.moe",
+          "total_assignments": 2051.0
+        }
+      ],
+      "step": 1
+    },
+    {
+      "bias_updates": [
+        {
+          "bias_abs_max_after": 0.00225830078125,
+          "delta_abs_max": 0.001007080078125,
+          "module": "layers.0.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0019989013671875,
+          "delta_abs_max": 0.000999998301267624,
+          "module": "layers.1.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0022430419921875,
+          "delta_abs_max": 0.0012493133544921875,
+          "module": "layers.2.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00250244140625,
+          "delta_abs_max": 0.001003265380859375,
+          "module": "layers.3.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00274658203125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.4.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00274658203125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.5.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00250244140625,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.6.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00274658203125,
+          "delta_abs_max": 0.001499176025390625,
+          "module": "layers.7.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00274658203125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.8.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00250244140625,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.9.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0030059814453125,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.10.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0030059814453125,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.11.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00274658203125,
+          "delta_abs_max": 0.001499176025390625,
+          "module": "layers.12.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0030059814453125,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.13.moe"
+        }
+      ],
+      "grad_norms": {
+        "attention": 29.109822655912158,
+        "embedding_or_head": 3.652738074573205,
+        "norm": 0.12402589960645179,
+        "routed_experts": 5.951339327462895,
+        "router": 0.29612640443225063
+      },
+      "loss": 10.919075965881348,
+      "router_before_bias_update": [
+        {
+          "entropy_normalized": 0.9587245678336134,
+          "expert_bias_abs_max": 0.001251220703125,
+          "fractions": [
+            0.1611328125,
+            0.189453125,
+            0.06787109375,
+            0.197265625,
+            0.0595703125,
+            0.1015625,
+            0.08154296875,
+            0.1416015625
+          ],
+          "max_fraction": 0.197265625,
+          "min_fraction": 0.0595703125,
+          "module": "layers.0.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.9575762970013526,
+          "expert_bias_abs_max": 0.00099945068359375,
+          "fractions": [
+            0.07861328125,
+            0.1494140625,
+            0.0849609375,
+            0.076171875,
+            0.12890625,
+            0.07275390625,
+            0.2265625,
+            0.1826171875
+          ],
+          "max_fraction": 0.2265625,
+          "min_fraction": 0.07275390625,
+          "module": "layers.1.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.7612104045196173,
+          "expert_bias_abs_max": 0.00099945068359375,
+          "fractions": [
+            0.08846529573202133,
+            0.09579667448997498,
+            0.0,
+            0.007820136845111847,
+            0.130987286567688,
+            0.32649070024490356,
+            0.3186705708503723,
+            0.03176930546760559
+          ],
+          "max_fraction": 0.32649070024490356,
+          "min_fraction": 0.0,
+          "module": "layers.2.moe",
+          "total_assignments": 2046.0
+        },
+        {
+          "entropy_normalized": 0.7887244756424009,
+          "expert_bias_abs_max": 0.00150299072265625,
+          "fractions": [
+            0.0146484375,
+            0.2333984375,
+            0.1259765625,
+            0.22265625,
+            0.28515625,
+            0.00732421875,
+            0.10986328125,
+            0.0009765625
+          ],
+          "max_fraction": 0.28515625,
+          "min_fraction": 0.0009765625,
+          "module": "layers.3.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.6217030083090317,
+          "expert_bias_abs_max": 0.00150299072265625,
+          "fractions": [
+            0.041443198919296265,
+            0.2788883447647095,
+            0.015114578418433666,
+            0.00048756704200059175,
+            0.3510482609272003,
+            0.31204289197921753,
+            0.0009751340840011835,
+            0.0
+          ],
+          "max_fraction": 0.3510482609272003,
+          "min_fraction": 0.0,
+          "module": "layers.4.moe",
+          "total_assignments": 2051.0
+        },
+        {
+          "entropy_normalized": 0.6273584284724539,
+          "expert_bias_abs_max": 0.00150299072265625,
+          "fractions": [
+            0.0004889975534752011,
+            0.008801955729722977,
+            0.23569682240486145,
+            0.4342298209667206,
+            0.006356968078762293,
+            0.05867970734834671,
+            0.0014669926604256034,
+            0.2542787194252014
+          ],
+          "max_fraction": 0.4342298209667206,
+          "min_fraction": 0.0004889975534752011,
+          "module": "layers.5.moe",
+          "total_assignments": 2045.0
+        },
+        {
+          "entropy_normalized": 0.5702994004303982,
+          "expert_bias_abs_max": 0.001251220703125,
+          "fractions": [
+            0.142578125,
+            0.01806640625,
+            0.0185546875,
+            0.5,
+            0.00830078125,
+            0.001953125,
+            0.310546875,
+            0.0
+          ],
+          "max_fraction": 0.5,
+          "min_fraction": 0.0,
+          "module": "layers.6.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.6024194535810392,
+          "expert_bias_abs_max": 0.001251220703125,
+          "fractions": [
+            0.08585365861654282,
+            0.44878047704696655,
+            0.0,
+            0.34731706976890564,
+            0.01902439072728157,
+            0.09707316756248474,
+            0.0004878048785030842,
+            0.0014634146355092525
+          ],
+          "max_fraction": 0.44878047704696655,
+          "min_fraction": 0.0,
+          "module": "layers.7.moe",
+          "total_assignments": 2050.0
+        },
+        {
+          "entropy_normalized": 0.5127548080374065,
+          "expert_bias_abs_max": 0.00150299072265625,
+          "fractions": [
+            0.0,
+            0.423621267080307,
+            0.40409955382347107,
+            0.16398243606090546,
+            0.0,
+            0.0,
+            0.0,
+            0.008296729996800423
+          ],
+          "max_fraction": 0.423621267080307,
+          "min_fraction": 0.0,
+          "module": "layers.8.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.5582864695951814,
+          "expert_bias_abs_max": 0.001251220703125,
+          "fractions": [
+            0.2086786925792694,
+            0.0014627011260017753,
+            0.00048756704200059175,
+            0.023403218016028404,
+            0.2593856751918793,
+            0.007313505746424198,
+            0.0,
+            0.49926865100860596
+          ],
+          "max_fraction": 0.49926865100860596,
+          "min_fraction": 0.0,
+          "module": "layers.9.moe",
+          "total_assignments": 2051.0
+        },
+        {
+          "entropy_normalized": 0.4184025460343067,
+          "expert_bias_abs_max": 0.00150299072265625,
+          "fractions": [
+            0.03414634242653847,
+            0.4995121955871582,
+            0.0,
+            0.0,
+            0.007804878056049347,
+            0.4565853774547577,
+            0.0019512195140123367,
+            0.0
+          ],
+          "max_fraction": 0.4995121955871582,
+          "min_fraction": 0.0,
+          "module": "layers.10.moe",
+          "total_assignments": 2050.0
+        },
+        {
+          "entropy_normalized": 0.5016375055203328,
+          "expert_bias_abs_max": 0.00150299072265625,
+          "fractions": [
+            0.0043923864141106606,
+            0.04197169467806816,
+            0.003904343582689762,
+            0.00048804294783622026,
+            0.4587603807449341,
+            0.04489995166659355,
+            0.00048804294783622026,
+            0.4450951814651489
+          ],
+          "max_fraction": 0.4587603807449341,
+          "min_fraction": 0.00048804294783622026,
+          "module": "layers.11.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.48455658992949063,
+          "expert_bias_abs_max": 0.001251220703125,
+          "fractions": [
+            0.0004887585528194904,
+            0.48875856399536133,
+            0.39100685715675354,
+            0.0,
+            0.006353861186653376,
+            0.0,
+            0.11192570626735687,
+            0.0014662756584584713
+          ],
+          "max_fraction": 0.48875856399536133,
+          "min_fraction": 0.0,
+          "module": "layers.12.moe",
+          "total_assignments": 2046.0
+        },
+        {
+          "entropy_normalized": 0.6724340493676909,
+          "expert_bias_abs_max": 0.00150299072265625,
+          "fractions": [
+            0.41345685720443726,
+            0.3042418360710144,
+            0.0,
+            0.028766455128788948,
+            0.1233544647693634,
+            0.007313505746424198,
+            0.003900536336004734,
+            0.11896635591983795
+          ],
+          "max_fraction": 0.41345685720443726,
+          "min_fraction": 0.0,
+          "module": "layers.13.moe",
+          "total_assignments": 2051.0
+        }
+      ],
+      "step": 2
+    },
+    {
+      "bias_updates": [
+        {
+          "bias_abs_max_after": 0.003265380859375,
+          "delta_abs_max": 0.001007080078125,
+          "module": "layers.0.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00274658203125,
+          "delta_abs_max": 0.001251768320798874,
+          "module": "layers.1.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0034942626953125,
+          "delta_abs_max": 0.0012531280517578125,
+          "module": "layers.2.moe"
+        },
+        {
+          "bias_abs_max_after": 0.003997802734375,
+          "delta_abs_max": 0.001495361328125,
+          "module": "layers.3.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0019989013671875,
+          "delta_abs_max": 0.0012499988079071045,
+          "module": "layers.4.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00225830078125,
+          "delta_abs_max": 0.001506805419921875,
+          "module": "layers.5.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0019989013671875,
+          "delta_abs_max": 0.0014999955892562866,
+          "module": "layers.6.moe"
+        },
+        {
+          "bias_abs_max_after": 0.004241943359375,
+          "delta_abs_max": 0.001495361328125,
+          "module": "layers.7.moe"
+        },
+        {
+          "bias_abs_max_after": 0.004241943359375,
+          "delta_abs_max": 0.001499176025390625,
+          "module": "layers.8.moe"
+        },
+        {
+          "bias_abs_max_after": 0.003753662109375,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.9.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00225830078125,
+          "delta_abs_max": 0.0012493133544921875,
+          "module": "layers.10.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0045166015625,
+          "delta_abs_max": 0.0015106201171875,
+          "module": "layers.11.moe"
+        },
+        {
+          "bias_abs_max_after": 0.004241943359375,
+          "delta_abs_max": 0.001506805419921875,
+          "module": "layers.12.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00250244140625,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.13.moe"
+        }
+      ],
+      "grad_norms": {
+        "attention": 29.678717974119376,
+        "embedding_or_head": 3.578970663427415,
+        "norm": 0.12487224715406049,
+        "routed_experts": 5.869543879234023,
+        "router": 0.265712317081058
+      },
+      "loss": 10.973227500915527,
+      "router_before_bias_update": [
+        {
+          "entropy_normalized": 0.9742403266465034,
+          "expert_bias_abs_max": 0.00225830078125,
+          "fractions": [
+            0.10405471175909042,
+            0.14069369435310364,
+            0.0625305324792862,
+            0.13971665501594543,
+            0.09037616103887558,
+            0.1954079121351242,
+            0.10112359374761581,
+            0.1660967320203781
+          ],
+          "max_fraction": 0.1954079121351242,
+          "min_fraction": 0.0625305324792862,
+          "module": "layers.0.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.9156327668160789,
+          "expert_bias_abs_max": 0.0019989013671875,
+          "fractions": [
+            0.10097561031579971,
+            0.06048780307173729,
+            0.31609755754470825,
+            0.17268292605876923,
+            0.060975611209869385,
+            0.13463415205478668,
+            0.08048780262470245,
+            0.0736585333943367
+          ],
+          "max_fraction": 0.31609755754470825,
+          "min_fraction": 0.06048780307173729,
+          "module": "layers.1.moe",
+          "total_assignments": 2050.0
+        },
+        {
+          "entropy_normalized": 0.6989296965596152,
+          "expert_bias_abs_max": 0.0022430419921875,
+          "fractions": [
+            0.33203125,
+            0.01904296875,
+            0.01806640625,
+            0.06396484375,
+            0.0,
+            0.298828125,
+            0.255859375,
+            0.01220703125
+          ],
+          "max_fraction": 0.33203125,
+          "min_fraction": 0.0,
+          "module": "layers.2.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.5971984615936964,
+          "expert_bias_abs_max": 0.00250244140625,
+          "fractions": [
+            0.06014670059084892,
+            0.10660146921873093,
+            0.0,
+            0.016625916585326195,
+            0.35990220308303833,
+            0.0034229829907417297,
+            0.4498777389526367,
+            0.0034229829907417297
+          ],
+          "max_fraction": 0.4498777389526367,
+          "min_fraction": 0.0,
+          "module": "layers.3.moe",
+          "total_assignments": 2045.0
+        },
+        {
+          "entropy_normalized": 0.7861472582916714,
+          "expert_bias_abs_max": 0.00274658203125,
+          "fractions": [
+            0.0,
+            0.10395314544439316,
+            0.17569546401500702,
+            0.015617374330759048,
+            0.08101513236761093,
+            0.34943875670433044,
+            0.03416300565004349,
+            0.2401171326637268
+          ],
+          "max_fraction": 0.34943875670433044,
+          "min_fraction": 0.0,
+          "module": "layers.4.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.5956370884340633,
+          "expert_bias_abs_max": 0.00274658203125,
+          "fractions": [
+            0.056557778269052505,
+            0.0,
+            0.10580204427242279,
+            0.4173573851585388,
+            0.39590445160865784,
+            0.009751340374350548,
+            0.0,
+            0.014627011492848396
+          ],
+          "max_fraction": 0.4173573851585388,
+          "min_fraction": 0.0,
+          "module": "layers.5.moe",
+          "total_assignments": 2051.0
+        },
+        {
+          "entropy_normalized": 0.6239081698583946,
+          "expert_bias_abs_max": 0.00250244140625,
+          "fractions": [
+            0.00341796875,
+            0.0009765625,
+            0.45703125,
+            0.03173828125,
+            0.0703125,
+            0.35546875,
+            0.060546875,
+            0.0205078125
+          ],
+          "max_fraction": 0.45703125,
+          "min_fraction": 0.0009765625,
+          "module": "layers.6.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.530588262380874,
+          "expert_bias_abs_max": 0.00274658203125,
+          "fractions": [
+            0.0,
+            0.49633610248565674,
+            0.007327796891331673,
+            0.37909135222435,
+            0.05764533579349518,
+            0.05471421778202057,
+            0.0009770395699888468,
+            0.003908158279955387
+          ],
+          "max_fraction": 0.49633610248565674,
+          "min_fraction": 0.0,
+          "module": "layers.7.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.6530960334669252,
+          "expert_bias_abs_max": 0.00274658203125,
+          "fractions": [
+            0.09330727905035019,
+            0.0332193449139595,
+            0.040058623999357224,
+            0.40644845366477966,
+            0.0,
+            0.02540302835404873,
+            0.01660967245697975,
+            0.3849535882472992
+          ],
+          "max_fraction": 0.40644845366477966,
+          "min_fraction": 0.0,
+          "module": "layers.8.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.6311421614465363,
+          "expert_bias_abs_max": 0.00250244140625,
+          "fractions": [
+            0.08833577483892441,
+            0.0,
+            0.0014641288435086608,
+            0.29282575845718384,
+            0.32015618681907654,
+            0.00048804294783622026,
+            0.0,
+            0.296730101108551
+          ],
+          "max_fraction": 0.32015618681907654,
+          "min_fraction": 0.0,
+          "module": "layers.9.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.656010164830695,
+          "expert_bias_abs_max": 0.0030059814453125,
+          "fractions": [
+            0.0,
+            0.0,
+            0.0927734375,
+            0.390625,
+            0.01904296875,
+            0.240234375,
+            0.255859375,
+            0.00146484375
+          ],
+          "max_fraction": 0.390625,
+          "min_fraction": 0.0,
+          "module": "layers.10.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.3943281279287793,
+          "expert_bias_abs_max": 0.0030059814453125,
+          "fractions": [
+            0.4846116304397583,
+            0.0034196386113762856,
+            0.0,
+            0.027357108891010284,
+            0.4846116304397583,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max_fraction": 0.4846116304397583,
+          "min_fraction": 0.0,
+          "module": "layers.11.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.3852404500020879,
+          "expert_bias_abs_max": 0.00274658203125,
+          "fractions": [
+            0.0014641288435086608,
+            0.49975597858428955,
+            0.0024402146227657795,
+            0.0,
+            0.0043923864141106606,
+            0.4802342653274536,
+            0.00048804294783622026,
+            0.011224987916648388
+          ],
+          "max_fraction": 0.49975597858428955,
+          "min_fraction": 0.0,
+          "module": "layers.12.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.3781293686817628,
+          "expert_bias_abs_max": 0.0030059814453125,
+          "fractions": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.4767953157424927,
+            0.02296043001115322,
+            0.5002442598342896
+          ],
+          "max_fraction": 0.5002442598342896,
+          "min_fraction": 0.0,
+          "module": "layers.13.moe",
+          "total_assignments": 2047.0
+        }
+      ],
+      "step": 3
+    },
+    {
+      "bias_updates": [
+        {
+          "bias_abs_max_after": 0.0045166015625,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.0.moe"
+        },
+        {
+          "bias_abs_max_after": 0.003753662109375,
+          "delta_abs_max": 0.001007080078125,
+          "module": "layers.1.moe"
+        },
+        {
+          "bias_abs_max_after": 0.004730224609375,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.2.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0054931640625,
+          "delta_abs_max": 0.001495361328125,
+          "module": "layers.3.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0032501220703125,
+          "delta_abs_max": 0.0012524425983428955,
+          "module": "layers.4.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0034942626953125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.5.moe"
+        },
+        {
+          "bias_abs_max_after": 0.00250244140625,
+          "delta_abs_max": 0.001503264531493187,
+          "module": "layers.6.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0057373046875,
+          "delta_abs_max": 0.00150299072265625,
+          "module": "layers.7.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0032501220703125,
+          "delta_abs_max": 0.001007080078125,
+          "module": "layers.8.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0050048828125,
+          "delta_abs_max": 0.001251220703125,
+          "module": "layers.9.moe"
+        },
+        {
+          "bias_abs_max_after": 0.003509521484375,
+          "delta_abs_max": 0.0012531280517578125,
+          "module": "layers.10.moe"
+        },
+        {
+          "bias_abs_max_after": 0.006011962890625,
+          "delta_abs_max": 0.001499176025390625,
+          "module": "layers.11.moe"
+        },
+        {
+          "bias_abs_max_after": 0.0057373046875,
+          "delta_abs_max": 0.001495361328125,
+          "module": "layers.12.moe"
+        },
+        {
+          "bias_abs_max_after": 0.003997802734375,
+          "delta_abs_max": 0.001499176025390625,
+          "module": "layers.13.moe"
+        }
+      ],
+      "grad_norms": {
+        "attention": 32.3097224937263,
+        "embedding_or_head": 4.05225035936899,
+        "norm": 0.1338113572661965,
+        "routed_experts": 6.670582728788561,
+        "router": 0.31623815483571266
+      },
+      "loss": 10.965278625488281,
+      "router_before_bias_update": [
+        {
+          "entropy_normalized": 0.9676029428742047,
+          "expert_bias_abs_max": 0.003265380859375,
+          "fractions": [
+            0.126953125,
+            0.1279296875,
+            0.09619140625,
+            0.24609375,
+            0.076171875,
+            0.08642578125,
+            0.1162109375,
+            0.1240234375
+          ],
+          "max_fraction": 0.24609375,
+          "min_fraction": 0.076171875,
+          "module": "layers.0.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.9317695549812345,
+          "expert_bias_abs_max": 0.00274658203125,
+          "fractions": [
+            0.0912640318274498,
+            0.028794534504413605,
+            0.14250853657722473,
+            0.2791605591773987,
+            0.13274767994880676,
+            0.13860419392585754,
+            0.10688140243291855,
+            0.08003904670476913
+          ],
+          "max_fraction": 0.2791605591773987,
+          "min_fraction": 0.028794534504413605,
+          "module": "layers.1.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.7225261748783949,
+          "expert_bias_abs_max": 0.0034942626953125,
+          "fractions": [
+            0.10980966687202454,
+            0.31429967284202576,
+            0.012201073579490185,
+            0.0024402146227657795,
+            0.026842361316084862,
+            0.2811127305030823,
+            0.24792581796646118,
+            0.005368472542613745
+          ],
+          "max_fraction": 0.31429967284202576,
+          "min_fraction": 0.0024402146227657795,
+          "module": "layers.2.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.6220235266426897,
+          "expert_bias_abs_max": 0.003997802734375,
+          "fractions": [
+            0.016105417162179947,
+            0.12347486615180969,
+            0.026842361316084862,
+            0.0,
+            0.31820401549339294,
+            0.009760858491063118,
+            0.47437775135040283,
+            0.031234748661518097
+          ],
+          "max_fraction": 0.47437775135040283,
+          "min_fraction": 0.0,
+          "module": "layers.3.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.6058548070320239,
+          "expert_bias_abs_max": 0.0019989013671875,
+          "fractions": [
+            0.00244140625,
+            0.00048828125,
+            0.408203125,
+            0.0,
+            0.087890625,
+            0.3515625,
+            0.001953125,
+            0.1474609375
+          ],
+          "max_fraction": 0.408203125,
+          "min_fraction": 0.0,
+          "module": "layers.4.moe",
+          "total_assignments": 2048.0
+        },
+        {
+          "entropy_normalized": 0.5611762367500788,
+          "expert_bias_abs_max": 0.00225830078125,
+          "fractions": [
+            0.05427872762084007,
+            0.0024449878837913275,
+            0.4831295907497406,
+            0.0,
+            0.3207823932170868,
+            0.1388753056526184,
+            0.0,
+            0.0004889975534752011
+          ],
+          "max_fraction": 0.4831295907497406,
+          "min_fraction": 0.0,
+          "module": "layers.5.moe",
+          "total_assignments": 2045.0
+        },
+        {
+          "entropy_normalized": 0.563457013338271,
+          "expert_bias_abs_max": 0.0019989013671875,
+          "fractions": [
+            0.0,
+            0.05422569438815117,
+            0.11529067158699036,
+            0.0019540791399776936,
+            0.0029311187099665403,
+            0.44162189960479736,
+            0.0009770395699888468,
+            0.3829995095729828
+          ],
+          "max_fraction": 0.44162189960479736,
+          "min_fraction": 0.0,
+          "module": "layers.6.moe",
+          "total_assignments": 2047.0
+        },
+        {
+          "entropy_normalized": 0.5001014711379268,
+          "expert_bias_abs_max": 0.004241943359375,
+          "fractions": [
+            0.00341630051843822,
+            0.0,
+            0.0,
+            0.3982430398464203,
+            0.06442166864871979,
+            0.49389946460723877,
+            0.0,
+            0.04001952335238457
+          ],
+          "max_fraction": 0.49389946460723877,
+          "min_fraction": 0.0,
+          "module": "layers.7.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.6954175815187955,
+          "expert_bias_abs_max": 0.004241943359375,
+          "fractions": [
+            0.00048804294783622026,
+            0.14153245091438293,
+            0.46266472339630127,
+            0.005856515374034643,
+            0.08296730369329453,
+            0.17276720702648163,
+            0.0,
+            0.13372376561164856
+          ],
+          "max_fraction": 0.46266472339630127,
+          "min_fraction": 0.0,
+          "module": "layers.8.moe",
+          "total_assignments": 2049.0
+        },
+        {
+          "entropy_normalized": 0.6400216257105832,
+          "expert_bias_abs_max": 0.003753662109375,
+          "fractions": [
+            0.0,
+            0.0014662756584584713,
+            0.4965786933898926,
+            0.04545454680919647,
+            0.21309873461723328,
+            0.19159334897994995,
+            0.01857282593846321,
+            0.0332355834543705
+          ],
+          "max_fraction": 0.4965786933898926,
+          "min_fraction": 0.0,
+          "module": "layers.9.moe",
+          "total_assignments": 2046.0
+        },
+        {
+          "entropy_normalized": 0.6264003131244973,
+          "expert_bias_abs_max": 0.00225830078125,
+          "fractions": [
+            0.06451612710952759,
+            0.265884667634964,
+            0.052785925567150116,
+            0.4848484992980957,
+            0.0,
+            0.0,
+            0.0,
+            0.1319648027420044
+          ],
+          "max_fraction": 0.4848484992980957,
+          "min_fraction": 0.0,
+          "module": "layers.10.moe",
+          "total_assignments": 2046.0
+        },
+        {
+          "entropy_normalized": 0.4150461326200681,
+          "expert_bias_abs_max": 0.0045166015625,
+          "fractions": [
+            0.4985337257385254,
+            0.04838709533214569,
+            0.0009775171056389809,
+            0.0,
+            0.4516128897666931,
+            0.0004887585528194904,
+            0.0,
+            0.0
+          ],
+          "max_fraction": 0.4985337257385254,
+          "min_fraction": 0.0,
+          "module": "layers.11.moe",
+          "total_assignments": 2046.0
+        },
+        {
+          "entropy_normalized": 0.48181897009305646,
+          "expert_bias_abs_max": 0.004241943359375,
+          "fractions": [
+            0.0,
+            0.38596490025520325,
+            0.0,
+            0.0,
+            0.012183235958218575,
+            0.4990253448486328,
+            0.0,
+            0.10282651335000992
+          ],
+          "max_fraction": 0.4990253448486328,
+          "min_fraction": 0.0,
+          "module": "layers.12.moe",
+          "total_assignments": 2052.0
+        },
+        {
+          "entropy_normalized": 0.5036498745180785,
+          "expert_bias_abs_max": 0.00250244140625,
+          "fractions": [
+            0.001950268168002367,
+            0.00048756704200059175,
+            0.00048756704200059175,
+            0.0,
+            0.11945392191410065,
+            0.36665040254592896,
+            0.013651876710355282,
+            0.4973183870315552
+          ],
+          "max_fraction": 0.4973183870315552,
+          "min_fraction": 0.0,
+          "module": "layers.13.moe",
+          "total_assignments": 2051.0
+        }
+      ],
+      "step": 4
+    }
+  ]
+}

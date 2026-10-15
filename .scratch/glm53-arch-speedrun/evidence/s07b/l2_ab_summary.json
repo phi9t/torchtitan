@@ -1,0 +1,100 @@
+{
+  "artifact": "s07b_l2_ab_summary",
+  "rows": [
+    {
+      "data_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/datasets/fineweb10B-gpt2/ecbb586-fineweb10b-gpt2-binonly-v1",
+      "data_manifest_md5": "89e8165a2f2403777b8126b858df6642",
+      "final_train_loss": 5.972919940948486,
+      "final_train_step": 128,
+      "final_val_ce": 5.9336771965026855,
+      "mode": "fixed",
+      "moe_matrix_batches_on_muon": 1,
+      "moe_router_on_muon": 1,
+      "peak_memory_gib": 9.550188064575195,
+      "publish_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-arch-ladder/s07b-ab-fixed-l2-seed0-20261014T210608Z",
+      "published": true,
+      "run_id": "s07b-ab-fixed-l2-seed0-20261014T210608Z",
+      "seed": 0,
+      "token_budget": 33554432,
+      "tokens_per_second": 98185.9765625,
+      "validation_tokens_per_second": 214806.328125
+    },
+    {
+      "data_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/datasets/fineweb10B-gpt2/ecbb586-fineweb10b-gpt2-binonly-v1",
+      "data_manifest_md5": "89e8165a2f2403777b8126b858df6642",
+      "final_train_loss": 5.984634876251221,
+      "final_train_step": 128,
+      "final_val_ce": 5.942933559417725,
+      "mode": "fixed",
+      "moe_matrix_batches_on_muon": 1,
+      "moe_router_on_muon": 1,
+      "peak_memory_gib": 9.550188064575195,
+      "publish_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-arch-ladder/s07b-ab-fixed-l2-seed1-20261014T211454Z",
+      "published": true,
+      "run_id": "s07b-ab-fixed-l2-seed1-20261014T211454Z",
+      "seed": 1,
+      "token_budget": 33554432,
+      "tokens_per_second": 88339.0078125,
+      "validation_tokens_per_second": 208012.15625
+    },
+    {
+      "data_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/datasets/fineweb10B-gpt2/ecbb586-fineweb10b-gpt2-binonly-v1",
+      "data_manifest_md5": "89e8165a2f2403777b8126b858df6642",
+      "final_train_loss": 6.0377936363220215,
+      "final_train_step": 128,
+      "final_val_ce": 6.000157833099365,
+      "mode": "old",
+      "moe_matrix_batches_on_muon": 0,
+      "moe_router_on_muon": 0,
+      "peak_memory_gib": 10.020929336547852,
+      "publish_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-arch-ladder/s07b-ab-old-l2-seed0-20261014T210608Z",
+      "published": true,
+      "run_id": "s07b-ab-old-l2-seed0-20261014T210608Z",
+      "seed": 0,
+      "token_budget": 33554432,
+      "tokens_per_second": 88905.75,
+      "validation_tokens_per_second": 202108.953125
+    },
+    {
+      "data_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/datasets/fineweb10B-gpt2/ecbb586-fineweb10b-gpt2-binonly-v1",
+      "data_manifest_md5": "89e8165a2f2403777b8126b858df6642",
+      "final_train_loss": 6.025235176086426,
+      "final_train_step": 128,
+      "final_val_ce": 5.9884562492370605,
+      "mode": "old",
+      "moe_matrix_batches_on_muon": 0,
+      "moe_router_on_muon": 0,
+      "peak_memory_gib": 10.020929336547852,
+      "publish_hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-arch-ladder/s07b-ab-old-l2-seed1-20261014T211454Z",
+      "published": true,
+      "run_id": "s07b-ab-old-l2-seed1-20261014T211454Z",
+      "seed": 1,
+      "token_budget": 33554432,
+      "tokens_per_second": 91686.2890625,
+      "validation_tokens_per_second": 217799.015625
+    }
+  ],
+  "short_ab_token_budget": 33554432,
+  "summary": {
+    "fixed": {
+      "mean_final_train_loss": 5.9787774085998535,
+      "mean_final_val_ce": 5.938305377960205,
+      "mean_peak_memory_gib": 9.550188064575195,
+      "mean_tokens_per_second": 93262.4921875,
+      "num_runs": 2
+    },
+    "fixed_minus_old": {
+      "mean_final_val_ce_delta": -0.05600166320800781,
+      "mean_peak_memory_gib_delta": -0.47074127197265625,
+      "mean_tokens_per_second_delta": 2966.47265625,
+      "mean_train_loss_delta": -0.05273699760437012
+    },
+    "old": {
+      "mean_final_train_loss": 6.031514406204224,
+      "mean_final_val_ce": 5.994307041168213,
+      "mean_peak_memory_gib": 10.020929336547852,
+      "mean_tokens_per_second": 90296.01953125,
+      "num_runs": 2
+    }
+  }
+}

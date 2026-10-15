@@ -1,0 +1,2169 @@
+{
+  "accepted_for_gate": true,
+  "claim_label": "learnability_smoke",
+  "curve": {
+    "1": {
+      "loss": 12.19578,
+      "memory_gib": 20.46,
+      "tps": 2175
+    },
+    "10": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6597
+    },
+    "100": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6457
+    },
+    "150": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 5372
+    },
+    "20": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6647
+    },
+    "200": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6546
+    },
+    "250": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6220
+    },
+    "300": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6317
+    },
+    "5": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6664
+    },
+    "50": {
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "tps": 6460
+    }
+  },
+  "description": "mini full-training Countdown lr=0 control, indexer sparse path",
+  "final_loss": 12.19578,
+  "final_step": 300,
+  "first_loss": 12.19578,
+  "launcher_log": null,
+  "loss_drop_fraction": 0.0,
+  "mean_tps_after_step1": 6269.3779264214045,
+  "name": "overfit_indexer_lr0",
+  "num_metric_rows": 300,
+  "path": ".scratch/glm53-flash-sft-ladder/evidence/t07b/overfit_indexer_lr0/train.log",
+  "peak_memory_gib": 27.7,
+  "rows": [
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 20.46,
+      "step": 1,
+      "tps": 2175
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 2,
+      "tps": 6371
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 3,
+      "tps": 6670
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 4,
+      "tps": 6697
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 5,
+      "tps": 6664
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 6,
+      "tps": 5438
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 7,
+      "tps": 6629
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 8,
+      "tps": 6647
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 9,
+      "tps": 6586
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 10,
+      "tps": 6597
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 11,
+      "tps": 6596
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 12,
+      "tps": 6610
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 13,
+      "tps": 6677
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 14,
+      "tps": 5463
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 15,
+      "tps": 6630
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 16,
+      "tps": 6565
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 17,
+      "tps": 6557
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 18,
+      "tps": 6606
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 19,
+      "tps": 6587
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 20,
+      "tps": 6647
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 21,
+      "tps": 6594
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 22,
+      "tps": 5456
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 23,
+      "tps": 6501
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 24,
+      "tps": 6491
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 25,
+      "tps": 6335
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 26,
+      "tps": 6464
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 27,
+      "tps": 6611
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 28,
+      "tps": 6548
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 29,
+      "tps": 6546
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 30,
+      "tps": 5330
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 31,
+      "tps": 6344
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 32,
+      "tps": 6569
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 33,
+      "tps": 6552
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 34,
+      "tps": 6542
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 35,
+      "tps": 6572
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 36,
+      "tps": 6598
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 37,
+      "tps": 6603
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 38,
+      "tps": 5276
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 39,
+      "tps": 6568
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 40,
+      "tps": 6366
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 41,
+      "tps": 6216
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 42,
+      "tps": 6273
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 43,
+      "tps": 6633
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 44,
+      "tps": 6616
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 45,
+      "tps": 6439
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 46,
+      "tps": 5251
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 47,
+      "tps": 6549
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 48,
+      "tps": 6574
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 49,
+      "tps": 6392
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 50,
+      "tps": 6460
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 51,
+      "tps": 6349
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 52,
+      "tps": 6327
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 53,
+      "tps": 6441
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 54,
+      "tps": 5474
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 55,
+      "tps": 6627
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 56,
+      "tps": 6446
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 57,
+      "tps": 6622
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 58,
+      "tps": 6654
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 59,
+      "tps": 6668
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 60,
+      "tps": 6467
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 61,
+      "tps": 6668
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 62,
+      "tps": 5501
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 63,
+      "tps": 6625
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 64,
+      "tps": 6453
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 65,
+      "tps": 6596
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 66,
+      "tps": 6598
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 67,
+      "tps": 6628
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 68,
+      "tps": 6460
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 69,
+      "tps": 6646
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 70,
+      "tps": 5436
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 71,
+      "tps": 6278
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 72,
+      "tps": 6158
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 73,
+      "tps": 6602
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 74,
+      "tps": 6666
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 75,
+      "tps": 6660
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 76,
+      "tps": 6463
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 77,
+      "tps": 6616
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 78,
+      "tps": 5177
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 79,
+      "tps": 6284
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 80,
+      "tps": 6345
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 81,
+      "tps": 6266
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 82,
+      "tps": 6291
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 83,
+      "tps": 6216
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 84,
+      "tps": 6252
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 85,
+      "tps": 6278
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 86,
+      "tps": 5145
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 87,
+      "tps": 6277
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 88,
+      "tps": 6304
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 89,
+      "tps": 6325
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 90,
+      "tps": 6282
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 91,
+      "tps": 6238
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 92,
+      "tps": 6287
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 93,
+      "tps": 6299
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 94,
+      "tps": 5132
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 95,
+      "tps": 6487
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 96,
+      "tps": 6461
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 97,
+      "tps": 6617
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 98,
+      "tps": 6612
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 99,
+      "tps": 6614
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 100,
+      "tps": 6457
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 101,
+      "tps": 6367
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 102,
+      "tps": 5279
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 103,
+      "tps": 6192
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 104,
+      "tps": 6052
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 105,
+      "tps": 6080
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 106,
+      "tps": 6161
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 107,
+      "tps": 6142
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 108,
+      "tps": 6048
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 109,
+      "tps": 6052
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 110,
+      "tps": 5015
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 111,
+      "tps": 6108
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 112,
+      "tps": 6027
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 113,
+      "tps": 6040
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 114,
+      "tps": 6005
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 115,
+      "tps": 6163
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 116,
+      "tps": 6078
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 117,
+      "tps": 6128
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 118,
+      "tps": 5189
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 119,
+      "tps": 5895
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 120,
+      "tps": 6376
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 121,
+      "tps": 6499
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 122,
+      "tps": 6351
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 123,
+      "tps": 6557
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 124,
+      "tps": 6557
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 125,
+      "tps": 6560
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 126,
+      "tps": 5433
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 127,
+      "tps": 6513
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 128,
+      "tps": 6492
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 129,
+      "tps": 6490
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 130,
+      "tps": 6569
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 131,
+      "tps": 6601
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 132,
+      "tps": 6583
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 133,
+      "tps": 6575
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 134,
+      "tps": 5309
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 135,
+      "tps": 6164
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 136,
+      "tps": 6582
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 137,
+      "tps": 6563
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 138,
+      "tps": 6586
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 139,
+      "tps": 6472
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 140,
+      "tps": 6446
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 141,
+      "tps": 6470
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 142,
+      "tps": 5185
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 143,
+      "tps": 6508
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 144,
+      "tps": 6524
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 145,
+      "tps": 6565
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 146,
+      "tps": 6368
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 147,
+      "tps": 6293
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 148,
+      "tps": 6359
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 149,
+      "tps": 6565
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 150,
+      "tps": 5372
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 151,
+      "tps": 6571
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 152,
+      "tps": 6557
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 153,
+      "tps": 6579
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 154,
+      "tps": 6576
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 155,
+      "tps": 6581
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 156,
+      "tps": 6570
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 157,
+      "tps": 6571
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 158,
+      "tps": 5420
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 159,
+      "tps": 6569
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 160,
+      "tps": 6576
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 161,
+      "tps": 6556
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 162,
+      "tps": 6557
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 163,
+      "tps": 6578
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 164,
+      "tps": 6602
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 165,
+      "tps": 6589
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 166,
+      "tps": 5397
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 167,
+      "tps": 6596
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 168,
+      "tps": 6525
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 169,
+      "tps": 6564
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 170,
+      "tps": 6557
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 171,
+      "tps": 6555
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 172,
+      "tps": 6565
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 173,
+      "tps": 6556
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 174,
+      "tps": 5367
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 175,
+      "tps": 6587
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 176,
+      "tps": 6568
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 177,
+      "tps": 6544
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 178,
+      "tps": 6583
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 179,
+      "tps": 6584
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 180,
+      "tps": 6577
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 181,
+      "tps": 6570
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 182,
+      "tps": 5432
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 183,
+      "tps": 6548
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 184,
+      "tps": 6563
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 185,
+      "tps": 6570
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 186,
+      "tps": 6585
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 187,
+      "tps": 6580
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 188,
+      "tps": 6585
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 189,
+      "tps": 6614
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 190,
+      "tps": 5309
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 191,
+      "tps": 6602
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 192,
+      "tps": 6631
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 193,
+      "tps": 6629
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 194,
+      "tps": 6618
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 195,
+      "tps": 6600
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 196,
+      "tps": 6607
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 197,
+      "tps": 6589
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 198,
+      "tps": 5186
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 199,
+      "tps": 6547
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 200,
+      "tps": 6546
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 201,
+      "tps": 6503
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 202,
+      "tps": 6094
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 203,
+      "tps": 6282
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 204,
+      "tps": 6259
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 205,
+      "tps": 6303
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 206,
+      "tps": 5194
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 207,
+      "tps": 6590
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 208,
+      "tps": 6561
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 209,
+      "tps": 6462
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 210,
+      "tps": 6514
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 211,
+      "tps": 6510
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 212,
+      "tps": 6575
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 213,
+      "tps": 6590
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 214,
+      "tps": 5427
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 215,
+      "tps": 6583
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 216,
+      "tps": 6463
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 217,
+      "tps": 6303
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 218,
+      "tps": 6545
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 219,
+      "tps": 6510
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 220,
+      "tps": 6487
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 221,
+      "tps": 6552
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 222,
+      "tps": 5412
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 223,
+      "tps": 6534
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 224,
+      "tps": 6520
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 225,
+      "tps": 6572
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 226,
+      "tps": 6614
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 227,
+      "tps": 6625
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 228,
+      "tps": 6594
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 229,
+      "tps": 6633
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 230,
+      "tps": 5246
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 231,
+      "tps": 6227
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 232,
+      "tps": 6310
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 233,
+      "tps": 6566
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 234,
+      "tps": 6552
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 235,
+      "tps": 5924
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 236,
+      "tps": 6072
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 237,
+      "tps": 6057
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 238,
+      "tps": 5008
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 239,
+      "tps": 5967
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 240,
+      "tps": 6069
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 241,
+      "tps": 6043
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 242,
+      "tps": 5942
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 243,
+      "tps": 5985
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 244,
+      "tps": 5995
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 245,
+      "tps": 6024
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 246,
+      "tps": 5086
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 247,
+      "tps": 6244
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 248,
+      "tps": 6254
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 249,
+      "tps": 6176
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 250,
+      "tps": 6220
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 251,
+      "tps": 6246
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 252,
+      "tps": 6264
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 253,
+      "tps": 6267
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 254,
+      "tps": 5124
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 255,
+      "tps": 6307
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 256,
+      "tps": 6306
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 257,
+      "tps": 6244
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 258,
+      "tps": 6223
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 259,
+      "tps": 6227
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 260,
+      "tps": 6190
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 261,
+      "tps": 6192
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 262,
+      "tps": 5120
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 263,
+      "tps": 6217
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 264,
+      "tps": 6249
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 265,
+      "tps": 6219
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 266,
+      "tps": 6251
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 267,
+      "tps": 6270
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 268,
+      "tps": 6288
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 269,
+      "tps": 6227
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 270,
+      "tps": 5141
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 271,
+      "tps": 6186
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 272,
+      "tps": 6248
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 273,
+      "tps": 6114
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 274,
+      "tps": 6235
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 275,
+      "tps": 6010
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 276,
+      "tps": 6044
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 277,
+      "tps": 6193
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 278,
+      "tps": 5088
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 279,
+      "tps": 6141
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 280,
+      "tps": 6218
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 281,
+      "tps": 6254
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 282,
+      "tps": 6304
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 283,
+      "tps": 6263
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 284,
+      "tps": 6300
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 285,
+      "tps": 6306
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 286,
+      "tps": 4932
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 287,
+      "tps": 5907
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 288,
+      "tps": 5915
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 289,
+      "tps": 6019
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 290,
+      "tps": 6136
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 291,
+      "tps": 5960
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 292,
+      "tps": 6019
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 293,
+      "tps": 6026
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 294,
+      "tps": 5247
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 295,
+      "tps": 6307
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 296,
+      "tps": 6298
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 297,
+      "tps": 6264
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 298,
+      "tps": 6325
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 299,
+      "tps": 6341
+    },
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 27.7,
+      "step": 300,
+      "tps": 6317
+    }
+  ]
+}

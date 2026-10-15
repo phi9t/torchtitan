@@ -1,0 +1,325 @@
+diff --git a/torchtitan/experiments/glm53_flash/config_registry.py b/torchtitan/experiments/glm53_flash/config_registry.py
+index cc082d430..ae20170e0 100644
+--- a/torchtitan/experiments/glm53_flash/config_registry.py
++++ b/torchtitan/experiments/glm53_flash/config_registry.py
+@@ -16,6 +16,8 @@ from typing import Any
+ 
+ import torch
+ 
++from torchtitan.components.checkpointer import CheckpointManager
++
+ from torchtitan.components.data import (
+     FirstFitPackingConfig,
+     GrainDataLoader,
+@@ -339,6 +341,7 @@ def glm53_flash_debugmodel_lora() -> "Trainer.Config":
+     config = glm53_flash_debugmodel()
+     assert isinstance(config.model, Glm53FlashForCausalLM.Config)
+     config.model.glm_config = with_lora(config.model.glm_config, rank=8, alpha=32.0)
++    config.optim = _lora_optim_config(steps=config.training.steps, lr=1.0e-3)
+     config.dump_folder = os.environ.get(
+         "GLM53_FLASH_LORA_DUMP_FOLDER",
+         "./outputs/glm53_flash_debugmodel_lora",
+@@ -348,7 +351,7 @@ def glm53_flash_debugmodel_lora() -> "Trainer.Config":
+ 
+ def glm53_flash_mini_countdown_lora() -> "Trainer.Config":
+     cfg = _mini_countdown_model_config(use_lora=True)
+-    return _mini_countdown_trainer_config(
++    config = _mini_countdown_trainer_config(
+         cfg,
+         dump_folder=os.environ.get(
+             "GLM53_FLASH_MINI_DUMP_FOLDER",
+@@ -357,6 +360,11 @@ def glm53_flash_mini_countdown_lora() -> "Trainer.Config":
+         steps=_positive_env_int("GLM53_FLASH_MINI_STEPS", 20),
+         lr=_nonnegative_env_float("GLM53_FLASH_MINI_LR", 2.0e-4),
+     )
++    config.optim = _lora_optim_config(
++        steps=config.training.steps,
++        lr=_nonnegative_env_float("GLM53_FLASH_MINI_LR", 2.0e-4),
++    )
++    return config
+ 
+ 
+ def glm53_flash_mini_countdown_full() -> "Trainer.Config":
+@@ -393,7 +401,7 @@ def glm53_flash_countdown_lora() -> "Trainer.Config":
+         "./outputs/glm53_flash_countdown_lora",
+     )
+     config.training.max_context_length = _positive_env_int(
+-        "GLM53_FLASH_FULL_SEQ_LEN", 2048
++        "GLM53_FLASH_FULL_SEQ_LEN", 512
+     )
+     config.training.num_tokens_per_microbatch_per_dp_rank = (
+         _positive_env_int("GLM53_FLASH_FULL_LOCAL_BATCH_SIZE", 1)
+@@ -402,14 +410,49 @@ def glm53_flash_countdown_lora() -> "Trainer.Config":
+     config.training.num_tokens_per_train_step = _positive_env_int(
+         "GLM53_FLASH_FULL_TOKENS_PER_STEP", 64 * 512
+     )
+-    config.training.steps = _positive_env_int("GLM53_FLASH_FULL_STEPS", 20)
+-    config.optim = _optim_config(
++    config.training.steps = _positive_env_int("GLM53_FLASH_FULL_STEPS", 94)
++    config.training.enable_cpu_offload = _env_bool(
++        "GLM53_FLASH_FULL_CPU_OFFLOAD", False
++    )
++    if config.training.enable_cpu_offload:
++        config.debug.distinct_seed_mesh_axes = ["pp", "dp_shard"]
++    config.checkpointer = CheckpointManager.Config(
++        interval=_positive_env_int("GLM53_FLASH_FULL_CHECKPOINT_INTERVAL", 31),
++        initial_load_in_hf=True,
++        last_save_model_only=False,
++        keep_latest_k=_nonnegative_env_int("GLM53_FLASH_FULL_KEEP_LATEST_K", 10),
++        load_only=_env_bool("GLM53_FLASH_FULL_CHECKPOINT_LOAD_ONLY", False),
++    )
++    config.optim = _lora_optim_config(
+         steps=config.training.steps,
+-        lr=_nonnegative_env_float("GLM53_FLASH_FULL_LR", 2.0e-4),
++        lr=_nonnegative_env_float("GLM53_FLASH_FULL_LR", 1.0e-4),
+     )
+     return config
+ 
+ 
++def _lora_optim_config(*, steps: int, lr: float) -> Optim.Config:
++    return Optim.Config(
++        optimizer=OptimizersContainer.Config(
++            optimizers=[
++                AdamW.Config(
++                    pattern=r".*\.lora_[ab]$",
++                    lr=lr,
++                    betas=(0.9, 0.95),
++                    eps=1.0e-8,
++                    weight_decay=0.0,
++                ),
++            ],
++        ),
++        lr_scheduler=LRSchedulersContainer.Config(
++            warmup_steps=max(1, steps // 10),
++            total_steps=steps,
++            decay_ratio=0.0,
++            decay_type="linear",
++            min_lr_factor=1.0,
++        ),
++    )
++
++
+ def _optim_config(*, steps: int, lr: float) -> Optim.Config:
+     return Optim.Config(
+         optimizer=OptimizersContainer.Config(
+@@ -466,6 +509,19 @@ def _nonnegative_env_float(name: str, default: float) -> float:
+     return value
+ 
+ 
++def _nonnegative_env_int(name: str, default: int) -> int:
++    raw = os.environ.get(name)
++    if raw is None:
++        return default
++    try:
++        value = int(raw)
++    except ValueError as exc:
++        raise ValueError(f"{name} must be an integer, got {raw!r}") from exc
++    if value < 0:
++        raise ValueError(f"{name} must be >= 0, got {value}")
++    return value
++
++
+ def _env_bool(name: str, default: bool) -> bool:
+     raw = os.environ.get(name)
+     if raw is None:
+diff --git a/torchtitan/experiments/glm53_flash/hf_parity.py b/torchtitan/experiments/glm53_flash/hf_parity.py
+index 48103e81f..fd07dbe3b 100644
+--- a/torchtitan/experiments/glm53_flash/hf_parity.py
++++ b/torchtitan/experiments/glm53_flash/hf_parity.py
+@@ -370,7 +370,7 @@ def _build_parity_inputs(
+     checkpoint: Path,
+     data_file: Path,
+     *,
+-    long_seq_len: int,
++    long_seq_len: int | None,
+     device: torch.device,
+ ) -> tuple[list[dict[str, Any]], list[str]]:
+     tokenizer = _load_hf_tokenizer(checkpoint)
+@@ -396,23 +396,24 @@ def _build_parity_inputs(
+             }
+         )
+ 
+-    vocab_size = int(getattr(tokenizer, "vocab_size", 154_880))
+-    generator = torch.Generator(device="cpu").manual_seed(20261014)
+-    long_ids = torch.randint(
+-        low=0,
+-        high=vocab_size,
+-        size=(long_seq_len,),
+-        generator=generator,
+-        dtype=torch.long,
+-    ).view(1, -1)
+-    long_ids = long_ids.to(device)
+-    samples.append(
+-        {
+-            "name": f"random_{long_seq_len}",
+-            "input_ids": long_ids,
+-            "attention_mask": torch.ones_like(long_ids, dtype=torch.bool),
+-        }
+-    )
++    if long_seq_len is not None:
++        vocab_size = int(getattr(tokenizer, "vocab_size", 154_880))
++        generator = torch.Generator(device="cpu").manual_seed(20261014)
++        long_ids = torch.randint(
++            low=0,
++            high=vocab_size,
++            size=(long_seq_len,),
++            generator=generator,
++            dtype=torch.long,
++        ).view(1, -1)
++        long_ids = long_ids.to(device)
++        samples.append(
++            {
++                "name": f"random_{long_seq_len}",
++                "input_ids": long_ids,
++                "attention_mask": torch.ones_like(long_ids, dtype=torch.bool),
++            }
++        )
+     return samples, rendered
+ 
+ 
+@@ -578,7 +579,7 @@ def run_slice_parity(args: argparse.Namespace) -> dict[str, Any]:
+     input_samples, rendered = _build_parity_inputs(
+         checkpoint,
+         Path(args.data_file),
+-        long_seq_len=args.long_seq_len,
++        long_seq_len=None if args.no_long_sequence else args.long_seq_len,
+         device=device,
+     )
+     sample_results = []
+@@ -936,6 +937,7 @@ def _main() -> None:
+     parity.add_argument("--layer-start", type=int, required=True)
+     parity.add_argument("--num-layers", type=int, required=True)
+     parity.add_argument("--long-seq-len", type=int, default=4096)
++    parity.add_argument("--no-long-sequence", action="store_true")
+     parity.add_argument("--dtype", choices=("float32", "bfloat16"), default="float32")
+     parity.add_argument("--device", default="cpu")
+     parity.set_defaults(func=run_slice_parity)
+diff --git a/torchtitan/experiments/glm53_flash/model.py b/torchtitan/experiments/glm53_flash/model.py
+index 5024ae747..33a7d0c5e 100644
+--- a/torchtitan/experiments/glm53_flash/model.py
++++ b/torchtitan/experiments/glm53_flash/model.py
+@@ -126,6 +126,15 @@ class LoRALinear(nn.Linear):
+         return out + adapter * (self.alpha / self.rank)
+ 
+ 
++def _is_lora_parameter(name: str) -> bool:
++    return name.endswith(".lora_a") or name.endswith(".lora_b")
++
++
++def apply_lora_trainable_policy(model: nn.Module) -> None:
++    for name, param in model.named_parameters():
++        param.requires_grad_(_is_lora_parameter(name))
++
++
+ def _matches_lora_target(suffix: str, config: Glm53FlashConfig) -> bool:
+     return config.lora_rank is not None and any(
+         suffix == target or suffix.endswith(f".{target}")
+@@ -1190,6 +1199,8 @@ class Glm53FlashForCausalLM(BaseModel):
+         self.lm_head = nn.Linear(cfg.hidden_size, cfg.vocab_size, bias=False)
+         if self.enable_weight_tying:
+             self.lm_head.weight = self.tok_embeddings.weight
++        if cfg.lora_rank is not None:
++            apply_lora_trainable_policy(self)
+ 
+     def parallelize(
+         self,
+diff --git a/torchtitan/experiments/glm53_flash/tests/test_glm53_flash.py b/torchtitan/experiments/glm53_flash/tests/test_glm53_flash.py
+index e06d09001..b105f7458 100644
+--- a/torchtitan/experiments/glm53_flash/tests/test_glm53_flash.py
++++ b/torchtitan/experiments/glm53_flash/tests/test_glm53_flash.py
+@@ -23,10 +23,16 @@ from torchtitan.components.data.text_datasets import ChatProcessor
+ from torchtitan.components.loss import ChunkedLossWrapper
+ from torchtitan.components.tokenizer import HuggingFaceTokenizer
+ from torchtitan.experiments.glm53_flash.config_registry import (
++    glm53_flash_countdown_lora,
++    glm53_flash_debugmodel_lora,
+     glm53_flash_mini_countdown_full,
+     glm53_flash_mini_countdown_lora,
+ )
+-from torchtitan.experiments.glm53_flash.flavors import debugmodel
++from torchtitan.experiments.glm53_flash.flavors import (
++    build_model_config,
++    debugmodel,
++    with_lora,
++)
+ from torchtitan.experiments.glm53_flash.hf_parity import run_key_coverage
+ from torchtitan.experiments.glm53_flash.model import (
+     _initialize_glm53_flash_weights,
+@@ -489,6 +495,40 @@ def test_meta_to_empty_init_has_nonzero_norms_and_distinct_layers():
+     assert not torch.allclose(layer_outputs[0], layer_outputs[-1])
+ 
+ 
++def test_lora_debug_model_only_lora_params_require_grad():
++    config = glm53_flash_debugmodel_lora()
++    with torch.device("meta"):
++        model = config.model.build()
++
++    lora_names = {
++        name
++        for name, _ in model.named_parameters()
++        if name.endswith(".lora_a") or name.endswith(".lora_b")
++    }
++    trainable_names = {
++        name for name, param in model.named_parameters() if param.requires_grad
++    }
++
++    assert lora_names
++    assert trainable_names == lora_names
++    assert config.optim.optimizer.optimizers[0].pattern == r".*\.lora_[ab]$"
++
++
++def test_full_lora_trainable_count_matches_memory_plan_on_meta():
++    cfg = with_lora(build_model_config("glm53_flash"), rank=16, alpha=64.0)
++    with torch.device("meta"):
++        model = Glm53FlashForCausalLM.Config(
++            glm_config=cfg,
++            experiment_flavor="glm53_flash",
++        ).build()
++
++    trainable_count = sum(
++        param.numel() for param in model.parameters() if param.requires_grad
++    )
++
++    assert trainable_count == 67_190_784
++
++
+ def test_mini_countdown_configs_use_chat_data_qwen_vocab_and_fast_path(
+     monkeypatch, tmp_path
+ ):
+@@ -528,6 +568,36 @@ def test_mini_countdown_configs_use_chat_data_qwen_vocab_and_fast_path(
+     assert isinstance(full_config.loss, ChunkedLossWrapper.Config)
+ 
+ 
++def test_full_countdown_lora_config_uses_campaign_defaults(monkeypatch, tmp_path):
++    data_file = tmp_path / "formatting.jsonl"
++    data_file.write_text(
++        '{"question":"Numbers: 1, 2\\nTarget: 3","answer":"1 + 2 = 3\\nFINAL: 3"}\n'
++    )
++    monkeypatch.setenv("GLM53_FLASH_COUNTDOWN_DATA_FILE", str(data_file))
++    monkeypatch.setenv("GLM53_FLASH_COUNTDOWN_HF_ASSETS_PATH", str(tmp_path / "glm53"))
++
++    config = glm53_flash_countdown_lora()
++
++    assert config.training.max_context_length == 512
++    assert config.training.num_tokens_per_train_step == 64 * 512
++    assert config.training.steps == 94
++    assert config.checkpointer.initial_load_in_hf
++    assert not config.checkpointer.last_save_model_only
++    assert not config.checkpointer.load_only
++    assert config.checkpointer.interval == 31
++    assert config.optim.optimizer.optimizers[0].pattern == r".*\.lora_[ab]$"
++    assert config.optim.optimizer.optimizers[0].lr == 1.0e-4
++
++    monkeypatch.setenv("GLM53_FLASH_FULL_CHECKPOINT_LOAD_ONLY", "1")
++    load_only_config = glm53_flash_countdown_lora()
++    assert load_only_config.checkpointer.load_only
++
++    monkeypatch.setenv("GLM53_FLASH_FULL_CPU_OFFLOAD", "1")
++    cpu_offload_config = glm53_flash_countdown_lora()
++    assert cpu_offload_config.training.enable_cpu_offload
++    assert cpu_offload_config.debug.distinct_seed_mesh_axes == ["pp", "dp_shard"]
++
++
+ def test_state_dict_adapter_round_trip_uses_real_bf16_index_schema():
+     torch.manual_seed(10)
+     cfg = debugmodel()

@@ -1,0 +1,106 @@
+{
+  "blockers": [],
+  "diagnostic_imports": {
+    "fla.ops.kda": {
+      "error": "key contains names that are not kernel arguments: BT. Valid argument names are: h, ag_hm, pre_or_post_num_ranks, rank, seq_offsets, init_offsets, h0_seq_ids, h0, HV, K, V, BV, BK, FORWARD, INTRACARD_MODE, NUM_SEQ_ENTRIES, HAS_H0, STATE_V_FIRST.",
+      "error_type": "ValueError",
+      "gate": "diagnostic",
+      "ok": false
+    }
+  },
+  "env": {
+    "PYTHON": "/project/venvs/b200-runtime/bin/python",
+    "TORCHTITAN_ROOTFS_ENV": "glm53_ep",
+    "TORCHTITAN_ROOTFS_HOST_STATE": "/data02/home/philip.yang/workspace/torchtitan/.cache/torchtitan-rootfs/glm53_ep",
+    "TORCHTITAN_ROOTFS_STORE_ID": "rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+    "sys_executable": "/project/venvs/b200-runtime/bin/python"
+  },
+  "filesystem": {
+    "/opt/cuda-synth/include/cublas_v2.h": true,
+    "/opt/cuda-synth/include/cuda_runtime.h": true,
+    "/opt/cuda-synth/include/nvrtc.h": true,
+    "/opt/cuda-synth/lib64/libcublas.so": true,
+    "/opt/cuda-synth/lib64/libcudart.so": true,
+    "/opt/cuda-synth/lib64/libnvrtc.so": true
+  },
+  "imports": {
+    "attn_gym.linear.kda": {
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/attn_gym/linear/kda/__init__.py",
+      "ok": true
+    },
+    "nvidia.nvshmem": {
+      "file": null,
+      "ok": true
+    },
+    "torchtitan.models.common.attn_gym": {
+      "file": "/workspace/torchtitan/torchtitan/models/common/attn_gym.py",
+      "ok": true
+    },
+    "triton": {
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/triton/__init__.py",
+      "ok": true
+    }
+  },
+  "kind": "glm53_ep_runtime_verification",
+  "nvcc": {
+    "ok": true,
+    "output": [
+      "nvcc: NVIDIA (R) Cuda compiler driver",
+      "Copyright (c) 2005-2026 NVIDIA Corporation",
+      "Built on Fri_May_08_10:53:34_AM_PDT_2026",
+      "Cuda compilation tools, release 13.2, V13.2.86",
+      "Build cuda_13.2.r13.2/compiler.37953736_0"
+    ],
+    "path": "/opt/cuda-synth/bin/nvcc",
+    "returncode": 0
+  },
+  "ok": true,
+  "packages": {
+    "attn-gym": "0.0.16",
+    "fla-core": "0.5.2",
+    "flash-attn": "not installed",
+    "nvidia-nvshmem-cu13": "3.7.2",
+    "torch": "2.16.0.dev20261013+cu132",
+    "torchao": "not installed",
+    "triton": "3.9.0+gitfc8d31a5"
+  },
+  "rootfs_digest": "sha256:e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+  "rootfs_manifest": {
+    "base_image": "ghcr.io/pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime",
+    "exported_rootfs_digest": "sha256:e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+    "image_id": "torchtitan-rootfs:native",
+    "image_tag": "torchtitan-rootfs:native",
+    "kind": "rootfs_build_manifest",
+    "mise_version": "2025.8.16",
+    "mutable_rootfs_allowed": false,
+    "native_lock": {
+      "path": "/data02/home/philip.yang/workspace/torchtitan/scripts/rootfs/native_variant.lock",
+      "sha256": "c6d05d0d472e132c34dedda640ad11ac85c2da173729efd0c8e412bb18f654ac"
+    },
+    "native_packages": {
+      "apt": {
+        "ccache": "4.9.1-1"
+      },
+      "cutlass": {
+        "sha256": "b7bb2ba0473a5a5d699c62e5feb42caa11cb109ec58ba82ca458af9cd139f39b",
+        "url": "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.8.0.tar.gz",
+        "version": "v4.8.0"
+      },
+      "pip": "nvidia-cuda-nvcc==13.2.86 nvidia-cuda-cccl==13.3.4.3.1 nvidia-cuda-runtime==13.2.86 nvidia-cublas==13.4.1.3 nvidia-cuda-nvrtc==13.2.86"
+    },
+    "schema_version": 1,
+    "store_id": "rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+    "variant": "native"
+  },
+  "schema_version": 1,
+  "torch": {
+    "cuda": "13.2",
+    "cuda_available": true,
+    "device_0_capability": [
+      10,
+      0
+    ],
+    "device_0_name": "NVIDIA B200",
+    "version": "2.16.0.dev20261013+cu132"
+  }
+}

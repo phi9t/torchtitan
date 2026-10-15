@@ -1,0 +1,43 @@
+{
+  "direct": "/workspace/torchtitan/experiments/glm53_flash_sft_ladder/runtime/requirements.direct.txt",
+  "direct_sha256": "1dcac00bdd6bdf36ff8c64dc36d959bc52730a03a56c7f6ac219328dd98654b9",
+  "env_name": "glm53_ep",
+  "flash_attention_skip_cuda_build": "TRUE",
+  "kind": "glm53_ep_python_env_report",
+  "lock": "/workspace/torchtitan/experiments/glm53_flash_sft_ladder/runtime/requirements.lock",
+  "lock_sha256": "c565cf43c532a84c639ae9e7cca44317ffe7673fd2614c03c30c391ce7cf886b",
+  "network_mode": "networked",
+  "ok": true,
+  "python": "/project/venvs/b200-runtime/bin/python",
+  "rootfs_digest": "sha256:e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+  "rootfs_manifest": {
+    "base_image": "ghcr.io/pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime",
+    "exported_rootfs_digest": "sha256:e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+    "image_id": "torchtitan-rootfs:native",
+    "image_tag": "torchtitan-rootfs:native",
+    "kind": "rootfs_build_manifest",
+    "mise_version": "2025.8.16",
+    "mutable_rootfs_allowed": false,
+    "native_lock": {
+      "path": "/data02/home/philip.yang/workspace/torchtitan/scripts/rootfs/native_variant.lock",
+      "sha256": "c6d05d0d472e132c34dedda640ad11ac85c2da173729efd0c8e412bb18f654ac"
+    },
+    "native_packages": {
+      "apt": {
+        "ccache": "4.9.1-1"
+      },
+      "cutlass": {
+        "sha256": "b7bb2ba0473a5a5d699c62e5feb42caa11cb109ec58ba82ca458af9cd139f39b",
+        "url": "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.8.0.tar.gz",
+        "version": "v4.8.0"
+      },
+      "pip": "nvidia-cuda-nvcc==13.2.86 nvidia-cuda-cccl==13.3.4.3.1 nvidia-cuda-runtime==13.2.86 nvidia-cublas==13.4.1.3 nvidia-cuda-nvrtc==13.2.86"
+    },
+    "schema_version": 1,
+    "store_id": "rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+    "variant": "native"
+  },
+  "rootfs_store_id": "rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+  "schema_version": 1,
+  "venv": "/project/venvs/b200-runtime"
+}

@@ -1,0 +1,182 @@
+{
+  "env": {
+    "CUDA_HOME": "/opt/cuda-synth",
+    "LD_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu:/opt/cuda-synth/lib64",
+    "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
+    "TORCHTITAN_IN_ROOTFS": "1",
+    "TORCHTITAN_ROOTFS_ENV": "glm53_ep",
+    "TORCHTITAN_ROOTFS_STORE_ID": "rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5"
+  },
+  "files": [
+    {
+      "exists": true,
+      "is_symlink": false,
+      "path": "/opt/cuda-synth/include/cuda_runtime.h",
+      "target": null
+    },
+    {
+      "exists": true,
+      "is_symlink": false,
+      "path": "/opt/cuda-synth/include/cublas_v2.h",
+      "target": null
+    },
+    {
+      "exists": true,
+      "is_symlink": false,
+      "path": "/opt/cuda-synth/include/nvrtc.h",
+      "target": null
+    },
+    {
+      "exists": true,
+      "is_symlink": false,
+      "path": "/opt/cuda-synth/include/cutlass/cutlass.h",
+      "target": null
+    },
+    {
+      "exists": true,
+      "is_symlink": true,
+      "path": "/opt/cuda-synth/lib64/libcudart.so",
+      "target": "libcudart.so.13"
+    },
+    {
+      "exists": true,
+      "is_symlink": true,
+      "path": "/opt/cuda-synth/lib64/libcublas.so",
+      "target": "libcublas.so.13"
+    },
+    {
+      "exists": true,
+      "is_symlink": true,
+      "path": "/opt/cuda-synth/lib64/libcublasLt.so",
+      "target": "libcublasLt.so.13"
+    },
+    {
+      "exists": true,
+      "is_symlink": true,
+      "path": "/opt/cuda-synth/lib64/libnvrtc.so",
+      "target": "libnvrtc.so.13"
+    },
+    {
+      "exists": true,
+      "is_symlink": false,
+      "path": "/usr/include/infiniband/verbs.h",
+      "target": null
+    },
+    {
+      "exists": true,
+      "is_symlink": false,
+      "path": "/usr/include/rdma/rdma_cma.h",
+      "target": null
+    },
+    {
+      "exists": true,
+      "is_symlink": false,
+      "path": "/usr/include/numa.h",
+      "target": null
+    }
+  ],
+  "linker_probe_cuda_user_libs": {
+    "cmd": [
+      "gcc",
+      "-shared",
+      "/tmp/torchtitan_native_probe.c",
+      "-o",
+      "/tmp/torchtitan_native_probe.so",
+      "-L/opt/cuda-synth/lib64",
+      "-lcublas",
+      "-lnvrtc",
+      "-lcudart"
+    ],
+    "output": [],
+    "returncode": 0
+  },
+  "linker_probe_driver_stub": {
+    "cmd": [
+      "gcc",
+      "-shared",
+      "/tmp/torchtitan_native_probe.c",
+      "-o",
+      "/tmp/torchtitan_native_probe_driver.so",
+      "-L/opt/cuda-synth/lib64",
+      "-lcuda"
+    ],
+    "output": [],
+    "returncode": 0
+  },
+  "tools": {
+    "ccache": {
+      "cmd": [
+        "ccache",
+        "--version"
+      ],
+      "output": [
+        "ccache version 4.9.1",
+        "Features: file-storage http-storage redis+unix-storage redis-storage",
+        "",
+        "Copyright (C) 2002-2007 Andrew Tridgell",
+        "Copyright (C) 2009-2024 Joel Rosdahl and other contributors",
+        "",
+        "See <https://ccache.dev/credits.html> for a complete list of contributors.",
+        "",
+        "This program is free software; you can redistribute it and/or modify it under",
+        "the terms of the GNU General Public License as published by the Free Software",
+        "Foundation; either version 3 of the License, or (at your option) any later",
+        "version."
+      ],
+      "returncode": 0
+    },
+    "cmake": {
+      "cmd": [
+        "cmake",
+        "--version"
+      ],
+      "output": [
+        "cmake version 4.3.4",
+        "",
+        "CMake suite maintained and supported by Kitware (kitware.com/cmake)."
+      ],
+      "returncode": 0
+    },
+    "gcc": {
+      "cmd": [
+        "gcc",
+        "--version"
+      ],
+      "output": [
+        "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+        "Copyright (C) 2023 Free Software Foundation, Inc.",
+        "This is free software; see the source for copying conditions.  There is NO",
+        "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+        ""
+      ],
+      "returncode": 0
+    },
+    "ncu_path": "/usr/local/cuda/bin/ncu",
+    "ninja": {
+      "cmd": [
+        "ninja",
+        "--version"
+      ],
+      "output": [
+        "1.13.0.git.kitware.jobserver-pipe-1"
+      ],
+      "returncode": 0
+    },
+    "nsys_path": "/usr/local/cuda/bin/nsys",
+    "nvcc": {
+      "cmd": [
+        "nvcc",
+        "--version"
+      ],
+      "output": [
+        "nvcc: NVIDIA (R) Cuda compiler driver",
+        "Copyright (c) 2005-2026 NVIDIA Corporation",
+        "Built on Mon_Mar_02_09:52:23_PM_PST_2026",
+        "Cuda compilation tools, release 13.2, V13.2.51",
+        "Build cuda_13.2.r13.2/compiler.37434383_0"
+      ],
+      "returncode": 0
+    },
+    "nvcc_path": "/usr/local/cuda/bin/nvcc"
+  }
+}

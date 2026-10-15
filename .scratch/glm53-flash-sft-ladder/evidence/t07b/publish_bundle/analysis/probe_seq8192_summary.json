@@ -1,0 +1,64 @@
+{
+  "accepted_for_gate": true,
+  "claim_label": "smoke",
+  "curve": {
+    "1": {
+      "loss": 12.19578,
+      "memory_gib": 16.48,
+      "tps": 1285
+    },
+    "5": {
+      "loss": 2.97161,
+      "memory_gib": 22.61,
+      "tps": 4278
+    }
+  },
+  "description": "mini fast-path FullAC finite-grad probe, seq_len=8192",
+  "final_loss": 2.97161,
+  "final_step": 5,
+  "first_loss": 12.19578,
+  "launcher_log": null,
+  "loss_drop_fraction": 0.7563411278327421,
+  "mean_tps_after_step1": 3894.5,
+  "name": "probe_seq8192",
+  "num_metric_rows": 5,
+  "path": ".scratch/glm53-flash-sft-ladder/evidence/t07b/probe_seq8192/train.log",
+  "peak_memory_gib": 22.61,
+  "rows": [
+    {
+      "grad_norm": 15.5,
+      "loss": 12.19578,
+      "memory_gib": 16.48,
+      "step": 1,
+      "tps": 1285
+    },
+    {
+      "grad_norm": 27.25,
+      "loss": 7.8233,
+      "memory_gib": 22.53,
+      "step": 2,
+      "tps": 3033
+    },
+    {
+      "grad_norm": 29.125,
+      "loss": 5.42778,
+      "memory_gib": 22.61,
+      "step": 3,
+      "tps": 3810
+    },
+    {
+      "grad_norm": 11.1875,
+      "loss": 4.04133,
+      "memory_gib": 22.61,
+      "step": 4,
+      "tps": 4457
+    },
+    {
+      "grad_norm": 7.0938,
+      "loss": 2.97161,
+      "memory_gib": 22.61,
+      "step": 5,
+      "tps": 4278
+    }
+  ]
+}

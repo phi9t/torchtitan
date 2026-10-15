@@ -1,0 +1,64 @@
+Wed Oct 14 19:37:37 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.105.08             Driver Version: 580.105.08     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA B200                    On  |   00000000:8F:00.0 Off |                    0 |
+| N/A   47C    P0            727W / 1000W |   34264MiB / 183359MiB |     97%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA B200                    On  |   00000000:90:00.0 Off |                    0 |
+| N/A   58C    P0            827W / 1000W |   22246MiB / 183359MiB |     98%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA B200                    On  |   00000000:96:00.0 Off |                    0 |
+| N/A   52C    P0            838W / 1000W |   22248MiB / 183359MiB |     99%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA B200                    On  |   00000000:97:00.0 Off |                    0 |
+| N/A   55C    P0            698W / 1000W |   20192MiB / 183359MiB |     93%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA B200                    On  |   00000000:C4:00.0 Off |                    0 |
+| N/A   46C    P0            620W / 1000W |   20794MiB / 183359MiB |     91%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA B200                    On  |   00000000:C5:00.0 Off |                    0 |
+| N/A   42C    P0            342W / 1000W |   11784MiB / 183359MiB |     34%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA B200                    On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   35C    P0            323W / 1000W |   17016MiB / 183359MiB |     38%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA B200                    On  |   00000000:CC:00.0 Off |                    0 |
+| N/A   36C    P0            235W / 1000W |    1252MiB / 183359MiB |      1%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         2941841      C   ...venvs/b200-runtime/bin/python      12008MiB |
+|    0   N/A  N/A         3003281      C   ...venvs/b200-runtime/bin/python      22208MiB |
+|    0   N/A  N/A         3303304      C   ...venvs/b200-runtime/bin/python        152MiB |
+|    1   N/A  N/A         3011261      C   ...venvs/b200-runtime/bin/python      22208MiB |
+|    1   N/A  N/A         3303305      C   ...venvs/b200-runtime/bin/python        616MiB |
+|    2   N/A  N/A         3018472      C   ...venvs/b200-runtime/bin/python      22208MiB |
+|    2   N/A  N/A         3303306      C   ...venvs/b200-runtime/bin/python        616MiB |
+|    3   N/A  N/A         3027080      C   ...venvs/b200-runtime/bin/python      20154MiB |
+|    3   N/A  N/A         3303307      C   ...venvs/b200-runtime/bin/python        616MiB |
+|    4   N/A  N/A         3037095      C   ...venvs/b200-runtime/bin/python      20154MiB |
+|    4   N/A  N/A         3303308      C   ...venvs/b200-runtime/bin/python        616MiB |
+|    5   N/A  N/A         3190584      C   ...venvs/b200-runtime/bin/python      11746MiB |
+|    5   N/A  N/A         3303309      C   ...venvs/b200-runtime/bin/python        616MiB |
+|    6   N/A  N/A         3288737      C   ...venvs/b200-runtime/bin/python      16376MiB |
+|    6   N/A  N/A         3303310      C   ...venvs/b200-runtime/bin/python        616MiB |
+|    7   N/A  N/A         3303311      C   ...venvs/b200-runtime/bin/python        616MiB |
+|    7   N/A  N/A         3303535      C   python                                  692MiB |
++-----------------------------------------------------------------------------------------+

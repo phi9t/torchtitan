@@ -1,0 +1,941 @@
+{
+  "longest_events": [
+    {
+      "cat": "Trace",
+      "dur_us": 207282333.243,
+      "name": "PyTorch Profiler (0)",
+      "ph": "X",
+      "tid": "PyTorch Profiler"
+    },
+    {
+      "cat": "user_annotation",
+      "dur_us": 207281571.835,
+      "name": "ProfilerStep#0",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "dur_us": 207014990.509,
+      "name": "ProfilerStep#0",
+      "ph": "X",
+      "tid": "7"
+    },
+    {
+      "cat": "user_annotation",
+      "dur_us": 1985507.16,
+      "name": "Optimizer.step#OptimizersContainer.step",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "user_annotation",
+      "dur_us": 1670596.156,
+      "name": "Optimizer.step#AdamW.step",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "dur_us": 1667748.456,
+      "name": "Optimizer.step#AdamW.step",
+      "ph": "X",
+      "tid": "7"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 422454.916,
+      "name": "aten::_foreach_mul_",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 422368.432,
+      "name": "PythonSubclass",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 385664.214,
+      "name": "aten::_foreach_addcdiv_",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 385522.765,
+      "name": "PythonSubclass",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 384188.85,
+      "name": "aten::_foreach_norm",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 384090.729,
+      "name": "PythonSubclass",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 309745.15,
+      "name": "aten::_foreach_addcmul_",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 309618.715,
+      "name": "PythonSubclass",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "user_annotation",
+      "dur_us": 293173.629,
+      "name": "Optimizer.step#DistMuon.step",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "dur_us": 287440.803,
+      "name": "Optimizer.step#DistMuon.step",
+      "ph": "X",
+      "tid": "7"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 233915.825,
+      "name": "aten::_foreach_div_",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 233855.705,
+      "name": "PythonSubclass",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 223539.509,
+      "name": "aten::_foreach_lerp_",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 223448.051,
+      "name": "PythonSubclass",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 223271.688,
+      "name": "dynamo",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 222395.346,
+      "name": "dynamo",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 221979.886,
+      "name": "entire_frame_compile",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 221932.669,
+      "name": "_compile.compile_inner (dynamo_timed)",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 221093.823,
+      "name": "entire_frame_compile",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 221046.065,
+      "name": "_compile.compile_inner (dynamo_timed)",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 206409.926,
+      "name": "dynamo",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 204985.064,
+      "name": "entire_frame_compile",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 204930.476,
+      "name": "_compile.compile_inner (dynamo_timed)",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 201677.79,
+      "name": "aten::_foreach_sqrt",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 201626.107,
+      "name": "PythonSubclass",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 196177.098,
+      "name": "dynamo",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 194762.901,
+      "name": "entire_frame_compile",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 194714.849,
+      "name": "_compile.compile_inner (dynamo_timed)",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 185302.618,
+      "name": "compile_attempt_0",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 185251.524,
+      "name": "compile_attempt_0 (dynamo_timed)",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 184284.917,
+      "name": "compile_attempt_0",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 184232.065,
+      "name": "compile_attempt_0 (dynamo_timed)",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 167982.029,
+      "name": "dynamo",
+      "ph": "X",
+      "tid": "77"
+    },
+    {
+      "cat": "cpu_op",
+      "dur_us": 166646.936,
+      "name": "entire_frame_compile",
+      "ph": "X",
+      "tid": "77"
+    }
+  ],
+  "num_duration_events": 19061368,
+  "num_events": 27446992,
+  "top_by_total_duration": [
+    {
+      "cat": "Trace",
+      "count": 1,
+      "dur_us": 207282333.243,
+      "key": "Trace::PyTorch Profiler (0)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1,
+      "dur_us": 207281571.835,
+      "key": "user_annotation::ProfilerStep#0"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "count": 1,
+      "dur_us": 207014990.509,
+      "key": "gpu_user_annotation::ProfilerStep#0"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 262400,
+      "dur_us": 15066772.27300013,
+      "key": "cpu_op::aten::linear"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 842290,
+      "dur_us": 14472147.697999401,
+      "key": "cpu_op::aten::copy_"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 298971,
+      "dur_us": 14260122.414000023,
+      "key": "cpu_op::aten::mm"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 80034,
+      "dur_us": 13907272.72700016,
+      "key": "cpu_op::aten::rms_norm"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 80034,
+      "dur_us": 13003128.808000067,
+      "key": "cpu_op::aten::_fused_rms_norm"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 263521,
+      "dur_us": 12800473.178000089,
+      "key": "cpu_op::aten::matmul"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 29440,
+      "dur_us": 12036815.160999998,
+      "key": "cpu_op::Torch-Compiled Region: 1/5"
+    },
+    {
+      "cat": "cuda_runtime",
+      "count": 1444745,
+      "dur_us": 11706978.112999748,
+      "key": "cuda_runtime::cudaLaunchKernel"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 29440,
+      "dur_us": 9775115.992999982,
+      "key": "user_annotation::## Call CompiledFxGraph fvxen2kqxqntwn77b24qy5dcpakthmyii56ggtaqtukksk6327kw ##"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 20992,
+      "dur_us": 9398631.252000004,
+      "key": "cpu_op::aten::scatter_add"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 80032,
+      "dur_us": 8934254.859000023,
+      "key": "cpu_op::_native::_fused_rms_norm_cutedsl_4"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 22016,
+      "dur_us": 8077159.861999962,
+      "key": "cpu_op::aten::_index_put_impl_"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "count": 29440,
+      "dur_us": 8071748.8059999095,
+      "key": "gpu_user_annotation::## Call CompiledFxGraph fvxen2kqxqntwn77b24qy5dcpakthmyii56ggtaqtukksk6327kw ##"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 20992,
+      "dur_us": 7961025.464000024,
+      "key": "cpu_op::aten::index_put_"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15744,
+      "dur_us": 6970397.35400002,
+      "key": "cpu_op::ChunkKdaCudnn"
+    },
+    {
+      "cat": "kernel",
+      "count": 10496,
+      "dur_us": 6916822.447999994,
+      "key": "kernel::void cutlass::Kernel2<cutlass_75_tensorop_bf16_s1688gemm_bf16_128x256_tn_align1>(cutlass_75_tensorop_bf16_s1688gemm_bf16_128x256_tn_align1::Params)"
+    },
+    {
+      "cat": "cuda_runtime",
+      "count": 699075,
+      "dur_us": 6819435.859999818,
+      "key": "cuda_runtime::cudaMemcpyAsync"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15744,
+      "dur_us": 6700409.293999997,
+      "key": "cpu_op::attn_gym::kda_chunk_cudnn_packed_fwd"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 332898,
+      "dur_us": 6221977.963999807,
+      "key": "cpu_op::aten::to"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 128114,
+      "dur_us": 5868643.103999992,
+      "key": "cpu_op::aten::_to_copy"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 40960,
+      "dur_us": 5778711.532000077,
+      "key": "cpu_op::Torch-Compiled Region: 2/3"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 20992,
+      "dur_us": 4165352.878000002,
+      "key": "cpu_op::aten::argsort"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 20992,
+      "dur_us": 4100090.490999994,
+      "key": "cpu_op::aten::sort"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 675842,
+      "dur_us": 3887086.7339999387,
+      "key": "cpu_op::aten::empty"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 31488,
+      "dur_us": 3872159.110999976,
+      "key": "cpu_op::_L2Norm"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 45874,
+      "dur_us": 3767788.391999991,
+      "key": "cpu_op::aten::bmm"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15744,
+      "dur_us": 3640592.55900001,
+      "key": "cpu_op::_ShortConv"
+    },
+    {
+      "cat": "kernel",
+      "count": 44608,
+      "dur_us": 3521281.813999979,
+      "key": "kernel::void gemv2N_kernel<int, int, float, float, float, float, 128, 1, 2, 2, 1, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float const>, cublasGemvTensorStridedBatched<float>, float>)"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 31488,
+      "dur_us": 3480328.010999993,
+      "key": "cpu_op::attn_gym::kda_l2norm_fwd"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 40960,
+      "dur_us": 3413718.105999994,
+      "key": "user_annotation::## Call CompiledFxGraph f7ab2htobioywaxdzcpmlnwxkwpucamveqyi3aafwl4fsrffolay ##"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15744,
+      "dur_us": 3260662.6510000005,
+      "key": "cpu_op::attn_gym::_cute_short_conv_fwd"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 8960,
+      "dur_us": 3251500.9149999944,
+      "key": "cpu_op::Torch-Compiled Region: 1/3"
+    },
+    {
+      "cat": "cuda_driver",
+      "count": 321805,
+      "dur_us": 3182104.04199994,
+      "key": "cuda_driver::cuLaunchKernelEx"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 284071,
+      "dur_us": 2889349.3629999137,
+      "key": "cpu_op::aten::empty_like"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 114651,
+      "dur_us": 2882135.0109999613,
+      "key": "cpu_op::TorchDynamo Cache Lookup"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 712,
+      "dur_us": 2693699.1199999987,
+      "key": "cpu_op::PythonSubclass"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 74952,
+      "dur_us": 2645776.3449999955,
+      "key": "cpu_op::aten::clone"
+    },
+    {
+      "cat": "cuda_runtime",
+      "count": 14278,
+      "dur_us": 2622155.5749999993,
+      "key": "cuda_runtime::cudaStreamSynchronize"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 8960,
+      "dur_us": 2573181.2219999884,
+      "key": "user_annotation::## Call CompiledFxGraph fgcje3u5s4elogb7xuoatki4fra7rszy4pehzwspf65dnmxbrvad ##"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15744,
+      "dur_us": 2531733.905000009,
+      "key": "cpu_op::_FusedGate"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 44032,
+      "dur_us": 2490422.611999989,
+      "key": "cpu_op::aten::_grouped_mm"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 113454,
+      "dur_us": 2487110.5950000044,
+      "key": "cpu_op::aten::add"
+    },
+    {
+      "cat": "cuda_driver",
+      "count": 279620,
+      "dur_us": 2463391.226000016,
+      "key": "cuda_driver::cuLaunchKernel"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 44104,
+      "dur_us": 2421261.5690000104,
+      "key": "cpu_op::aten::arange"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 351039,
+      "dur_us": 2373252.131999981,
+      "key": "cpu_op::aten::empty_strided"
+    },
+    {
+      "cat": "cuda_runtime",
+      "count": 213724,
+      "dur_us": 2273989.6810000148,
+      "key": "cuda_runtime::cudaLaunchKernelExC"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15360,
+      "dur_us": 2260326.7369999983,
+      "key": "cpu_op::Torch-Compiled Region: 0/1"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15744,
+      "dur_us": 2244977.411999993,
+      "key": "cpu_op::attn_gym::_gate_transform_fwd"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 20992,
+      "dur_us": 2134411.286999991,
+      "key": "cpu_op::_HiMidLoLinearFunction"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15,
+      "dur_us": 2068356.1679999998,
+      "key": "cpu_op::dynamo"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15,
+      "dur_us": 2048724.678,
+      "key": "cpu_op::entire_frame_compile"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15,
+      "dur_us": 2048019.652,
+      "key": "cpu_op::_compile.compile_inner (dynamo_timed)"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 20992,
+      "dur_us": 2027164.890999999,
+      "key": "cpu_op::aten::topk"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1,
+      "dur_us": 1985507.16,
+      "key": "user_annotation::Optimizer.step#OptimizersContainer.step"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 5120,
+      "dur_us": 1890542.4970000035,
+      "key": "cpu_op::Torch-Compiled Region: 1/4"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 95551,
+      "dur_us": 1863564.5439999837,
+      "key": "cpu_op::aten::mul"
+    },
+    {
+      "cat": "cuda_runtime",
+      "count": 352763,
+      "dur_us": 1845328.6910000045,
+      "key": "cuda_runtime::cudaMemsetAsync"
+    },
+    {
+      "cat": "kernel",
+      "count": 15744,
+      "dur_us": 1837220.0849999757,
+      "key": "kernel::kda_cudnn_prep_prefill_bfloat16_float32_float32_k128_v64_t2_f00000100_gm7p213475204444817_sm148_i640_p0_kernel_cutlass_frost_kda_prep_prefill_KdaPrepPrefillCfgio_dtypecutlassbase_dsltypingBFloat16state_dtypecutlassbase_dsltypingFloat32gate_dtypecutlassbase_dsltypingFloat32use_initial_stateF_2"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 4706,
+      "dur_us": 1831711.0050000008,
+      "key": "cpu_op::PythonDispatchMode"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "count": 8960,
+      "dur_us": 1760842.0930000003,
+      "key": "gpu_user_annotation::## Call CompiledFxGraph fgcje3u5s4elogb7xuoatki4fra7rszy4pehzwspf65dnmxbrvad ##"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 46354,
+      "dur_us": 1678977.4150000082,
+      "key": "cpu_op::aten::sum"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 271424,
+      "dur_us": 1675615.8329999866,
+      "key": "cpu_op::aten::t"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 10240,
+      "dur_us": 1673822.1129999934,
+      "key": "cpu_op::Torch-Compiled Region: 3/1"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1,
+      "dur_us": 1670596.156,
+      "key": "user_annotation::Optimizer.step#AdamW.step"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "count": 1,
+      "dur_us": 1667748.456,
+      "key": "gpu_user_annotation::Optimizer.step#AdamW.step"
+    },
+    {
+      "cat": "kernel",
+      "count": 6560,
+      "dur_us": 1640064.6340000022,
+      "key": "kernel::void pytorch_flash::flash_fwd_kernel<Flash_fwd_kernel_traits<128, 128, 64, 4, false, false, cutlass::bfloat16_t, Flash_kernel_traits<128, 128, 64, 4, cutlass::bfloat16_t> >, false, true, false, false, false, true, false, false>(pytorch_flash::Flash_fwd_params)"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15,
+      "dur_us": 1558687.482,
+      "key": "cpu_op::compile_attempt_0"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15,
+      "dur_us": 1557844.2979999997,
+      "key": "cpu_op::compile_attempt_0 (dynamo_timed)"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 114656,
+      "dur_us": 1530458.0609999944,
+      "key": "cpu_op::Pregraph bytecode"
+    },
+    {
+      "cat": "kernel",
+      "count": 212032,
+      "dur_us": 1506854.9950003305,
+      "key": "kernel::void at_cuda_detail::cub::detail::radix_sort::DeviceRadixSortOnesweepKernel<at_cuda_detail::cub::detail::radix::policy_hub<long, at::cuda::cub::detail::OpaqueType<8>, unsigned long long>::Policy1000, (at_cuda_detail::cub::SortOrder)0, long, at::cuda::cub::detail::OpaqueType<8>, unsigned long long, int, int, at_cuda_detail::cub::detail::identity_decomposer_t>(int*, int*, unsigned long long*, unsigned long long const*, long*, long const*, at::cuda::cub::detail::OpaqueType<8>*, at::cuda::cub::detail::OpaqueType<8> const*, int, int, int, at_cuda_detail::cub::detail::identity_decomposer_t)"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 39360,
+      "dur_us": 1483202.8259999964,
+      "key": "cpu_op::triton_per_fused__to_copy_cat_mean_mul_pow_rsqrt_squeeze_sum_unsqueeze_0"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 5120,
+      "dur_us": 1481608.0659999999,
+      "key": "user_annotation::## Call CompiledFxGraph fpmjetpggxofw7mz25f3j76kfqrampa2cprvwpgecf6n3x3j6bmq ##"
+    },
+    {
+      "cat": "kernel",
+      "count": 157440,
+      "dur_us": 1442223.5520000448,
+      "key": "kernel::nvjet_sm100_tst_192x128_64x6_2x2_2cta_h_bz_TNT"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 15360,
+      "dur_us": 1432567.9349999998,
+      "key": "user_annotation::## Call CompiledFxGraph f5zbtujka7twjguym24fwdqhhm5kxgeueagjfah45vw7xxp3lzsm ##"
+    },
+    {
+      "cat": "gpu_memcpy",
+      "count": 683996,
+      "dur_us": 1429771.7309997252,
+      "key": "gpu_memcpy::Memcpy DtoD (Device -> Device)"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 21008,
+      "dur_us": 1425055.8299999987,
+      "key": "cpu_op::aten::cumsum"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 43296,
+      "dur_us": 1307705.2959999968,
+      "key": "cpu_op::triton_poi_fused__to_copy_div_mul_sigmoid_tanh_unbind_0"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 44702,
+      "dur_us": 1279295.0030000063,
+      "key": "cpu_op::aten::zeros_like"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 10240,
+      "dur_us": 1260545.195999995,
+      "key": "user_annotation::## Call CompiledFxGraph fiesv4w4djee64v2kadbdkenbudsl4bfyod5qvyhojozvgc7yljy ##"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 48458,
+      "dur_us": 1254265.4140000022,
+      "key": "cpu_op::aten::cat"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 318316,
+      "dur_us": 1200257.983000003,
+      "key": "cpu_op::aten::transpose"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 41984,
+      "dur_us": 1197280.082000001,
+      "key": "cpu_op::aten::index"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1139228.8439999998,
+      "key": "user_annotation::FSDP::pre_forward (layers.1)"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 502612,
+      "dur_us": 1138593.638999971,
+      "key": "cpu_op::aten::view"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1133021.4159999993,
+      "key": "user_annotation::FSDP::pre_forward (layers.2)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1130266.9609999987,
+      "key": "user_annotation::FSDP::pre_forward (layers.5)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1127827.6840000013,
+      "key": "user_annotation::FSDP::pre_forward (layers.6)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1127648.2430000005,
+      "key": "user_annotation::FSDP::pre_forward (layers.10)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1127107.7820000001,
+      "key": "user_annotation::FSDP::pre_forward (layers.8)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1126137.8119999995,
+      "key": "user_annotation::FSDP::pre_forward (layers.13)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1125276.31,
+      "key": "user_annotation::FSDP::pre_forward (layers.14)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1125042.3269999984,
+      "key": "user_annotation::FSDP::pre_forward (layers.12)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1123680.8600000015,
+      "key": "user_annotation::FSDP::pre_forward (layers.4)"
+    },
+    {
+      "cat": "user_annotation",
+      "count": 1312,
+      "dur_us": 1123087.0159999977,
+      "key": "user_annotation::FSDP::pre_forward (layers.9)"
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "count": 5120,
+      "dur_us": 1117147.074999999,
+      "key": "gpu_user_annotation::## Call CompiledFxGraph fpmjetpggxofw7mz25f3j76kfqrampa2cprvwpgecf6n3x3j6bmq ##"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 15744,
+      "dur_us": 1115176.1030000017,
+      "key": "cpu_op::attn_gym::kda_prepare_chunk_offsets"
+    },
+    {
+      "cat": "cpu_op",
+      "count": 968570,
+      "dur_us": 1076434.714999995,
+      "key": "cpu_op::aten::as_strided"
+    }
+  ],
+  "top_categories": [
+    {
+      "cat": "cpu_op",
+      "count": 10417492,
+      "dur_us": 311573550.9479338
+    },
+    {
+      "cat": "user_annotation",
+      "count": 186884,
+      "dur_us": 255782643.77000535
+    },
+    {
+      "cat": "gpu_user_annotation",
+      "count": 144357,
+      "dur_us": 235632771.89899415
+    },
+    {
+      "cat": "Trace",
+      "count": 1,
+      "dur_us": 207282333.243
+    },
+    {
+      "cat": "kernel",
+      "count": 2259894,
+      "dur_us": 29129315.692002166
+    },
+    {
+      "cat": "cuda_runtime",
+      "count": 4397499,
+      "dur_us": 26549859.399012014
+    },
+    {
+      "cat": "cuda_driver",
+      "count": 602367,
+      "dur_us": 5751354.525000225
+    },
+    {
+      "cat": "gpu_memcpy",
+      "count": 699075,
+      "dur_us": 1485021.5829998422
+    },
+    {
+      "cat": "overhead",
+      "count": 1156,
+      "dur_us": 943549.5799999996
+    },
+    {
+      "cat": "gpu_memset",
+      "count": 352643,
+      "dur_us": 614808.7920001465
+    }
+  ],
+  "trace_path": "experiments/glm53_arch_ladder/results/s07b-profile-l3-20261014T203537Z/profiling/traces/iteration_1/rank0_trace.json.gz"
+}

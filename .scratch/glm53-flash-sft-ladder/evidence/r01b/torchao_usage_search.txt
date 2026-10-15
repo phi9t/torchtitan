@@ -1,0 +1,6 @@
+experiments/glm53_flash_sft_ladder/runtime/verify_runtime.py:34:EXCLUDED_PACKAGES = ("flash-attn", "torchao")
+experiments/glm53_flash_sft_ladder/runtime/README.md:57:  `glm53_flash_debugmodel` launch fail during import on a torchao
+experiments/glm53_flash_sft_ladder/runtime/README.md:58:  `torchao.prototype.moe_training.kernels.float8_rowwise` Triton 3.9 autotune
+experiments/glm53_flash_sft_ladder/logs/r01.last.md:18:- `pytest -q torchtitan/experiments/glm53_flash/tests` fails during collection on a second Triton 3.9 autotune-key mismatch in `torchao.prototype.moe_training.kernels.float8_rowwise`.
+experiments/glm53_flash_sft_ladder/logs/r01.last.md:19:- The requested 2-step debug train was attempted in `glm53_ep` with `COMM_BACKEND=fake` because all B200s were busy and the import blocker occurs before useful GPU execution; it fails on the same torchao/Triton import issue.
+experiments/glm53_flash_sft_ladder/logs/r01.last.md:21:Bottom line: L0 and the declared L1 environment are now reproducible and documented, but `glm53_ep` is not train-ready until the Triton 3.9 compatibility issues in `torchao==0.18.0` and `fla-core==0.5.2` are resolved or the torch/Triton/package set is repinned.

@@ -1,0 +1,2318 @@
+{
+  "base_prefix": "/usr",
+  "distributions": {
+    "attn-gym": {
+      "error": "not installed",
+      "ok": false
+    },
+    "fla-core": {
+      "error": "not installed",
+      "ok": false
+    },
+    "flash-attn": {
+      "error": "not installed",
+      "ok": false
+    },
+    "spmd_types": {
+      "error": "not installed",
+      "ok": false
+    },
+    "torch": {
+      "dist_info": "/project/venvs/b200-runtime/lib/python3.12/site-packages/torch-2.16.0.dev20261013+cu132.dist-info",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "metadata_sha256": "c1514be557a063e1a300178e897119fc0df2c4afb84b0f78773a90c2a36f55ff",
+      "ok": true,
+      "record_entry_count": 12442,
+      "record_sha256": "72f77f8f16c74880ad7142ac839e50b184f88c382a29efa86921c34ad2ca75c8",
+      "selected_record_entries": [
+        {
+          "hash": "sha256=NAwGN21zq-tccaF-ROtv-VWFoPdb7y9iuAt6Hy6QCtc",
+          "path": "functorch/__init__.py",
+          "size": "1037"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "functorch/_src/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=SGo7gh6XGYcOxTGf5g-R8Y9AF95ICcJbQwQD6rFyrpQ",
+          "path": "functorch/_src/aot_autograd/__init__.py",
+          "size": "291"
+        },
+        {
+          "hash": "sha256=kX_52fDvSX9YX9OAwo5bjvJtrxyjEBUJ1PueW8xgsuw",
+          "path": "functorch/_src/eager_transforms/__init__.py",
+          "size": "291"
+        },
+        {
+          "hash": "sha256=b3y8s3KhtCqFB8lM4Pi48AwuztUt7NBK-VISZNJYYjw",
+          "path": "functorch/_src/make_functional/__init__.py",
+          "size": "235"
+        },
+        {
+          "hash": "sha256=k8r2Esz6tB5D7U_UA0_BCDaWoOmn8JNVrRqK7nG7_fM",
+          "path": "functorch/_src/vmap/__init__.py",
+          "size": "467"
+        },
+        {
+          "hash": "sha256=fZnNG56VBLfKlXMqX5Rj3tORQYLyxbyoA0rEoEBt3KM",
+          "path": "functorch/compile/__init__.py",
+          "size": "756"
+        },
+        {
+          "hash": "sha256=Z22Plvk9WFnz_XFpa5Y-AHwZ1TymC37ARJL2nPYM1bk",
+          "path": "functorch/dim/__init__.py",
+          "size": "53584"
+        },
+        {
+          "hash": "sha256=RB-E_A0arSGp5Jq-lSgiFNmzbFLqOLiBldHIM_mDkhU",
+          "path": "functorch/einops/__init__.py",
+          "size": "123"
+        },
+        {
+          "hash": "sha256=qgO0Y4xqrtxucMbH-Q__wtJGvzRk9ckQIqo7E94-ROA",
+          "path": "functorch/experimental/__init__.py",
+          "size": "274"
+        },
+        {
+          "hash": "sha256=wVFL5VegY-GjABeOiXEZ_A3yxK-4Sw94dzqQwqNvVf8",
+          "path": "torch-2.16.0.dev20261013+cu132.dist-info/METADATA",
+          "size": "29604"
+        },
+        {
+          "hash": "sha256=RwK8QsAt7JYm-pglJiDqI7lvRbWQ6xIx8PHu6efHBKI",
+          "path": "torch-2.16.0.dev20261013+cu132.dist-info/WHEEL",
+          "size": "117"
+        },
+        {
+          "hash": "sha256=vXQ7VXokzX1JhZC-bCwDWL9omoKErCtTSbtZwoAJnwo",
+          "path": "torch/__init__.py",
+          "size": "133648"
+        },
+        {
+          "hash": "sha256=nAHROtkm0lmScDGnnEY5qGqK7W0ylL4NCutPDu3_lF4",
+          "path": "torch/_awaits/__init__.py",
+          "size": "1687"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_custom_op/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=hUyJf0wY-gCAT31U6lTXOr4RB1dddS0KOFo9DnA7HU0",
+          "path": "torch/_decomp/__init__.py",
+          "size": "20389"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_dispatch/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=oEG5QK9f9sQP3vtQ7YjoBSd9P7CafFHWc9O_2Tlj0IA",
+          "path": "torch/_dynamo/__init__.py",
+          "size": "8311"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_dynamo/backends/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=QPxGko_k2m_wrHpHLV6569571kdJ7-eDNN_XsiSq5m4",
+          "path": "torch/_dynamo/polyfills/__init__.py",
+          "size": "23958"
+        },
+        {
+          "hash": "sha256=J36cLt5hcFzQgfP8D7GHUGzTHx60__wa5WCPMdVod0U",
+          "path": "torch/_dynamo/repro/__init__.py",
+          "size": "2397"
+        },
+        {
+          "hash": "sha256=vXJC3uJQ4v_w0lTrWbH5Ic7fKRf7XD7XWoMGLp0z2Wo",
+          "path": "torch/_dynamo/variables/__init__.py",
+          "size": "9492"
+        },
+        {
+          "hash": "sha256=jHjsuXiPAKHY3YZqRsc-ir5VA109_FngyZYnE3yiQJk",
+          "path": "torch/_export/__init__.py",
+          "size": "6753"
+        },
+        {
+          "hash": "sha256=a3XxW1RcNAPwEVaI2g11hpnJvSHxGUFsGmDAWfDnLP8",
+          "path": "torch/_export/db/__init__.py",
+          "size": "206"
+        },
+        {
+          "hash": "sha256=PlziokXeStI1gWELwC7zX-T7ZViONPRitQ1uFWNAxL4",
+          "path": "torch/_export/db/examples/__init__.py",
+          "size": "1648"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_export/pass_infra/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=78MzFjtaVabk1z2X12WMIlmtkjYaFmgNJlDCTCepNt8",
+          "path": "torch/_export/passes/__init__.py",
+          "size": "88"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_export/serde/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=a3XxW1RcNAPwEVaI2g11hpnJvSHxGUFsGmDAWfDnLP8",
+          "path": "torch/_functorch/__init__.py",
+          "size": "206"
+        },
+        {
+          "hash": "sha256=a3XxW1RcNAPwEVaI2g11hpnJvSHxGUFsGmDAWfDnLP8",
+          "path": "torch/_functorch/_activation_checkpointing/__init__.py",
+          "size": "206"
+        },
+        {
+          "hash": "sha256=a3XxW1RcNAPwEVaI2g11hpnJvSHxGUFsGmDAWfDnLP8",
+          "path": "torch/_functorch/_activation_offloading/__init__.py",
+          "size": "206"
+        },
+        {
+          "hash": "sha256=a3XxW1RcNAPwEVaI2g11hpnJvSHxGUFsGmDAWfDnLP8",
+          "path": "torch/_functorch/_aot_autograd/__init__.py",
+          "size": "206"
+        },
+        {
+          "hash": "sha256=xm4UyMbfzSigORxEhkcKwFT9451RV-M2Ds_ZTxctTcg",
+          "path": "torch/_higher_order_ops/__init__.py",
+          "size": "2953"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_higher_order_ops/passes/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=teBVDb5194YrCJgy05KRE1yAkfDrAfFIA2cIwYFnyRw",
+          "path": "torch/_inductor/__autotune_main__.py",
+          "size": "913"
+        },
+        {
+          "hash": "sha256=gqh7w-ZMTim-usPKr9h_q5XK0UmHejYuYvEppSd2sxI",
+          "path": "torch/_inductor/__init__.py",
+          "size": "16560"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/analysis/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/autoheuristic/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/autoheuristic/artifacts/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=rhIygPGIglf0U9gZF4OwX-XpXARQ37sVFPQM9nc8gfk",
+          "path": "torch/_inductor/autotune_process.py",
+          "size": "70529"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/cuda/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=LCdU39rzLOP3q27650YlpGE3wo5SRH2IPdvEoybU6rg",
+          "path": "torch/_inductor/codegen/cutedsl/__init__.py",
+          "size": "164"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/cutlass/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/cutlass/lib_extensions/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/cutlass/lib_extensions/cutlass_mock_imports/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=zIVQSgcv5C12tIsovmz3xGgBqoATUltX2c4-VG2e3tU",
+          "path": "torch/_inductor/codegen/cutlass/lib_extensions/cutlass_mock_imports/cuda/__init__.py",
+          "size": "83"
+        },
+        {
+          "hash": "sha256=AkdGQWifQLxFzB5RR5EcXNCg_AQX446DLfp-64Q7D4I",
+          "path": "torch/_inductor/codegen/cutlass/lib_extensions/cutlass_mock_imports/pydot/__init__.py",
+          "size": "54"
+        },
+        {
+          "hash": "sha256=SiRBwZsGLISQfmWy5-pkpAzRopAkCy9kzx8JOjV4YX8",
+          "path": "torch/_inductor/codegen/cutlass/lib_extensions/cutlass_mock_imports/scipy/__init__.py",
+          "size": "55"
+        },
+        {
+          "hash": "sha256=Yj64PuZFiWllR0xDrOmjvhFHwAWCiWA2BGfTriKlnaU",
+          "path": "torch/_inductor/codegen/flydsl/__init__.py",
+          "size": "121"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/mtia/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=bI2vLJOB4OLJZYISLafB0DETtGvpG0FQmer2uXE8fHE",
+          "path": "torch/_inductor/codegen/nv_universal_gemm/__init__.py",
+          "size": "490"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/rocm/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/codegen/xpu/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/compile_worker/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=fA_8ISxyv3Ea4vdMBedng0fegY2TmKN5fNeoZU8tY2c",
+          "path": "torch/_inductor/distributed_autotune.py",
+          "size": "13874"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/fx_passes/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=pqRDYIVNxTGFK5R54Iw0beoE31PoYA2A8fP4937t87w",
+          "path": "torch/_inductor/fx_passes/auto_chunker/__init__.py",
+          "size": "2708"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/fx_passes/serialized_patterns/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=Xm_7zylxvDXOWd-q8JYUK0xg7lnhbhdkqqKTQxQAS0A",
+          "path": "torch/_inductor/heuristics/__init__.py",
+          "size": "364"
+        },
+        {
+          "hash": "sha256=K4t_xSU76dZERTmdi5k7PD9aJ3j2aRaIbaKwvXEboHs",
+          "path": "torch/_inductor/heuristics/template/__init__.py",
+          "size": "627"
+        },
+        {
+          "hash": "sha256=3An1Xcfwq-sBqdkVA3foIexreg9cW71YXgTv1MOAQSE",
+          "path": "torch/_inductor/heuristics/triton_codegen/__init__.py",
+          "size": "797"
+        },
+        {
+          "hash": "sha256=eNsGc7bkDyOjdr9m-1dc3kgoJCfwt6IkzGgyN56F0-8",
+          "path": "torch/_inductor/kernel/__init__.py",
+          "size": "100"
+        },
+        {
+          "hash": "sha256=_ca2fmTtYz5clo4uzQy2tbaLmypoau8LwEBJe8o5Kd0",
+          "path": "torch/_inductor/kernel/flex/__init__.py",
+          "size": "153"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/kernel/flex_gemm/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=O25SpKT0sl3hRmDYEkbvoyu-nwpzkVuwaw67dhxFs44",
+          "path": "torch/_inductor/kernel/flex_gemm/quack_ops/__init__.py",
+          "size": "262"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/kernel/vendored_templates/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=JL0fKO0h8FafXYiX9rhcnEAHoxhUZhqBR30T7q6GOCI",
+          "path": "torch/_inductor/kernel/vendored_templates/cutedsl/__init__.py",
+          "size": "62"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/kernel/vendored_templates/cutedsl/kernels/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=sXdWWakPr0SWKPTjchv99KrTMPpJ4a25zBvyqk1Sw9A",
+          "path": "torch/_inductor/kernel/vendored_templates/cutedsl/wrappers/__init__.py",
+          "size": "125"
+        },
+        {
+          "hash": "sha256=vNE3tFq2gTnf1vn_cI2AgrbwdR9pZ72K6j-39sfByb8",
+          "path": "torch/_inductor/kernel/vendored_templates/flydsl/__init__.py",
+          "size": "36"
+        },
+        {
+          "hash": "sha256=ol1Eh4zqMsVN5sefq8LWAaP5g9dxdI4k6fVKbNG-hU0",
+          "path": "torch/_inductor/kernel/vendored_templates/flydsl/kernels/__init__.py",
+          "size": "1352"
+        },
+        {
+          "hash": "sha256=grqROhCd6DpGiI-5pQ0zDqm9wDL0-7uwQJGQXzqYoKI",
+          "path": "torch/_inductor/lookup_table/__init__.py",
+          "size": "877"
+        },
+        {
+          "hash": "sha256=s1BQDRTTu4baQTZPdR07q8CBO_b5kUpXEp5VawAeQQI",
+          "path": "torch/_inductor/package/__init__.py",
+          "size": "67"
+        },
+        {
+          "hash": "sha256=1ixVIU_KN1XNTBGZuJolUfaJWClQJUURc9nghIp-kAk",
+          "path": "torch/_inductor/remote_gemm_autotune_cache.py",
+          "size": "551"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_inductor/runtime/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=TTKFCEGaa2D_SX7Y0JOEDmOP3SC1TevRwmWR9LRJoHY",
+          "path": "torch/_inductor/runtime/autotune_cache.py",
+          "size": "27983"
+        },
+        {
+          "hash": "sha256=fRIP7WF5M9w6agp6eDMrPyjRWL8p_w_3V0liSPKtpKA",
+          "path": "torch/_inductor/runtime/caching/__init__.py",
+          "size": "730"
+        },
+        {
+          "hash": "sha256=QdgEdQSenh956uVFVQN7Gq-W2U34O7ZOS5RrMk9Tb_U",
+          "path": "torch/_inductor/template_heuristics/__init__.py",
+          "size": "1124"
+        },
+        {
+          "hash": "sha256=ERr3DzFfISwFo4G8RcaNlnheOyflUEU7WdQD0G-avCo",
+          "path": "torch/_lazy/__init__.py",
+          "size": "2570"
+        },
+        {
+          "hash": "sha256=nrHN83rXP5crQ0OeQiDyqXNcyoctiW-5dOFVAPArtzs",
+          "path": "torch/_library/__init__.py",
+          "size": "269"
+        },
+        {
+          "hash": "sha256=wTE40MPYVeohdWbp_5z_a3QBDWUYOLV_CSd0MuwP9pc",
+          "path": "torch/_logging/__init__.py",
+          "size": "818"
+        },
+        {
+          "hash": "sha256=_0e9t-WnnJrR-qBGGSetAu-Qow1xT2oD4bjUzTiXGhI",
+          "path": "torch/_native/__init__.py",
+          "size": "4660"
+        },
+        {
+          "hash": "sha256=f05nucd-x_8M_AOCOx0dgAblykD7uRXTOqkBvd1xfNo",
+          "path": "torch/_native/cutedsl/__init__.py",
+          "size": "163"
+        },
+        {
+          "hash": "sha256=JQutN1xod47kT4CNpY_XncDaU38VLHRftUhUjHYTAUI",
+          "path": "torch/_native/flydsl/__init__.py",
+          "size": "32"
+        },
+        {
+          "hash": "sha256=a3evJe7YTr-ncaFpod03GS3qIP8pER0fmqxCx_Y9kn0",
+          "path": "torch/_native/ops/__init__.py",
+          "size": "147"
+        },
+        {
+          "hash": "sha256=ozQ2fS1Fprp7IBbv4kXulpInSQc4wJt-KxLWoP7MNZs",
+          "path": "torch/_native/ops/bmm_outer_product/__init__.py",
+          "size": "71"
+        },
+        {
+          "hash": "sha256=KbT0rMeVQy5eNpysuSRHaHyZs9LllY-lMEg3_20kavk",
+          "path": "torch/_native/ops/foreach_mm/__init__.py",
+          "size": "64"
+        },
+        {
+          "hash": "sha256=aKHPurLZ937UEgDgwgZavEoOIUb-SxHSRQPCqAXwS20",
+          "path": "torch/_native/ops/linear_cross_entropy/__init__.py",
+          "size": "110"
+        },
+        {
+          "hash": "sha256=cHafThH91NlxtTAV_0Ekq4j1wIzpxQkECHOOOQALwxY",
+          "path": "torch/_native/ops/norm/__init__.py",
+          "size": "187"
+        },
+        {
+          "hash": "sha256=KbT0rMeVQy5eNpysuSRHaHyZs9LllY-lMEg3_20kavk",
+          "path": "torch/_native/ops/polar/__init__.py",
+          "size": "64"
+        },
+        {
+          "hash": "sha256=eG__1sPF_CRMzuT458YfDrycMScq5KOpEjWxOD3Zcjg",
+          "path": "torch/_native/ops/reductions/__init__.py",
+          "size": "151"
+        },
+        {
+          "hash": "sha256=mLVDv5Debl5e_rRvQRNRp9niSR0ejsO3cYOnyU1VTKA",
+          "path": "torch/_native/ops/scatter_add/__init__.py",
+          "size": "72"
+        },
+        {
+          "hash": "sha256=svOhHRKiPc5Js__t3ZxxNr8HAwSm5Von3EV7zQ0tvJY",
+          "path": "torch/_native/ops/topk/__init__.py",
+          "size": "175"
+        },
+        {
+          "hash": "sha256=Sd-qjK4HWQgbZ4e-6y4lZAtTiCfjsXEB1PkWTPYZi7c",
+          "path": "torch/_native/triton/__init__.py",
+          "size": "89"
+        },
+        {
+          "hash": "sha256=TAzFEvkKeaYQW34V2rvzOOaovBUSvWw0wttkpnBnz-Y",
+          "path": "torch/_native/utils/__init__.py",
+          "size": "181"
+        },
+        {
+          "hash": "sha256=ygPVAPKTDLAGNfh5a5YtEwskkWDSCwGbwp3Wq9xkNvY",
+          "path": "torch/_numpy/__init__.py",
+          "size": "567"
+        },
+        {
+          "hash": "sha256=PRkhcQDznpAN1Pczcf7wfxVGJlJ4xKnzegWL8LYteOY",
+          "path": "torch/_numpy/testing/__init__.py",
+          "size": "352"
+        },
+        {
+          "hash": "sha256=HjFbCfsYpfTOR0CeWxDXZ3Uoyu-NMSMenyCAdUqFX-I",
+          "path": "torch/_prims/__init__.py",
+          "size": "86437"
+        },
+        {
+          "hash": "sha256=-aUeweGlD4XFYo4EIF8pNjfjmmxt5l-aibgJLmEzotM",
+          "path": "torch/_prims_common/__init__.py",
+          "size": "77144"
+        },
+        {
+          "hash": "sha256=TRd9vrbhf53danlZLoA5x56DHJ3iBa0ekzsOvUlTk90",
+          "path": "torch/_refs/__init__.py",
+          "size": "241802"
+        },
+        {
+          "hash": "sha256=MgbmJqaC9cn477YAla6X6rvyEGL5SvzNJOR1IGdP8Mg",
+          "path": "torch/_refs/linalg/__init__.py",
+          "size": "12465"
+        },
+        {
+          "hash": "sha256=juqd9PbXs4yg45zMJ7BHAOPQjb7sgEbWE9InBtGZhfo",
+          "path": "torch/_refs/nn/__init__.py",
+          "size": "24"
+        },
+        {
+          "hash": "sha256=yxSxa6FDVo5-zD8H1uG-tNKansRgq8L1i-hxHoZRkIQ",
+          "path": "torch/_refs/nn/functional/__init__.py",
+          "size": "45301"
+        },
+        {
+          "hash": "sha256=Njxv8FI1zSzZANrqwvhVe9oD3hZsY2rgsWkHF6vwAuc",
+          "path": "torch/_refs/special/__init__.py",
+          "size": "7035"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_strobelight/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=7NDSoV4xw-GxCRtHasX_MFFLe_S1-1BHRFvoDcgE4J0",
+          "path": "torch/_subclasses/__init__.py",
+          "size": "375"
+        },
+        {
+          "hash": "sha256=kVkYnsYeU_gwqpFP6q4mj6y8gkUfLYlqwQzVBGA5Frc",
+          "path": "torch/_subclasses/complex_tensor/__init__.py",
+          "size": "313"
+        },
+        {
+          "hash": "sha256=HPc4kOqkd8FEXCiI1PVOYSFp4R4KTo8hljzvMMeD2BQ",
+          "path": "torch/_subclasses/complex_tensor/_ops/__init__.py",
+          "size": "191"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_vendor/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=EhCMuCSz60IgQJ93b_4wJyAoHpU9J-uddG4QaMT0Pu4",
+          "path": "torch/_vendor/packaging/__init__.py",
+          "size": "496"
+        },
+        {
+          "hash": "sha256=nwdIZ8P9oBwuHYPk7YkVR5PpEfKeD2UKs-jsHn-_w3E",
+          "path": "torch/_vendor/quack/__init__.py",
+          "size": "2081"
+        },
+        {
+          "hash": "sha256=P0ZD0zb8rFi1vSeZsaNEqKysmsU952eJNeXoBqW52wc",
+          "path": "torch/_vendor/quack/autotuner.py",
+          "size": "24477"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/_vendor/quack/bench/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=fcm2FCZGEB27PHsTY2h2fVxJzpGjWT-Apaa7UTsJUsA",
+          "path": "torch/_vendor/quack/blockscaled/__init__.py",
+          "size": "2067"
+        },
+        {
+          "hash": "sha256=uPEcKf71df0UBBkuteWXKH53dA2DMD_yNHcGBV949Y4",
+          "path": "torch/_vendor/quack/cache/__init__.py",
+          "size": "3229"
+        },
+        {
+          "hash": "sha256=kbKRxCFOPEalNmUGdTdjqFVQhtu0jJ9r8VRoioJavng",
+          "path": "torch/_vendor/quack/dsl/__init__.py",
+          "size": "599"
+        },
+        {
+          "hash": "sha256=dUjzmVTRsB8Kw0Gg_8oDDLPw-bb_KdWxoVqe8fPG6Wo",
+          "path": "torch/_vendor/quack/epilogue/__init__.py",
+          "size": "1681"
+        },
+        {
+          "hash": "sha256=O2C8qSAkCs8xjFB3bfCV732q0ugeF6EnKGaU2n_0QUo",
+          "path": "torch/_vendor/quack/gemm_runtime/__init__.py",
+          "size": "400"
+        },
+        {
+          "hash": "sha256=d8wlzzdB8wE5QMLKvH3-xLzuYtdI12v7ruTsGKofXAY",
+          "path": "torch/_vendor/quack/gemm_runtime/autotune.py",
+          "size": "22302"
+        },
+        {
+          "hash": "sha256=GHgX-Wz3GNVxRGXaUXMwDK79QY6S97mcQMArpfTxguQ",
+          "path": "torch/_vendor/quack/operand_transform/__init__.py",
+          "size": "2044"
+        },
+        {
+          "hash": "sha256=fBPTHgOF22xWjAFB7_EvlxkaWrW4V5n9V7Pjh4OScsw",
+          "path": "torch/_vendor/quack/operand_transform/formats/__init__.py",
+          "size": "22266"
+        },
+        {
+          "hash": "sha256=l1uTnu66IU0QH9ua_A0CAboSxAV3G2_3bhEHhxMgy-o",
+          "path": "torch/_vendor/quack/sync/__init__.py",
+          "size": "306"
+        },
+        {
+          "hash": "sha256=JHJNqocP-5ww_PHH0kqgESlN9PqOY8OaEwZ6xSE8YZM",
+          "path": "torch/accelerator/__init__.py",
+          "size": "11119"
+        },
+        {
+          "hash": "sha256=aF4pqJDyiCzQbKC7V48k9isNZ7UYWSi8-dQWoh6bPIY",
+          "path": "torch/amp/__init__.py",
+          "size": "296"
+        },
+        {
+          "hash": "sha256=IjlSW3F-e_I7LaPjnTudP8ZgPFhb2u8LIUAgUrA7cFg",
+          "path": "torch/ao/__init__.py",
+          "size": "663"
+        },
+        {
+          "hash": "sha256=viPx3W-ac9BJhWOS_sXR9gj2x6-jvvLWQHm0ez3a0HQ",
+          "path": "torch/ao/nn/__init__.py",
+          "size": "819"
+        },
+        {
+          "hash": "sha256=ITlruvBVPwekjWmQe2sjYUR9M7JGDWJOh8RjhcWGvgg",
+          "path": "torch/ao/nn/intrinsic/__init__.py",
+          "size": "919"
+        },
+        {
+          "hash": "sha256=iMiPdcvb2q60-eS-e3xUqyC_4iNdX3xM8RD10aH-2fo",
+          "path": "torch/ao/nn/intrinsic/modules/__init__.py",
+          "size": "641"
+        },
+        {
+          "hash": "sha256=M0iylhjuqtPcbO2pAVdDg9n9e1ET359nQ9txOEErmMo",
+          "path": "torch/ao/nn/intrinsic/qat/__init__.py",
+          "size": "37"
+        },
+        {
+          "hash": "sha256=OIDHW4Q4Mjd_Y_eR1UWDLuPOVEIJOJJj5MbbaQRdI1A",
+          "path": "torch/ao/nn/intrinsic/qat/modules/__init__.py",
+          "size": "547"
+        },
+        {
+          "hash": "sha256=AyOx7RavGaehtAWX6dEUBQcrl23h2_S3Q9ZAWYimCLQ",
+          "path": "torch/ao/nn/intrinsic/quantized/__init__.py",
+          "size": "236"
+        },
+        {
+          "hash": "sha256=M0iylhjuqtPcbO2pAVdDg9n9e1ET359nQ9txOEErmMo",
+          "path": "torch/ao/nn/intrinsic/quantized/dynamic/__init__.py",
+          "size": "37"
+        },
+        {
+          "hash": "sha256=kbhh2dL33XSuVEAZNtSHMmt1papX7az6WlVALevMgZA",
+          "path": "torch/ao/nn/intrinsic/quantized/dynamic/modules/__init__.py",
+          "size": "70"
+        },
+        {
+          "hash": "sha256=8aofpYeXIA8WQaao5pvOjWtLnf4rmL9xlJO9hZ8aras",
+          "path": "torch/ao/nn/intrinsic/quantized/modules/__init__.py",
+          "size": "409"
+        },
+        {
+          "hash": "sha256=M0iylhjuqtPcbO2pAVdDg9n9e1ET359nQ9txOEErmMo",
+          "path": "torch/ao/nn/qat/__init__.py",
+          "size": "37"
+        },
+        {
+          "hash": "sha256=M0iylhjuqtPcbO2pAVdDg9n9e1ET359nQ9txOEErmMo",
+          "path": "torch/ao/nn/qat/dynamic/__init__.py",
+          "size": "37"
+        },
+        {
+          "hash": "sha256=_5hfV0E5b71TgYVQPrPF9QZNrnw5XPuZppEwj0QItaM",
+          "path": "torch/ao/nn/qat/dynamic/modules/__init__.py",
+          "size": "50"
+        },
+        {
+          "hash": "sha256=RmKZ7d0ds96EIRSqAGGTrDwuXVWerE_S_NCWuEuX_20",
+          "path": "torch/ao/nn/qat/modules/__init__.py",
+          "size": "228"
+        },
+        {
+          "hash": "sha256=M0iylhjuqtPcbO2pAVdDg9n9e1ET359nQ9txOEErmMo",
+          "path": "torch/ao/nn/quantizable/__init__.py",
+          "size": "37"
+        },
+        {
+          "hash": "sha256=N6niR-YsfqqP_5a8ksCJ8BL-Ol1Mch_412g-I4Z8VeQ",
+          "path": "torch/ao/nn/quantizable/modules/__init__.py",
+          "size": "145"
+        },
+        {
+          "hash": "sha256=NtHecsYVtg9e1IhTCdvoXSV-oQEXRQnt54dZlScPo6I",
+          "path": "torch/ao/nn/quantized/__init__.py",
+          "size": "686"
+        },
+        {
+          "hash": "sha256=M0iylhjuqtPcbO2pAVdDg9n9e1ET359nQ9txOEErmMo",
+          "path": "torch/ao/nn/quantized/dynamic/__init__.py",
+          "size": "37"
+        },
+        {
+          "hash": "sha256=VzgogVUFAj-yE8a5Vmjiq5TV3SP51t0wXslabLVPITw",
+          "path": "torch/ao/nn/quantized/dynamic/modules/__init__.py",
+          "size": "413"
+        },
+        {
+          "hash": "sha256=Y56ItuRywBPBUWIROd3zxkrmrSr438EK-N71MT5i0Go",
+          "path": "torch/ao/nn/quantized/modules/__init__.py",
+          "size": "4661"
+        },
+        {
+          "hash": "sha256=hu3hyozMJtkc86Bu1v8tmyayuxAdeDSv0sUiOeNAr_s",
+          "path": "torch/ao/nn/quantized/reference/__init__.py",
+          "size": "284"
+        },
+        {
+          "hash": "sha256=YS8MYKlqBPoA2UEBcS-MgbOzZ8_HDp-7ET4BC7KtCBk",
+          "path": "torch/ao/nn/quantized/reference/modules/__init__.py",
+          "size": "494"
+        },
+        {
+          "hash": "sha256=PfB-tgPOelyV_0eb_ipJK4LzPHwB5Z-wfJXeE_O3AK4",
+          "path": "torch/ao/nn/sparse/__init__.py",
+          "size": "24"
+        },
+        {
+          "hash": "sha256=xO8RdXEcj7ggZh7-f2bReVBRO-F6PNBZjb5DBPwV52w",
+          "path": "torch/ao/nn/sparse/quantized/__init__.py",
+          "size": "168"
+        },
+        {
+          "hash": "sha256=lYDGtZ8rNR56jJLk6s5WOJ65E7qqQ_LFICpuD76NWYI",
+          "path": "torch/ao/nn/sparse/quantized/dynamic/__init__.py",
+          "size": "57"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/ns/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/ns/fx/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=dp2CA7CO_FRHTE7E0Ft495uR5IlUi8HsnG8ujLsz6OA",
+          "path": "torch/ao/pruning/__init__.py",
+          "size": "640"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/pruning/_experimental/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/pruning/_experimental/activation_sparsifier/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=q_95mAMpHldGWwLAgYS-F07ReGKDLIAZLsP7BtlmgTE",
+          "path": "torch/ao/pruning/_experimental/data_scheduler/__init__.py",
+          "size": "92"
+        },
+        {
+          "hash": "sha256=9ktAif-dttGBmiw745tN2WtUTOTZch0E_HA4cE1bfTo",
+          "path": "torch/ao/pruning/_experimental/data_sparsifier/__init__.py",
+          "size": "174"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/pruning/_experimental/data_sparsifier/lightning/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/pruning/_experimental/data_sparsifier/lightning/callbacks/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=abfUoG48Kc6ddQZmFAkYjQH5J8Hae8xJiqxz89MTgDE",
+          "path": "torch/ao/pruning/_experimental/pruner/__init__.py",
+          "size": "260"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/pruning/scheduler/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/pruning/sparsifier/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=NnrycxUo3xBGvFsEPvI3wjjxY7YqR29fWQvDTPVMinc",
+          "path": "torch/ao/quantization/__init__.py",
+          "size": "6518"
+        },
+        {
+          "hash": "sha256=lnyxe_DTaYkdoSLhxNlUcMPlck2SAngmI8GNcYDHI4M",
+          "path": "torch/ao/quantization/backend_config/__init__.py",
+          "size": "915"
+        },
+        {
+          "hash": "sha256=65h6iR_5XARcYpGS8A2qRza_2y7cvqCowqkwwziYz8M",
+          "path": "torch/ao/quantization/fx/__init__.py",
+          "size": "81"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/ao/quantization/fx/_model_report/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=zgLggPy4Z_glIyqRVr8oEXge4AD4MmJI-H2YMvkiDb4",
+          "path": "torch/autograd/__init__.py",
+          "size": "29602"
+        },
+        {
+          "hash": "sha256=sdKJj6Dia1vNRSolyufzRKdn5qHkgCBCUI3OBm-PGW0",
+          "path": "torch/autograd/_functions/__init__.py",
+          "size": "36"
+        },
+        {
+          "hash": "sha256=wNSGGZPEL2dEb6YLC25-l0WumRcFK31vCuvdoYk237c",
+          "path": "torch/backends/__init__.py",
+          "size": "3622"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/backends/_coreml/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/backends/_nnapi/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=V3lRML9bHlNvfE5iOHJP9kN-P4WvEN23SeGQLLDYEnM",
+          "path": "torch/backends/cpu/__init__.py",
+          "size": "314"
+        },
+        {
+          "hash": "sha256=i0TOIKE5nDWISWJqJqxexl1jvd3GujVRzvFK__4lVyU",
+          "path": "torch/backends/cuda/__init__.py",
+          "size": "26532"
+        },
+        {
+          "hash": "sha256=3NBQOlus6Zh9ytFaIoYlDFSJcNHxsc3Ml1yJINB5IZ8",
+          "path": "torch/backends/cudnn/__init__.py",
+          "size": "8614"
+        },
+        {
+          "hash": "sha256=LCf7CAhlOka2FofcBZP5gh05-3bzf4VtxmwPA9IFdek",
+          "path": "torch/backends/cusparselt/__init__.py",
+          "size": "1273"
+        },
+        {
+          "hash": "sha256=V5pt-IFG6zqGlgzrLQVDOakig9WD1QhZbl1AsfkDgTU",
+          "path": "torch/backends/kleidiai/__init__.py",
+          "size": "162"
+        },
+        {
+          "hash": "sha256=tUmUrm0Z3I5dnDnhSbuDgZifGDemdgPrdQdsokvVssA",
+          "path": "torch/backends/mha/__init__.py",
+          "size": "718"
+        },
+        {
+          "hash": "sha256=T9aQ5QNnKy9jBHXRZZQD3E3sQ_lbPFYkYx5gX7VRGTU",
+          "path": "torch/backends/miopen/__init__.py",
+          "size": "1208"
+        },
+        {
+          "hash": "sha256=knXrTfpLjP_371pp4V3Qzinf3nBw8MWrRqaLvp5taEA",
+          "path": "torch/backends/mkl/__init__.py",
+          "size": "1823"
+        },
+        {
+          "hash": "sha256=V0rvGEXMkw59IzPQitu99ayW9nVbGaTBVx6nLZ0JyDo",
+          "path": "torch/backends/mkldnn/__init__.py",
+          "size": "4388"
+        },
+        {
+          "hash": "sha256=Qa1BlYQGDePexiXmS1GiRwJOh6Rj1JDGwOXnpZ8kxtI",
+          "path": "torch/backends/mps/__init__.py",
+          "size": "1618"
+        },
+        {
+          "hash": "sha256=6cApdM4SVAbns4TuVAuFI9sXskhu7piYVsmP4rqpdOA",
+          "path": "torch/backends/nnpack/__init__.py",
+          "size": "837"
+        },
+        {
+          "hash": "sha256=h6ebEMpGQavTuGZ3eJVK4JMUMMUgTYcrmvHxh_Fcgy8",
+          "path": "torch/backends/openmp/__init__.py",
+          "size": "157"
+        },
+        {
+          "hash": "sha256=xdL9w-v1UteyrJPFvVheYlxNqeTB7Z2HLpanp5mgMkw",
+          "path": "torch/backends/opt_einsum/__init__.py",
+          "size": "3836"
+        },
+        {
+          "hash": "sha256=EyE06gVgzlm2L_k-EoW-Camo7pjgGe0YCzjHhpIl7s0",
+          "path": "torch/backends/python_native/__init__.py",
+          "size": "14105"
+        },
+        {
+          "hash": "sha256=vD2Ds81mKtQGrMrAYy1FAo_OPfyzvhDObF276kT_t-U",
+          "path": "torch/backends/quantized/__init__.py",
+          "size": "1861"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/backends/xeon/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=BNL7CNyTlaTNxu4JVDE8VZgiu16mRO6JpZeQ0Ns3Nr8",
+          "path": "torch/backends/xnnpack/__init__.py",
+          "size": "702"
+        },
+        {
+          "hash": "sha256=HgmsXeeMKOHYtmPI4t1QqhssW8USO1YiAWDdDXoFt00",
+          "path": "torch/compiler/__init__.py",
+          "size": "41593"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/contrib/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=LR_4YHxgTCLu9emPFRevb6xaAn4s8wn_ha8i6UDVaJ4",
+          "path": "torch/cpu/__init__.py",
+          "size": "6865"
+        },
+        {
+          "hash": "sha256=Q_Rmzfz39fTI2sYsf0hrKJysAR3d2HHMb6KjZlKQurs",
+          "path": "torch/cpu/amp/__init__.py",
+          "size": "103"
+        },
+        {
+          "hash": "sha256=MN-CkyQXJLRYkGccPv3WlvG0nQnS2E1_zkTxMcskZzE",
+          "path": "torch/cuda/__init__.py",
+          "size": "80131"
+        },
+        {
+          "hash": "sha256=cyLIhZXcuKMKb54GjtdhC0GvA1r018SNByosz5S0gFg",
+          "path": "torch/cuda/amp/__init__.py",
+          "size": "298"
+        },
+        {
+          "hash": "sha256=QIeq_N4QRBq3gDvyJM8D9D8Eui8duPMr81WY7qKmsTk",
+          "path": "torch/distributed/__init__.py",
+          "size": "6451"
+        },
+        {
+          "hash": "sha256=SUm5fu8Tg24Upb5iHCV849oZSrrtSacaG-7T7A5L2qA",
+          "path": "torch/distributed/_composable/__init__.py",
+          "size": "125"
+        },
+        {
+          "hash": "sha256=PAE0ViGvjHO65XbIe-CM5BgRx9KNsVL4xU7QRUyqL9M",
+          "path": "torch/distributed/_composable/fsdp/__init__.py",
+          "size": "169"
+        },
+        {
+          "hash": "sha256=Ak9gv6llmnCeXytNCkRyE4uQh9wRIdMN5d8sDwfBSok",
+          "path": "torch/distributed/_local_tensor/__init__.py",
+          "size": "85625"
+        },
+        {
+          "hash": "sha256=4TWCUTWGrwWN8kNkO6o0IlaP8DivA5BALZB_V8g-LIA",
+          "path": "torch/distributed/_nccl4py/__init__.py",
+          "size": "162"
+        },
+        {
+          "hash": "sha256=jLQo34kgGOSuumAbVsa8rQRJtt8LZKnXvqpTvpsNSjo",
+          "path": "torch/distributed/_ops/__init__.py",
+          "size": "52"
+        },
+        {
+          "hash": "sha256=7Rjy64t4ztEB5BNIFIjFPaYxv1afzff1HcKLBtnPYx8",
+          "path": "torch/distributed/_pycute/__init__.py",
+          "size": "2456"
+        },
+        {
+          "hash": "sha256=9mrjpti4iifWb8jnGoZypHH0ovdZg3A2KQnxg6BACKI",
+          "path": "torch/distributed/_shard/__init__.py",
+          "size": "87"
+        },
+        {
+          "hash": "sha256=kILV09-2Glss17itgmv1SbBq7hp2Y7HLUugCZRGYCFE",
+          "path": "torch/distributed/_shard/checkpoint/__init__.py",
+          "size": "584"
+        },
+        {
+          "hash": "sha256=23n5rJ4CKIZb1TwXlI7cX6DgOURqKO5eiM7PJbyi9aY",
+          "path": "torch/distributed/_shard/sharded_optim/__init__.py",
+          "size": "1863"
+        },
+        {
+          "hash": "sha256=MxpDKsM2xgJ0_mwXg9G1lDHjVkz5Z0AHuGkF2S_L63k",
+          "path": "torch/distributed/_shard/sharded_tensor/__init__.py",
+          "size": "19233"
+        },
+        {
+          "hash": "sha256=NW4TXyw5RGFCbWfikCuxxCOrWuVIUovX06jI8PgcqNM",
+          "path": "torch/distributed/_shard/sharded_tensor/_ops/__init__.py",
+          "size": "498"
+        },
+        {
+          "hash": "sha256=9w-j8bY8VJ0dGT_ueJR2yTfzuech180Xkq0XELn1tKs",
+          "path": "torch/distributed/_shard/sharding_plan/__init__.py",
+          "size": "47"
+        },
+        {
+          "hash": "sha256=hih75sKTSXPxdyUOS24Vl6K3Q3ht-74l33uAjM4I2Kw",
+          "path": "torch/distributed/_shard/sharding_spec/__init__.py",
+          "size": "291"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/_shard/sharding_spec/chunk_sharding_spec_ops/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=sL4DKv-CLF-9k_iqL2U689tEIJCSKgeWLsKNtjoqjdg",
+          "path": "torch/distributed/_sharded_tensor/__init__.py",
+          "size": "617"
+        },
+        {
+          "hash": "sha256=PR7htIt_o1lIdWq_dvH3aXMHA22fj59dOpLT15vx3zE",
+          "path": "torch/distributed/_sharding_spec/__init__.py",
+          "size": "646"
+        },
+        {
+          "hash": "sha256=2Yruw6bJA5t62r114TUFC9WHRJSgg0avUecmJ2dOZP0",
+          "path": "torch/distributed/_symmetric_memory/__init__.py",
+          "size": "102260"
+        },
+        {
+          "hash": "sha256=RPvZW2utGTr72ZT6s2_ckuGz_-lghkjlUTHbs5poL0Q",
+          "path": "torch/distributed/_tensor/__init__.py",
+          "size": "955"
+        },
+        {
+          "hash": "sha256=DYVOrVO_6vBZuEuW8EaKdxsR8bFVoE16R2DiGfKo6JM",
+          "path": "torch/distributed/_tools/__init__.py",
+          "size": "327"
+        },
+        {
+          "hash": "sha256=yHFsv7fT3xKITONj3YUXxuXxBuRgMvjrnMb11N9g4ck",
+          "path": "torch/distributed/_transport/__init__.py",
+          "size": "476"
+        },
+        {
+          "hash": "sha256=TEj1xQ0QJssZNe5c1AExnCwF97VLWdAp_gmrn-9-uZo",
+          "path": "torch/distributed/_transport/nixl/__init__.py",
+          "size": "257"
+        },
+        {
+          "hash": "sha256=e5HJMsdSDkPOxNWYUh9YvO26GDODG5PBedTP2-Y16Nw",
+          "path": "torch/distributed/algorithms/__init__.py",
+          "size": "43"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/algorithms/_checkpoint/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=LkI4VBMJ6_1KGG3Nz0bPxGFOO-ZjfBj-38FNROlJt8Q",
+          "path": "torch/distributed/algorithms/_comm_hooks/__init__.py",
+          "size": "131"
+        },
+        {
+          "hash": "sha256=zuKlfE0DcQCZm0av9HrJZfXH6R5AzV2K3xrEAAgoVsk",
+          "path": "torch/distributed/algorithms/_optimizer_overlap/__init__.py",
+          "size": "52"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/algorithms/_quantization/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=exEyXW5C9nVkMDaAnqoR-ukDrhKktL54gJNYTPSIin4",
+          "path": "torch/distributed/algorithms/ddp_comm_hooks/__init__.py",
+          "size": "4210"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/algorithms/model_averaging/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=o1YwfjRin8NfYkCjzcdABFT0bGRGAiuYmSLEwmbmeJ4",
+          "path": "torch/distributed/autograd/__init__.py",
+          "size": "1931"
+        },
+        {
+          "hash": "sha256=AWSftW2iTvfKNsQwTwJhojGQL3Ts7eVlJ4NUze_uvps",
+          "path": "torch/distributed/checkpoint/__init__.py",
+          "size": "927"
+        },
+        {
+          "hash": "sha256=ukQ1Zu9_BedHvl_JQrJhsWKwcJ8nxEYh4_AzvevbT9k",
+          "path": "torch/distributed/checkpoint/_experimental/__init__.py",
+          "size": "1761"
+        },
+        {
+          "hash": "sha256=-BqfgbYRAtj0QSuAGnuv1vrbF57JhgtufQW71QJWh7w",
+          "path": "torch/distributed/debug/__init__.py",
+          "size": "5309"
+        },
+        {
+          "hash": "sha256=X9aMW4yXe5zLqRIRC74DobpSPfIftNSLby8-h-2iwWg",
+          "path": "torch/distributed/elastic/__init__.py",
+          "size": "3651"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/elastic/agent/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=SysPaGhEiqz58ZWcMXuo4oG6YF7cj9vqvJycU9BmVDU",
+          "path": "torch/distributed/elastic/agent/server/__init__.py",
+          "size": "1386"
+        },
+        {
+          "hash": "sha256=k83x2pO6IBwDnD-pfsC6iDKi_QGt7aN2DG53gKxMi3w",
+          "path": "torch/distributed/elastic/events/__init__.py",
+          "size": "5328"
+        },
+        {
+          "hash": "sha256=xS6qug05is0GzU35vunqhiSUYukyqeJhNY6f50ojBoY",
+          "path": "torch/distributed/elastic/metrics/__init__.py",
+          "size": "4880"
+        },
+        {
+          "hash": "sha256=iE8pcI-PcVytdKeZFGPbZElArfS79-pHEIRJOURgLh0",
+          "path": "torch/distributed/elastic/multiprocessing/__init__.py",
+          "size": "8684"
+        },
+        {
+          "hash": "sha256=Kk0RjoLIEw3CfMWX0AME_tpSCWUF9PFI_qT5HDzIz-4",
+          "path": "torch/distributed/elastic/multiprocessing/errors/__init__.py",
+          "size": "16216"
+        },
+        {
+          "hash": "sha256=pz2OzruD8OBIFFxiI1_TLy0Bd8LDBKNLowzW1_jZUSs",
+          "path": "torch/distributed/elastic/multiprocessing/subprocess_handler/__init__.py",
+          "size": "523"
+        },
+        {
+          "hash": "sha256=HqnbAbmnwHMXjz-mTv-ZndXQBrhawk1Zowkl6bGcV0Y",
+          "path": "torch/distributed/elastic/rendezvous/__init__.py",
+          "size": "6261"
+        },
+        {
+          "hash": "sha256=8FiqC33-LvUXVJ99aJk0KuZG81DREagN6IAL9OaiVRY",
+          "path": "torch/distributed/elastic/timer/__init__.py",
+          "size": "1666"
+        },
+        {
+          "hash": "sha256=nz8JjJdfhHqaWCDg0gTh9IGJIJ-ZJeJSOhZ2mLvNIpQ",
+          "path": "torch/distributed/elastic/utils/__init__.py",
+          "size": "304"
+        },
+        {
+          "hash": "sha256=jNJBzRNbhmCOjJG3Bk4w_YYrUvBeQEDPiWfpHNRPMrM",
+          "path": "torch/distributed/elastic/utils/data/__init__.py",
+          "size": "344"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/flight_recorder/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/flight_recorder/components/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=XGCWHT8mXB2AbM3ggnvLAlpM7kAQhCjNMKfIQLErjFs",
+          "path": "torch/distributed/fsdp/__init__.py",
+          "size": "2070"
+        },
+        {
+          "hash": "sha256=Z-yFkkr1Tq3lPcdJcewhI4g-yt26ro-eZuXU9bnAPHU",
+          "path": "torch/distributed/fsdp/_fully_shard/__init__.py",
+          "size": "549"
+        },
+        {
+          "hash": "sha256=XUaKCldw6UZi2EJB83Ejjhwj1835SLdfAM9Tqj-qFZ8",
+          "path": "torch/distributed/launcher/__init__.py",
+          "size": "318"
+        },
+        {
+          "hash": "sha256=Ta4l0Jr2gOK7eQR-e32stWaDKPOlV_Kii0SExydXk_Q",
+          "path": "torch/distributed/nn/__init__.py",
+          "size": "145"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/nn/api/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/nn/jit/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/distributed/nn/jit/templates/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=HxJ6GIWc3b6uAZWNh45oePXlQLAdX9Kmu3PByAOvlh4",
+          "path": "torch/distributed/optim/__init__.py",
+          "size": "1440"
+        },
+        {
+          "hash": "sha256=TU4bMi9N45_QA386fTkQfnhz_YR-PRKNiGl5DPRFwUc",
+          "path": "torch/distributed/pipelining/__init__.py",
+          "size": "885"
+        },
+        {
+          "hash": "sha256=8RVj5m9Xxkhqrt0oYB3IVhlomxyxTMukeUIuBkrvYIk",
+          "path": "torch/distributed/rpc/__init__.py",
+          "size": "9929"
+        },
+        {
+          "hash": "sha256=xSU_1OK5D0vaFTGSxPlzX6Ad4CEvsZv7DIJYY1d2Unk",
+          "path": "torch/distributed/rpc/_testing/__init__.py",
+          "size": "479"
+        },
+        {
+          "hash": "sha256=92qnyGAkERW0PjIbVpOSwP3gsUoPMjQJgpPnZQ9z7hs",
+          "path": "torch/distributed/tensor/__init__.py",
+          "size": "2583"
+        },
+        {
+          "hash": "sha256=5XiURvQhP8A28-uRenZqyz_AKygv8gE3tqC53pnU7QM",
+          "path": "torch/distributed/tensor/_ops/__init__.py",
+          "size": "457"
+        },
+        {
+          "hash": "sha256=1fkt2_pt90BuM0T1H6DWeWO12P_ivEOik7x4SIvrJFY",
+          "path": "torch/distributed/tensor/debug/__init__.py",
+          "size": "2446"
+        },
+        {
+          "hash": "sha256=9I70AFPtyjGyKxAuaBsRfDxvHyCeM5a7o7q3X1yUe5g",
+          "path": "torch/distributed/tensor/experimental/__init__.py",
+          "size": "1424"
+        },
+        {
+          "hash": "sha256=6yKCIGx9a4EB26ST6wrFUihdq8SPHvOj8wPgehrHeb0",
+          "path": "torch/distributed/tensor/experimental/_context_parallel/__init__.py",
+          "size": "1130"
+        },
+        {
+          "hash": "sha256=_rDiCQ0mhllWr5HSDkOV47G4Z-WAZ3L1PCyzLhjgXeU",
+          "path": "torch/distributed/tensor/parallel/__init__.py",
+          "size": "643"
+        },
+        {
+          "hash": "sha256=eOQPqtRO4p3hTTAIdc_iwBye_6M6sL_KvI2LL9xV4Dc",
+          "path": "torch/distributions/__init__.py",
+          "size": "6098"
+        },
+        {
+          "hash": "sha256=m8frISKzRXINF70TeT2swAI-_zQ9QS9zIa0-gvsnhUU",
+          "path": "torch/export/__init__.py",
+          "size": "22124"
+        },
+        {
+          "hash": "sha256=AbLXV1wSb15To0xIGgmVY3dS0sI6SUrWbEEea0TNjT0",
+          "path": "torch/export/experimental/__init__.py",
+          "size": "17876"
+        },
+        {
+          "hash": "sha256=2aKZGSYFK-l3G0G1EgrZS8tCberJCsns9Ia5gD5zWSM",
+          "path": "torch/export/passes/__init__.py",
+          "size": "3616"
+        },
+        {
+          "hash": "sha256=vYIe2lq0nWwY77PVEsuIo_0fEWuAeX5E95FhGtXmwZ8",
+          "path": "torch/export/pt2_archive/__init__.py",
+          "size": "144"
+        },
+        {
+          "hash": "sha256=jsWUCepZh1lTLHCKhh5dF5NXhDHOmxxaeLC5UDkhSGc",
+          "path": "torch/fft/__init__.py",
+          "size": "55336"
+        },
+        {
+          "hash": "sha256=oz8IInxupzkiWuKzfLL5GK61S6YbaUK9VV5XgVVfaJs",
+          "path": "torch/foreach/__init__.py",
+          "size": "41253"
+        },
+        {
+          "hash": "sha256=QWAhPM0xIlGHLP_bLmSGdjcTcnz_aPsNrYbeShWa-ho",
+          "path": "torch/func/__init__.py",
+          "size": "719"
+        },
+        {
+          "hash": "sha256=FRibgVxq5rx2VBAycXQhBrV7eNdjHQkbDdnF2zkYfiM",
+          "path": "torch/futures/__init__.py",
+          "size": "14480"
+        },
+        {
+          "hash": "sha256=3UU6khKhgRPJ2WaEj01tLXG-suHc5yGwGFtXLCTfLCE",
+          "path": "torch/fx/__init__.py",
+          "size": "4134"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/fx/experimental/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/fx/experimental/migrate_gradual_types/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=E3UmEdbvYRy5_hyMCNrRrOHcG-p0YS9KFBZ7d37hDrI",
+          "path": "torch/fx/experimental/unification/__init__.py",
+          "size": "154"
+        },
+        {
+          "hash": "sha256=xjEjlwV6TTwkgteOREoXUJwMTiNnpJN3YfBALC9eslU",
+          "path": "torch/fx/experimental/unification/multipledispatch/__init__.py",
+          "size": "139"
+        },
+        {
+          "hash": "sha256=qXzO3_W60MDLQ1l4Rymt3ZwAxtbmkQ7Plsx9kQjWIm8",
+          "path": "torch/fx/passes/__init__.py",
+          "size": "263"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/fx/passes/backends/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/fx/passes/dialect/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/fx/passes/dialect/common/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=UuBORluunUu4B8DKb0OlqkNIm71XUW_ZD_utIvqnBLs",
+          "path": "torch/fx/passes/infra/__init__.py",
+          "size": "27"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/fx/passes/tests/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=6xOYtGu1w_nVvuaxvBoQkSRtxkiIkPh-MzuXjmNC1hI",
+          "path": "torch/fx/passes/utils/__init__.py",
+          "size": "74"
+        },
+        {
+          "hash": "sha256=SiT48q3MakNgr5HAMtznarbUnw8UjXXqWJ9oJMHp624",
+          "path": "torch/jit/__init__.py",
+          "size": "8964"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/jit/_passes/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=vOfuv1w4w8EZKCzI_xKKHx-7XOnExm-whG9h2HATbRY",
+          "path": "torch/jit/mobile/__init__.py",
+          "size": "8602"
+        },
+        {
+          "hash": "sha256=yTx4P-UZ3Dh8C3zNu7GWSL8lhCGR2ElskF1RwxrN7U8",
+          "path": "torch/linalg/__init__.py",
+          "size": "119792"
+        },
+        {
+          "hash": "sha256=WljBC5z-aMQ3EB29GNw5BVnONrx14zh1Cgrz7fqJ-1E",
+          "path": "torch/masked/__init__.py",
+          "size": "928"
+        },
+        {
+          "hash": "sha256=yRXNgVmvSu6WET5dYVroutE7gtiXkN1JuBwogvcTvsY",
+          "path": "torch/masked/maskedtensor/__init__.py",
+          "size": "344"
+        },
+        {
+          "hash": "sha256=09VJnyTA2zwN2clbG0o6pV3Yf4YdzW2BospVTxNa4WU",
+          "path": "torch/monitor/__init__.py",
+          "size": "1278"
+        },
+        {
+          "hash": "sha256=yew0lxpYq34XC0GB3eQweofW731bTfuHs8klyF9PH6k",
+          "path": "torch/mps/__init__.py",
+          "size": "9576"
+        },
+        {
+          "hash": "sha256=sYll2JQTFQkN4BGVF05HaKqsVx34uoYPKnGgglgOywE",
+          "path": "torch/mtia/__init__.py",
+          "size": "19027"
+        },
+        {
+          "hash": "sha256=G2aOej6lW6Tf1bm5P0r7I5DV2je9C2eFSnHck86DNJU",
+          "path": "torch/multiprocessing/__init__.py",
+          "size": "3508"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/nativert/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/nativert/backends/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=IaoUYcyoS_J_8ob86ylMsVBHHaPMuXEeu3O0c9Z_ztc",
+          "path": "torch/nested/__init__.py",
+          "size": "22143"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/nested/_internal/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=SGakM4nNGjI1YZwNintPfgNVTV5FrVKhiFXbq5Db8Pk",
+          "path": "torch/nn/__init__.py",
+          "size": "2425"
+        },
+        {
+          "hash": "sha256=2F_QpEwNTblphIjH6rFLIB6jUDv7iNlp-tV8hpMBhTc",
+          "path": "torch/nn/attention/__init__.py",
+          "size": "7691"
+        },
+        {
+          "hash": "sha256=VXpUxbEIcm46WvCIT1rgWY3vSN7V7UMT42FqE7UR-9M",
+          "path": "torch/nn/attention/experimental/__init__.py",
+          "size": "111"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/nn/backends/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=U77fBY1ieLXqAcF7zqx6xx-vyE9mCgeEZkvHW9IbgjA",
+          "path": "torch/nn/intrinsic/__init__.py",
+          "size": "669"
+        },
+        {
+          "hash": "sha256=bqi9D10UvQcO_cimMFdlI5HjLEvFOp7Y0hT6g3WOSMQ",
+          "path": "torch/nn/intrinsic/modules/__init__.py",
+          "size": "517"
+        },
+        {
+          "hash": "sha256=7rFxYP3UVmm4gwSlC7aBqXoJF1s0Q4aIdJZuW7ST8wI",
+          "path": "torch/nn/intrinsic/qat/__init__.py",
+          "size": "59"
+        },
+        {
+          "hash": "sha256=n9s1HTHyr4Ao5_38irURngF2ZPh7pTJy9eos_oIz3Bs",
+          "path": "torch/nn/intrinsic/qat/modules/__init__.py",
+          "size": "637"
+        },
+        {
+          "hash": "sha256=LdqC1LFI5lpIY34H0B2y0QlVtbYp78P_72k9-KMh7h4",
+          "path": "torch/nn/intrinsic/quantized/__init__.py",
+          "size": "322"
+        },
+        {
+          "hash": "sha256=Ov25o_5XouCKIqpzK42xcw8dAwVd02tGZqS4XL8BOIM",
+          "path": "torch/nn/intrinsic/quantized/dynamic/__init__.py",
+          "size": "73"
+        },
+        {
+          "hash": "sha256=acHjDVSQZsjlTsbUoN4pI-971UJRfjavwMJRJuEOOBk",
+          "path": "torch/nn/intrinsic/quantized/dynamic/modules/__init__.py",
+          "size": "114"
+        },
+        {
+          "hash": "sha256=6WHqSE0pA7qaW20FVPWggCar8uawjVKABKVeNdxjNlo",
+          "path": "torch/nn/intrinsic/quantized/modules/__init__.py",
+          "size": "379"
+        },
+        {
+          "hash": "sha256=ITqoRqXYhAuFwTmuWYyIILp5GRQYpVcbGSnN6dW7o5Q",
+          "path": "torch/nn/modules/__init__.py",
+          "size": "6701"
+        },
+        {
+          "hash": "sha256=z43J5FJ5qqe_aVSla6yG0qZ19t_Y9pX3g3BzYJvVuSs",
+          "path": "torch/nn/parallel/__init__.py",
+          "size": "760"
+        },
+        {
+          "hash": "sha256=vwTKzSE2_xHNzs0rHOr5AGgGNzukn9e0CDtobwcFQdY",
+          "path": "torch/nn/qat/__init__.py",
+          "size": "330"
+        },
+        {
+          "hash": "sha256=4UEA7Zd6seZcA5yOrmAtiMTvovIg9sH5ULXV5d9e7NU",
+          "path": "torch/nn/qat/dynamic/__init__.py",
+          "size": "187"
+        },
+        {
+          "hash": "sha256=xnBpUudYrmz9leiWC2UaMEGbDX2eO--nNluoaO_V-LE",
+          "path": "torch/nn/qat/dynamic/modules/__init__.py",
+          "size": "78"
+        },
+        {
+          "hash": "sha256=f-ps2aVcJ-rxPc73I7ZezCycQAlnyAg6nkuDQYQKuys",
+          "path": "torch/nn/qat/modules/__init__.py",
+          "size": "480"
+        },
+        {
+          "hash": "sha256=O3C0GktZB_Ut6pNTL17JbCzJ2h2hCIK3KH8sVnhSuDs",
+          "path": "torch/nn/quantizable/__init__.py",
+          "size": "57"
+        },
+        {
+          "hash": "sha256=gr03bjx4iwgg1n8zCu3B1UpgNqhb6UxxSVvwO5894V4",
+          "path": "torch/nn/quantizable/modules/__init__.py",
+          "size": "207"
+        },
+        {
+          "hash": "sha256=I4luOzGPauG81OAaU1LDBEYYZf5H2tcReqx3UDLRGeg",
+          "path": "torch/nn/quantized/__init__.py",
+          "size": "757"
+        },
+        {
+          "hash": "sha256=VrWZh6FzvyvAi744iiFBcYarBX3Akn6kTarYzEIX0_w",
+          "path": "torch/nn/quantized/_reference/__init__.py",
+          "size": "66"
+        },
+        {
+          "hash": "sha256=8sFUEypCyt8WkvzsGQSHX0hs1_ktXTQzrKMGCVAXPrI",
+          "path": "torch/nn/quantized/_reference/modules/__init__.py",
+          "size": "997"
+        },
+        {
+          "hash": "sha256=lN8JfmyIwtMWNsOD0hWGgKMVPUXuUb5cu6QOvIlEJxg",
+          "path": "torch/nn/quantized/dynamic/__init__.py",
+          "size": "58"
+        },
+        {
+          "hash": "sha256=2mJZzn6ZaIzLHTX9dU-aXU7Bcowgq3UsuF3hhByCcbs",
+          "path": "torch/nn/quantized/dynamic/modules/__init__.py",
+          "size": "972"
+        },
+        {
+          "hash": "sha256=oNogz5eH2YEYfHjRkYBEqp_XD2GduDqc9StknEGWx40",
+          "path": "torch/nn/quantized/modules/__init__.py",
+          "size": "2101"
+        },
+        {
+          "hash": "sha256=IDrUDb4E1qZkMUEfsT0eN0zC9YJyHjbJc0oxtgosE0c",
+          "path": "torch/nn/utils/__init__.py",
+          "size": "1274"
+        },
+        {
+          "hash": "sha256=PHIe9H3l0iuImQ6z3WqMkWIS37FDQVQ16vMo0a08mtA",
+          "path": "torch/nn/utils/_expanded_weights/__init__.py",
+          "size": "452"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/numa/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=A1ipr9X8Zd52EBrFVnqGuLiZOxBnDyRloURZwePG8i8",
+          "path": "torch/onnx/__init__.py",
+          "size": "15234"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/onnx/_internal/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/onnx/_internal/exporter/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/onnx/_internal/exporter/_torchlib/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=lem1AnofI_aO2hiaAm6Q9GBhUMmwl-5IdjcpsiEa09s",
+          "path": "torch/onnx/_internal/exporter/_torchlib/ops/__init__.py",
+          "size": "255"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/onnx/_internal/fx/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=mImXwcuJd6IfP3-3RkuLStx9i0ykJK8dhozuZNwRdpA",
+          "path": "torch/onnx/_internal/fx/passes/__init__.py",
+          "size": "91"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/onnx/_internal/torchscript_exporter/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=8bbYuxV5wPoYWWyx_5t3ZEFw77nbzVHgzJYHgM3xGv8",
+          "path": "torch/onnx/ops/__init__.py",
+          "size": "20918"
+        },
+        {
+          "hash": "sha256=xeJIrx13lDc_zPwOKvjbnxk08mtPAYHG2QrwnsGtdXY",
+          "path": "torch/optim/__init__.py",
+          "size": "2510"
+        },
+        {
+          "hash": "sha256=IFaYRp7tJ_Iqqklj35TS27amowzvDlH14-9zwEgTNn4",
+          "path": "torch/optim/_multi_tensor/__init__.py",
+          "size": "1013"
+        },
+        {
+          "hash": "sha256=ZLLvoviHHErV-XQZagde2I4cuNDK49dFLRGUC5oyOFc",
+          "path": "torch/package/__init__.py",
+          "size": "388"
+        },
+        {
+          "hash": "sha256=RtjmM0jmYQwfuv9mQoKgZQZBij-GQ4cFcJX7_-aihDg",
+          "path": "torch/package/analyze/__init__.py",
+          "size": "130"
+        },
+        {
+          "hash": "sha256=bo32YDqHpgXznuoGNbZr4xUe2MZCYhk_GQicnq8FTak",
+          "path": "torch/profiler/__init__.py",
+          "size": "1882"
+        },
+        {
+          "hash": "sha256=-cRu-mKAnNMIkVwK208S7tc3Ni8SikUfMFiMhvbREv0",
+          "path": "torch/profiler/_cuspy/__init__.py",
+          "size": "252"
+        },
+        {
+          "hash": "sha256=BdQbPh0oCfgYhcZCtG-dh_Zh3BmySoFWP-bxO-tyQ9E",
+          "path": "torch/profiler/_cuspy/observers/__init__.py",
+          "size": "341"
+        },
+        {
+          "hash": "sha256=qdViHYX73iqc5xiNB9pKD6Ybzp33Wa2Xjv8j0DDA1eA",
+          "path": "torch/quantization/__init__.py",
+          "size": "2810"
+        },
+        {
+          "hash": "sha256=H5nvSncLr3GGfo7gXFANAc3gJ64hDmAXPj048dRKQyU",
+          "path": "torch/quantization/fx/__init__.py",
+          "size": "573"
+        },
+        {
+          "hash": "sha256=UvInN-gZ-pXXT9wvdSjrESHuSVNz5qEcnLMRzycbXiU",
+          "path": "torch/signal/__init__.py",
+          "size": "46"
+        },
+        {
+          "hash": "sha256=pqkf3lWIkwGpjDn_njgkrpqzYYCBpC25zEK7iD4FGaI",
+          "path": "torch/signal/windows/__init__.py",
+          "size": "383"
+        },
+        {
+          "hash": "sha256=ZcnXraq2sdi-pgHlfJ5J8EMjpR5fyLrGI2O6ja2bDl4",
+          "path": "torch/sparse/__init__.py",
+          "size": "27167"
+        },
+        {
+          "hash": "sha256=ajWNLN63S-Ng779N9YkLVETcWty4LGA9UMLjfysAUAU",
+          "path": "torch/special/__init__.py",
+          "size": "32034"
+        },
+        {
+          "hash": "sha256=KWGXAtM1wGYjenz5lGf2H16r3-qI1ZmOVsHuxHn7S2k",
+          "path": "torch/testing/__init__.py",
+          "size": "219"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=8QLhisbHub6VJl6egijnrOPKK5QNAe5FJhfcxEelj4Y",
+          "path": "torch/testing/_internal/codegen/__init__.py",
+          "size": "22"
+        },
+        {
+          "hash": "sha256=8QLhisbHub6VJl6egijnrOPKK5QNAe5FJhfcxEelj4Y",
+          "path": "torch/testing/_internal/data/__init__.py",
+          "size": "22"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/distributed/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=mIQlHRV-d0Zr3TOwF0Vr4fBPuPk4uNR8rzKPy1EhlPw",
+          "path": "torch/testing/_internal/distributed/_shard/__init__.py",
+          "size": "27"
+        },
+        {
+          "hash": "sha256=TN2Bv3dTQ7ZspIAWHT1h3S3_szAD_gSFZuNzrNLuUzs",
+          "path": "torch/testing/_internal/distributed/_shard/sharded_tensor/__init__.py",
+          "size": "4158"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/distributed/_tensor/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/distributed/nn/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/distributed/nn/api/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/distributed/rpc/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/distributed/rpc/examples/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/distributed/rpc/jit/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/generated/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=6PWvlARagSjyrZW5xCOA5YGQjLqwaijc36TFX4UrU9g",
+          "path": "torch/testing/_internal/opinfo/__init__.py",
+          "size": "116"
+        },
+        {
+          "hash": "sha256=8IK85dB9S_tx3aiyuUwfSYLKgoGRaBmVnajBKn__Vqk",
+          "path": "torch/testing/_internal/opinfo/definitions/__init__.py",
+          "size": "452"
+        },
+        {
+          "hash": "sha256=o-8t0Cva860Tcw0Ig_-rBr6-9Uuc9bDRWRMG6FgKzbA",
+          "path": "torch/testing/_internal/optests/__init__.py",
+          "size": "372"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/test_module/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/testing/_internal/torchci/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=g6NM2MAMBgQMFWoiDZyj-cHNN1fWcgtgQobDfiOmXf4",
+          "path": "torch/utils/__init__.py",
+          "size": "4009"
+        },
+        {
+          "hash": "sha256=-UAxBbdHX814m-ssq_tP2v9y0zioXiN-d13nBqOnHEU",
+          "path": "torch/utils/_debug_mode/__init__.py",
+          "size": "671"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/_strobelight/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/_sympy/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=R3Sq5nrFTb96s7Cs-gNFpXfjDtyVahc-dbqXaEVqUnA",
+          "path": "torch/utils/backcompat/__init__.py",
+          "size": "678"
+        },
+        {
+          "hash": "sha256=VMZoFTt8YGaScu3-5L1uWwMOED8FRYoEBAX37RFJ3c0",
+          "path": "torch/utils/benchmark/__init__.py",
+          "size": "411"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/benchmark/examples/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/benchmark/op_fuzzers/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/benchmark/utils/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/benchmark/utils/valgrind_wrapper/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=atpjQDmxEyRtlfR9vDgGuJNxGQJq3H8g5drwHgkAK9A",
+          "path": "torch/utils/data/__init__.py",
+          "size": "1701"
+        },
+        {
+          "hash": "sha256=WljpZRMdlzAaBffADbfPX_QDkfqM9oOWU9Yc33MRmAc",
+          "path": "torch/utils/data/_utils/__init__.py",
+          "size": "1607"
+        },
+        {
+          "hash": "sha256=OIYy5fRjiWdLc8SRrug0pOjrXouG0I-f2G8QQB0ynto",
+          "path": "torch/utils/data/datapipes/__init__.py",
+          "size": "88"
+        },
+        {
+          "hash": "sha256=j6gnc1vHYL9elliHkQsCRh9vaKbFRwHa0oMj6AIU2SY",
+          "path": "torch/utils/data/datapipes/dataframe/__init__.py",
+          "size": "378"
+        },
+        {
+          "hash": "sha256=Mh3NOCQIx3v7WrLqstLcFBuLDz4GRM-cSaBf-kJ6uFY",
+          "path": "torch/utils/data/datapipes/iter/__init__.py",
+          "size": "1862"
+        },
+        {
+          "hash": "sha256=6weaVqSBgL8DhjqKLXA2mpYjkh8djBYGEl8zwP4RXcY",
+          "path": "torch/utils/data/datapipes/map/__init__.py",
+          "size": "714"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/data/datapipes/utils/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=Jzb_RfgvXCrm_SQ4AfeGVi1N36YybxnM5mpyxrnihgI",
+          "path": "torch/utils/hipify/__init__.py",
+          "size": "33"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/jit/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=IZfRjacOoMdDjh4CnxvwHBY-cemXHVHm-w9bVCdCgJ8",
+          "path": "torch/utils/model_dump/__init__.py",
+          "size": "19311"
+        },
+        {
+          "hash": "sha256=urhmq5QqBImvzUxNXw7VkCHllOx41xEyNenyZOWKYQQ",
+          "path": "torch/utils/serialization/__init__.py",
+          "size": "21"
+        },
+        {
+          "hash": "sha256=ZYXvCXkbnXG7fJB_0aD2m1tdKIjo39LFzMqN7fku94w",
+          "path": "torch/utils/tensorboard/__init__.py",
+          "size": "480"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torch/utils/viz/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=JDLGwuoFe-x5warj0G7Kmp8dIA9gYGWQzaX2AR_WD2M",
+          "path": "torch/xpu/__init__.py",
+          "size": "56592"
+        },
+        {
+          "hash": "sha256=iirTpG38WcCsNMhEbi1dg7_jad6ptk_uzZ-BzaGBFyU",
+          "path": "torchgen/__init__.py",
+          "size": "348"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torchgen/aoti/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torchgen/api/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=bQ29sz_GNJGgqoDUsE6i_AcYZq81pOs1ATXQJQhUhLY",
+          "path": "torchgen/api/types/__init__.py",
+          "size": "144"
+        },
+        {
+          "hash": "sha256=qECRwrljRjK-kMdBqfc9X8JPVVPU6XlUuWNEdFD9u0w",
+          "path": "torchgen/dest/__init__.py",
+          "size": "805"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torchgen/operator_versions/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torchgen/packaged/autograd/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torchgen/selective_build/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "torchgen/static_runtime/__init__.py",
+          "size": "0"
+        }
+      ],
+      "version": "2.16.0.dev20261013+cu132",
+      "wheel_sha256": "4702bc42c02dec9626fa98252620ea23b96f45b590eb1231f0f1eee9e7c704a2"
+    },
+    "torch_remat": {
+      "error": "not installed",
+      "ok": false
+    },
+    "torchao": {
+      "error": "not installed",
+      "ok": false
+    },
+    "triton": {
+      "dist_info": "/project/venvs/b200-runtime/lib/python3.12/site-packages/triton-3.9.0+gitfc8d31a5.dist-info",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "metadata_sha256": "59cc760cc2322afbe29033068e03aa7f91ab3b9e13fec125938596b1ffa57125",
+      "ok": true,
+      "record_entry_count": 603,
+      "record_sha256": "e73d55a51b8180b03d9c5c3a55308303faf9ed7e591c9259372415cad80efd37",
+      "selected_record_entries": [
+        {
+          "hash": "sha256=Wcx2DMIyKvvikDMGjgOqf5GrO54T_sElk4WWsf-lcSU",
+          "path": "triton-3.9.0+gitfc8d31a5.dist-info/METADATA",
+          "size": "990"
+        },
+        {
+          "hash": "sha256=sXGHe9BoZPrRp-jTYJkSg6DDzk5w_weMt4Vc3gmnULA",
+          "path": "triton-3.9.0+gitfc8d31a5.dist-info/WHEEL",
+          "size": "150"
+        },
+        {
+          "hash": "sha256=hWkGpbkWRyqTQB-6UhyhCWxZCHYbsJ7yDFYt5g-9k5s",
+          "path": "triton/__init__.py",
+          "size": "1717"
+        },
+        {
+          "hash": "sha256=yL1El3IOc2ovinwBZnqALUlFCDpK7nfTrEv-QwXEeok",
+          "path": "triton/backends/__init__.py",
+          "size": "2554"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "triton/backends/amd/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "triton/backends/nvidia/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=j9sRSHGKiNuECidk8rssy4y5f5xR9n6-ClBy7A1hYy8",
+          "path": "triton/compiler/__init__.py",
+          "size": "318"
+        },
+        {
+          "hash": "sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+          "path": "triton/experimental/__init__.py",
+          "size": "0"
+        },
+        {
+          "hash": "sha256=GffdTdm7zAZmFvc7VsAJs1M-ooHfBf-B74UcP1wi7JE",
+          "path": "triton/experimental/gluon/__init__.py",
+          "size": "299"
+        },
+        {
+          "hash": "sha256=l7pDEmkWkzllpT59AggEwIuwFnx4z4wyEMFYhHZqB9o",
+          "path": "triton/experimental/gluon/amd/__init__.py",
+          "size": "61"
+        },
+        {
+          "hash": "sha256=x8CTKKveOApF4TghCOZWM_W9upNJbRqK4a45-Q3z81Q",
+          "path": "triton/experimental/gluon/amd/gfx1250/__init__.py",
+          "size": "75"
+        },
+        {
+          "hash": "sha256=3zrxamVV7k76CmP_Pgg5aW4xXYr0QK1i4gwH7vpt9d8",
+          "path": "triton/experimental/gluon/language/__init__.py",
+          "size": "2230"
+        },
+        {
+          "hash": "sha256=WWN292s9pQgAcFu2ox8rFQhtnrYzYxCttSXKRz8aap4",
+          "path": "triton/experimental/gluon/language/amd/__init__.py",
+          "size": "405"
+        },
+        {
+          "hash": "sha256=w4ZKzarR57643S3QBhZcMnubQ5q-T_IeRVSO06Ji3E8",
+          "path": "triton/experimental/gluon/language/amd/cdna3/__init__.py",
+          "size": "13389"
+        },
+        {
+          "hash": "sha256=OtOXgaHalpjVAEB7OY-otPHGw6nni_AbApz_JMD8ggY",
+          "path": "triton/experimental/gluon/language/amd/cdna4/__init__.py",
+          "size": "9807"
+        },
+        {
+          "hash": "sha256=fhc_DNgO1s4es5mBTVTAv4Y1FdMg-uhi1ILU91cLtY4",
+          "path": "triton/experimental/gluon/language/amd/cdna5/__init__.py",
+          "size": "8191"
+        },
+        {
+          "hash": "sha256=XgU0UA7Tt05Q0R_Ykm0U8RinzaGpYNbnTw9Ff6Yj9Bw",
+          "path": "triton/experimental/gluon/language/amd/rdna3/__init__.py",
+          "size": "423"
+        },
+        {
+          "hash": "sha256=wGxlWjDGPIA28JNGM4J3k9FH7dUM_L7N1DzuMIUCxCQ",
+          "path": "triton/experimental/gluon/language/amd/rdna4/__init__.py",
+          "size": "423"
+        },
+        {
+          "hash": "sha256=FaDqvKRb8M8K47C3YceyfF3ZiZayLC8xZN248jNlxeQ",
+          "path": "triton/experimental/gluon/language/extra/__init__.py",
+          "size": "69"
+        },
+        {
+          "hash": "sha256=TXzE4Ttx9fE1AUtKaPanQDnhnJiGZt1K6wZal3hR79I",
+          "path": "triton/experimental/gluon/language/nvidia/__init__.py",
+          "size": "140"
+        },
+        {
+          "hash": "sha256=6yZhy9ebglrUac05plTrB91HJ7oDTip8vo6Ny-qk9yU",
+          "path": "triton/experimental/gluon/language/nvidia/ampere/__init__.py",
+          "size": "6038"
+        },
+        {
+          "hash": "sha256=zeN31KVMqlVcBSm4KzVBfX9_tQJIm09c8feejMDmNJw",
+          "path": "triton/experimental/gluon/language/nvidia/blackwell/__init__.py",
+          "size": "30913"
+        },
+        {
+          "hash": "sha256=KX73-TvlyICY3i1Eg_O9wvwg2YlDymBTaxtt4RQe9UU",
+          "path": "triton/experimental/gluon/language/nvidia/hopper/__init__.py",
+          "size": "6988"
+        },
+        {
+          "hash": "sha256=lTWivQYCZEICilSuF_pJhQfxskFOF2kBkxscYgU69lg",
+          "path": "triton/experimental/gluon/language/nvidia/rubin/__init__.py",
+          "size": "3346"
+        },
+        {
+          "hash": "sha256=ISXB4RV7RcCLsU-JhcRFeA29gCBDVk8cTwO2j99ivLc",
+          "path": "triton/experimental/gluon/nvidia/__init__.py",
+          "size": "80"
+        },
+        {
+          "hash": "sha256=njNzbJwCTIz0AG_LsAhSXn-GBqUtH9MRSNW5ro7ij4o",
+          "path": "triton/experimental/gsan/__init__.py",
+          "size": "565"
+        },
+        {
+          "hash": "sha256=Y-3IjrUKkMI2yJI3rGZOApJzN61CVgVUxzZxayeb0EU",
+          "path": "triton/language/__init__.py",
+          "size": "8140"
+        },
+        {
+          "hash": "sha256=XRXFvr7416pRsh_Rh-X6qV66SiEyVDVbxp4GSAE1mfc",
+          "path": "triton/language/extra/__init__.py",
+          "size": "655"
+        },
+        {
+          "hash": "sha256=MBBu2EUYxsp6ygjiwO4Yh1X1EswMstfaiRTMSMGtbcw",
+          "path": "triton/language/extra/cuda/__init__.py",
+          "size": "407"
+        },
+        {
+          "hash": "sha256=660k01G7ebMGimBifHQ3KgfLjMlTLOEGdzQCrSUVorQ",
+          "path": "triton/language/extra/hip/__init__.py",
+          "size": "162"
+        },
+        {
+          "hash": "sha256=dFRYNEIg-Fmq1WA8ra0zcOZ6ANLoaq-EYMglUq815Is",
+          "path": "triton/profiler/__init__.py",
+          "size": "545"
+        },
+        {
+          "hash": "sha256=qwb8ypLQ0oOFA3h9M3RtU1OhJR_wd2EZTKJ2pFNHeuo",
+          "path": "triton/profiler/hooks/__init__.py",
+          "size": "123"
+        },
+        {
+          "hash": "sha256=mKL5cqIBDUw2WO80NRCh4s1G8KYaqgM59TTAbTkPPjQ",
+          "path": "triton/runtime/__init__.py",
+          "size": "621"
+        },
+        {
+          "hash": "sha256=uK1MNgXzbe26DtOgy6DCnMvt5kYGQ0PIkjaVy1yUZuA",
+          "path": "triton/runtime/autotuner.py",
+          "size": "23309"
+        },
+        {
+          "hash": "sha256=N18MiJ8bxNa1Odq3YjYSAFtAV35Vs4R87c2O8QwCamM",
+          "path": "triton/tools/__init__.py",
+          "size": "59"
+        },
+        {
+          "hash": "sha256=q0QSjQWLwoWfxGCO37E-wnpKFL-TFu40cHWaUaiwJIE",
+          "path": "triton/tools/triton_to_gluon_translator/__init__.py",
+          "size": "374"
+        }
+      ],
+      "version": "3.9.0+gitfc8d31a5",
+      "wheel_sha256": "b171877bd06864fad1a7e8d360991283a0c3ce4e70ff078cb7855cde09a750b0"
+    }
+  },
+  "env": {
+    "CUDA_HOME": "/opt/cuda-synth",
+    "CUDA_PATH": "/opt/cuda-synth",
+    "PATH": "/project/venvs/b200-runtime/bin:/project/mise/data/shims:/usr/local/cuda/bin:/opt/cuda-synth/bin:/usr/local/bin:/usr/bin:/bin",
+    "PYTHON": "/project/venvs/b200-runtime/bin/python",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "TORCHTITAN_IN_ROOTFS": "1",
+    "TORCHTITAN_ROOTFS_ENV": "glm53_train",
+    "TORCHTITAN_ROOTFS_HOST_STATE": "/data02/home/philip.yang/workspace/torchtitan/.cache/torchtitan-rootfs/glm53_train",
+    "TORCHTITAN_ROOTFS_LOG_DIR": "/project/logs",
+    "TORCHTITAN_ROOTFS_PROJECT": "/workspace/torchtitan",
+    "TORCHTITAN_ROOTFS_STORE_ID": "rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5"
+  },
+  "executable": "/project/venvs/b200-runtime/bin/python",
+  "import_checks": {
+    "fla.ops.kda": {
+      "error": "No module named 'fla'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "torchao.prototype.moe_training": {
+      "error": "No module named 'torchao'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "torchao.prototype.moe_training.kernels.float8_rowwise": {
+      "error": "No module named 'torchao'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    }
+  },
+  "label": "glm53_train_native",
+  "modules": {
+    "attn_gym": {
+      "error": "No module named 'attn_gym'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "fla": {
+      "error": "No module named 'fla'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "flash_attn": {
+      "error": "No module named 'flash_attn'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "spmd_types": {
+      "error": "No module named 'spmd_types'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "torch": {
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/torch/__init__.py",
+      "file_sha256": "bd743b557a24cd7d498590be6c2c0358bf689a8284ac2b5349bb59c280099f0a",
+      "ok": true,
+      "version": "2.16.0.dev20261013+cu132"
+    },
+    "torch_remat": {
+      "error": "No module named 'torch_remat'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "torchao": {
+      "error": "No module named 'torchao'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "triton": {
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/triton/__init__.py",
+      "file_sha256": "856906a5b916472a93401fba521ca1096c5908761bb09ef20c562de60fbd939b",
+      "ok": true,
+      "version": "3.9.0"
+    }
+  },
+  "path": [
+    "/workspace/torchtitan/.scratch/glm53-flash-sft-ladder/evidence/r01b",
+    "/usr/lib/python312.zip",
+    "/usr/lib/python3.12",
+    "/usr/lib/python3.12/lib-dynload",
+    "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+    "/usr/local/lib/python3.12/dist-packages",
+    "/usr/lib/python3/dist-packages"
+  ],
+  "prefix": "/project/venvs/b200-runtime",
+  "pyvenv_cfg": [
+    "home = /usr/bin",
+    "implementation = CPython",
+    "uv = 0.12.3",
+    "version_info = 3.12.3",
+    "include-system-site-packages = true"
+  ],
+  "site_packages": [
+    "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+    "/project/venvs/b200-runtime/local/lib/python3.12/dist-packages",
+    "/project/venvs/b200-runtime/lib/python3/dist-packages",
+    "/project/venvs/b200-runtime/lib/python3.12/dist-packages",
+    "/usr/lib/python3.12/site-packages",
+    "/usr/local/lib/python3.12/dist-packages",
+    "/usr/lib/python3/dist-packages",
+    "/usr/lib/python3.12/dist-packages"
+  ],
+  "user_site": "/project/home/.local/lib/python3.12/site-packages",
+  "version": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]"
+}

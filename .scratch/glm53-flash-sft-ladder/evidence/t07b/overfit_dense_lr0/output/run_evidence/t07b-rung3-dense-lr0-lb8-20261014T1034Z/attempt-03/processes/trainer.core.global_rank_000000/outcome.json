@@ -1,0 +1,1 @@
+{"actor_id":"core","attempt_id":"attempt-03","elapsed_monotonic_ns":3181383291316,"evidence_schema_version":1,"global_rank":0,"host_name":"n116-077-207","local_rank":0,"outcome":"succeeded","pid":76,"process_id":"trainer.core.global_rank_000000","record_type":"process_outcome","role":"trainer","run_id":"t07b-rung3-dense-lr0-lb8-20261014T1034Z","schema_version":1,"world_size":2}

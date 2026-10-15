@@ -1,0 +1,130 @@
+{
+  "label": "glm53_ep_native_post_sync",
+  "path_first": [
+    "/workspace/torchtitan/.scratch/glm53-flash-sft-ladder/evidence/r01b",
+    "/project/venvs/b200-runtime/lib/python3.12/site-packages/nvidia_cutlass_dsl/dsl_packages",
+    "/project/venvs/b200-runtime/lib/python3.12/site-packages/nvidia_cutlass_dsl/dsl_packages",
+    "/usr/lib/python312.zip",
+    "/usr/lib/python3.12",
+    "/usr/lib/python3.12/lib-dynload",
+    "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+    "/usr/local/lib/python3.12/dist-packages",
+    "/usr/lib/python3/dist-packages"
+  ],
+  "pyvenv_cfg": [
+    "home = /usr/bin",
+    "implementation = CPython",
+    "uv = 0.13.1",
+    "version_info = 3.12.3",
+    "include-system-site-packages = true"
+  ],
+  "modules": {
+    "attn_gym": {
+      "ok": true,
+      "version": null,
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/attn_gym/__init__.py",
+      "error": null
+    },
+    "fla": {
+      "ok": true,
+      "version": "0.5.2",
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/fla/__init__.py",
+      "error": null
+    },
+    "flash_attn": {
+      "ok": false,
+      "version": null,
+      "file": null,
+      "error": "No module named 'flash_attn'"
+    },
+    "spmd_types": {
+      "ok": true,
+      "version": null,
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/spmd_types/__init__.py",
+      "error": null
+    },
+    "torch": {
+      "ok": true,
+      "version": "2.16.0.dev20261013+cu132",
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/torch/__init__.py",
+      "error": null
+    },
+    "torch_remat": {
+      "ok": true,
+      "version": null,
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/torch_remat/__init__.py",
+      "error": null
+    },
+    "torchao": {
+      "ok": false,
+      "version": null,
+      "file": null,
+      "error": "No module named 'torchao'"
+    },
+    "triton": {
+      "ok": true,
+      "version": "3.9.0",
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/triton/__init__.py",
+      "error": null
+    }
+  },
+  "import_checks": {
+    "fla.ops.kda": {
+      "error": "key contains names that are not kernel arguments: BT. Valid argument names are: h, ag_hm, pre_or_post_num_ranks, rank, seq_offsets, init_offsets, h0_seq_ids, h0, HV, K, V, BV, BK, FORWARD, INTRACARD_MODE, NUM_SEQ_ENTRIES, HAS_H0, STATE_V_FIRST.",
+      "error_type": "ValueError",
+      "ok": false
+    },
+    "torchao.prototype.moe_training": {
+      "error": "No module named 'torchao'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    },
+    "torchao.prototype.moe_training.kernels.float8_rowwise": {
+      "error": "No module named 'torchao'",
+      "error_type": "ModuleNotFoundError",
+      "ok": false
+    }
+  },
+  "dist_locations": {
+    "attn-gym": {
+      "version": "0.0.16",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "record_sha256": "daa8dbe9614446793488ed438742ea817be0f1fc0f06c32af398fc9e65e7b5b1"
+    },
+    "fla-core": {
+      "version": "0.5.2",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "record_sha256": "2281535f71fed1297e028f6d623349ff8da5da0ae5ed58eb73e5aafd3170305c"
+    },
+    "flash-attn": {
+      "version": null,
+      "location": null,
+      "record_sha256": null
+    },
+    "spmd_types": {
+      "version": "0.2.0",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "record_sha256": "f5900e5293a20483da98cc6dd2a7bd1df6a92b5a9d5184ed54cdf07d88c2d60a"
+    },
+    "torch": {
+      "version": "2.16.0.dev20261013+cu132",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "record_sha256": "a37c3367955ff3cf487826b71517e762e6aad2b456e1e305217947a1f067d961"
+    },
+    "torch_remat": {
+      "version": "0.2.0",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "record_sha256": "0f279123108eab63eb46919f5b5d2ed138556ea700254b6ad7a2fef43353860c"
+    },
+    "torchao": {
+      "version": null,
+      "location": null,
+      "record_sha256": null
+    },
+    "triton": {
+      "version": "3.9.0+gitfc8d31a5",
+      "location": "/project/venvs/b200-runtime/lib/python3.12/site-packages",
+      "record_sha256": "23e1f993b32657df078424d9dce72c00052e78ffebd35b8bc9015f77ebf776d2"
+    }
+  }
+}

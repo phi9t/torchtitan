@@ -1,0 +1,30 @@
+[
+  {
+    "device": "cpu",
+    "down_grad_max_abs_delta": 7.450580596923828e-08,
+    "dtype": "float32",
+    "forward_max_abs_delta": 1.4901161193847656e-08,
+    "gate_up_grad_max_abs_delta": 7.450580596923828e-08,
+    "num_experts": 11,
+    "num_tokens": 13,
+    "top_k": 8,
+    "unused_down_grad_max_abs": 0.0,
+    "unused_gate_up_grad_max_abs": 0.0,
+    "used_experts": 9,
+    "x_grad_max_abs_delta": 1.4901161193847656e-08
+  },
+  {
+    "device": "cuda",
+    "down_grad_max_abs_delta": 0.0,
+    "dtype": "bfloat16",
+    "forward_max_abs_delta": 0.00048828125,
+    "gate_up_grad_max_abs_delta": 0.0,
+    "num_experts": 11,
+    "num_tokens": 13,
+    "top_k": 8,
+    "unused_down_grad_max_abs": 0.0,
+    "unused_gate_up_grad_max_abs": 0.0,
+    "used_experts": 9,
+    "x_grad_max_abs_delta": 0.000244140625
+  }
+]

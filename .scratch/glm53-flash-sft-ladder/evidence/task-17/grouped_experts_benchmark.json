@@ -1,0 +1,25 @@
+{
+  "benchmark": "glm53_flash_moe_layer",
+  "dtype": "bfloat16",
+  "hidden_size": 4096,
+  "moe_intermediate_size": 2048,
+  "num_experts": 288,
+  "results": [
+    {
+      "impl": "loop",
+      "iters": 3,
+      "ms_per_iter": 1352.5309903294935,
+      "peak_memory_gib": 15.031059265136719
+    },
+    {
+      "impl": "grouped",
+      "iters": 3,
+      "ms_per_iter": 34.2193393347164,
+      "peak_memory_gib": 16.340137004852295,
+      "speedup_vs_loop": 39.52533908091311
+    }
+  ],
+  "tokens": 4096,
+  "top_k": 8,
+  "weights_require_grad": false
+}

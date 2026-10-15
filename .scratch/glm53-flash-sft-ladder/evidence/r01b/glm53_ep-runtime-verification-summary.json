@@ -1,0 +1,57 @@
+{
+  "ok": true,
+  "packages": {
+    "attn-gym": "0.0.16",
+    "fla-core": "0.5.2",
+    "flash-attn": "not installed",
+    "nvidia-nvshmem-cu13": "3.7.2",
+    "torch": "2.16.0.dev20261013+cu132",
+    "torchao": "not installed",
+    "triton": "3.9.0+gitfc8d31a5"
+  },
+  "imports": {
+    "attn_gym.linear.kda": {
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/attn_gym/linear/kda/__init__.py",
+      "ok": true
+    },
+    "nvidia.nvshmem": {
+      "file": null,
+      "ok": true
+    },
+    "torchtitan.models.common.attn_gym": {
+      "file": "/workspace/torchtitan/torchtitan/models/common/attn_gym.py",
+      "ok": true
+    },
+    "triton": {
+      "file": "/project/venvs/b200-runtime/lib/python3.12/site-packages/triton/__init__.py",
+      "ok": true
+    }
+  },
+  "diagnostic_imports": {
+    "fla.ops.kda": {
+      "error": "key contains names that are not kernel arguments: BT. Valid argument names are: h, ag_hm, pre_or_post_num_ranks, rank, seq_offsets, init_offsets, h0_seq_ids, h0, HV, K, V, BV, BK, FORWARD, INTRACARD_MODE, NUM_SEQ_ENTRIES, HAS_H0, STATE_V_FIRST.",
+      "error_type": "ValueError",
+      "gate": "diagnostic",
+      "ok": false
+    }
+  },
+  "blockers": [],
+  "torch": {
+    "cuda": "13.2",
+    "cuda_available": true,
+    "device_0_capability": [
+      10,
+      0
+    ],
+    "device_0_name": "NVIDIA B200",
+    "version": "2.16.0.dev20261013+cu132"
+  },
+  "env": {
+    "PYTHON": "/project/venvs/b200-runtime/bin/python",
+    "TORCHTITAN_ROOTFS_ENV": "glm53_ep",
+    "TORCHTITAN_ROOTFS_HOST_STATE": "/data02/home/philip.yang/workspace/torchtitan/.cache/torchtitan-rootfs/glm53_ep",
+    "TORCHTITAN_ROOTFS_STORE_ID": "rootfs-e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5",
+    "sys_executable": "/project/venvs/b200-runtime/bin/python"
+  },
+  "rootfs_digest": "sha256:e0c18cff68fc8ed06ca494cf00c807cca3d714819e00d5b824d89269079f4ec5"
+}

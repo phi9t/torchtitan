@@ -1,0 +1,5 @@
+HDFS_URI=hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-ladder/rung3/t07b-rung3-learnability-smoke-20261014T1159Z
+FILES=32
+HDFS_PUT_MBPS=0.011056655142524966
+LOCAL_MANIFEST=/data05/philip.yang/glm53-ladder-cache/publish-tmp/20261014T120242Z-3987844/MANIFEST.jsonl
+METRICS=/data05/philip.yang/glm53-ladder-cache/publish-tmp/20261014T120242Z-3987844/metrics.jsonl
