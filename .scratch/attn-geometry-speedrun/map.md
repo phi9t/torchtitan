@@ -1,15 +1,18 @@
 # Map
-- Step 1 Harness: A01 (arm implementation + equivalence tests + small-model config + recall probe)
-- Step 2 Systems: A01 (all-arm dry-run, finite loss, timing fields)
-- Step 3 Overfit: A01 (fixed-bank overfit per arm, lr=0 fails)
-- Step 4 Ablate: A02 (12 screening + 6 confirmation + 1 anchor), only after A01 exits green
+- Step 1 Harness: A01/A01b green (arm implementation + equivalence tests + small-model config + recall probe)
+- Step 2 Systems: A01b green (host-verified FineWeb, all-arm dry-run, finite loss, timing fields)
+- Step 3 Overfit: A01b green (fixed-bank overfit per arm, lr=0 controls, recall-after-train execution)
+- Step 4 Ablate: A02 Revision 2 (36 non-anchor screen + 2 anchor, optional rescue, then 4 arms x 3 confirmation),
+  now unblocked by A01b
 - Step 5/6: scale-up / transfer -- not opened
 
 # Frontier
-- A01 remains open. Passing pieces: geometry equivalence tests, recall probe construction, copied runner/variant syntax, and one fixed-bank anchor GPU sanity.
-- A02 is blocked until A01 records FineWeb verified data, all-arm science-shape dry-run divergence, per-arm fixed-bank overfit plus lr=0 failure, recall-after-train, and 5-minute anchor timing.
+- A01b is green. Report: `sdd/a01b-report.md`.
+- A02 can start from `sdd/a02-brief.md`: implement Revision-2 pre-spend requirements, rerun focused tests and all-arm
+  50-step dry-runs, then run A02a screen/rescue/A02b confirmation per the brief.
 
 # Blockers / Fog
-- `waystone` is not available in rootfs PATH, so FineWeb HDFS verified staging is missing.
-- GPUs are shared with large jobs; further matrix runs would risk interfering with them.
-- The fixed-bank sanity used an offline prefix-table fallback and is not a FineWeb or speedrun claim.
+- Waystone remains host-side only; keep using host `hdfs_strict.sh --quick` before each launch.
+- FineWeb tokenizer fetch failed under DNS during A01b; artifacts record `offline_fallback` for FineWeb runs.
+- A01b recall probes ran after overfit but scored 0/16 at distances 128, 1024, and 1536 for every arm; treat this as
+  behavior evidence for A02, not as a closed recall-quality claim.

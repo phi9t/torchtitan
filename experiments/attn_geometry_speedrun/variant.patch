@@ -1,0 +1,751 @@
+--- a/train_gpt.py
++++ b/train_gpt.py
+@@ -13,7 +13,9 @@
+ 
+ import copy
+ import glob
++import json
+ import math
++import subprocess
+ import threading
+ import time
+ import uuid
+@@ -43,12 +45,65 @@
+ from dc_triton_kernels import (
+     dc_attention_postonly_nodd_correction_add_base_triton,
+ )
++from torchtitan.experiments.attn_geometry_speedrun.attention_geometry import (
++    broadcast_head_param,
++    geometry_flash_varlen,
++    validate_geometry,
++)
++from torchtitan.experiments.attn_geometry_speedrun.recall_probe import (
++    evaluate_recall_distances,
++)
+ # Fused triton kernel: relu(x @ W1.T)^2 @ W2.T
+ # https://arxiv.org/abs/2109.08668v2; ~1-2% better than GELU; suggested by @SKYLINEZ007 and @Grad62304977
+ ReLUSqrdMLP = FusedLinearReLUSquareFunction.apply
+ 
+ dynamo.config.recompile_limit = 64
+ 
++
++def _env_bool(name: str, default: bool = False) -> bool:
++    raw = os.environ.get(name)
++    if raw is None:
++        return default
++    return raw.lower() in {"1", "true", "yes", "on"}
++
++
++def _env_int(name: str, default: int) -> int:
++    raw = os.environ.get(name)
++    if raw is None:
++        return default
++    return int(raw)
++
++
++def _env_float(name: str, default: float) -> float:
++    raw = os.environ.get(name)
++    if raw is None:
++        return default
++    return float(raw)
++
++
++ATTN_GEOMETRY = validate_geometry(os.environ.get("ATTN_GEOMETRY", "anchor"))
++
++
++def _default_geometry_log_param_init(
++    geometry: str,
++    *,
++    head_dim: int,
++    anchor_softmax_scale: float,
++) -> float:
++    raw_log = os.environ.get("ATTN_GEOMETRY_LOG_PARAM_INIT")
++    if raw_log is not None:
++        return float(raw_log)
++    raw_positive = os.environ.get("ATTN_GEOMETRY_INIT")
++    if raw_positive is not None:
++        return math.log(float(raw_positive))
++    if geometry == "dot":
++        return math.log(head_dim**-0.5)
++    if geometry == "cosine":
++        return math.log(head_dim * anchor_softmax_scale)
++    if geometry == "gauss":
++        return math.log(_env_float("ATTN_GAUSS_SIGMA_INIT", head_dim**0.5))
++    return 0.0
++
+ # -----------------------------------------------------------------------------
+ # Distributed training setup
+ rank = int(os.environ["RANK"])
+@@ -57,7 +112,13 @@
+ grad_accum_steps = 8 // world_size
+ grad_scale = 1 / grad_accum_steps # consistent grad magnitudes between different num_devices
+ assert torch.cuda.is_available()
+-device = torch.device("cuda", int(os.environ["LOCAL_RANK"]))
++local_rank = int(os.environ["LOCAL_RANK"])
++torch.cuda.set_device(local_rank)
++torch.cuda.set_per_process_memory_fraction(
++    _env_float("ATTN_CUDA_MEMORY_FRACTION", 0.35),
++    local_rank,
++)
++device = torch.device("cuda", local_rank)
+ torch.cuda.set_device(device)
+ dist.init_process_group(backend="cuda:nccl,cpu:gloo", device_id=device)
+ dist.barrier()
+@@ -1057,6 +1118,7 @@
+ @dataclass(slots=True)
+ class AttnArgs:
+     sa_lambdas: torch.Tensor
++    geometry_log_params: torch.Tensor
+     seqlens: torch.Tensor
+     bm_size: int
+     yarn: Yarn
+@@ -1066,7 +1128,28 @@
+     xsa_alpha: torch.Tensor | None
+     train_max_seq_len: torch.Tensor
+ 
+-flash_attn_interface = get_kernel('kernels-community/flash-attn3', version=1).flash_attn_interface
++ATTN_BACKEND = os.environ.get("ATTN_BACKEND", "fa2")
++if ATTN_BACKEND == "fa3":
++    flash_attn_interface = get_kernel(
++        'kernels-community/flash-attn3',
++        revision=os.environ.get(
++            "ATTN_FA3_REVISION",
++            "43f0bd269777115d94ff826e0d113ce9c1c9087b",
++        ),
++        trust_remote_code=True,
++    ).flash_attn_interface
++
++    def run_flash_attn_varlen(*args, **kwargs):
++        return flash_attn_interface.flash_attn_varlen_func(*args, **kwargs)
++
++elif ATTN_BACKEND == "fa2":
++    from flash_attn.flash_attn_interface import flash_attn_varlen_func
++
++    def run_flash_attn_varlen(*args, **kwargs):
++        return flash_attn_varlen_func(*args, **kwargs)
++
++else:
++    raise ValueError(f"Unsupported ATTN_BACKEND={ATTN_BACKEND!r}")
+ 
+ 
+ def dc_gate(
+@@ -1097,13 +1180,15 @@
+         # unpack attention args
+         aux_v, attn_gate_w = attn_args.aux_v, attn_args.attn_gate_w
+         sa_lambdas, key_offset = attn_args.sa_lambdas, attn_args.key_offset
++        geometry_log_params = attn_args.geometry_log_params
+         seqlens, bm_size = attn_args.seqlens, attn_args.bm_size
+         train_max_seq_len, yarn = attn_args.train_max_seq_len, attn_args.yarn
+ 
+         q, k, v = F.linear(x, sa_lambdas[0] * qkvo_w[:self.dim * 3].type_as(x)).view(B, T, 3 * self.num_heads, self.head_dim).chunk(3, dim=-2)
+         max_len = train_max_seq_len if self.training else (args.val_batch_size // (grad_accum_steps * world_size))
+ 
+-        q, k = norm(q), norm(k) # QK norm @Grad62304977
++        if ATTN_GEOMETRY == "anchor":
++            q, k = norm(q), norm(k) # QK norm @Grad62304977
+ 
+         if not self.paired:
+             q, k = yarn.rotary(q), yarn.rotary(k)
+@@ -1136,9 +1221,25 @@
+             max_len = 2 * max_len
+ 
+         # use flash_attn over flex_attn @varunneal. flash_attn_varlen suggested by @YouJiacheng
+-        y = flash_attn_interface.flash_attn_varlen_func(q[0], k[0], v[0], cu_seqlens_q=seqlens, cu_seqlens_k=seqlens,
+-                                                        max_seqlen_q=max_len, max_seqlen_k=max_len,
+-                                                        causal=True, softmax_scale=yarn.attn_scale, window_size=(bm_size, 0))
++        if ATTN_GEOMETRY == "anchor":
++            q = q * torch.exp(broadcast_head_param(geometry_log_params, q)).to(dtype=q.dtype)
++            y = run_flash_attn_varlen(q[0], k[0], v[0], cu_seqlens_q=seqlens, cu_seqlens_k=seqlens.clone(),
++                                      max_seqlen_q=max_len, max_seqlen_k=max_len,
++                                      causal=True, softmax_scale=yarn.attn_scale, window_size=(bm_size, 0))
++        else:
++            y = geometry_flash_varlen(
++                q,
++                k,
++                v,
++                geometry_log_params,
++                geometry=ATTN_GEOMETRY,
++                anchor_softmax_scale=yarn.attn_scale,
++                cu_seqlens=seqlens,
++                max_seqlen=max_len,
++                flash_attn_varlen_func=run_flash_attn_varlen,
++                causal=True,
++                window_size=(bm_size, 0),
++            )
+         if dc_w is not None:
+             dc_weights = dc_gate(x, dc_w, self.num_heads)
+             y = dc_attention_postonly_nodd_correction_add_base_triton(
+@@ -1169,8 +1270,18 @@
+     return math.ceil(v / n) * n
+ 
+ # Preload (download + parse) the GPT-2 tokenizer at import, outside the timed region.
+-# build_prefix_table then only pays the table construction itself.
+-tiktoken.get_encoding("gpt2")
++# Fall back to disabling the prefix-token auxiliary table when the tokenizer is
++# unavailable in the rootfs, which can happen during DNS outages.
++PREFIX_TABLE_SOURCE = "offline_forced"
++PREFIX_TABLE_FALLBACK_REASON = ""
++if not _env_bool("ATTN_OFFLINE_PREFIX_TABLE", False):
++    try:
++        tiktoken.get_encoding("gpt2")
++        PREFIX_TABLE_SOURCE = "tiktoken_gpt2"
++    except Exception as exc:  # noqa: BLE001
++        os.environ["ATTN_OFFLINE_PREFIX_TABLE"] = "1"
++        PREFIX_TABLE_SOURCE = "offline_fallback"
++        PREFIX_TABLE_FALLBACK_REASON = f"{type(exc).__name__}: {exc}"
+ 
+ def build_prefix_table(vocab_size: int) -> Tensor:
+     """Constant lookup table mapping each token to its "prefix token".
+@@ -1183,6 +1294,8 @@
+     Sorting byte strings puts every proper prefix before its extensions, so a stack of
+     live ancestors yields the longest one in O(V log V) instead of probing every length.
+     """
++    if _env_bool("ATTN_OFFLINE_PREFIX_TABLE", False):
++        return torch.full((vocab_size,), -1, dtype=torch.int64)
+     byte_to_id = tiktoken.get_encoding("gpt2")._mergeable_ranks
+     table = [-1] * vocab_size
+     stack: list[bytes] = []  # ancestors of the current token, shortest first
+@@ -1208,6 +1321,8 @@
+ class GPT(nn.Module):
+     def __init__(self, vocab_size: int, num_layers: int, num_heads: int, head_dim: int, model_dim: int, max_seq_len: int):
+         super().__init__()
++        if num_layers < 8:
++            raise ValueError("A01 small topology requires at least 8 layers")
+         self.num_layers = num_layers
+         self.num_heads = num_heads
+         self.head_dim = head_dim
+@@ -1235,9 +1350,9 @@
+         self.init_misc(model_dim, num_layers)
+         self.init_mudd(num_layers, model_dim)
+ 
+-        self.xsa_layers = [1, 3, 4, 7]
+-        self.dc_layers = [10]
+-        self.attn_gate_layers = [3, 10]
++        self.xsa_layers = [layer for layer in (1, 3, 4, 7) if layer < num_layers]
++        self.dc_layers = [layer for layer in (10,) if layer < num_layers]
++        self.attn_gate_layers = [layer for layer in (3, 10) if layer < num_layers]
+         self.init_mudd_gate(model_dim)
+ 
+         # Auto-label parameters
+@@ -1246,14 +1361,24 @@
+ 
+     def init_attn(self, model_dim, head_dim, num_heads, num_layers, max_seq_len):
+         # Cache layers for skip / backout snapshots taken at end of loop iter.
+-        self.cache_layers = [3, 7]
++        self.cache_layers = [layer for layer in (3, 7) if layer < num_layers - 1]
+ 
+         # Attention modules (no learned params -- weights come from qk_bank/vo_bank)
+-        self.paired_head_layers = [0, 2, 5, 9]
++        self.paired_head_layers = [
++            layer for layer in (0, 2, 5, 9) if layer < num_layers
++        ]
+         self.attn = CausalSelfAttention(model_dim, head_dim, num_heads, paired=False)
+         self.attn_paired = CausalSelfAttention(model_dim, head_dim, num_heads, paired=True)
+         self.yarn = Yarn(head_dim, max_seq_len)
+         self.yarn_paired_head = Yarn(head_dim, max_seq_len, paired=True)
++        log_param_init = _default_geometry_log_param_init(
++            ATTN_GEOMETRY,
++            head_dim=head_dim,
++            anchor_softmax_scale=self.yarn.attn_scale,
++        )
++        self.attn_geometry_log_params = nn.Parameter(
++            torch.full((num_layers, num_heads), log_param_init)
++        )
+ 
+         # token value embeddings by @KoszarskyB - inspired by @Grad62304977's value residual implementation following https://arxiv.org/abs/2410.17897
+         # value embedding code simplification inspired by @ragulpr https://github.com/KellerJordan/modded-nanogpt/pull/78
+@@ -1318,7 +1443,11 @@
+         )
+         self.register_buffer(
+             "_mlp_down_weight_partial_amax",
+-            torch.empty(12, 576, dtype=torch.float32),
++            torch.empty(
++                12,
++                math.ceil((4 * model_dim) / 64) * math.ceil(model_dim / 64),
++                dtype=torch.float32,
++            ),
+             persistent=False,
+         )
+ 
+@@ -1467,23 +1596,38 @@
+         return (F.linear(x, self.mudd_gate_w2[id, :num_coef]) + self.mudd_gate_b2[id, :num_coef]) * self._mudd_gate_scale.type_as(x)
+ 
+     def unpack_pre_mudd_gate(self, gate, xsa_alphas, attn_gates, x0_gates, bigram_gates):
+-        xsa_alphas[1] = gate[..., 0:6] # 6 means 6 heads
+-        xsa_alphas[3] = gate[..., 6:12]
+-        attn_gates[3] = gate[..., 12:18]
++        if len(xsa_alphas) > 1:
++            xsa_alphas[1] = gate[..., 0:6] # 6 means 6 heads
++        if len(xsa_alphas) > 3:
++            xsa_alphas[3] = gate[..., 6:12]
++            attn_gates[3] = gate[..., 12:18]
+         for layer, offset in zip((0, 1, 2, 3), range(18, 26, 2)):
+-            x0_gates[layer] = gate[..., offset:offset + 1]
+-            bigram_gates[layer] = gate[..., offset + 1:offset + 2]
++            if layer < len(x0_gates):
++                x0_gates[layer] = gate[..., offset:offset + 1]
++                bigram_gates[layer] = gate[..., offset + 1:offset + 2]
+ 
+     def unpack_post_mudd_gate(self, gate, xsa_alphas, attn_gates, x0_gates, bigram_gates):
+-        xsa_alphas[4] = gate[..., 0:6]
+-        xsa_alphas[7] = gate[..., 6:12]
+-        attn_gates[10] = gate[..., 12:18]
++        if len(xsa_alphas) > 4:
++            xsa_alphas[4] = gate[..., 0:6]
++        if len(xsa_alphas) > 7:
++            xsa_alphas[7] = gate[..., 6:12]
++        if len(attn_gates) > 10:
++            attn_gates[10] = gate[..., 12:18]
+         for layer, offset in zip((4, 5, 7, 8, 9), range(18, 28, 2)):
+-            x0_gates[layer] = gate[..., offset:offset + 1]
+-            bigram_gates[layer] = gate[..., offset + 1:offset + 2]
++            if layer < len(x0_gates):
++                x0_gates[layer] = gate[..., offset:offset + 1]
++                bigram_gates[layer] = gate[..., offset + 1:offset + 2]
+         return gate[..., 28:29]
+ 
+-    def forward(self, input_seq: Tensor, target_seq: Tensor, seqlens: Tensor, bigram_input_seq: Tensor, schedule_cfg: ForwardScheduleConfig):
++    def forward(
++        self,
++        input_seq: Tensor,
++        target_seq: Tensor,
++        seqlens: Tensor,
++        bigram_input_seq: Tensor,
++        schedule_cfg: ForwardScheduleConfig,
++        return_logits: bool = False,
++    ):
+         assert input_seq.ndim == 1
+ 
+         # ---- Schedule and layer topology ----
+@@ -1491,7 +1635,8 @@
+         prefix_weight = schedule_cfg.prefix_weight
+         ws_short, ws_long = schedule_cfg.ws_short, schedule_cfg.ws_long
+         # set block masks and key shift
+-        bm_sizes = [ws_short, ws_short, ws_short, ws_long, ws_short, ws_short, None, ws_short, ws_short, ws_short, ws_long]
++        bm_template = [ws_short, ws_short, ws_short, ws_long, ws_short, ws_short, None, ws_short, ws_short, ws_short, ws_long]
++        bm_sizes = bm_template[:self.num_layers]
+         assert len(bm_sizes) == self.num_layers
+         key_offset = [b==ws_long for b in bm_sizes] # apply partial key offset to long windows
+ 
+@@ -1586,7 +1731,8 @@
+                     x0_gates,
+                     bigram_gates,
+                 )
+-                dc_weights[10] = (post_gate[..., 29:35], post_gate[..., 35:41])
++                if len(dc_weights) > 10:
++                    dc_weights[10] = (post_gate[..., 29:35], post_gate[..., 35:41])
+ 
+             # process attn. skip on layer 6 @YouJiacheng
+             if i == 6:
+@@ -1599,6 +1745,8 @@
+                 B, T = attn_in_normed.size(0), attn_in_normed.size(1)
+ 
+                 if i == self.num_layers - 1:
++                    if 7 not in cache:
++                        cache[7] = x
+                     cache[9] = x
+                     mu = self.forward_mudd(x, id=0, num_coef=14)
+                     v_mudd = (mu[0] * cache[0] + mu[1] * cache[7] + mu[2] * x).view(B, T, self.num_heads, self.head_dim)
+@@ -1619,6 +1767,7 @@
+ 
+                 attn_args = AttnArgs(
+                     sa_lambdas=sa_lambdas[i],
++                    geometry_log_params=self.attn_geometry_log_params[i],
+                     seqlens=seqlens,
+                     bm_size=bm_sizes[i],
+                     yarn=yarn,
+@@ -1680,6 +1829,9 @@
+         x = x + mu[0] * cache[0] + mu[1] * cache[7] + mu[2] * cache[9] + mu[3] * ve_bank0 + mu[4] * cache[3]
+ 
+         x = norm(x)
++        if return_logits:
++            logits = self.lm_head(x)
++            return 23 * torch.sigmoid((logits + 5) / 7.5)
+         # @Grad62304977 added tanh softcapping following Gemma 2 paper, @KoszarskyB reduced it from 30 to 15
+         # @YouJiacheng shifted it by +15 (2*sigmoid(2*x)=tanh(x)+1). @classiclarryd updated to 23*sigmoid((logits+5)/7.5)
+         if self.training:
+@@ -1874,6 +2026,56 @@
+             num_tokens = new_num_tokens // new_grad_accum_steps
+             max_seq_len = new_max_seq_len
+ 
++
++def fixed_bank_data_generator(
++    *,
++    num_tokens: int,
++    max_seq_len: int,
++    grad_accum_steps: int = 1,
++    seed: int = 0,
++):
++    rank = dist.get_rank() if dist.is_initialized() else 0
++    world_size = dist.get_world_size() if dist.is_initialized() else 1
++    if num_tokens % (world_size * grad_accum_steps) != 0:
++        raise ValueError("Batch size must be divisible by world size and grad accumulation")
++    generator = torch.Generator()
++    generator.manual_seed(seed + rank)
++    num_tokens = num_tokens // grad_accum_steps
++    num_tokens_local = num_tokens // world_size
++    if max_seq_len <= 0:
++        max_seq_len = num_tokens_local
++    bank_len = next_multiple_of_n(max(num_tokens_local + 1, max_seq_len + 1), n=16)
++    bank = torch.randint(0, 50257, (bank_len,), generator=generator, dtype=torch.int64)
++    bank[0] = BOS_ID
++
++    while True:
++        inputs = bank[:num_tokens_local].to(dtype=torch.int32)
++        targets = bank[1:num_tokens_local + 1].to(dtype=torch.int64)
++        cum_lengths = torch.full(
++            (max(2, next_multiple_of_n(num_tokens_local // max(max_seq_len, 1), n=128)),),
++            num_tokens_local,
++            dtype=torch.int32,
++        )
++        cum_lengths[0] = 0
++        cum_lengths[1] = num_tokens_local
++        bigram_inputs = get_bigram_hash(inputs)
++        new_params = yield (
++            inputs.to(device="cuda", non_blocking=True),
++            targets.to(device="cuda", non_blocking=True),
++            cum_lengths.to(device="cuda", non_blocking=True),
++            bigram_inputs.to(device="cuda", non_blocking=True),
++            bigram_inputs.numpy(),
++        )
++        if new_params is not None:
++            new_num_tokens, new_max_seq_len, new_grad_accum_steps = new_params
++            if new_num_tokens % (world_size * new_grad_accum_steps) != 0:
++                raise ValueError(
++                    "Batch size must be divisible by world size and grad accumulation"
++                )
++            num_tokens = new_num_tokens // new_grad_accum_steps
++            num_tokens_local = num_tokens // world_size
++            max_seq_len = new_max_seq_len
++
+ # -----------------------------------------------------------------------------
+ # Training Management
+ 
+@@ -1881,30 +2083,74 @@
+ class Hyperparameters:
+     # data
+     data_path = os.environ.get("DATA_PATH", ".")
+-    train_files: str = os.path.join(data_path, "data/fineweb10B/fineweb_train_*.bin") # input .bin to train on
+-    val_files: str = os.path.join(data_path, "data/fineweb10B/fineweb_val_*.bin") # input .bin to eval validation loss on
+-    val_tokens: int = 10485760 # how many tokens of validation data? it's important to keep this fixed for consistent comparisons
++    train_files: str = os.environ.get(
++        "ATTN_TRAIN_FILES",
++        os.path.join(data_path, "data/fineweb10B/fineweb_train_*.bin"),
++    )
++    val_files: str = os.environ.get(
++        "ATTN_VAL_FILES",
++        os.path.join(data_path, "data/fineweb10B/fineweb_val_*.bin"),
++    )
++    val_tokens: int = _env_int("ATTN_VAL_TOKENS", 16384)
+     # batch sizes
+-    val_batch_size: int = 4 * 64 * 1024 * 8
++    val_batch_size: int = _env_int("ATTN_VAL_BATCH_SIZE", 16384)
+     # schedule
+-    num_scheduled_iterations: int = 1270  # number of steps to complete lr and ws schedule
+-    num_extension_iterations: int = 15  # number of steps to continue training at final lr and ws
++    num_scheduled_iterations: int = _env_int("ATTN_TRAIN_STEPS", 3)
++    num_extension_iterations: int = _env_int("ATTN_EXTENSION_STEPS", 0)
+     # evaluation and logging
+-    run_id: str = f"{uuid.uuid4()}"
++    run_id: str = os.environ.get("ATTN_RUN_ID", f"{uuid.uuid4()}")
+     # Descriptive run_id for this iteration:
+     #   - explicit sparse connectivity refactor (no generic loop)
+     #   - (1 + m_r9) * x self-reference fuse on layer 9
+     #   - backout_lambda fully removed (slot dropped from self.scalars; absorbed into MUDD bias init)
+-    val_loss_every: int = 250  # every how many steps to evaluate val loss? 0 for only at the end
+-    save_checkpoint: bool = False
+-    run_evals: bool = False  # run additional evaluations after training is completed
++    val_loss_every: int = _env_int("ATTN_VAL_LOSS_EVERY", 1)
++    save_checkpoint: bool = _env_bool("ATTN_SAVE_CHECKPOINT", False)
++    run_evals: bool = _env_bool("ATTN_RUN_EVALS", False)
+     # bigram hash embedding
+-    bigram_vocab_size: int = 50304 * 15 // 2
+-    bigram_dim: int = 768
+-    bigram_sign_table_rows: int = 8192  # prefer a power of 2 (values ~500-15000 gave similar results)
++    bigram_vocab_size: int = _env_int("ATTN_BIGRAM_VOCAB_SIZE", 50304 * 15 // 2)
++    bigram_dim: int = _env_int("ATTN_BIGRAM_DIM", 384)
++    bigram_sign_table_rows: int = _env_int("ATTN_BIGRAM_SIGN_TABLE_ROWS", 8192)
++    train_max_seq_len: int = _env_int("ATTN_SEQ_LEN", 1024)
++    train_batch_size: int = _env_int("ATTN_BATCH_TOKENS", 8192)
++    model_num_layers: int = _env_int("ATTN_MODEL_LAYERS", 8)
++    model_num_heads: int = _env_int("ATTN_MODEL_HEADS", 6)
++    model_head_dim: int = _env_int("ATTN_HEAD_DIM", 64)
++    model_dim: int = _env_int("ATTN_MODEL_DIM", 384)
++    recall_eval: bool = _env_bool("ATTN_RECALL_EVAL", False)
++    recall_distances: str = os.environ.get("ATTN_RECALL_DISTANCES", "128,1024,1536")
++    recall_samples_per_distance: int = _env_int("ATTN_RECALL_SAMPLES_PER_DISTANCE", 16)
++    recall_seed: int = _env_int("ATTN_RECALL_SEED", 20261015)
+ 
+ args = Hyperparameters()
+ 
++
++def make_data_generator(
++    filename_pattern: str,
++    num_tokens: int,
++    max_seq_len: int,
++    *,
++    grad_accum_steps: int = 1,
++    align_to_bos: bool = True,
++):
++    data_mode = os.environ.get("ATTN_DATA_MODE", "fineweb").lower()
++    if data_mode == "fineweb":
++        return distributed_data_generator(
++            filename_pattern,
++            num_tokens,
++            max_seq_len,
++            grad_accum_steps=grad_accum_steps,
++            align_to_bos=align_to_bos,
++        )
++    if data_mode == "fixed_bank":
++        seed = _env_int("ATTN_FIXED_BANK_SEED", 1234)
++        return fixed_bank_data_generator(
++            num_tokens=num_tokens,
++            max_seq_len=max_seq_len,
++            grad_accum_steps=grad_accum_steps,
++            seed=seed,
++        )
++    raise ValueError(f"unsupported ATTN_DATA_MODE={data_mode!r}")
++
+ @dataclass(slots=True)
+ class TrainingStage:
+     lr_mul: float
+@@ -1973,18 +2219,18 @@
+         if step >= cd_start:
+             t = min(1.0, (step - cd_start) / (self.scheduled_iterations - cd_start))
+             lr = lr * (1 - t) + 0.15 * t
+-        return lr
++        return lr * _env_float("ATTN_LR_SCALE", 1.0)
+ 
+ # window_sizes are in units of `block_size` tokens (defined in TrainingManager)
+ TRAINING_STAGES = [
+-    TrainingStage(duration=1/3, train_max_seq_len=896, batch_size=8 * 2048 * 8, window_sizes=(1, 3), lr_mul=1.0,
++    TrainingStage(duration=1/3, train_max_seq_len=args.train_max_seq_len, batch_size=args.train_batch_size, window_sizes=(1, 3), lr_mul=1.0,
+                   mtp_weights_start=[1.0, 0.5, 0.25], mtp_weights_end=[1.0, 0.5, 0.0], prefix_weight_start=0.25, prefix_weight_end=0.25),
+-    TrainingStage(duration=1/3, train_max_seq_len=2048, batch_size=16 * 2048 * 8, window_sizes=(3, 7), lr_mul=1.52,  # (16/8)**0.6
++    TrainingStage(duration=1/3, train_max_seq_len=args.train_max_seq_len, batch_size=args.train_batch_size, window_sizes=(3, 5), lr_mul=1.0,
+                   mtp_weights_start=[1.0, 0.5], mtp_weights_end=[1.0, 0.0], prefix_weight_start=0.25, prefix_weight_end=0.0),
+-    TrainingStage(duration=1/3, train_max_seq_len=2048, batch_size=24 * 2048 * 8, window_sizes=(5, 11), lr_mul=1.73,  # (24/8)**0.5
++    TrainingStage(duration=1/3, train_max_seq_len=args.train_max_seq_len, batch_size=args.train_batch_size, window_sizes=(5, 7), lr_mul=1.0,
+                   mtp_weights_start=[1.0], mtp_weights_end=[1.0], prefix_weight_start=0.0, prefix_weight_end=0.0),
+     # extension stage
+-    TrainingStage(train_max_seq_len=2048, batch_size=24 * 2048 * 8, window_sizes=(6, 13), lr_mul=1.0,  # lr_mul is not used
++    TrainingStage(train_max_seq_len=args.train_max_seq_len, batch_size=args.train_batch_size, window_sizes=(6, 7), lr_mul=1.0,
+                   mtp_weights_start=[1.0], mtp_weights_end=[1.0], prefix_weight_start=0.0, prefix_weight_end=0.0),
+ ]
+ 
+@@ -2027,6 +2273,7 @@
+             "qk_bank":        {"optim": "normuon", "comms": "sharded",    "adam_betas": None},
+             "vo_bank":        {"optim": "normuon", "comms": "sharded",    "adam_betas": None},
+             "mlp_bank":       {"optim": "normuon", "comms": "sharded",    "adam_betas": None},
++            "attn_geometry_log_params": {"optim": "adam", "comms": "replicated", "adam_betas": [0.9, 0.99], "lr_mul": 1.0, "wd_mul": 0.0},
+             "scalars":        {"optim": "adam",    "comms": "replicated", "adam_betas": [0.9,  0.99], "lr_mul": 5.0,  "wd_mul": 0.0},
+             "smear_gate":     {"optim": "adam",    "comms": "replicated", "adam_betas": [0.9,  0.99], "lr_mul": 0.01, "wd_mul": 0.0},
+             "ve_gate_bank":   {"optim": "adam",    "comms": "replicated", "adam_betas": [0.9,  0.99]},
+@@ -2052,7 +2299,7 @@
+         # - Process smaller/faster params first while large reduces complete
+         # - lm_head must complete before embed sync (when tied)
+         self.work_order = [
+-            "scalars", "smear_gate", "ve_gate_bank", "mudd_b2", "mudd_gate_b2", "_mudd_gate_scale",
++            "attn_geometry_log_params", "scalars", "smear_gate", "ve_gate_bank", "mudd_b2", "mudd_gate_b2", "_mudd_gate_scale",
+             "post_lambdas", "resid_lambdas",  # Small, fast
+         ] + [
+             "mudd_w2", "mudd_gate_w2",
+@@ -2224,20 +2471,28 @@
+ print0(f"Running Python {sys.version}")
+ print0(f"Running PyTorch {torch.version.__version__} compiled for CUDA {torch.version.cuda}")
+ print0(f"Running Triton version {triton.__version__}")
++print0(f"prefix_table_source:{PREFIX_TABLE_SOURCE}", console=True)
++if PREFIX_TABLE_FALLBACK_REASON:
++    print0(
++        f"prefix_table_fallback_reason:{PREFIX_TABLE_FALLBACK_REASON}",
++        console=True,
++    )
+ 
+ def nvidia_smi():
+-    import subprocess  # avoid top level import
+     return subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout
+ print0(nvidia_smi())
+ print0("="*100)
+ 
+ model: nn.Module = GPT(
+     vocab_size=50257,
+-    num_layers=11,
+-    num_heads=6,
+-    head_dim=128,
+-    model_dim=768,
+-    max_seq_len=args.val_batch_size // (grad_accum_steps * world_size)
++    num_layers=args.model_num_layers,
++    num_heads=args.model_num_heads,
++    head_dim=args.model_head_dim,
++    model_dim=args.model_dim,
++    max_seq_len=max(
++        args.train_max_seq_len,
++        args.val_batch_size // (grad_accum_steps * world_size),
++    ),
+ ).cuda()
+ for m in model.modules():
+     if isinstance(m, (nn.Embedding, nn.Linear)):
+@@ -2265,15 +2520,17 @@
+ #            Warmup kernels            #
+ ########################################
+ print0("Compiling model and warming up kernels (~7 minutes on first execution)", console=True)
++compile_warmup_t0 = time.perf_counter()
+ # Warmup the training kernels, then re-initialize the state so we aren't cheating
+ initial_state = dict(model=copy.deepcopy(model.state_dict()),
+                      optimizer=training_manager.get_state()) # save the initial state
+-train_loader = distributed_data_generator(args.train_files, TRAINING_STAGES[0].batch_size, TRAINING_STAGES[0].train_max_seq_len, grad_accum_steps=grad_accum_steps)
+-val_loader = distributed_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
++train_loader = make_data_generator(args.train_files, TRAINING_STAGES[0].batch_size, TRAINING_STAGES[0].train_max_seq_len, grad_accum_steps=grad_accum_steps)
++val_loader = make_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
+ 
+ transition_steps = training_manager.get_transition_steps()
+ # first and last pair of steps in each transition
+ warmup_steps = sorted({0, 1} | {s + offset for s in transition_steps for offset in [-2, -1, 0, 1] if s + offset >= 2})
++warmup_steps = [step for step in warmup_steps if step <= training_schedule.total_steps]
+ print0(f"Sampling steps {warmup_steps} for warmup", console=True)
+ for step in warmup_steps:
+     training_manager.advance_schedule(step)
+@@ -2299,11 +2556,13 @@
+ del val_loader, train_loader, initial_state
+ model.quantize_mlp_fp8(bootstrap_down=True)
+ model.train()
++compile_warmup_time_ms = 1000 * (time.perf_counter() - compile_warmup_t0)
++print0(f"compile_warmup_time_ms:{compile_warmup_time_ms:.0f}", console=True)
+ 
+ ########################################
+ #        Training and validation       #
+ ########################################
+-train_loader = distributed_data_generator(args.train_files, TRAINING_STAGES[0].batch_size, TRAINING_STAGES[0].train_max_seq_len, grad_accum_steps=grad_accum_steps)
++train_loader = make_data_generator(args.train_files, TRAINING_STAGES[0].batch_size, TRAINING_STAGES[0].train_max_seq_len, grad_accum_steps=grad_accum_steps)
+ 
+ gc.collect()
+ 
+@@ -2317,6 +2576,7 @@
+ model.prefix_table.copy_(build_prefix_table(model.vocab_size))
+ # begin training
+ train_steps = training_schedule.total_steps
++timed_stop_ms = _env_int("ATTN_TIMED_SECONDS", 0) * 1000
+ for step in range(train_steps + 1):
+     last_step = (step == train_steps)
+     training_manager.advance_schedule(step)
+@@ -2328,9 +2588,10 @@
+         torch.cuda.synchronize()
+         training_time_ms += 1000 * (time.perf_counter() - t0)
+         model.eval()
++        eval_t0 = time.perf_counter()
+         assert args.val_tokens % args.val_batch_size == 0
+         val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
+-        val_loader = distributed_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
++        val_loader = make_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
+         val_loss = 0
+         with torch.no_grad():
+             for _ in range(val_steps):
+@@ -2339,6 +2600,9 @@
+         val_loss /= val_steps
+         del val_loader
+         dist.reduce(val_loss, 0, op=dist.ReduceOp.AVG)
++        torch.cuda.synchronize()
++        eval_time_ms = 1000 * (time.perf_counter() - eval_t0)
++        print0(f"eval_time_ms:{eval_time_ms:.0f} step:{step}", console=True)
+         print0(f"step:{step}/{train_steps} val_loss:{val_loss:.4f} train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms/max(step, 1):.2f}ms", console=True)
+         model.train()
+         # start the clock again
+@@ -2367,6 +2631,81 @@
+     # logging
+     approx_training_time_ms = training_time_ms + 1000 * (time.perf_counter() - t0)
+     print0(f"step:{step+1}/{train_steps} train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms/(step + 1):.2f}ms", console=True)
++    if timed_stop_ms > 0 and approx_training_time_ms >= timed_stop_ms:
++        torch.cuda.synchronize()
++        training_time_ms = approx_training_time_ms
++        model.eval()
++        eval_t0 = time.perf_counter()
++        assert args.val_tokens % args.val_batch_size == 0
++        val_steps = grad_accum_steps * args.val_tokens // args.val_batch_size
++        val_loader = make_data_generator(args.val_files, args.val_batch_size, -1, grad_accum_steps=grad_accum_steps, align_to_bos=False)
++        val_loss = 0
++        with torch.no_grad():
++            for _ in range(val_steps):
++                inputs, targets, cum_seqlens, bigram_inputs, _ = next(val_loader)
++                val_loss += model(inputs, targets, cum_seqlens, bigram_inputs, training_manager.get_forward_args()).mean()
++        val_loss /= val_steps
++        del val_loader
++        dist.reduce(val_loss, 0, op=dist.ReduceOp.AVG)
++        torch.cuda.synchronize()
++        eval_time_ms = 1000 * (time.perf_counter() - eval_t0)
++        print0(f"eval_time_ms:{eval_time_ms:.0f} step:{step+1}", console=True)
++        print0(f"step:{step+1}/{step+1} val_loss:{val_loss:.4f} train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms/(step + 1):.2f}ms", console=True)
++        break
++
++if args.recall_eval:
++    model.eval()
++
++    def recall_logits_fn(input_ids: Tensor):
++        input_ids = input_ids.to(dtype=torch.int32)
++        targets = torch.zeros_like(input_ids, dtype=torch.int64)
++        seqlens = torch.full((128,), input_ids.numel(), dtype=torch.int32)
++        seqlens[0] = 0
++        seqlens[1] = input_ids.numel()
++        bigram_inputs = get_bigram_hash(input_ids)
++        previous_val_batch_size = args.val_batch_size
++        args.val_batch_size = max(
++            args.val_batch_size,
++            input_ids.numel() * grad_accum_steps * world_size,
++        )
++        try:
++            with torch.no_grad():
++                logits = model(
++                    input_ids.to(device="cuda", non_blocking=True),
++                    targets.to(device="cuda", non_blocking=True),
++                    seqlens.to(device="cuda", non_blocking=True),
++                    bigram_inputs.to(device="cuda", non_blocking=True),
++                    training_manager.get_forward_args(),
++                    return_logits=True,
++                )
++        finally:
++            args.val_batch_size = previous_val_batch_size
++        return logits[0].float().cpu()
++
++    recall_distances = [
++        int(distance)
++        for distance in args.recall_distances.split(",")
++        if distance.strip()
++    ]
++    recall_results = evaluate_recall_distances(
++        logits_fn=recall_logits_fn,
++        distances=recall_distances,
++        samples_per_distance=args.recall_samples_per_distance,
++        vocab_size=model.vocab_size,
++        seed=args.recall_seed,
++    )
++    recall_payload = {
++        "distances": [
++            {
++                "distance": result.distance,
++                "correct": result.correct,
++                "total": result.total,
++                "accuracy": result.accuracy,
++            }
++            for result in recall_results
++        ]
++    }
++    print0(f"recall_probe:{json.dumps(recall_payload, sort_keys=True)}", console=True)
+ 
+ if args.run_evals:
+     model.eval()
+--- a/triton_kernels.py
++++ b/triton_kernels.py
+@@ -1,3 +1,5 @@
++import os
++
+ import torch
+ import triton
+ import triton.language as tl
+@@ -1173,7 +1175,7 @@
+ ce_fwd_bwd_kernel = torch.cuda._compile_kernel(
+     CE_KERNEL_DECLS + CE_KERNEL_SOURCE,
+     "ce_fwd_bwd_kernel",
+-    compute_capability="90",
++    compute_capability=os.environ.get("ATTN_CE_COMPUTE_CAPABILITY", "90"),
+     cuda_include_dirs=["/usr/local/cuda/include/"],
+     nvcc_options=["-lineinfo", "--use_fast_math"],
+ )
