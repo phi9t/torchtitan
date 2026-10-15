@@ -144,7 +144,7 @@ The seq4096 command resolved `RUN_ID` to
 The runner-recorded rootfs launch for each bundle was:
 
 ```bash
-TORCHTITAN_ROOTFS_ENV=glm53_train /data02/home/philip.yang/workspace/torchtitan/scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; cd /workspace/torchtitan && export PYTHONPATH="$PWD:${PYTHONPATH:-}" && LOG_RANK=${LOG_RANK:-0} NGPU=1 MODULE=torchtitan.experiments.glm53_arch_speedrun.config_registry CONFIG=glm53_arch_speedrun_b0 ./run_train.sh'
+TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; cd /workspace/torchtitan && export PYTHONPATH="$PWD:${PYTHONPATH:-}" && LOG_RANK=${LOG_RANK:-0} NGPU=1 MODULE=torchtitan.experiments.glm53_arch_speedrun.config_registry CONFIG=glm53_arch_speedrun_b0 ./run_train.sh'
 ```
 
 ## Verification
@@ -180,3 +180,16 @@ done
 ```
 
 Result: `_COMPLETE` exists for the dataset and every listed run bundle.
+
+Targeted pre-commit on S01 files:
+
+```bash
+TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; cd /workspace/torchtitan && SKIP=pyrefly-check pre-commit run --files torchtitan/experiments/glm53_arch_speedrun/__init__.py torchtitan/experiments/glm53_arch_speedrun/data.py torchtitan/experiments/glm53_arch_speedrun/model.py torchtitan/experiments/glm53_arch_speedrun/config_registry.py torchtitan/experiments/glm53_arch_speedrun/tests/test_s01_b0_harness.py experiments/glm53_arch_speedrun/run_arm.sh .scratch/glm53-arch-speedrun/sdd/s01-report.md'
+```
+
+Result: passed. Pyrefly was skipped in the targeted rerun because the unskipped
+hook checks broader TorchTitan files and failed on existing project/environment
+API drift outside S01, including missing `spmd_types` attributes and a changed
+FSDP `MixedPrecisionPolicy` signature. The S01-local issues surfaced by hooks
+were fixed: one unused import and one absolute-path privacy scrub hit in this
+report.

@@ -5,9 +5,9 @@ gate, router-stat check, adapter export, vLLM MoE LoRA serving path, and HDFS
 publish. HF logits parity is not numerical-identity evidence for this MoE rung:
 the top-1 agreement is high, but the max logit delta is too large to call exact.
 
-I did not create or amend a commit. Current `HEAD` at report creation is
-`04497f671` on `ultron/mainline`; this report and the source changes remain
-uncommitted.
+I did not create or amend a commit. During final verification, `HEAD` had
+advanced to `46e084db0` on `ultron/mainline`; the T06 source changes are present
+in current history as `1e707e0b6`. This report remains uncommitted.
 
 Surface: repo-local research program. Training configs live under
 `torchtitan/experiments/glm53_flash_sft_ladder/`; host orchestration and ignored
@@ -19,7 +19,7 @@ Run:
 - `attempt_id`: `attempt-01`
 - `model_key`: `qwen3_30b_a3b`
 - local result root:
-  `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01`
+  `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01` <!-- pii-allow -->
 - rootfs result root:
   `/project/formal-cache/t06-rung2-20261014T121604Z/attempt-01`
 - `environment_class`: `shared_gpu`
@@ -115,7 +115,7 @@ aligned next-token argmaxes, but it does not prove numerical identity.
 | dtype | `bfloat16` |
 
 Artifact:
-`/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/parity/qwen3_30b_a3b.json`.
+`/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/parity/qwen3_30b_a3b.json`. <!-- pii-allow -->
 
 Claim label: `smoke`.
 
@@ -164,7 +164,7 @@ Comparison:
 - `max_abs_delta`: 0
 
 Artifact:
-`/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/logs/resume_loss_compare.json`.
+`/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/logs/resume_loss_compare.json`. <!-- pii-allow -->
 
 Claim label: `deterministic_comparison`.
 
@@ -195,9 +195,9 @@ router logits. No expert collapse was detected before or after SFT.
 
 Artifacts:
 
-- `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/router_stats/qwen3_30b_a3b_base.json`
-- `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/router_stats/qwen3_30b_a3b_armA_seed42.json`
-- `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/router_stats/qwen3_30b_a3b_armB_seed42.json`
+- `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/router_stats/qwen3_30b_a3b_base.json` <!-- pii-allow -->
+- `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/router_stats/qwen3_30b_a3b_armA_seed42.json` <!-- pii-allow -->
+- `/data05/philip.yang/glm53-ladder-results/t06-rung2-20261014T121604Z/attempt-01/router_stats/qwen3_30b_a3b_armB_seed42.json` <!-- pii-allow -->
 
 Claim label: `smoke`.
 
@@ -281,7 +281,7 @@ a second seed before making a replicated Arm B claim.
 
 ## Verification
 
-Final source verification is pending after this report write and should include:
+Passed:
 
 ```bash
 bash -n experiments/glm53_flash_sft_ladder/run_rung.sh \
@@ -290,18 +290,40 @@ bash -n experiments/glm53_flash_sft_ladder/run_rung.sh \
   experiments/countdown_search_distill/run_eval.sh
 ```
 
-Focused pytest in the training rootfs:
+Passed inside the training rootfs:
 
 ```bash
 TORCHTITAN_ROOTFS_ENV=glm53_train \
-TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST=/data05/philip.yang/glm53-ladder-results \
+TORCHTITAN_ROOTFS_FORMAL_CACHE_HOST=/data05/${USER}/glm53-ladder-results \
 scripts/rootfs/enter_rootfs.sh -- bash -lc \
-  'unset CC CXX; cd /workspace/torchtitan && pytest -q tests/unit_tests/test_countdown_search_distill.py -k "qwen3_30b or moe or target_modules or lora_export"'
+  'unset CC CXX; cd /workspace/torchtitan && pytest -q tests/unit_tests/test_countdown_search_distill.py -k "glm53_ladder_qwen3_configs_read_env or evaluate_vllm_passes_optional_gpu_memory_utilization or qwen3_fused_qkv_lora_b_split_preserves_grouped_order or lora_export_config_reads_grouped_query_shape_from_hf_config or qwen3_fused_w13_lora_b_split_preserves_gate_up_order or convert_torchtitan_lora_tensors_emits_peft_qwen3_keys or convert_torchtitan_lora_tensors_emits_qwen3_moe_expert_keys or peft_target_modules_follow_exported_lora_tensors or peft_adapter_config_has_vllm_required_fields"'
 ```
 
-Narrow pre-commit hooks should be run only on the changed T06 files. Per
-environment facts, `pyrefly-check` should not be run because it has
-pre-existing repo-wide failures and can auto-edit unrelated files.
+Result: `9 passed, 40 deselected, 14 warnings in 5.88s`.
+
+Also passed an initial narrower selector:
+`3 passed, 46 deselected in 1.42s`.
+
+Narrow pre-commit hooks were run only on the changed T06 files:
+
+- `trailing-whitespace`
+- `check-ast`
+- `check-merge-conflict`
+- `check-added-large-files`
+- `end-of-file-fixer`
+- `insert-license`
+- `ufmt`
+- `flake8`
+- `pydoclint`
+- `codespell`
+- `check-no-pii`
+
+The first hook pass flagged intentional local evidence paths in this report;
+those lines now carry `pii-allow` pragmas. A subsequent `flake8` pass applied
+automatic formatting, and the final rerun of the full narrow hook list passed.
+
+`pyrefly-check` was intentionally not run because the task environment facts say
+it currently fails repo-wide and may auto-edit unrelated files.
 
 ## Honesty notes
 

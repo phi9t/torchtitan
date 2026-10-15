@@ -8,9 +8,9 @@ Phase A is complete. I built the ablation queue, documented the 4c fractional-fa
 added the host-only opportunistic scheduler, and added a rootfs analysis helper for completed slices.
 
 Phase C was not run. Phase B did not have green gates: `.scratch/glm53-arch-speedrun/sdd/s01-report.md` was still
-missing, and `.scratch/glm53-arch-speedrun/sdd/s02-report.md` reported the overfit/throughput gate as blocked because
-the S01 harness, runner, baseline model, config registry, and data metadata were not present. Per the S03 brief, the
-matrix must not run on a red or incomplete harness.
+missing, and `.scratch/glm53-arch-speedrun/sdd/s02-report.md` reported the overfit/throughput gate as blocked on S01
+arm integration (`S01 runner supports B0 only; got A1`). Per the S03 brief, the matrix must not run on a red or
+incomplete harness.
 
 ## Files
 
@@ -107,7 +107,7 @@ and the second pending cell launched. No real HDFS publish or real training job 
 At report time:
 
 - S01 report: missing.
-- S02 report: present but not green; it says the overfit/throughput gate is `BLOCKED: missing S01 harness`.
+- S02 report: present but not green; it says the overfit/throughput gate is `BLOCKED on S01 arm integration`.
 - S01/S02 worker processes were still alive.
 
 Because the harness gates were not green, I did not run any 4a, 4b, 4c, 4d, or C1 matrix cells.

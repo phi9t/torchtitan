@@ -26,8 +26,14 @@ Accepted evidence artifacts:
 
 - `.scratch/glm53-flash-sft-ladder/evidence/task-08c/bf16-truth-compare.json`
 - `.scratch/glm53-flash-sft-ladder/evidence/task-08c/bf16-truth-compare.stdout.json`
-- `.scratch/glm53-flash-sft-ladder/evidence/task-08c/fp32-truth-tensors.pt`
 - `.scratch/glm53-flash-sft-ladder/evidence/task-08c/stream-smoke-layer20.json`
+- `.scratch/glm53-flash-sft-ladder/evidence/task-08c/LARGE_FILES.md`
+
+Large tensor dumps were moved out of the repo scratch tree and are pointed to by
+`LARGE_FILES.md`:
+
+- `/data05/philip.yang/glm53-ladder-cache/evidence-large/task-08c/fp32-truth-tensors.pt`
+- `/data05/philip.yang/glm53-ladder-cache/evidence-large/task-08c/stream-smoke-layer20-truth.pt`
 
 Command shape:
 
@@ -123,6 +129,29 @@ TT-fp32 vs HF-fp32 truth: min top-1 1.0, max final abs 3.814697265625e-06
 TT-bf16 vs HF-fp32 truth: min top-1 0.34210526943206787, max KL 0.2543221712112427
 HF-bf16 vs HF-fp32 truth: min top-1 0.3552631437778473, max KL 0.2557189464569092
 accepted-run max RSS 112.34434509277344 GiB
+```
+
+Passed scoped hooks on the new diagnostic files and this report:
+
+```text
+ufmt
+flake8
+pydoclint
+codespell
+trailing-whitespace
+end-of-file-fixer
+check-ast
+check-merge-conflict
+```
+
+The first offline pre-commit attempt could not fetch hook environments from
+GitHub. The passing run used the documented `TORCHTITAN_ROOTFS_NETWORK=networked`
+rootfs mode and was scoped to:
+
+```text
+torchtitan/experiments/glm53_flash_bf16_diag/__init__.py
+torchtitan/experiments/glm53_flash_bf16_diag/bf16_truth_diag.py
+.scratch/glm53-flash-sft-ladder/sdd/task-08c-report.md
 ```
 
 Full `pre-commit run --all-files` was not run; the repo environment notes say

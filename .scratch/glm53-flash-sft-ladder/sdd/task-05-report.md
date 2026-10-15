@@ -1,6 +1,9 @@
 # T05 report: rung 1 Qwen3 8B Countdown LoRA SFT
 
-Status: PASS. No commit was made.
+Status: PASS. I did not create or amend a commit during finalization. Current
+`HEAD` at handoff is `5eccb1492 Add rung-1 Qwen3 8B to the Countdown LoRA
+ladder`, which already contains the T05 source changes; this report remains
+uncommitted.
 
 Surface: repo-local research program. Training configs live under
 `torchtitan/experiments/glm53_flash_sft_ladder/`; host orchestration and
@@ -243,7 +246,25 @@ TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc \
   'unset CC CXX; cd /workspace/torchtitan && pytest -q tests/unit_tests/test_countdown_search_distill.py -k "glm53_ladder_qwen3_configs_read_env or qwen3_fused_qkv_lora_b_split_preserves_grouped_order or lora_export_config_reads_grouped_query_shape_from_hf_config or convert_torchtitan_lora_tensors_emits_peft_qwen3_keys"'
 ```
 
-Result: `4 passed, 43 deselected, 14 warnings in 5.65s`.
+Result after the final formatting pass: `4 passed, 43 deselected, 14 warnings
+in 5.96s`.
+
+Passed inside rootfs, by explicit hook id on changed T05 files:
+
+- `trailing-whitespace`
+- `check-ast`
+- `check-merge-conflict`
+- `check-added-large-files`
+- `end-of-file-fixer`
+- `insert-license`
+- `ufmt`
+- `flake8`
+- `pydoclint`
+- `codespell`
+- `check-no-pii`
+
+`pyrefly-check` was intentionally not run because the task environment facts say
+it currently fails repo-wide and may auto-edit unrelated files.
 
 HDFS completion check passed for adapters, eval, logs, bundle, and the resume
 checkpoint.
@@ -260,4 +281,6 @@ checkpoint.
   export. Those local checkpoint payloads were intentionally deleted after
   publish.
 - No core trainer or model code was changed.
-- No commit was made.
+- I did not create or amend a commit during finalization. Current `HEAD` already
+  contains the T05 source changes as `5eccb1492 Add rung-1 Qwen3 8B to the
+  Countdown LoRA ladder`; this report remains uncommitted.

@@ -41,6 +41,15 @@ TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'un
 
 Result: 13 passed in 5.03s.
 
+After S01 landed, I also ran the combined seam check:
+
+```bash
+TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; cd /workspace/torchtitan && export PYTHONPATH="$PWD:${PYTHONPATH:-}" && pytest -q torchtitan/experiments/glm53_arch_speedrun/tests/test_s01_b0_harness.py torchtitan/experiments/glm53_arch_speedrun/elements/tests/test_elements.py -vv'
+```
+
+Result: 18 passed, 14 warnings in 8.54s. The warnings are torch.jit
+deprecation warnings from the installed stack.
+
 | Gate | Seq lens | Result |
 |---|---:|---|
 | mHC identity init == plain residual, fwd+bwd finite | 1024, 4096 | PASS |
@@ -72,22 +81,24 @@ Results:
 
 ## Overfit and throughput gate
 
-Status: BLOCKED on S01 baseline/harness, not executed.
+Status: BLOCKED on S01 arm integration, not executed.
 
-At report time, `torchtitan/experiments/glm53_arch_speedrun/` contains only the
-S02-owned `elements/` package. The S01-owned files named in the brief are not
-present yet:
+S01 landed while this ticket was in progress, and its B0-focused tests pass
+together with the S02 element tests. The per-arm overfit/throughput matrix is
+still blocked because the landed S01 seam is B0-only:
 
-- `torchtitan/experiments/glm53_arch_speedrun/model.py`
-- `torchtitan/experiments/glm53_arch_speedrun/config_registry.py`
-- `experiments/glm53_arch_speedrun/run_arm.sh`
-- local/HDFS FineWeb staging metadata
+- `experiments/glm53_arch_speedrun/run_arm.sh A1` exits with
+  `S01 runner supports B0 only; got A1` and status 2.
+- `SpeedrunResidualBlock` raises `NotImplementedError` for mHC, KDA/sparse
+  attention, and MTP rather than calling the S02 factories.
+- `config_registry._speedrun_model_config()` constructs `b0_elements_config()`
+  and does not yet apply queue or environment arm overrides to
+  `model.elements.*`.
 
-Because the B0 TorchTitan model, config registry, optimizer partition, runner,
-and small-bank overfit command do not exist yet, I did not fabricate CE curves,
-tokens/s, or memory measurements. Current GPU state from `nvidia-smi` shows
-GPUs 2, 3, 6, and 7 nearly full, and GPUs 0, 1, 4, 5 with about 44 GiB used, so
-any future timing should be labelled `shared_gpu`.
+Because the arm model path and runner are not wired, I did not fabricate CE
+curves, tokens/s, or memory measurements. Current GPU state from `nvidia-smi`
+shows GPUs 2, 3, 6, and 7 nearly full, and GPUs 0, 1, 4, 5 with about 44 GiB
+used, so any future timing should be labelled `shared_gpu`.
 
 | Arm | CE collapse | lr=0 flat | arms diverge | seq1024 tokens/s | seq4096 tokens/s | memory |
 |---|---|---|---|---:|---:|---:|
@@ -113,7 +124,9 @@ any future timing should be labelled `shared_gpu`.
 - `kda_chunked_reference()` implements the GLM chunk transform in Python/Torch
   for correctness tests. It is not the intended training-speed kernel. The S01
   model should call into Attention Gym/FLa KDA when running the matrix.
-- S01 integration should expose an element config field or factory call per
-  block: `build_attention(layer_idx, elements_cfg)`, `maybe_wrap_mhc(branch,
-  elements_cfg)`, and `maybe_build_mtp(elements_cfg)`.
+- S01 integration should route each block through the element factories:
+  `build_attention(layer_idx, elements_cfg)`, `maybe_wrap_mhc(branch,
+  elements_cfg)`, and `maybe_build_mtp(elements_cfg)`. The runner/config path
+  should also translate arm names and queue `model.elements.*` overrides into a
+  composed `SpeedrunElementsConfig`.
 

@@ -35,7 +35,7 @@ the commit window `git log --oneline 96760e290^..HEAD`.
 
 ## Verification
 
-Run after writing:
+Executed after writing; all checks passed:
 
 ```bash
 ! LC_ALL=C rg -n "[^\\x00-\\x7F]" \
@@ -53,4 +53,11 @@ git diff --check -- \
   docs/research/2026-10-14-glm-5.3-flash-sft-ladder.md \
   .scratch/glm53-flash-sft-ladder/sdd/task-10-report.md
 ```
+
+Results:
+
+- ASCII check found no non-ASCII characters.
+- Required TODO placeholders were present.
+- Required section headers were present.
+- `git diff --check` reported no whitespace errors.
 

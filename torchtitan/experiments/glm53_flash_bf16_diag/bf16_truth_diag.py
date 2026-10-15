@@ -148,7 +148,9 @@ def _clone_sample_to_device(
 
 
 @torch.no_grad()
-def _run_tt_sample(model, sample: dict[str, Any], device: torch.device) -> dict[str, Any]:
+def _run_tt_sample(
+    model, sample: dict[str, Any], device: torch.device
+) -> dict[str, Any]:
     input_ids, attention_mask = _clone_sample_to_device(sample, device)
     hidden_BLD = model.tok_embeddings(input_ids)
     streams_BLND = (
@@ -159,9 +161,9 @@ def _run_tt_sample(model, sample: dict[str, Any], device: torch.device) -> dict[
     streams_BLND, traces = hf_parity._tt_step(model, streams_BLND, attention_mask)
     final_hidden_BLD = model.norm(streams_BLND.mean(dim=2))
     valid_flat_T = attention_mask.reshape(-1)
-    logits_TV = model.lm_head(
-        final_hidden_BLD.reshape(-1, final_hidden_BLD.shape[-1])
-    )[valid_flat_T]
+    logits_TV = model.lm_head(final_hidden_BLD.reshape(-1, final_hidden_BLD.shape[-1]))[
+        valid_flat_T
+    ]
     return {
         "attention_mask": attention_mask.detach().cpu(),
         "hidden": [trace["hidden"].detach().cpu().float() for trace in traces],
@@ -246,8 +248,10 @@ def _run_hf_one_layer_sample(
         "hidden": streams_BLND.detach().cpu(),
         "topk": capture.get("topk"),
     }
-    return streams_BLND.detach().cpu(), trace, (
-        prev_topk.detach().cpu() if prev_topk is not None else None
+    return (
+        streams_BLND.detach().cpu(),
+        trace,
+        (prev_topk.detach().cpu() if prev_topk is not None else None),
     )
 
 
@@ -773,9 +777,7 @@ def _compare_candidate(
             dtype=dtype,
         )
         memory.append(_memory_snapshot("after_hf_bf16_build"))
-        outputs = [
-            _run_hf_sample(model, lm_head, sample, device) for sample in samples
-        ]
+        outputs = [_run_hf_sample(model, lm_head, sample, device) for sample in samples]
         del model, lm_head
     else:
         raise ValueError(f"unknown candidate {candidate_name!r}")

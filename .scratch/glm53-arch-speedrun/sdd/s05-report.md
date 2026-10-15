@@ -174,13 +174,23 @@ Passed:
 TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; cd /workspace/torchtitan && export PYTHONPATH="$PWD:${PYTHONPATH:-}" && pytest -q torchtitan/experiments/glm53_arch_speedrun/tests/test_s01_b0_harness.py torchtitan/experiments/glm53_arch_speedrun/elements/tests/test_elements.py -vv'
 ```
 
-Result: 28 passed, 14 warnings in 15.05s.
+Result: 28 passed, 14 warnings in 16.09s.
 
 Passed:
 
 ```bash
 bash -n experiments/glm53_arch_speedrun/run_arm.sh experiments/glm53_arch_speedrun/scheduler.sh
 ```
+
+Passed:
+
+```bash
+TORCHTITAN_ROOTFS_ENV=glm53_train scripts/rootfs/enter_rootfs.sh -- bash -lc 'unset CC CXX; cd /workspace/torchtitan && export SKIP=no-commit-to-branch,pyrefly-check && pre-commit run --files <S05-scoped files>'
+```
+
+Notes: `no-commit-to-branch` was skipped because this is not a commit attempt;
+`pyrefly-check` was skipped because it is configured as a whole-repo type check,
+not a changed-file lint hook.
 
 Queue summary check:
 

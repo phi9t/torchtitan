@@ -28,6 +28,11 @@ from torchtitan.experiments.glm53_flash_4gpu_stream.config_registry import (
     glm53_flash_countdown_lora_truncated_plain,
     glm53_flash_countdown_lora_truncated_stream,
 )
+from torchtitan.experiments.glm53_flash_4gpu_stream.grad_probe import (
+    compare_probe_dirs,
+    max_abs_delta,
+    summarize_tensor,
+)
 from torchtitan.experiments.glm53_flash_4gpu_stream.model import (
     StreamGlm53FlashForCausalLM,
 )
@@ -174,3 +179,71 @@ def test_streaming_h2d_estimate_tracks_microbatch_tuning():
     assert lb4.h2d_bandwidth_gib_per_second(10.0) == pytest.approx(
         lb4.h2d_gib_per_optimizer_step / 10.0
     )
+
+
+def test_grad_probe_tensor_summary_and_delta():
+    tensor = torch.tensor([[1.0, -2.0], [0.0, 3.0]])
+
+    summary = summarize_tensor(tensor)
+
+    assert summary["present"]
+    assert summary["shape"] == [2, 2]
+    assert summary["numel"] == 4
+    assert summary["max_abs"] == 3.0
+    assert summary["nonzero"] == 3
+    assert max_abs_delta(tensor, tensor + 0.25) == pytest.approx(0.25)
+    assert max_abs_delta(None, None) == 0.0
+    assert max_abs_delta(tensor, None) is None
+
+
+def test_grad_probe_comparison_reports_per_parameter_deltas(tmp_path):
+    plain_dir = tmp_path / "plain"
+    stream_dir = tmp_path / "stream"
+    plain_dir.mkdir()
+    stream_dir.mkdir()
+    plain_snapshot = {
+        "rank": 0,
+        "all_parameter_grad_norm": 2.0,
+        "optimizer_parameter_grad_norm": 2.0,
+        "lora": {
+            "layers.0.self_attn.q_proj.lora_a": {
+                "parameter": torch.tensor([1.0, 2.0]),
+                "gradient": torch.tensor([0.5, 1.5]),
+            },
+            "layers.0.self_attn.q_proj.lora_b": {
+                "parameter": torch.tensor([0.0, 0.0]),
+                "gradient": None,
+            },
+        },
+    }
+    stream_snapshot = {
+        "rank": 0,
+        "all_parameter_grad_norm": 3.0,
+        "optimizer_parameter_grad_norm": 3.0,
+        "lora": {
+            "layers.0.self_attn.q_proj.lora_a": {
+                "parameter": torch.tensor([1.0, 3.0]),
+                "gradient": torch.tensor([0.5, 2.0]),
+            },
+            "layers.0.self_attn.q_proj.lora_b": {
+                "parameter": torch.tensor([0.0, 0.0]),
+                "gradient": None,
+            },
+        },
+    }
+    torch.save(plain_snapshot, plain_dir / "rank_0.pt")
+    torch.save(stream_snapshot, stream_dir / "rank_0.pt")
+
+    comparison = compare_probe_dirs(plain_dir, stream_dir)
+
+    assert comparison["num_parameters"] == 2
+    assert comparison["num_differing_parameters"] == 1
+    assert comparison["max_abs_parameter_delta"] == 1.0
+    assert comparison["max_abs_gradient_delta"] == 0.5
+    row = next(
+        row
+        for row in comparison["parameters"]
+        if row["name"] == "layers.0.self_attn.q_proj.lora_a"
+    )
+    assert row["parameter_delta_rank"] == 0
+    assert row["gradient_delta_rank"] == 0

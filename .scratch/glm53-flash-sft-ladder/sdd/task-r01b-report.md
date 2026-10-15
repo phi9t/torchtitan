@@ -146,6 +146,19 @@ This debug train uses `Glm53SyntheticDataLoader` and
 `Glm53PretokenizedTokenizer`, so it has no real dataset/checkpoint input and no
 HDFS input requirement.
 
+Focused final checks:
+
+```text
+bash -n experiments/glm53_flash_sft_ladder/runtime/sync_python_env.sh
+compile() check for verify_runtime.py and env_probe.py inside glm53_ep rootfs
+
+.scratch/glm53-flash-sft-ladder/evidence/r01b/precommit_focused.log
+flake8 passed
+ufmt passed
+pydoclint passed
+codespell passed
+```
+
 Freeze comparison:
 
 ```text
