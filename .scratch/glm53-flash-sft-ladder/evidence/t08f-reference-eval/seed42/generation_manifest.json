@@ -1,0 +1,27 @@
+{
+  "adapter": "/workspace/torchtitan/experiments/glm53_flash_sft_ladder/results/t08f-20261014T213158Z/attempt-01/adapters/seed42",
+  "adapter_merge": {
+    "adapter_deltas": 453,
+    "merged": 453
+  },
+  "batch_size": 25,
+  "checkpoint": "/project/formal-cache/model-weights/zai-org/GLM-5.3-Flash-BF16",
+  "condition": "adapter",
+  "decode_postprocess": "skip_special_tokens plus GLM control tag trim",
+  "eos_ids": [
+    154820,
+    154827,
+    154829
+  ],
+  "generate_seconds": 195.9,
+  "generator": "reference_eval (plain model, layer-sliced, no KV cache)",
+  "load_seconds": 225.3,
+  "max_new_tokens": 192,
+  "model_id": "seed42",
+  "num_problems": 100,
+  "num_samples": 1,
+  "problems": "/project/formal-cache/datasets/countdown-sft/v1/dev/problems.jsonl",
+  "seed": 804,
+  "temperature": 0.0,
+  "top_p": 1.0
+}

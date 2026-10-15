@@ -82,3 +82,10 @@
   TT chat prompt == HF chat prompt. Fix in generate.py (reset _skip_lm_head, assert vocab width). Invalid outputs kept in
   attempt-01/eval_invalid_skip_lm_head/. Eval gate relaunched 04:39Z (base -> seed42 -> seed43, ~3 h/leg, no KV cache).
   Note: base emits long "Reasoning Effort: Max" reasoning, so base pass@1 at max_new_tokens=192 is format-limited.
+- ~16:10Z (10-15) T08f REFERENCE EVAL GATE GREEN (`torchtitan/experiments/glm53_flash/reference_eval.py`: plain TT model,
+  8-GPU layer slices, HF safetensors, PEFT LoRA merged W += 4 * B@A in fp32, no KV cache, HF chat template). Countdown
+  dev, 100 problems, greedy, max_new_tokens 192: base pass@1 0.38, seed42 0.84, seed43 0.87 (453/453 adapter deltas
+  merged per leg). Both seeds beat base by >= 46 points. Base generate 2602 s vs ~200-280 s for adapters (base writes long
+  reasoning and hits the 192-token cap: format-limited, caveat for the report). Compact evidence:
+  `evidence/t08f-reference-eval/`. Next: EP-path eval agreement check with the fixed generator, then T08f close-out
+  (HDFS publish + MD5, report, ladder doc).

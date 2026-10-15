@@ -1,0 +1,102 @@
+{
+  "bootstrap_pass_at_k": {
+    "1": {
+      "ci_high": 0.49,
+      "ci_low": 0.28,
+      "mean": 0.376
+    },
+    "16": {
+      "ci_high": 0.49,
+      "ci_low": 0.28,
+      "mean": 0.376
+    },
+    "2": {
+      "ci_high": 0.49,
+      "ci_low": 0.28,
+      "mean": 0.376
+    },
+    "32": {
+      "ci_high": 0.49,
+      "ci_low": 0.28,
+      "mean": 0.376
+    },
+    "4": {
+      "ci_high": 0.49,
+      "ci_low": 0.28,
+      "mean": 0.376
+    },
+    "8": {
+      "ci_high": 0.49,
+      "ci_low": 0.28,
+      "mean": 0.376
+    }
+  },
+  "bucket_counts": {
+    "easy": 38,
+    "elicitable": 0,
+    "unreached": 62
+  },
+  "bucketed_pass_at_k": {
+    "easy": {
+      "1": 1.0,
+      "16": 1.0,
+      "2": 1.0,
+      "32": 1.0,
+      "4": 1.0,
+      "8": 1.0
+    },
+    "elicitable": {
+      "1": 0.0,
+      "16": 0.0,
+      "2": 0.0,
+      "32": 0.0,
+      "4": 0.0,
+      "8": 0.0
+    },
+    "unreached": {
+      "1": 0.0,
+      "16": 0.0,
+      "2": 0.0,
+      "32": 0.0,
+      "4": 0.0,
+      "8": 0.0
+    }
+  },
+  "format_breakdown": {
+    "failure_missing_strict_final": 55,
+    "failure_with_strict_final": 7,
+    "success_missing_strict_final": 4,
+    "success_with_strict_final": 34
+  },
+  "length_stats": {
+    "max": 143.0,
+    "mean": 119.86,
+    "min": 71.0
+  },
+  "num_problems": 100,
+  "pass_at_k": {
+    "1": 0.38,
+    "16": 0.38,
+    "2": 0.38,
+    "32": 0.38,
+    "4": 0.38,
+    "8": 0.38
+  },
+  "solution_diversity": {
+    "mean_unique_success_ratio": 1.0
+  },
+  "strict_format_pass_at_k": {
+    "1": 0.34,
+    "16": 0.34,
+    "2": 0.34,
+    "32": 0.34,
+    "4": 0.34,
+    "8": 0.34
+  },
+  "validity_breakdown": {
+    "missing_final": 54,
+    "success": 38,
+    "unavailable_operand": 5,
+    "unused_numbers": 3
+  }
+}
