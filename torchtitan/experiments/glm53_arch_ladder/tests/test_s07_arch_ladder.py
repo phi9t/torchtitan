@@ -16,6 +16,7 @@ from torchtitan.components.optim import AdamW, DistMuon
 from torchtitan.experiments.falcon.bin_reader import write_nanogpt_bin
 from torchtitan.experiments.glm53_arch_ladder.config_registry import (
     glm53_arch_ladder_l1_qwen3_dense,
+    glm53_arch_ladder_l2_qwen3_moe,
     glm53_arch_ladder_l4_glm53_flash,
 )
 from torchtitan.experiments.glm53_arch_ladder.data import (
@@ -142,6 +143,38 @@ def test_muon_adamw_partition_covers_each_rung_once():
             assert isinstance(optim_config.optimizers[0], DistMuon.Config)
             assert isinstance(optim_config.optimizers[1], AdamW.Config)
             assert set(optim_config.optimizers[0].compute_sharding_by_fqn) == muon_names
+
+
+def test_l2_qwen3_moe_uses_muon_for_router_and_routed_experts(monkeypatch):
+    monkeypatch.setenv("GLM53_ARCH_LADDER_SEQ_LEN", "128")
+    monkeypatch.setenv("GLM53_ARCH_LADDER_LOCAL_BATCH_SIZE", "1")
+    monkeypatch.setenv("GLM53_ARCH_LADDER_TOKENS_PER_STEP", "128")
+    monkeypatch.setenv("GLM53_ARCH_LADDER_TOKEN_BUDGET", "128")
+    monkeypatch.setenv("GLM53_ARCH_LADDER_VAL_TOKENS", "128")
+    monkeypatch.setenv("GLM53_ARCH_LADDER_TENSORBOARD", "0")
+    monkeypatch.setenv("GLM53_ARCH_LADDER_GPU_MEMORY_CAP_GIB", "0")
+    with torch.device("meta"):
+        config = glm53_arch_ladder_l2_qwen3_moe()
+        muon_config = next(
+            optimizer
+            for optimizer in config.optim.optimizer.optimizers
+            if isinstance(optimizer, DistMuon.Config)
+        )
+        adamw_config = next(
+            optimizer
+            for optimizer in config.optim.optimizer.optimizers
+            if isinstance(optimizer, AdamW.Config)
+        )
+
+    assert "layers.0.moe.router.gate.weight" in muon_config.compute_sharding_by_fqn
+    assert "layers.0.moe.routed_experts.w13.weight" in (
+        muon_config.compute_sharding_by_fqn
+    )
+    assert "layers.0.moe.routed_experts.w2.weight" in (
+        muon_config.compute_sharding_by_fqn
+    )
+    assert "layers.0.moe.expert_bias_E" not in muon_config.compute_sharding_by_fqn
+    assert adamw_config.pattern == r".*"
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Kimi K3 KDA requires CUDA")

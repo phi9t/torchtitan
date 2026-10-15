@@ -16,3 +16,8 @@
 - ~18:05Z S08 DONE: FineWeb-Edu 10BT on HDFS fineweb-edu-10BT-gpt2/87f0914-v1 (9.85B train + 100M val tokens). T08d seed42 full run up on 8 GPUs at ~18:00Z; priority_pause resumed S06/S07.
 - ~20:10Z S06 PASS (ad0e5c58b). S10 launched (4a; A4/A5 at 33.5M-token side table). K01 launched (Triton top-k sparse attention fwd/bwd, torch.library op, speedrun wiring).
 - ~20:40Z S07 DONE (committed): L1 3.8694 < L0 3.9028 (sig.); L2 MoE 4.044 worse (suspect harness); L3/L4 reduced only. S07b launched (L2 diagnosis, L4 grouped experts + K03 knobs, L3 profile, full reruns). S09 now blocked on S07b.
+- ~16:10Z (10-15) S07b DONE (landed): L2 harness bug = routed-expert matrix batches + router gates fell to AdamW; now on
+  DistMuon by default (env switches keep the old behavior). Fixed L2 val CE 3.968 (old 4.044, L0 3.903): better, still
+  behind dense. L3 profiled (model/optimizer internals) and rerun full budget: 29.1k tok/s, far worse CE. L4 on grouped
+  experts, full budget: 9.1k tok/s, worse than L0/L1. Only L1 is a positive full-budget rung. S09 unblocked
+  (bookkeeping); treat L2-L4 as diagnostic rungs.

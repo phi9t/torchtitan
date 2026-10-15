@@ -29,6 +29,7 @@ from torchtitan.experiments.glm53_arch_speedrun.config_registry import (
 )
 from torchtitan.experiments.glm53_arch_speedrun.data import FineWebBinDataLoader
 from torchtitan.observability.metrics import MetricsProcessor
+from torchtitan.observability.profiler import Profiler
 from torchtitan.trainer import Trainer
 
 from .data import (
@@ -225,6 +226,14 @@ def _base_trainer_config(rung: str) -> Trainer.Config:
                     minimum=0.0,
                 ),
                 momentum=_env_float("GLM53_ARCH_LADDER_MUON_MOMENTUM", 0.95),
+                moe_matrix_batches_on_muon=_env_bool(
+                    "GLM53_ARCH_LADDER_MOE_MATRIX_BATCHES_ON_MUON",
+                    True,
+                ),
+                moe_router_on_muon=_env_bool(
+                    "GLM53_ARCH_LADDER_MOE_ROUTER_ON_MUON",
+                    True,
+                ),
             ),
             lr_scheduler=LRSchedulersContainer.Config(
                 warmup_steps=warmup_steps,
@@ -272,6 +281,32 @@ def _base_trainer_config(rung: str) -> Trainer.Config:
         ),
         checkpointer=None,
         activation_checkpoint=FullAC.Config() if ac_enabled else None,
+        profiler=Profiler.Config(
+            enable_profiling=_env_bool(
+                "GLM53_ARCH_LADDER_ENABLE_PROFILING",
+                False,
+            ),
+            profile_freq=_env_int(
+                "GLM53_ARCH_LADDER_PROFILE_FREQ",
+                1,
+                minimum=1,
+            ),
+            profiler_warmup=_env_int(
+                "GLM53_ARCH_LADDER_PROFILE_WARMUP",
+                0,
+                minimum=0,
+            ),
+            profiler_active=_env_int(
+                "GLM53_ARCH_LADDER_PROFILE_ACTIVE",
+                1,
+                minimum=1,
+            ),
+            profiler_repeat=_env_int(
+                "GLM53_ARCH_LADDER_PROFILE_REPEAT",
+                1,
+                minimum=1,
+            ),
+        ),
         loss=ChunkedLossWrapper.Config(
             num_chunks=_env_int("GLM53_ARCH_LADDER_LOSS_CHUNKS", 8, minimum=1),
             loss_fn=CrossEntropyLoss.Config(global_vocab_size=GPT2_VOCAB_SIZE),

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 import torch.nn as nn
+from torch.distributed.tensor import Shard
 
 from torchtitan.components.optim import AdamW, DistMuon, OptimizersContainer
 from torchtitan.distributed.flex_shard import BucketConfig, ComputeLayout, Owned
@@ -81,6 +82,14 @@ def _owned_layout() -> ComputeLayout:
     )
 
 
+def _matrix_batch_layout() -> ComputeLayout:
+    return ComputeLayout(
+        shardings_by_mesh_axis={
+            MeshAxisName.DP_SHARD.value: Shard(0),
+        },
+    )
+
+
 def _module_by_parameter_id(model: nn.Module) -> dict[int, tuple[str, nn.Module]]:
     result: dict[int, tuple[str, nn.Module]] = {}
     for module_name, module in model.named_modules():
@@ -105,15 +114,21 @@ def _is_muon_candidate(
     param: nn.Parameter,
     model: nn.Module,
     module_by_param: dict[int, tuple[str, nn.Module]],
+    *,
+    moe_matrix_batches_on_muon: bool,
+    moe_router_on_muon: bool,
 ) -> bool:
-    if not param.requires_grad or param.ndim != 2:
+    if not param.requires_grad or param.ndim < 2:
         return False
     if _is_embedding_or_head(name, param, model):
+        return False
+    if param.ndim > 2:
+        return moe_matrix_batches_on_muon and _is_routed_expert_matrix_batch(name)
+    if not moe_router_on_muon and ".moe.router." in name:
         return False
     lowered = name.lower()
     adam_fragments = (
         "norm",
-        "router",
         "expert_bias",
         "e_score_correction_bias",
         "dt_bias",
@@ -138,22 +153,57 @@ def _is_muon_candidate(
     return True
 
 
-def muon_parameter_names(model: nn.Module) -> set[str]:
-    """Return trainable 2D hidden matrices owned by Muon."""
+def _is_routed_expert_matrix_batch(name: str) -> bool:
+    """Return true for native expert stacks that DistMuon orthogonalizes per matrix."""
+
+    return any(
+        fragment in name
+        for fragment in (
+            ".routed_experts.w13.weight",
+            ".routed_experts.w2.weight",
+            ".mlp.experts.gate_up_proj",
+            ".mlp.experts.down_proj",
+        )
+    )
+
+
+def muon_parameter_names(
+    model: nn.Module,
+    *,
+    moe_matrix_batches_on_muon: bool = True,
+    moe_router_on_muon: bool = True,
+) -> set[str]:
+    """Return trainable hidden matrices and expert matrix batches owned by Muon."""
 
     module_by_param = _module_by_parameter_id(model)
     return {
         name
         for name, param in model.named_parameters()
-        if _is_muon_candidate(name, param, model, module_by_param)
+        if _is_muon_candidate(
+            name,
+            param,
+            model,
+            module_by_param,
+            moe_matrix_batches_on_muon=moe_matrix_batches_on_muon,
+            moe_router_on_muon=moe_router_on_muon,
+        )
     }
 
 
-def adamw_parameter_names(model: nn.Module) -> set[str]:
+def adamw_parameter_names(
+    model: nn.Module,
+    *,
+    moe_matrix_batches_on_muon: bool = True,
+    moe_router_on_muon: bool = True,
+) -> set[str]:
     trainable = {
         name for name, param in model.named_parameters() if param.requires_grad
     }
-    return trainable - muon_parameter_names(model)
+    return trainable - muon_parameter_names(
+        model,
+        moe_matrix_batches_on_muon=moe_matrix_batches_on_muon,
+        moe_router_on_muon=moe_router_on_muon,
+    )
 
 
 def _exact_regex(names: Iterable[str]) -> str:
@@ -167,13 +217,26 @@ def ladder_optimizer_config(
     adamw_lr: float,
     weight_decay: float,
     momentum: float,
+    moe_matrix_batches_on_muon: bool = True,
+    moe_router_on_muon: bool = True,
 ) -> OptimizersContainer.Config:
     """Build the S07 Muon/AdamW first-match optimizer partition."""
 
-    muon_names = muon_parameter_names(model)
+    muon_names = muon_parameter_names(
+        model,
+        moe_matrix_batches_on_muon=moe_matrix_batches_on_muon,
+        moe_router_on_muon=moe_router_on_muon,
+    )
     if not muon_names:
         raise ValueError("architecture ladder expected at least one Muon parameter")
-    compute_layouts = {name: _owned_layout() for name in muon_names}
+    compute_layouts = {
+        name: (
+            _matrix_batch_layout()
+            if _is_routed_expert_matrix_batch(name)
+            else _owned_layout()
+        )
+        for name in muon_names
+    }
     return OptimizersContainer.Config(
         optimizers=[
             DistMuon.Config(

@@ -105,6 +105,9 @@ is_allowed_glm53_flash_rung4_pid() {
 
 gpu_has_blocking_compute_apps() {
   local gpu="$1" pid
+  if [[ "${GLM53_ARCH_LADDER_ALLOW_CORUN:-0}" == "1" ]]; then
+    return 1
+  fi
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
     if ! is_allowed_glm53_flash_rung4_pid "$pid"; then
@@ -175,6 +178,10 @@ export CUDA_VISIBLE_DEVICES="$selected_gpu"
 export NGPU=1
 export GLM53_ARCH_LADDER_ENVIRONMENT_CLASS="${GLM53_ARCH_LADDER_ENVIRONMENT_CLASS:-shared_gpu}"
 export GLM53_ARCH_LADDER_GPU_MEMORY_CAP_GIB="${GLM53_ARCH_LADDER_GPU_MEMORY_CAP_GIB:-24}"
+if [[ "$rung" == "L4" ]]; then
+  export GLM53_FLASH_EXPERTS_IMPL="${GLM53_FLASH_EXPERTS_IMPL:-grouped}"
+  export GLM53_ARCH_LADDER_VAL_TOKENS="${GLM53_ARCH_LADDER_VAL_TOKENS:-262144}"
+fi
 
 data_rev="${GLM53_ARCH_LADDER_DATA_REV:-ecbb586-fineweb10b-gpt2-binonly-v1}"
 data_rel="datasets/fineweb10B-gpt2/${data_rev}"
@@ -184,37 +191,33 @@ rootfs_staged_data_dir="${GLM53_ARCH_LADDER_ROOTFS_DATA_DIR:-${staged_data_rel}}
 hdfs_data_uri="${GLM53_ARCH_LADDER_DATA_HDFS_URI:-}"
 export GLM53_ARCH_LADDER_DATA_DIR="$rootfs_staged_data_dir"
 
-stage_dataset_from_hdfs() {
-  local manifest_tmp rel size md5 hdfs_file local_file
+resolve_hdfs_data_uri() {
   ensure_waystone_loaded
   if [[ -z "$hdfs_data_uri" ]]; then
     hdfs_data_uri="$(ws_child_uri "$data_rel")"
   fi
-  mkdir -p "$host_staged_data_dir"
-  manifest_tmp="$(mktemp)"
-  "${WAYSTONE_BIN}" --error-format json \
-    --command-timeout-secs "$WAYSTONE_METADATA_TIMEOUT_SECS" \
-    cat "$(ws_join_uri "$hdfs_data_uri" "MANIFEST.jsonl")" > "$manifest_tmp"
-  while IFS= read -r line; do
-    rel="$(jq -r '.file' <<<"$line")"
-    size="$(jq -r '.size' <<<"$line")"
-    md5="$(jq -r '.md5' <<<"$line")"
-    hdfs_file="$(ws_join_uri "$hdfs_data_uri" "$rel")"
-    local_file="${host_staged_data_dir}/${rel}"
-    if [[ -f "$local_file" ]] && [[ "$(ws_file_size_bytes "$local_file")" == "$size" ]] && [[ "$(ws_md5_file "$local_file")" == "$md5" ]]; then
-      continue
-    fi
-    WS_EXPECTED_SIZE="$size" WS_EXPECTED_MD5="$md5" ws_get_file "$hdfs_file" "$local_file"
-  done < "$manifest_tmp"
-  cp "$manifest_tmp" "${host_staged_data_dir}/MANIFEST.jsonl"
-  rm -f "$manifest_tmp"
 }
 
-if [[ -f "${host_staged_data_dir}/MANIFEST.jsonl" ]]; then
-  hdfs_data_uri="${hdfs_data_uri:-local:${staged_data_rel}}"
-else
+stage_dataset_from_hdfs() {
+  resolve_hdfs_data_uri
+  "${repo_root}/experiments/glm53_flash_sft_ladder/stage.sh" \
+    --parallel "${GLM53_ARCH_LADDER_STAGE_PARALLEL:-2}" \
+    "$hdfs_data_uri" "$host_staged_data_dir"
+}
+
+verify_hdfs_strict_inputs() {
+  "${repo_root}/experiments/glm53_flash_sft_ladder/lib/hdfs_strict.sh" \
+    --quick "$host_staged_data_dir"
+}
+
+resolve_hdfs_data_uri
+if ! hdfs_strict_output="$(verify_hdfs_strict_inputs 2>&1)"; then
+  printf '%s\n' "$hdfs_strict_output" >&2
   stage_dataset_from_hdfs
+  hdfs_strict_output="$(verify_hdfs_strict_inputs)"
 fi
+staged_source_uri="$(jq -r '.source_uri' "${host_staged_data_dir}/.staged.json")"
+staged_manifest_md5="$(jq -r '.manifest_md5' "${host_staged_data_dir}/.staged.json")"
 
 run_id="${TORCHTITAN_RUN_ID:-s07-${rung,,}-seed${GLM53_ARCH_LADDER_SEED:-0}-$(date -u +%Y%m%dT%H%M%SZ)}"
 attempt_id="${TORCHTITAN_ATTEMPT_ID:-attempt-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
@@ -231,6 +234,7 @@ rootfs_dump_folder="${GLM53_ARCH_LADDER_ROOTFS_DUMP_FOLDER:-${dump_rel}}"
 log_dir="${repo_root}/experiments/glm53_arch_ladder/logs"
 mkdir -p "$host_dump_folder" "$log_dir"
 export GLM53_ARCH_LADDER_DUMP_FOLDER="$rootfs_dump_folder"
+printf '%s\n' "$hdfs_strict_output" > "${host_dump_folder}/hdfs_strict_inputs.txt"
 
 metadata_file="${host_dump_folder}/attempt.json"
 cat > "$metadata_file" <<EOF
@@ -247,16 +251,22 @@ cat > "$metadata_file" <<EOF
   "local_batch_size": ${GLM53_ARCH_LADDER_LOCAL_BATCH_SIZE:-0},
   "tokens_per_step": ${GLM53_ARCH_LADDER_TOKENS_PER_STEP:-262144},
   "token_budget": ${GLM53_ARCH_LADDER_TOKEN_BUDGET:-268435456},
+  "val_tokens": ${GLM53_ARCH_LADDER_VAL_TOKENS:-10485760},
   "data_mode": "${GLM53_ARCH_LADDER_DATA_MODE:-fineweb}",
   "fixed_bank_microbatches": ${GLM53_ARCH_LADDER_FIXED_BANK_MICROBATCHES:-1},
   "muon_lr": ${GLM53_ARCH_LADDER_MUON_LR:-0.02},
   "adamw_lr": ${GLM53_ARCH_LADDER_ADAMW_LR:-0.0008},
   "weight_decay": ${GLM53_ARCH_LADDER_WEIGHT_DECAY:-0.1},
+  "moe_matrix_batches_on_muon": ${GLM53_ARCH_LADDER_MOE_MATRIX_BATCHES_ON_MUON:-1},
+  "moe_router_on_muon": ${GLM53_ARCH_LADDER_MOE_ROUTER_ON_MUON:-1},
   "gpu_memory_cap_gib": ${GLM53_ARCH_LADDER_GPU_MEMORY_CAP_GIB:-24},
   "selected_gpu": "${selected_gpu}",
-  "data_hdfs_uri": "${hdfs_data_uri}",
+  "allow_corun": ${GLM53_ARCH_LADDER_ALLOW_CORUN:-0},
+  "data_hdfs_uri": "${staged_source_uri}",
+  "data_manifest_md5": "${staged_manifest_md5}",
   "data_host_dir": "${host_staged_data_dir}",
   "data_rootfs_dir": "${rootfs_staged_data_dir}",
+  "glm53_flash_experts_impl": "${GLM53_FLASH_EXPERTS_IMPL:-}",
   "ngpu": 1
 }
 EOF
@@ -269,7 +279,7 @@ launch_cmd=(
   "unset CC CXX; cd /workspace/torchtitan && export PYTHONPATH=\"\$PWD:\${PYTHONPATH:-}\" && LOG_RANK=\${LOG_RANK:-0} NGPU=1 MODULE=torchtitan.experiments.glm53_arch_ladder.config_registry CONFIG=${config_name} ./run_train.sh"
 )
 
-printf '%q ' CUDA_VISIBLE_DEVICES="$selected_gpu" TORCHTITAN_ROOTFS_ENV=glm53_train "${launch_cmd[@]}" > "${host_dump_folder}/launch_command.txt"
+printf '%q ' CUDA_VISIBLE_DEVICES="$selected_gpu" TORCHTITAN_ROOTFS_ENV=glm53_train GLM53_FLASH_EXPERTS_IMPL="${GLM53_FLASH_EXPERTS_IMPL:-}" "${launch_cmd[@]}" > "${host_dump_folder}/launch_command.txt"
 printf '\n' >> "${host_dump_folder}/launch_command.txt"
 
 log_file="${log_dir}/${run_id}.log"
@@ -280,6 +290,7 @@ log_file="${log_dir}/${run_id}.log"
 
 cp "$log_file" "${host_dump_folder}/train.log"
 cp "${host_staged_data_dir}/MANIFEST.jsonl" "${host_dump_folder}/DATA_MANIFEST.jsonl"
+cp "${host_staged_data_dir}/.staged.json" "${host_dump_folder}/DATA_STAGED.json"
 
 write_metrics_json() {
   local src_log="$1" out_json="$2" line clean step loss memory tps
