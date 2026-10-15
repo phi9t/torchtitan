@@ -87,6 +87,7 @@ env_name_for_override() {
     model.elements.kda_enabled) printf 'GLM53_SPEEDRUN_KDA_ENABLED\n' ;;
     model.elements.kda_hybrid_3_to_1) printf 'GLM53_SPEEDRUN_KDA_HYBRID_3_TO_1\n' ;;
     model.elements.sparse_attention_enabled) printf 'GLM53_SPEEDRUN_SPARSE_ATTENTION_ENABLED\n' ;;
+    model.elements.sparse_attention_impl) printf 'GLM53_SPEEDRUN_SPARSE_ATTENTION_IMPL\n' ;;
     model.elements.sparse_top_k) printf 'GLM53_SPEEDRUN_SPARSE_TOP_K\n' ;;
     model.elements.index_pool_size) printf 'GLM53_SPEEDRUN_INDEX_POOL_SIZE\n' ;;
     model.elements.indexer_aux_loss_weight) printf 'GLM53_SPEEDRUN_INDEXER_AUX_LOSS_WEIGHT\n' ;;
@@ -287,6 +288,7 @@ cat > "$metadata_file" <<EOF
   "attempt_id": "${attempt_id}",
   "environment_class": "${environment_class}",
   "seq_len": ${GLM53_SPEEDRUN_SEQ_LEN:-1024},
+  "sparse_attention_impl": "${GLM53_SPEEDRUN_SPARSE_ATTENTION_IMPL:-masked_dense}",
   "local_batch_size": ${GLM53_SPEEDRUN_LOCAL_BATCH_SIZE:-0},
   "tokens_per_step": ${GLM53_SPEEDRUN_TOKENS_PER_STEP:-262144},
   "token_budget": ${GLM53_SPEEDRUN_TOKEN_BUDGET:-268435456},

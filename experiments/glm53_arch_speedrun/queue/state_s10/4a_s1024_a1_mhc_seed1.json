@@ -1,0 +1,19 @@
+{
+  "cell_id": "4a_s1024_a1_mhc_seed1",
+  "status": "done",
+  "attempts": 1,
+  "run_id": "4a_s1024_a1_mhc_seed1-20261014T232344Z",
+  "attempt_id": "attempt-01",
+  "attempt_dir": "/data02/home/philip.yang/workspace/torchtitan/experiments/glm53_arch_speedrun/results/4a_s1024_a1_mhc_seed1-20261014T232344Z/attempt-01",
+  "log_file": "/data02/home/philip.yang/workspace/torchtitan/experiments/glm53_arch_speedrun/results/4a_s1024_a1_mhc_seed1-20261014T232344Z/attempt-01/cell.log",
+  "exit_code_file": "/data02/home/philip.yang/workspace/torchtitan/experiments/glm53_arch_speedrun/results/4a_s1024_a1_mhc_seed1-20261014T232344Z/attempt-01/exit_code",
+  "devices": "1",
+  "pid": 1883910,
+  "started_at": "2026-10-14T23:23:44Z",
+  "exit_code": 0,
+  "finished_at": "2026-10-15T00:47:24Z",
+  "published": true,
+  "publish_failed": false,
+  "published_at": "2026-10-15T02:55:02Z",
+  "hdfs_uri": "hdfs://harunava/user/tiger/waystone/torchtitan/runs/glm53-arch-speedrun/4a_s1024_a1_mhc_seed1-20261014T232344Z"
+}

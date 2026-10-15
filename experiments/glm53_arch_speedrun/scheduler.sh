@@ -18,6 +18,7 @@ poll_sec="${GLM53_ARCH_POLL_SEC:-120}"
 max_concurrent="${GLM53_ARCH_MAX_CONCURRENT:-6}"
 max_per_gpu="${GLM53_ARCH_MAX_PER_GPU:-2}"
 min_free_gib="${GLM53_ARCH_MIN_FREE_GIB:-30}"
+current_user="${GLM53_ARCH_USER:-$(id -un)}"
 dry_run=0
 once=0
 no_wait=0
@@ -296,16 +297,49 @@ classify_failure() {
 }
 
 gpu_free_table() {
-  nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits \
-    | awk -F',' '{gsub(/[[:space:]]/, "", $1); gsub(/[[:space:]]/, "", $2); print $1 " " $2}'
+  nvidia-smi --query-gpu=index,uuid,compute_mode,memory.free --format=csv,noheader,nounits \
+    | awk -F',' '{gsub(/[[:space:]]/, "", $1); gsub(/[[:space:]]/, "", $2); gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3); gsub(/[[:space:]]/, "", $4); print $1 " " $2 " " $3 " " $4}'
+}
+
+gpu_has_foreign_process() {
+  local uuid="$1"
+  local app_uuid pid owner
+  while IFS=',' read -r app_uuid pid; do
+    app_uuid="${app_uuid//[[:space:]]/}"
+    pid="${pid//[[:space:]]/}"
+    [[ -n "${app_uuid}" && -n "${pid}" && "${app_uuid}" == "${uuid}" ]] || continue
+    owner="$(ps -o user:64= -p "${pid}" 2>/dev/null | awk 'NR==1 {print $1}')"
+    if [[ -z "${owner}" || "${owner}" != "${current_user}" ]]; then
+      return 0
+    fi
+  done < <(nvidia-smi --query-compute-apps=gpu_uuid,pid --format=csv,noheader,nounits 2>/dev/null || true)
+  return 1
+}
+
+rootfs_repo_path() {
+  local path="$1"
+  case "${path}" in
+    "${repo_root}"/*)
+      printf '%s\n' "${path#"${repo_root}/"}"
+      ;;
+    *)
+      printf '%s\n' "${path}"
+      ;;
+  esac
 }
 
 select_devices() {
   local needed="$1"
-  local selected="" index free_mb per_count min_free_mb
+  local selected="" index uuid compute_mode free_mb per_count min_free_mb
   min_free_mb=$((min_free_gib * 1024))
-  while read -r index free_mb; do
+  while read -r index uuid compute_mode free_mb; do
     [[ -n "${index}" ]] || continue
+    if [[ "${compute_mode}" == *Exclusive_Process* ]]; then
+      continue
+    fi
+    if gpu_has_foreign_process "${uuid}"; then
+      continue
+    fi
     per_count="$(running_on_gpu_count "${index}")"
     if (( free_mb >= min_free_mb && per_count < max_per_gpu )); then
       if [[ -n "${selected}" ]]; then
@@ -378,7 +412,7 @@ next_pending_cell_for_slice() {
 }
 
 publish_cell() {
-  local cell_id="$1" path attempt_dir run_id publish_log
+  local cell_id="$1" path attempt_dir run_id publish_log publish_tmp_log
   path="$(state_path "${cell_id}")"
   attempt_dir="$(jq -r '.attempt_dir // empty' "${path}")"
   run_id="$(jq -r '.run_id // empty' "${path}")"
@@ -391,13 +425,16 @@ publish_cell() {
     return 0
   fi
   publish_log="${attempt_dir}/publish.log"
-  if "${publish_script}" --parallel "${GLM53_ARCH_PUBLISH_PARALLEL:-2}" "${attempt_dir}" "runs/glm53-arch-speedrun/${run_id}" > "${publish_log}" 2>&1; then
+  publish_tmp_log="${logs_dir}/publish_${cell_id}_${run_id}.log"
+  if "${publish_script}" --parallel "${GLM53_ARCH_PUBLISH_PARALLEL:-2}" "${attempt_dir}" "runs/glm53-arch-speedrun/${run_id}" > "${publish_tmp_log}" 2>&1; then
+    cp "${publish_tmp_log}" "${publish_log}"
     json_update "${path}" \
       --arg published_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      --arg hdfs_uri "$(awk -F= '/^HDFS_URI=/{print $2}' "${publish_log}" | tail -n 1)" \
+      --arg hdfs_uri "$(awk -F= '/^HDFS_URI=/{print $2}' "${publish_tmp_log}" | tail -n 1)" \
       '.published=true | .published_at=$published_at | .hdfs_uri=$hdfs_uri'
     log_decision published "cell=${cell_id}" "run_id=${run_id}"
   else
+    cp "${publish_tmp_log}" "${publish_log}" 2>/dev/null || true
     json_update "${path}" '.published=false | .publish_failed=true'
     log_decision publish_failed "cell=${cell_id}" "run_id=${run_id}"
     return 1
@@ -405,7 +442,7 @@ publish_cell() {
 }
 
 run_slice_analysis_if_ready() {
-  local order="$1" slice_name marker analysis_log
+  local order="$1" slice_name marker analysis_log rootfs_cells rootfs_state rootfs_analysis rootfs_doc rootfs_report
   slice_name="$(slice_name_for_order "${order}")"
   marker="${state_dir}/.${slice_name}.analysis.done"
   if [[ -f "${marker}" ]]; then
@@ -415,8 +452,13 @@ run_slice_analysis_if_ready() {
     return 0
   fi
   analysis_log="${logs_dir}/analysis_${slice_name}.log"
+  rootfs_cells="$(rootfs_repo_path "${cells_file}")"
+  rootfs_state="$(rootfs_repo_path "${state_dir}")"
+  rootfs_analysis="$(rootfs_repo_path "${GLM53_ARCH_ANALYSIS_DIR:-${results_dir}/analysis}")"
+  rootfs_doc="$(rootfs_repo_path "${GLM53_ARCH_DOC_PATH:-${repo_root}/docs/research/2026-10-14-glm-5.3-flash-arch-speedrun-ablations.md}")"
+  rootfs_report="$(rootfs_repo_path "${GLM53_ARCH_REPORT_PATH:-${repo_root}/.scratch/glm53-arch-speedrun/sdd/s03-report.md}")"
   if TORCHTITAN_ROOTFS_ENV=glm53_train "${repo_root}/scripts/rootfs/enter_rootfs.sh" -- bash -lc \
-    "unset CC CXX; cd /workspace/torchtitan && python ${analysis_script} --slice '${slice_name}' --check-inputs" \
+    "unset CC CXX; cd /workspace/torchtitan && GLM53_ARCH_CELLS_FILE='${rootfs_cells}' GLM53_ARCH_STATE_DIR='${rootfs_state}' GLM53_ARCH_ANALYSIS_DIR='${rootfs_analysis}' GLM53_ARCH_DOC_PATH='${rootfs_doc}' GLM53_ARCH_REPORT_PATH='${rootfs_report}' GLM53_ARCH_REPORT_MODE='replace' python ${analysis_script} --slice '${slice_name}' --check-inputs" \
     > "${analysis_log}" 2>&1; then
     date -u +%Y-%m-%dT%H:%M:%SZ > "${marker}"
     log_decision analysis_done "slice=${slice_name}"
@@ -477,6 +519,7 @@ WRAPPER
     GLM53_ARCH_GPU_MEMORY_CAP_GIB=24 \
     GLM53_ARCH_EXIT_CODE_FILE="${exit_file}" \
     CUDA_VISIBLE_DEVICES="${devices}" \
+    GLM53_SPEEDRUN_BEHAVIOR_READS="${GLM53_SPEEDRUN_BEHAVIOR_READS:-1}" \
     "${wrapper}" > "${log_file}" 2>&1 &
   local pid=$!
   jq -n \
